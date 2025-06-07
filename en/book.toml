@@ -1,0 +1,5 @@
+[book]
+authors = ["Xiangyu Wang"]
+language = "en"
+src = "src"
+title = "VSAG Documentation"
