@@ -167,6 +167,51 @@
                 <div id="content" class="content">
                     <main>
                         <h1 id="安装"><a class="header" href="#安装">安装</a></h1>
+<p>VSAG 是一个向量检索库，支持在 C++ 和 Python 程序中使用，从而实现向量检索功能。在使用 VSAG 之前，你需要在系统上安装或者构建 VSAG 库。虽然 VSAG 库本身完全使用 C++ 编写，存在一些第三方库依赖是 Linux 特有的，所以当前 VSAG 库只支持在 Linux 系统上运行。</p>
+<p>如果你使用的是 Python，可以通过 Python 语言的官方第三方软件包仓库 PyPI 下载。VSAG 库的 Python 包名叫作 <code>pyvsag</code>，pyvsag 的版本与源代码版本对应，版本功能可以直接参考 GitHub 上的发布日志。pyvsag 包使用 manylinux2014 构建，可以在绝大部分 Linux 环境中运行。通过如下命令获得最新版本的 pyvsag 包：</p>
+<pre><code class="language-bash">pip install pyvsag
+</code></pre>
+<h2 id="下载预编译二进制包"><a class="header" href="#下载预编译二进制包">下载预编译二进制包</a></h2>
+<p>当前，VSAG 的用户大多是在 C++ 程序中使用，我们为此提供预编译的二进制包，可以在 GitHub 版本产物中找到（https://github.com/antgroup/vsag/releases）。</p>
+<p>预编译二进制分成两个版本，”旧的 C++11 前 ABI“ 文件名叫 <code>vsag-vX.Y.Z-old-abi.tar.gz</code>，和 “新的 C++11 ABI“ 文件名叫 <code>vsag-vX.Y.Z-cxx11-abi.tar.gz</code>，其中 X/Y/Z 是版本号。这两个版本分别使用 <code>-D_GLIBCXX_USE_CXX11_ABI=0</code> 和 <code>-D_GLIBCXX_USE_CXX11_ABI=1</code> 编译构建得到，以满足不同应用程序对于 ABI 的需求。</p>
+<h2 id="从源代码构建"><a class="header" href="#从源代码构建">从源代码构建</a></h2>
+<p>VSAG 可以使用 CMake 从源代码构建。</p>
+<p>VSAG 支持在 x86-64 和 aarch64 架构的 Linux 环境中运行，包括运行在 Apple Silicon 的 Linux 容器。</p>
+<p>构建依赖：</p>
+<ul>
+<li>操作系统：
+<ul>
+<li><strong>Ubuntu 20.04</strong> 或更高版本</li>
+<li>或 <strong>CentOS 7</strong> 或更高版本</li>
+</ul>
+</li>
+<li>编译器：
+<ul>
+<li><strong>GCC 9.4.0</strong> 或更高版本</li>
+<li>或 <strong>Clang 13.0.0</strong> 或更高版本</li>
+</ul>
+</li>
+<li>构建工具：<strong>CMake 3.18.0</strong> 或更高版本</li>
+<li>其他依赖项：
+<ul>
+<li>gfortran</li>
+<li>openmp</li>
+<li>libaio</li>
+<li>python 3.6+</li>
+<li>curl</li>
+</ul>
+</li>
+</ul>
+<p>依赖项可以通过以下脚本安装：</p>
+<pre><code class="language-bash"># for Debian/Ubuntu
+./scripts/deps/install_deps_ubuntu.sh
+
+# for CentOS/AliOS
+./scripts/deps/install_deps_centos.sh
+</code></pre>
+<p>VSAG 使用 CMake 来构建项目，并将常用的构建目标放在 Unix Makefiles 中管理和提供。运行以下命令可以执行编译和安装：</p>
+<pre><code class="language-bash">make release &amp;&amp; make install
+</code></pre>
 
                     </main>
 
