@@ -5,7 +5,7 @@
 # 用户指南
 
 - [安装](guide/installation.md)
-- [K近邻搜索](guide/knn_search.md)
+- [k-近邻搜索](guide/knn_search.md)
 - [创建索引](guide/create_index.md)
 - [pyvsag](guide/pyvsag.md)
 
