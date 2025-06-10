@@ -14,6 +14,7 @@
 - [代码目录结构](development/code_structure.md)
 - [编译构建](development/building.md)
 - [运行测试](development/testing.md)
+- [贡献到 VSAG](development/contributing.md)
 
 # 高级功能
 
