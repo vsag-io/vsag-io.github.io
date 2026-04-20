@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-50cdb555.js";
+            window.path_to_searchindex_js = "searchindex-639c14c6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-c7f9de74.js"></script>
@@ -249,9 +249,10 @@
 </ul>
 <p>现在，我们生成一些 d=128 维的随机向量，以及它们对应的 ID（搜索结果会以 ID 形式返回）。</p>
 <pre><code class="language-cpp">    int64_t num_vectors = 10000;
-    int64_t dim = 128
+    int64_t dim = 128;
     int64_t *ids = new int64_t[num_vectors];
     float *datas = new float[num_vectors * dim];
+    std::mt19937 rng(47);
     std::uniform_real_distribution&lt;float&gt; distrib_real;
     for (int64_t i = 0; i &lt; num_vectors; ++i) {
         ids[i] = i;
@@ -419,7 +420,7 @@ install:                 ## Build and install the release version of vsag.
 </blockquote>
 <h2 id="编译发布模式"><a class="header" href="#编译发布模式">编译发布模式</a></h2>
 <p>在生产环境中，我们需要使用的是发布模式的 VSAG 库。在此模式下，编译器会尽可能地优化代码生成，以实现最好的运行性能。使用以下命令生成发布模式的 VSAG 库：</p>
-<pre><code>make relase
+<pre><code>make release
 </code></pre>
 <p>为了和开发模式的产物区分开，发布模式的产物默认生成在 <code>./build-release</code> 目录中。</p>
 <h2 id="编译-pyvsag-包"><a class="header" href="#编译-pyvsag-包">编译 pyvsag 包</a></h2>
@@ -578,29 +579,62 @@ Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
 <h1 id="关联项目"><a class="header" href="#关联项目">关联项目</a></h1>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="科研论文"><a class="header" href="#科研论文">科研论文</a></h1>
+<h2 id="1-effective-and-general-distance-computation-for-approximate-nearest-neighbor-search-icde25"><a class="header" href="#1-effective-and-general-distance-computation-for-approximate-nearest-neighbor-search-icde25">1. Effective and General Distance Computation for Approximate Nearest Neighbor Search <a href="http://arxiv.org/abs/2404.16322">[ICDE’25]</a></a></h2>
+<p>摘要（翻译）：高维空间中的近似K最近邻（AKNN）搜索是一个关键且富有挑战性的问题。在AKNN搜索中，距离计算是主导运行时间的核心任务。现有方法通常使用近似距离来提升计算效率，但这往往以牺牲搜索精度为代价。为解决此问题，当前最先进的方法ADSampling采用随机投影来估计近似距离，并引入一个额外的距离校正过程以减轻精度损失。然而，ADSampling在有效性和通用性上均存在局限，这主要源于其距离近似和校正过程对随机投影的依赖。为了解决ADSampling在有效性上的局限，我们利用数据分布，通过正交投影来改进距离计算。此外，为了克服其在通用性上的局限，我们采用一种数据驱动的方法进行距离校正，将校正过程与距离近似过程解耦。大量的实验证明了我们所提方法的优越性和有效性。具体而言，与ADSampling相比，我们的方法在真实数据集上实现了1.6至2.1倍的加速，同时达到了更高的精度。</p>
+<blockquote>
+<p>该功能已集成于 VSAG 库中，功能名为 BSA，帮助磁盘索引减少高精度重排数据量。</p>
+</blockquote>
+<h2 id="2-vsag-an-optimized-search-framework-for-graph-based-approximate-nearest-neighbor-search-vldb25"><a class="header" href="#2-vsag-an-optimized-search-framework-for-graph-based-approximate-nearest-neighbor-search-vldb25">2. VSAG: An Optimized Search Framework for Graph-based Approximate Nearest Neighbor Search <a href="http://arxiv.org/abs/2503.17911">[VLDB’25]</a></a></h2>
+<p>摘要（翻译）：近似最近邻搜索（ANNS）是向量数据库和人工智能基础设施中的一个基础问题。近期的基于图的ANNS算法在实现高搜索精度的同时，也达到了实用的效率。尽管取得了这些进展，但由于基于图的搜索所带来的随机内存访问模式以及向量距离计算的高昂开销，这些算法在生产环境中仍然面临性能瓶颈。此外，基于图的ANNS算法的性能对参数高度敏感，而选择最优参数的成本又极其高昂——例如，手动调参需要反复重建索引。本文介绍了VSAG，一个旨在提升基于图的ANNS算法在生产环境中性能的开源框架。VSAG已在蚂蚁集团的各项服务中大规模部署，并集成了三项关键优化：(i) 高效的内存访问：通过预取技术和缓存友好的向量组织方式，减少L3缓存未命中；(ii) 自动化参数调优：无需重建索引即可自动选择性能最优的参数；(iii) 高效的距离计算：利用现代硬件、标量量化技术，并智能地切换至低精度表示，从而显著降低距离计算的成本。我们在真实数据集上对VSAG进行了评估。实验结果表明，在保证同等精度的前提下，VSAG达到了业界顶尖的性能水平，且相比业界标准库HNSWlib，其加速比可高达4倍。</p>
+<blockquote>
+<p>该功能已集成于 VSAG 库中，通过 <code>Optimizer-&gt;optimize()</code> 启用。</p>
+</blockquote>
+<h2 id="3-enhancegraph-a-continuously-enhanced-graph-based-index-for-high-dimensional-approximate-nearest-neighbor-search-arxiv"><a class="header" href="#3-enhancegraph-a-continuously-enhanced-graph-based-index-for-high-dimensional-approximate-nearest-neighbor-search-arxiv">3. EnhanceGraph: A Continuously Enhanced Graph-based Index for High-dimensional Approximate Nearest Neighbor Search <a href="https://arxiv.org/abs/2506.13144">[arxiv]</a></a></h2>
+<p>摘要（翻译）：随着深度学习技术的飞速发展，高维向量空间中的近似最近邻搜索近年来受到了广泛关注。我们观察到，在基于图的索引的整个生命周期中，会产生大量的搜索日志与构建日志。然而，由于现有索引具有静态特性，这两类有价值的日志并未得到充分利用。本文提出了EnhanceGraph框架，该框架将这两类日志整合到一种名为“共轭图”（conjugate graph）的新型结构中，并利用该共轭图来提升搜索质量。通过对基于图的索引的局限性进行理论分析与观察，我们提出了若干优化方法。针对搜索日志，共轭图存储从局部最优解到全局最优解的边，以增强路由至最近邻的能力；针对构建日志，共轭图存储从邻近图（proximity graph）中被剪除的边，以增强对k最近邻的检索能力。我们在多个公开及真实的工业数据集上的实验结果表明，EnhanceGraph在不牺牲搜索效率的前提下，显著提升了搜索精度，其中召回率（recall）的最大提升幅度达到了从41.74%至93.42%。此外，我们的EnhanceGraph算法已被集成到蚂蚁集团的开源向量库VSAG中。</p>
+<blockquote>
+<p>该功能集成在 VSAG 库的 HNSW 索引上，可通过 <code>use_conjugate_graph</code> 参数启用。</p>
+</blockquote>
+<h2 id="4-sindi-an-efficient-index-for-approximate-maximum-inner-product-search-on-sparse-vectors-arxiv"><a class="header" href="#4-sindi-an-efficient-index-for-approximate-maximum-inner-product-search-on-sparse-vectors-arxiv">4. SINDI: an Efficient Index for Approximate Maximum Inner Product Search on Sparse Vectors <a href="https://arxiv.org/abs/2509.08395">[arxiv]</a></a></h2>
+<blockquote>
+<p>摘要（翻译）：
+稀疏向量最大内积搜索（MIPS）在面向检索增强生成（RAG）的多路检索中至关重要。近期的基于倒排索引和基于图的算法在实现高搜索精度的同时，也达到了实用的效率。然而，它们在生产环境中的性能常常受限于冗余的距离计算和频繁的随机内存访问。此外，稀疏向量的压缩存储格式也阻碍了SIMD加速技术的应用。本文提出了一种稀疏倒排非冗余距离索引（SINDI），该索引集成了三项关键优化：(i) 高效的内积计算：SINDI利用SIMD加速技术并消除了冗余的标识符查找，从而实现了批量的内积计算；(ii) 内存友好设计：SINDI将对原始向量的随机内存访问替换为对倒排列表的顺序访问，从而显著降低了内存访问延迟；(iii) 向量剪枝：SINDI仅保留向量中绝对值较大的非零项，从而在保持精度的同时提升了查询吞吐量。我们在多个真实数据集上对SINDI进行了评估。实验结果表明，SINDI在不同规模、语言和模型的数据集上均达到了业界顶尖的性能水平。在MsMarco数据集上，当Recall@50超过99%时，与SEISMIC和PyANNs相比，SINDI带来的单线程每秒查询率（QPS）提升了4.2至26.4倍。值得注意的是，SINDI已被集成到蚂蚁集团的开源向量检索引擎库VSAG中。</p>
+</blockquote>
+<blockquote>
+<p>SINDI 是 VSAG 库中的一个索引类型。</p>
+</blockquote>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="最佳实践"><a class="header" href="#最佳实践">最佳实践</a></h1>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="标准环境性能参考"><a class="header" href="#标准环境性能参考">标准环境性能参考</a></h1>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="性能评估工具"><a class="header" href="#性能评估工具">性能评估工具</a></h1>
+<h1 id="性能评估工具eval_performance"><a class="header" href="#性能评估工具eval_performance">性能评估工具（eval_performance）</a></h1>
+<p>eval_performance 是一个 VSAG 提供的性能评估工具，用于评估当前版本 VSAG 索引性能表现。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="贡献者列表"><a class="header" href="#贡献者列表">贡献者列表</a></h1>
-<p>以下是 VSAG 项目的贡献者（更新于 2025-06-10），按照第一次贡献时间排序：</p>
+<p>以下是 VSAG 项目的贡献者（更新于 2025-11-20），按照第一次贡献时间排序：</p>
 <ul>
-<li>Xiangyu Wang (<a href="https://github.com/wxyucs/">wxyucs</a>) from AntGroup</li>
-<li>Jiabao Jin (<a href="https://github.com/inabao">inabao</a>) from AntGroup</li>
-<li>Haotian Li (<a href="https://github.com/LHT129">LHT129</a>) from AntGroup</li>
-<li>Xiaoyao Zhong (<a href="https://github.com/ShawnShawnYou">ShawnShawnYou</a>) from AntGroup</li>
-<li><a href="https://github.com/jiacai2050">jiacai2050</a></li>
-<li><a href="https://github.com/Coien-rr">Coien-rr</a></li>
-<li>Mingyu Yang (<a href="https://github.com/mingyu-hkustgz">mingyu-hkustgz</a>) from HKUST(GZ)</li>
-<li>Runxin Zhou(<a href="https://github.com/Carrot-77">Carrot-77</a>) from OceanBase</li>
-<li>Deming Chu (<a href="https://github.com/nedchu">nedchu</a>) from AntGroup</li>
-<li>Liyao Xiong(<a href="https://github.com/lyxiong0">lyxiong0</a>) from OceanBase</li>
-<li>Hongdi Luo (<a href="https://github.com/skylhd">skylhd</a>) from OceanBase</li>
-<li>Zeliu Ao (<a href="https://github.com/shadowao">shadowao</a>) from OceanBase</li>
-<li>Xin Ding (<a href="https://github.com/dasurax">dasurax</a>) from AntGroup</li>
+<li>2024-07-26 Xiangyu Wang (<a href="https://github.com/wxyucs/">wxyucs</a>) from AntGroup</li>
+<li>2024-08-21 Jiabao Jin (<a href="https://github.com/inabao">inabao</a>) from AntGroup</li>
+<li>2024-08-30 👑Haotian Li (<a href="https://github.com/LHT129">LHT129</a>) from AntGroup</li>
+<li>2024-09-04 Xiaoyao Zhong (<a href="https://github.com/ShawnShawnYou">ShawnShawnYou</a>) from AntGroup</li>
+<li>2024-10-23 <a href="https://github.com/jiacai2050">jiacai2050</a></li>
+<li>2024-10-28 <a href="https://github.com/Coien-rr">Coien-rr</a></li>
+<li>2024-12-16 Mingyu Yang (<a href="https://github.com/mingyu-hkustgz">mingyu-hkustgz</a>) from HKUST(GZ)</li>
+<li>2025-01-24 <a href="https://github.com/Carrot-77">Carrot-77</a> from OceanBase</li>
+<li>2025-03-05 Deming Chu (<a href="https://github.com/nedchu">nedchu</a>) from AntGroup</li>
+<li>2025-03-25 <a href="https://github.com/lyxiong0">lyxiong0</a> from OceanBase</li>
+<li>2025-04-15 <a href="https://github.com/skylhd">skylhd</a> from OceanBase</li>
+<li>2025-05-06 <a href="https://github.com/shadowao">shadowao</a> from OceanBase</li>
+<li>2025-06-10 <a href="https://github.com/dasurax">dasurax</a> from AntGroup</li>
+<li>2025-06-12 <a href="https://github.com/yulijunzj">yulijunzj</a> from AntGroup</li>
+<li>2025-06-13 <a href="https://github.com/Danbaiwq">Danbaiwq</a> from OceanBase</li>
+<li>2025-06-17 <a href="https://github.com/jingyueob">jingyueob</a> from OceanBase</li>
+<li>2025-07-28 <a href="https://github.com/jac0626">jac0626</a></li>
+<li>2025-07-29 <a href="https://github.com/mly5269">mly5269</a></li>
+<li>2025-08-18 <a href="https://github.com/HeHuMing">HeHuMing</a></li>
+<li>2025-10-22 <a href="https://github.com/cubicc">cubicc</a> from ByteDance</li>
+<li>2025-10-29 <a href="https://github.com/Roxanne0321">Roxanne0321</a> from AntGroup</li>
+<li>2025-11-20 <a href="https://github.com/hhy3">hhy3</a></li>
 </ul>
 
                     </main>

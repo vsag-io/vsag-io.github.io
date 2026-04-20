@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-50cdb555.js";
+            window.path_to_searchindex_js = "../searchindex-639c14c6.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-c7f9de74.js"></script>
@@ -188,9 +188,10 @@
 </ul>
 <p>现在，我们生成一些 d=128 维的随机向量，以及它们对应的 ID（搜索结果会以 ID 形式返回）。</p>
 <pre><code class="language-cpp">    int64_t num_vectors = 10000;
-    int64_t dim = 128
+    int64_t dim = 128;
     int64_t *ids = new int64_t[num_vectors];
     float *datas = new float[num_vectors * dim];
+    std::mt19937 rng(47);
     std::uniform_real_distribution&lt;float&gt; distrib_real;
     for (int64_t i = 0; i &lt; num_vectors; ++i) {
         ids[i] = i;
