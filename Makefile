@@ -13,6 +13,8 @@ build:
 	mdbook build blogs/zh -d $(BOOK)/blogs/zh
 	mdbook build blogs/en -d $(BOOK)/blogs/en
 	cp assets/index.html $(BOOK)/index.html
+	cp assets/docs-index.html $(BOOK)/docs/index.html
+	cp CNAME $(BOOK)/CNAME
 
 serve-docs-zh:
 	mdbook serve docs/zh  -d $(BOOK)/docs/zh  --open
