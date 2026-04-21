@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-639c14c6.js";
+            window.path_to_searchindex_js = "../searchindex-c4d3605a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c7f9de74.js"></script>
+        <script src="../toc-61b45d24.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -175,6 +175,59 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="最佳实践"><a class="header" href="#最佳实践">最佳实践</a></h1>
+<p>本页整理在生产环境使用 VSAG 的经验性建议，作为参数手册与性能调优的补充。</p>
+<h2 id="索引选型"><a class="header" href="#索引选型">索引选型</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>场景</th><th>推荐索引</th><th>理由</th></tr>
+</thead>
+<tbody>
+<tr><td>中等规模（≤ 1000 万）纯内存、对召回/延迟要求极高</td><td><code>hgraph</code></td><td>统一的高质量图索引，支持多种量化与 Tune</td></tr>
+<tr><td>兼容既有 HNSW 部署</td><td><code>hnsw</code></td><td>接口与参数最贴近 hnswlib</td></tr>
+<tr><td>10 亿级向量、内存受限</td><td><code>diskann</code></td><td>内存只放 PQ，完整向量在磁盘</td></tr>
+<tr><td>候选召回层 / 粗排</td><td><code>ivf</code></td><td>训练后即可大规模并行</td></tr>
+<tr><td>小规模、需要 100% 精度</td><td><code>brute_force</code></td><td>暴力搜索，作为召回率 baseline</td></tr>
+<tr><td>多租户 / 分区数据</td><td><code>pyramid</code></td><td>一个索引内部多棵子图，支持按 tag 检索</td></tr>
+<tr><td>稀疏向量（BM25 / SPLADE 类）</td><td><code>sindi</code></td><td>专为稀疏向量设计</td></tr>
+</tbody>
+</table>
+</div>
+<p>详细参数参见 <a href="index_parameters.html">索引参数</a>。</p>
+<h2 id="构建阶段"><a class="header" href="#构建阶段">构建阶段</a></h2>
+<ul>
+<li><strong>先确定 metric</strong>：<code>l2</code> / <code>ip</code> / <code>cosine</code> 不可在构建后变更。</li>
+<li><strong><code>ef_construction</code></strong>：典型 200~500。过小召回不足；过大构建显著变慢。</li>
+<li><strong><code>max_degree</code> / <code>M</code></strong>：典型 16~48。越大召回越高、内存也越高。</li>
+<li><strong>量化策略</strong>：延迟敏感场景建议 <code>sq8</code> 或 <code>pq</code>；精度敏感建议 <code>fp32</code> 或 <code>fp16</code>。</li>
+<li><strong>并行构建</strong>：使用自定义 <code>ThreadPool</code>（见 <code>examples/cpp/203_custom_thread_pool.cpp</code>）以控制并发度。</li>
+</ul>
+<h2 id="搜索阶段"><a class="header" href="#搜索阶段">搜索阶段</a></h2>
+<ul>
+<li><strong><code>ef_search</code></strong>：典型 <code>topk ~ topk * 10</code>，可按 QPS / 召回率做 grid search。</li>
+<li><strong>批量搜索</strong>：多查询合并可提升缓存命中；参考 <code>examples/cpp/205_*</code>（若提供）或业务侧批量化。</li>
+<li><strong>Filter</strong>：使用内置 <code>Filter</code>（<code>examples/cpp/301_feature_filter.cpp</code>），不要在结果侧二次过滤。</li>
+<li><strong>临时 Allocator</strong>：高并发在线服务建议每线程一份 arena allocator，见 <a href="../advanced/memory.html">内存管理</a>。</li>
+</ul>
+<h2 id="调优"><a class="header" href="#调优">调优</a></h2>
+<ul>
+<li>使用 <a href="../advanced/optimizer.html"><code>Tune</code></a> 对真实查询分布进行调参；</li>
+<li>对尾部困难查询，启用 <a href="../advanced/enhance_graph.html">共轭图</a>；</li>
+<li>使用 <a href="eval.html"><code>eval_performance</code></a> 做持续回归测试。</li>
+</ul>
+<h2 id="部署"><a class="header" href="#部署">部署</a></h2>
+<ul>
+<li>推荐使用官方 Docker 镜像，详见 <a href="../guide/installation.html">安装</a>。</li>
+<li>生产二进制建议选择对应 ABI 的发布包：<code>dist-pre-cxx11-abi</code>、<code>dist-cxx11-abi</code>、<code>dist-libcxx</code>（见 <a href="../development/building.html">编译构建</a>）。</li>
+<li>开启 <code>VSAG_ENABLE_INTEL_MKL=ON</code> 可在 Intel CPU 上获得额外加速；</li>
+<li>DiskANN 建议使用 NVMe SSD，并配合 <code>VSAG_ENABLE_LIBAIO=ON</code>。</li>
+</ul>
+<h2 id="可观测"><a class="header" href="#可观测">可观测</a></h2>
+<ul>
+<li><code>Index::GetMemoryUsage()</code> 暴露运行时内存；</li>
+<li>搜索路径上可用自定义 <code>Logger</code>（<code>examples/cpp/202_custom_logger.cpp</code>）接入业务日志；</li>
+<li>结合 <code>eval_performance</code> 将关键指标写入 InfluxDB 进行长期监控。</li>
+</ul>
 
                     </main>
 
@@ -184,7 +237,7 @@
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../resources/performance.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../resources/index_parameters.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -198,7 +251,7 @@
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../resources/performance.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../resources/index_parameters.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

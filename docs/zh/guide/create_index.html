@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-639c14c6.js";
+            window.path_to_searchindex_js = "../searchindex-c4d3605a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c7f9de74.js"></script>
+        <script src="../toc-61b45d24.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -175,6 +175,72 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="创建索引"><a class="header" href="#创建索引">创建索引</a></h1>
+<p>VSAG 中所有检索能力都围绕 <code>Index</code> 接口展开。要使用某种索引，首先需要通过工厂方法 <code>vsag::Factory::CreateIndex(name, parameters)</code> 创建实例，其中：</p>
+<ul>
+<li><code>name</code> 是索引类型名称，对应 <code>include/vsag/constants.h</code> 中定义的常量；</li>
+<li><code>parameters</code> 是一段 JSON 字符串，声明数据类型、距离度量、维度等构建参数。</li>
+</ul>
+<h2 id="当前支持的索引类型"><a class="header" href="#当前支持的索引类型">当前支持的索引类型</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>名称</th><th><code>name</code> 字符串</th><th>适用场景</th></tr>
+</thead>
+<tbody>
+<tr><td>HNSW</td><td><code>hnsw</code></td><td>纯内存图索引，兼容 HNSWLIB 的序列化格式（参见：<code>include/vsag/constants.h</code> 的 <code>INDEX_HNSW</code>）</td></tr>
+<tr><td>HGraph</td><td><code>hgraph</code></td><td>VSAG 自研图索引，支持多级量化和调优（详见 <code>examples/cpp/103_index_hgraph.cpp</code>）</td></tr>
+<tr><td>DiskANN</td><td><code>diskann</code></td><td>内存-磁盘混合索引，适合超出内存规模的数据集</td></tr>
+<tr><td>IVF</td><td><code>ivf</code></td><td>倒排索引，适合大 <code>k</code> 和批量查询</td></tr>
+<tr><td>Pyramid</td><td><code>pyramid</code></td><td>多层级索引结构</td></tr>
+<tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>基于 GNO-IMI 的倒排索引变体</td></tr>
+<tr><td>SINDI</td><td><code>sindi</code></td><td>稀疏向量上的倒排索引</td></tr>
+<tr><td>BruteForce</td><td><code>brute_force</code></td><td>暴力搜索，用作基准或小数据集</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p>完整示例可在 <a href="https://github.com/antgroup/vsag/tree/main/examples/cpp"><code>examples/cpp/</code></a> 目录中按照前缀编号依次查看（<code>101_</code> ~ <code>109_</code> 为索引类型，<code>2xx_</code> 为自定义资源，<code>3xx_</code> 为功能特性）。</p>
+</blockquote>
+<h2 id="通用的构建参数"><a class="header" href="#通用的构建参数">通用的构建参数</a></h2>
+<p>所有索引在创建时都需要声明以下字段：</p>
+<ul>
+<li><code>dtype</code>：向量数据类型，当前常用为 <code>"float32"</code>；部分索引也支持 <code>"fp16"</code>、<code>"bf16"</code>、<code>"int8"</code>；</li>
+<li><code>metric_type</code>：距离度量方式，支持 <code>"l2"</code>、<code>"ip"</code>、<code>"cosine"</code>；</li>
+<li><code>dim</code>：向量维度，必须与后续写入的数据一致。</li>
+</ul>
+<p>索引特有参数以嵌套对象形式提供，例如 HNSW 的 <code>hnsw</code>、HGraph 的 <code>index_param</code>。</p>
+<h2 id="示例创建-hnsw-索引"><a class="header" href="#示例创建-hnsw-索引">示例：创建 HNSW 索引</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+auto hnsw_build_parameters = R"(
+{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "hnsw": {
+        "max_degree": 16,
+        "ef_construction": 100
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_parameters).value();
+</code></pre>
+<h2 id="示例创建-hgraph-索引"><a class="header" href="#示例创建-hgraph-索引">示例：创建 HGraph 索引</a></h2>
+<pre><code class="language-cpp">auto hgraph_build_parameters = R"(
+{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "max_degree": 32,
+        "ef_construction": 100,
+        "base_quantization_type": "sq8"
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_parameters).value();
+</code></pre>
+<p>不同索引支持的参数及其语义，请参考 <a href="../resources/index_parameters.html">索引参数</a>。</p>
 
                     </main>
 

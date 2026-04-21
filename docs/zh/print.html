@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-639c14c6.js";
+            window.path_to_searchindex_js = "searchindex-c4d3605a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-c7f9de74.js"></script>
+        <script src="toc-61b45d24.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -175,13 +175,21 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="vsag介绍"><a class="header" href="#vsag介绍">VSAG介绍</a></h1>
-<p><strong>VSAG</strong> 全称（Vector Search Algorithm Group）是一个用于相似性检索的库。允许用户在各种规模的向量集合中进行高效搜索，尤其是那些无法完全加载到内存中的集合。同时，VSAG 还提供了基于向量维度和数据规模自动生成参数的方法，使开发者无需了解算法原理即可快速上手使用。VSAG 使用 C++ 编写，并提供一个简单的 Python 包装叫 pyvsag。该项目主要由蚂蚁集团开发。</p>
+                        <h1 id="vsag-介绍"><a class="header" href="#vsag-介绍">VSAG 介绍</a></h1>
+<p><strong>VSAG</strong> 全称 Vector Search Algorithm Group，是一个用于相似性检索的向量索引库。VSAG 允许用户在各种规模的向量集合中进行高效搜索，包括无法完全放入内存的集合，同时提供基于向量维度和数据规模自动生成参数的能力，使开发者无需深入了解底层算法原理即可快速上手。</p>
+<p>VSAG 使用 C++ 编写，并提供：</p>
 <ul>
-<li>索引 <strong>低内存用量</strong> 可以降低使用成本</li>
-<li>多平台指令集适配提供 <strong>高性能</strong> 检索</li>
-<li>支持 bitmap 和 callback 两种 <strong>混合搜索</strong> 方式</li>
-<li>使用 C++ 编写，并提供 <a href="https://github.com/antgroup/vsag/blob/main/README.md#integrate-with-cmake">基于 CMake 的集成方法</a></li>
+<li>Python 包装 <a href="https://pypi.org/project/pyvsag/"><code>pyvsag</code></a></li>
+<li>Node.js / TypeScript 绑定 <code>vsag</code>（由 <code>napi-rs</code> 生成）</li>
+</ul>
+<p>该项目由蚂蚁集团发起并主导开发，目前以开源社区的方式维护。</p>
+<h2 id="主要特性"><a class="header" href="#主要特性">主要特性</a></h2>
+<ul>
+<li><strong>低内存占用</strong>：通过量化（RaBitQ、PQ、SQ4/SQ8）与内存-磁盘混合索引降低使用成本；</li>
+<li><strong>高性能检索</strong>：针对 x86_64（SSE/AVX/AVX2/AVX512/AMX）和 ARM（Neon/SVE）做了指令集适配；</li>
+<li><strong>丰富的索引类型</strong>：HGraph、HNSW、DiskANN、IVF、Pyramid、BruteForce、SINDI（稀疏）等；</li>
+<li><strong>灵活的过滤与混合搜索</strong>：支持 bitmap 与 callback 两种过滤方式，以及混合 <code>(data vector, attribute)</code> 查询；</li>
+<li><strong>易于集成</strong>：提供基于 CMake 的集成方式，详见 <a href="https://github.com/antgroup/vsag/blob/main/README.md#integrate-with-cmake">README</a>。</li>
 </ul>
 <h2 id="contributing"><a class="header" href="#contributing">Contributing</a></h2>
 <p>VSAG 是免费和开源的。你可以在 <a href="https://github.com/antgroup/vsag">GitHub</a> 上获取到源代码，以及提交错误报告和功能请求到 <a href="https://github.com/antgroup/vsag/issues">GitHub问题跟踪器</a> 上。VSAG 依靠社区来修复错误和增加功能：如果你想做出贡献，请阅读 <a href="https://github.com/antgroup/vsag/blob/main/CONTRIBUTING.md">贡献指南</a> 并考虑 <a href="https://github.com/antgroup/vsag/pulls">创建合并请求</a>。</p>
@@ -189,16 +197,28 @@
 <p>VSAG 源代码和文档在 <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache-2.0</a> 许可证下发布。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="安装"><a class="header" href="#安装">安装</a></h1>
-<p>VSAG 是一个向量检索库，支持在 C++ 和 Python 程序中使用，从而实现向量检索功能。在使用 VSAG 之前，你需要在系统上安装或者构建 VSAG 库。虽然 VSAG 库本身完全使用 C++ 编写，存在一些第三方库依赖是 Linux 特有的，所以当前 VSAG 库只支持在 Linux 系统上运行。</p>
-<p>如果你使用的是 Python，可以通过 Python 语言的官方第三方软件包仓库 PyPI 下载。VSAG 库的 Python 包名叫作 <code>pyvsag</code>，pyvsag 的版本与源代码版本对应，版本功能可以直接参考 GitHub 上的发布日志。pyvsag 包使用 manylinux2014 构建，可以在绝大部分 Linux 环境中运行。通过如下命令获得最新版本的 pyvsag 包：</p>
+<p>VSAG 是一个向量检索库，支持在 C++、Python 和 Node.js / TypeScript 程序中使用。VSAG 核心库使用 C++ 编写，由于依赖的部分第三方库是 Linux 特有的，当前 VSAG <strong>仅支持在 Linux 系统上运行</strong>。</p>
+<p>如果使用的是 Python，可以从官方第三方包仓库 PyPI 下载，包名为 <a href="https://pypi.org/project/pyvsag/"><code>pyvsag</code></a>。<code>pyvsag</code> 的版本与源代码版本一一对应，版本功能可以直接参考 <a href="https://github.com/antgroup/vsag/releases">GitHub 发布日志</a>。Python 包使用 manylinux2014 构建，可以在绝大部分 Linux 环境中运行。通过如下命令获得最新版本：</p>
 <pre><code class="language-bash">pip install pyvsag
 </code></pre>
+<p>如果使用的是 Node.js，可以从 npm 直接安装 <a href="https://www.npmjs.com/package/vsag"><code>vsag</code></a> 包：</p>
+<pre><code class="language-bash">npm install vsag
+</code></pre>
 <h2 id="下载预编译二进制包"><a class="header" href="#下载预编译二进制包">下载预编译二进制包</a></h2>
-<p>当前，VSAG 的用户大多是在 C++ 程序中使用，我们为此提供预编译的二进制包，可以在 GitHub 版本产物中找到（https://github.com/antgroup/vsag/releases）。</p>
-<p>预编译二进制分成两个版本，”旧的 C++11 前 ABI“ 文件名叫 <code>vsag-vX.Y.Z-old-abi.tar.gz</code>，和 “新的 C++11 ABI“ 文件名叫 <code>vsag-vX.Y.Z-cxx11-abi.tar.gz</code>，其中 X/Y/Z 是版本号。这两个版本分别使用 <code>-D_GLIBCXX_USE_CXX11_ABI=0</code> 和 <code>-D_GLIBCXX_USE_CXX11_ABI=1</code> 编译构建得到，以满足不同应用程序对于 ABI 的需求。</p>
+<p>我们为 C++ 用户提供预编译的二进制包，可以在 <a href="https://github.com/antgroup/vsag/releases">GitHub Releases</a> 中找到。</p>
+<p>预编译二进制分为两个版本：</p>
+<ul>
+<li><strong>旧的 pre-C++11 ABI</strong>：文件名为 <code>vsag-vX.Y.Z-pre-cxx11-abi.tar.gz</code>，使用 <code>-D_GLIBCXX_USE_CXX11_ABI=0</code> 编译；</li>
+<li><strong>C++11 ABI</strong>：文件名为 <code>vsag-vX.Y.Z-cxx11-abi.tar.gz</code>，使用 <code>-D_GLIBCXX_USE_CXX11_ABI=1</code> 编译。</li>
+</ul>
+<p>其中 <code>X.Y.Z</code> 是版本号。两个版本分别满足不同应用对 ABI 的需求。</p>
+<h2 id="使用-docker-镜像"><a class="header" href="#使用-docker-镜像">使用 Docker 镜像</a></h2>
+<p>我们也提供了包含完整开发工具链的 Docker 镜像，推荐用于开发和 CI：</p>
+<pre><code class="language-bash">docker pull vsaglib/vsag:ubuntu
+</code></pre>
+<p>镜像内的工具版本（clang-format / clang-tidy 等）与项目要求保持一致。</p>
 <h2 id="从源代码构建"><a class="header" href="#从源代码构建">从源代码构建</a></h2>
-<p>VSAG 可以使用 CMake 从源代码构建。</p>
-<p>VSAG 支持在 x86-64 和 aarch64 架构的 Linux 环境中运行，包括运行在 Apple Silicon 的 Linux 容器。</p>
+<p>VSAG 可以使用 CMake 从源代码构建，支持 <code>x86_64</code> 和 <code>aarch64</code> 架构的 Linux 环境，包括在 Apple Silicon 上运行的 Linux 容器。</p>
 <p>构建依赖：</p>
 <ul>
 <li>操作系统：
@@ -213,30 +233,40 @@
 <li>或 <strong>Clang 13.0.0</strong> 或更高版本</li>
 </ul>
 </li>
-<li>构建工具：<strong>CMake 3.18.0</strong> 或更高版本</li>
+<li>构建工具：
+<ul>
+<li><strong>CMake 3.18.0</strong> 或更高版本</li>
+<li><strong>clang-format 15</strong>（精确版本，用于代码格式化）</li>
+<li><strong>clang-tidy 15</strong>（精确版本，用于静态检查）</li>
+</ul>
+</li>
 <li>其他依赖项：
 <ul>
 <li>gfortran</li>
 <li>openmp</li>
 <li>libaio</li>
-<li>python 3.6+</li>
+<li>Python 3.6+</li>
 <li>curl</li>
 </ul>
 </li>
 </ul>
 <p>依赖项可以通过以下脚本安装：</p>
-<pre><code class="language-bash"># for Debian/Ubuntu
+<pre><code class="language-bash"># Debian / Ubuntu
 ./scripts/deps/install_deps_ubuntu.sh
 
-# for CentOS/AliOS
+# CentOS / AliOS
 ./scripts/deps/install_deps_centos.sh
 </code></pre>
-<p>VSAG 使用 CMake 来构建项目，并将常用的构建目标放在 Unix Makefiles 中管理和提供。运行以下命令可以执行编译和安装：</p>
+<p>VSAG 使用 CMake 管理工程，常用构建目标封装在项目根目录的 <code>Makefile</code> 中。运行以下命令可以在发布模式下编译并安装：</p>
 <pre><code class="language-bash">make release &amp;&amp; make install
 </code></pre>
+<p>更多构建选项请参考 <a href="#编译构建">编译构建</a>。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="k-近邻搜索"><a class="header" href="#k-近邻搜索">k-近邻搜索</a></h1>
-<p>以下内容，我们假设你已经安装 VSAG。我们提供了一些 C++ 和 Python 的代码示例，可以在 <a href="https://github.com/antgroup/vsag/tree/main/examples"><code>examples/</code></a> 目录找到。</p>
+<p>以下内容假设你已经安装 VSAG。我们提供了 C++、Python、TypeScript 三种语言的代码示例，可以在 <a href="https://github.com/antgroup/vsag/tree/main/examples"><code>examples/</code></a> 目录找到。本页以 C++ <code>BruteForce</code> 索引为例，完整示例见 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>。</p>
+<blockquote>
+<p>在多数情况下，程序入口需要调用一次 <code>vsag::init()</code> 来完成一次性的初始化（如全局日志、分配器等）。本页示例中省略了其他辅助代码，以突出关键步骤。</p>
+</blockquote>
 <h2 id="获取一些向量"><a class="header" href="#获取一些向量">获取一些向量</a></h2>
 <p>VSAG 主要用于处理固定维度 d 的向量集合，通常维度为几百到几千维。这些向量需要按照按行的方式组织才能写入 VSAG，类似于 <code>vector[num_vectors][dim]</code> 这样的 C++ 数组。从接口上说，VSAG 只依赖传入的向量集合首地址指针 （<code>const float*</code> 类型），所以应用可以自由选择使用 C++ 数组、<code>std::vector</code> 或者手动分配的内存来存储原始向量。</p>
 <blockquote>
@@ -319,40 +349,158 @@
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="创建索引"><a class="header" href="#创建索引">创建索引</a></h1>
+<p>VSAG 中所有检索能力都围绕 <code>Index</code> 接口展开。要使用某种索引，首先需要通过工厂方法 <code>vsag::Factory::CreateIndex(name, parameters)</code> 创建实例，其中：</p>
+<ul>
+<li><code>name</code> 是索引类型名称，对应 <code>include/vsag/constants.h</code> 中定义的常量；</li>
+<li><code>parameters</code> 是一段 JSON 字符串，声明数据类型、距离度量、维度等构建参数。</li>
+</ul>
+<h2 id="当前支持的索引类型"><a class="header" href="#当前支持的索引类型">当前支持的索引类型</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>名称</th><th><code>name</code> 字符串</th><th>适用场景</th></tr>
+</thead>
+<tbody>
+<tr><td>HNSW</td><td><code>hnsw</code></td><td>纯内存图索引，兼容 HNSWLIB 的序列化格式（参见：<code>include/vsag/constants.h</code> 的 <code>INDEX_HNSW</code>）</td></tr>
+<tr><td>HGraph</td><td><code>hgraph</code></td><td>VSAG 自研图索引，支持多级量化和调优（详见 <code>examples/cpp/103_index_hgraph.cpp</code>）</td></tr>
+<tr><td>DiskANN</td><td><code>diskann</code></td><td>内存-磁盘混合索引，适合超出内存规模的数据集</td></tr>
+<tr><td>IVF</td><td><code>ivf</code></td><td>倒排索引，适合大 <code>k</code> 和批量查询</td></tr>
+<tr><td>Pyramid</td><td><code>pyramid</code></td><td>多层级索引结构</td></tr>
+<tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>基于 GNO-IMI 的倒排索引变体</td></tr>
+<tr><td>SINDI</td><td><code>sindi</code></td><td>稀疏向量上的倒排索引</td></tr>
+<tr><td>BruteForce</td><td><code>brute_force</code></td><td>暴力搜索，用作基准或小数据集</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p>完整示例可在 <a href="https://github.com/antgroup/vsag/tree/main/examples/cpp"><code>examples/cpp/</code></a> 目录中按照前缀编号依次查看（<code>101_</code> ~ <code>109_</code> 为索引类型，<code>2xx_</code> 为自定义资源，<code>3xx_</code> 为功能特性）。</p>
+</blockquote>
+<h2 id="通用的构建参数"><a class="header" href="#通用的构建参数">通用的构建参数</a></h2>
+<p>所有索引在创建时都需要声明以下字段：</p>
+<ul>
+<li><code>dtype</code>：向量数据类型，当前常用为 <code>"float32"</code>；部分索引也支持 <code>"fp16"</code>、<code>"bf16"</code>、<code>"int8"</code>；</li>
+<li><code>metric_type</code>：距离度量方式，支持 <code>"l2"</code>、<code>"ip"</code>、<code>"cosine"</code>；</li>
+<li><code>dim</code>：向量维度，必须与后续写入的数据一致。</li>
+</ul>
+<p>索引特有参数以嵌套对象形式提供，例如 HNSW 的 <code>hnsw</code>、HGraph 的 <code>index_param</code>。</p>
+<h2 id="示例创建-hnsw-索引"><a class="header" href="#示例创建-hnsw-索引">示例：创建 HNSW 索引</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+auto hnsw_build_parameters = R"(
+{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "hnsw": {
+        "max_degree": 16,
+        "ef_construction": 100
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_parameters).value();
+</code></pre>
+<h2 id="示例创建-hgraph-索引"><a class="header" href="#示例创建-hgraph-索引">示例：创建 HGraph 索引</a></h2>
+<pre><code class="language-cpp">auto hgraph_build_parameters = R"(
+{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "max_degree": 32,
+        "ef_construction": 100,
+        "base_quantization_type": "sq8"
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_parameters).value();
+</code></pre>
+<p>不同索引支持的参数及其语义，请参考 <a href="#索引参数">索引参数</a>。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pyvsag"><a class="header" href="#pyvsag">pyvsag</a></h1>
+<p><code>pyvsag</code> 是 VSAG 的 Python 绑定包，接口封装基于 <a href="https://github.com/pybind/pybind11">pybind11</a> 实现，源代码位于仓库 <a href="https://github.com/antgroup/vsag/tree/main/python_bindings"><code>python_bindings/</code></a> 目录，打包脚本位于 <a href="https://github.com/antgroup/vsag/tree/main/python"><code>python/</code></a>。</p>
+<h2 id="安装-1"><a class="header" href="#安装-1">安装</a></h2>
+<p>从 PyPI 安装最新发布版本：</p>
+<pre><code class="language-bash">pip install pyvsag
+</code></pre>
+<p>需要在 Linux 环境下使用（<code>manylinux2014</code> wheel）。如果希望构建本地 wheel，可以运行：</p>
+<pre><code class="language-bash"># 构建特定 Python 版本的 wheel
+make pyvsag PY_VERSION=3.11
+
+# 或一次构建所有受支持版本
+make pyvsag-all
+</code></pre>
+<h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
+<p><code>pyvsag</code> 暴露一个与 C++ <code>Index</code> 对象对应的 <code>Index</code> 类，构建与搜索参数使用 JSON 字符串传递：</p>
+<pre><code class="language-python">import json
+import numpy as np
+import pyvsag
+
+dim = 128
+num_elements = 1000
+
+ids = np.arange(num_elements, dtype=np.int64)
+data = np.float32(np.random.random((num_elements, dim)))
+
+index_params = json.dumps({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": dim,
+    "hnsw": {"max_degree": 16, "ef_construction": 100},
+})
+
+index = pyvsag.Index("hnsw", index_params)
+index.build(vectors=data, ids=ids, num_elements=num_elements, dim=dim)
+
+query = np.float32(np.random.random(dim))
+search_params = json.dumps({"hnsw": {"ef_search": 100}})
+result_ids, result_dists = index.knn_search(
+    vector=query, k=10, parameters=search_params,
+)
+for rid, rdist in zip(result_ids, result_dists):
+    print(f"{rid}: {rdist}")
+</code></pre>
+<p>完整示例请查阅仓库中的 <a href="https://github.com/antgroup/vsag/tree/main/examples/python"><code>examples/python/</code></a> 目录，建议从 <code>example_hnsw.py</code> 开始。</p>
+<h2 id="与-c-库的关系"><a class="header" href="#与-c-库的关系">与 C++ 库的关系</a></h2>
+<p><code>pyvsag</code> 绑定的是同一份核心 C++ 实现，行为和性能特征与 C++ 版本保持一致。因此：</p>
+<ul>
+<li>大多数 C++ 参数在 Python 中以相同的 JSON 字段传递；</li>
+<li>C++ 版本新增的索引类型、量化方式、距离度量会随 <code>pyvsag</code> 的下一个 release 一同发布；</li>
+<li>构建 wheel 时所使用的依赖项与发布版 C++ 库相同（OpenBLAS、libaio 等）。</li>
+</ul>
+<p>关于可用参数和索引类型，请参考 <a href="#创建索引">创建索引</a> 和 <a href="#索引参数">索引参数</a>。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="代码目录结构"><a class="header" href="#代码目录结构">代码目录结构</a></h1>
-<p>VSAG 项目代码处于快速迭代中，目录组织并不完美，这里仅对当前目录功能划分做简要介绍。</p>
+<p>VSAG 项目代码处于快速迭代中，目录组织并不完美，这里仅对当前目录的功能划分做简要介绍。</p>
 <h2 id="项目结构"><a class="header" href="#项目结构">项目结构</a></h2>
 <ul>
-<li><code>.circleci/</code>: circleci 配置文件；</li>
-<li><code>.github/</code>: GitHub 配置文件，包括 CI、Issue 模版、代码 Owner等；</li>
-<li><code>cmake/</code>: CMake 工具函数，例如检测编译平台的指令集支持；</li>
-<li><code>docker/</code>: 构建 CI 的 Dockerfile 和用于二进制分发的 Dockerfile；</li>
-<li><code>docs/</code>: 设计文档；</li>
-<li><code>examples/</code>: C++ 和 Python 的示例代码；</li>
-<li><code>extern/</code>: 第三方库，以 CMake 的方式从 GitHub 下载和集成；</li>
-<li><code>include/</code>: 公开头文件；</li>
-<li><code>mockimpl/</code>: 接口的 Mock 实现，可以用于简单的接口测试；</li>
-<li><code>python/</code>: pyvsag 打包和安装工具；</li>
-<li><code>python_bindings/</code>: Python 包装实现；</li>
-<li><code>scripts/</code>: 一些有用的工具脚本，例如安装依赖、计算代码覆盖率等；</li>
-<li><code>src/</code>: 核心源代码；</li>
-<li><code>tests/</code>: 功能测试用例；</li>
-<li><code>tools/</code>: 相关工具，包括索引性能测试和兼容性检查工具；</li>
+<li><code>.circleci/</code>：CircleCI 配置文件；</li>
+<li><code>.github/</code>：GitHub 配置文件，包括 CI、Issue 模版、代码 Owner 等；</li>
+<li><code>cmake/</code>：CMake 工具函数，例如检测编译平台的指令集支持；</li>
+<li><code>docker/</code>：构建 CI 的 Dockerfile 以及用于二进制分发的 Dockerfile；</li>
+<li><code>docs/</code>：设计文档、用户文档（含本站点源）和博客文章；</li>
+<li><code>examples/</code>：C++、Python、TypeScript 的示例代码；</li>
+<li><code>extern/</code>：第三方库，以 CMake 的方式从 GitHub 下载和集成；</li>
+<li><code>include/</code>：公开头文件，对外稳定 API 都位于此目录；</li>
+<li><code>mockimpl/</code>：接口的 Mock 实现，可以用于简单的接口测试；</li>
+<li><code>python/</code>：pyvsag 打包和安装工具；</li>
+<li><code>python_bindings/</code>：基于 pybind11 的 Python 绑定实现；</li>
+<li><code>typescript/</code>：Node.js / TypeScript 绑定及对应 npm 包源代码；</li>
+<li><code>scripts/</code>：一些有用的工具脚本，例如安装依赖、计算代码覆盖率等；</li>
+<li><code>src/</code>：核心源代码和单元测试（<code>*_test.cpp</code>）；</li>
+<li><code>tests/</code>：功能测试用例；</li>
+<li><code>tools/</code>：相关工具，包括索引性能测试和兼容性检查工具。</li>
 </ul>
 <h2 id="核心源代码"><a class="header" href="#核心源代码">核心源代码</a></h2>
 <ul>
 <li><code>src/*.cpp</code>：各种公共功能代码实现，包括内存分配器、线程池等；</li>
 <li><code>src/algorithm/</code>：索引算法目录；</li>
-<li><code>src/data_cell/</code>：datacell 是数据的逻辑单元，索引算法依赖于 datacell；</li>
+<li><code>src/data_cell/</code>：data cell 是数据的逻辑单元，索引算法依赖于 data cell；</li>
 <li><code>src/impl/</code>：一些功能和算子的实现，例如图结构增强、k-means 聚类等；</li>
-<li><code>src/index/</code>：索引层实现，和 algorithm 目录类似；</li>
+<li><code>src/index/</code>：索引层实现，和 algorithm 目录相互配合；</li>
 <li><code>src/io/</code>：数据 IO 实现，包括基于内存访问数据和基于磁盘访问数据的方法；</li>
-<li><code>src/quantization/</code>：量化方法，当前支持 SQ、PQ、RabitQ 等量化方式；</li>
+<li><code>src/quantization/</code>：量化方法，当前支持 SQ4/SQ8、PQ、RaBitQ 等量化方式；</li>
 <li><code>src/simd/</code>：指令集加速模块，根据运行平台自动选择最快的距离计算方法；</li>
-<li><code>src/utils/</code>：工具函数目录；</li>
+<li><code>src/utils/</code>：工具函数目录。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="编译构建"><a class="header" href="#编译构建">编译构建</a></h1>
@@ -365,6 +513,7 @@ help:                    ## Show the help.
 ##
 ## ================ development ================
 debug:                   ## Build vsag with debug options.
+dev:                     ## Build full developer configuration.
 test:                    ## Build and run unit tests.
 asan:                    ## Build with AddressSanitizer option.
 test_asan: asan          ## Run unit tests with AddressSanitizer option.
@@ -383,24 +532,25 @@ test_tsan_parallel: tsan ## Run unit tests parallel with ThreadSanitizer option.
 ##
 ## ================ distribution ================
 release:                 ## Build vsag with release options.
-dist-old-abi:            ## Build vsag with distribution options.
+dist-pre-cxx11-abi:      ## Build vsag with distribution options.
 dist-cxx11-abi:          ## Build vsag with distribution options.
 dist-libcxx:             ## Build vsag using libc++.
-pyvsag:                  ## Build pyvsag wheel.
+pyvsag:                  ## Build a specific Python version wheel. Usage: make pyvsag PY_VERSION=3.10
+pyvsag-all:              ## Build wheels for all supported versions. Usage: make pyvsag-all
 clean-release:           ## Clear build-release/ directory.
 install:                 ## Build and install the release version of vsag.
 </code></pre>
 <h2 id="编译-vsag-库"><a class="header" href="#编译-vsag-库">编译 VSAG 库</a></h2>
-<p><code>make debug</code> 是我们开发中最常用的命令，它会以开发模式编译整个项目，禁用大多数优化（<code>-O0</code>），生成调试信息（<code>-g</code>）。并且，编译的内容包括了测试用例、pybinds 以及 VSAG 工具。</p>
-<p>在默认的设置下，开发模式的编译产物会生成在 <code>./build/</code> 目录中。可以通过这样的命令运行单元测试：</p>
-<pre><code class="language-cpp">./build/tests/unittests
+<p><code>make debug</code> 是我们开发中最常用的命令，它会以开发模式编译整个项目，禁用大多数优化（<code>-O0</code>）并生成调试信息（<code>-g</code>）。该目标默认关闭测试、示例、工具、Python 绑定与 <code>mockimpl</code>；如需同时启用它们，可使用 <code>make dev</code>。</p>
+<p>在默认设置下，开发模式的编译产物会生成在 <code>./build/</code> 目录中。可以通过如下命令运行单元测试：</p>
+<pre><code class="language-bash">./build/tests/unittests
 </code></pre>
-<p>以及通过这样的命令运行功能测试：</p>
-<pre><code class="language-cpp">./build/tests/functests
+<p>以及通过如下命令运行功能测试：</p>
+<pre><code class="language-bash">./build/tests/functests
 </code></pre>
 <h2 id="运行测试用例"><a class="header" href="#运行测试用例">运行测试用例</a></h2>
-<p>除了上面提到的方法，编译后手动运行测试用例，VSAG 还支持一条命令完成编译和运行所有测试：</p>
-<pre><code>make test
+<p>除了上面提到的方法——编译后手动运行测试用例，VSAG 还支持用一条命令完成编译和运行所有测试：</p>
+<pre><code class="language-bash">make test
 </code></pre>
 <p>在我们的开发工作流中，代码修改完成后需要使用上述命令通过所有测试后，才会提交到 GitHub 仓库中。</p>
 <h2 id="内存和多线程测试"><a class="header" href="#内存和多线程测试">内存和多线程测试</a></h2>
@@ -419,24 +569,84 @@ install:                 ## Build and install the release version of vsag.
 <p>需要注意的是，fix-lint 命令会在源文件上直接修改，请确定你希望这样做！</p>
 </blockquote>
 <h2 id="编译发布模式"><a class="header" href="#编译发布模式">编译发布模式</a></h2>
-<p>在生产环境中，我们需要使用的是发布模式的 VSAG 库。在此模式下，编译器会尽可能地优化代码生成，以实现最好的运行性能。使用以下命令生成发布模式的 VSAG 库：</p>
-<pre><code>make release
+<p>在生产环境中，我们需要使用发布模式的 VSAG 库。在此模式下，编译器会尽可能优化代码生成，以实现更好的运行性能。使用以下命令生成发布模式的 VSAG 库：</p>
+<pre><code class="language-bash">make release
 </code></pre>
-<p>为了和开发模式的产物区分开，发布模式的产物默认生成在 <code>./build-release</code> 目录中。</p>
+<p>为了和开发模式的产物区分开，发布模式的产物默认生成在 <code>./build-release/</code> 目录中。</p>
+<p>如果你需要分发预编译产物，可使用以下目标以控制 ABI：</p>
+<ul>
+<li><code>make dist-pre-cxx11-abi</code>：使用 <code>-D_GLIBCXX_USE_CXX11_ABI=0</code> 构建（pre-C++11 ABI）；</li>
+<li><code>make dist-cxx11-abi</code>：使用 <code>-D_GLIBCXX_USE_CXX11_ABI=1</code> 构建（C++11 ABI）；</li>
+<li><code>make dist-libcxx</code>：使用 <code>libc++</code> 代替 <code>libstdc++</code> 构建。</li>
+</ul>
 <h2 id="编译-pyvsag-包"><a class="header" href="#编译-pyvsag-包">编译 pyvsag 包</a></h2>
 <p>pyvsag 是 VSAG 的 Python 版本。通过 <code>pip install pyvsag</code> 下载安装的 wheel 包就是通过 <code>make pyvsag</code> 命令构建出来的。</p>
+<p>默认会使用 <code>PY_VERSION=3.10</code>，你可以显式指定目标 Python 版本：</p>
+<pre><code class="language-bash">make pyvsag PY_VERSION=3.11
+</code></pre>
+<p>或者一次构建所有受支持版本的 wheel：</p>
+<pre><code class="language-bash">make pyvsag-all
+</code></pre>
 <h2 id="环境变量"><a class="header" href="#环境变量">环境变量</a></h2>
-<p>在 Makefile 文件的开始可以看到一些 VSAG 编译系统定义的环境变量。这些变量可以通过命令行运行 <code>export</code> 命令或者 <code>.bashrc</code> / <code>.zshrc</code> 等文件中的配置修改。</p>
+<p>在 Makefile 文件的开始可以看到一些 VSAG 编译系统定义的环境变量。这些变量可以通过命令行运行 <code>export</code> 命令，或者在 <code>.bashrc</code> / <code>.zshrc</code> 等 shell 配置文件中设置来修改。</p>
 <p>环境变量说明如下：</p>
 <ul>
-<li><code>CMAKE_GENERATOR</code> ：CMake 内部使用什么来编译项目，默认是“Unix Makefiles“，其他可选值请参考：https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html；</li>
-<li><code>CMAKE_INSTALL_PREFIX</code> ：安装路径，即运行 <code>make install</code> 后，头文件和库文件会被安装到哪里，一般不需要修改；</li>
-<li><code>COMPILE_JOBS</code> ：编译并行度，默认是 6 并行编译，建议设置成你的 CPU 数以提高编译速度；</li>
-<li><code>DEBUG_BUILD_DIR</code> ：开发模式产物目录，非必要不修改；</li>
-<li><code>RELEASE_BUILD_DIR</code> ：发布模式产物目录，非必要不修改；</li>
+<li><code>CMAKE_GENERATOR</code>：CMake 内部使用什么来编译项目，默认是 <code>"Unix Makefiles"</code>，其他可选值请参考 <a href="https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html">CMake Generators</a>；</li>
+<li><code>CMAKE_INSTALL_PREFIX</code>：安装路径，即运行 <code>make install</code> 后头文件和库文件会被安装到哪里，一般不需要修改；</li>
+<li><code>COMPILE_JOBS</code>：编译并行度，默认是 6 并行编译，建议设置成你的 CPU 核数以提高编译速度；</li>
+<li><code>DEBUG_BUILD_DIR</code>：开发模式产物目录，非必要不修改；</li>
+<li><code>RELEASE_BUILD_DIR</code>：发布模式产物目录，非必要不修改；</li>
+<li><code>VSAG_ENABLE_INTEL_MKL</code>：是否启用 Intel MKL 作为 BLAS 后端，默认 <code>OFF</code>；关闭时使用 OpenBLAS；</li>
+<li><code>VSAG_ENABLE_LIBAIO</code>：是否启用 <code>libaio</code>，默认 <code>ON</code>。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="运行测试"><a class="header" href="#运行测试">运行测试</a></h1>
+<p>VSAG 采用 <a href="https://github.com/catchorg/Catch2">Catch2</a> 作为测试框架，测试分为两类：</p>
+<ul>
+<li><strong>单元测试</strong>：与源码同目录，位于 <code>src/</code> 下，聚焦单个类/函数的行为。</li>
+<li><strong>功能测试</strong>：位于 <code>tests/</code> 目录，覆盖跨模块、端到端的索引行为。典型用例包括 <code>test_hnsw.cpp</code>、
+<code>test_hgraph.cpp</code>、<code>test_diskann.cpp</code>、<code>test_ivf.cpp</code>、<code>test_pyramid.cpp</code>、<code>test_sindi.cpp</code>、
+<code>test_brute_force.cpp</code>、<code>test_multi_thread.cpp</code>、<code>test_memleak.cpp</code> 等。</li>
+</ul>
+<h2 id="构建并运行全部测试"><a class="header" href="#构建并运行全部测试">构建并运行全部测试</a></h2>
+<p><code>make test</code> 会以 Debug 配置重新编译（启用 <code>ENABLE_TESTS=ON</code>）并运行单元与功能测试：</p>
+<pre><code class="language-bash">make test
+</code></pre>
+<p>说明：</p>
+<ol>
+<li>运行 <code>src/</code> 下的单元测试；</li>
+<li>运行 <code>tests/</code> 下的功能测试；</li>
+<li><code>make test</code> 并未开启覆盖率（<code>ENABLE_COVERAGE=ON</code>）。需要覆盖率报告时请使用
+<code>make cov</code>：该目标仅完成带覆盖率插桩的编译，随后需要手动运行测试二进制以生成报告。</li>
+</ol>
+<h2 id="仅运行单个测试二进制"><a class="header" href="#仅运行单个测试二进制">仅运行单个测试二进制</a></h2>
+<p>构建完成后，可直接运行单个测试：</p>
+<pre><code class="language-bash">./build-debug/tests/functional_tests "[hgraph]"
+./build-debug/tests/functional_tests "[hnsw][concurrent]"
+</code></pre>
+<p>Catch2 支持按名字、tag、通配符等方式筛选用例，详见 <code>--help</code>。</p>
+<h2 id="覆盖率"><a class="header" href="#覆盖率">覆盖率</a></h2>
+<p>贡献时应保持 <code>src/</code> 与 <code>include/</code> 下代码的行覆盖率不低于 <strong>90%</strong>。在本地执行：</p>
+<pre><code class="language-bash">make cov
+# 然后运行测试二进制以采集覆盖率，例如：
+./build-debug/tests/functional_tests
+</code></pre>
+<p>报告会输出到 <code>build-debug/coverage/</code> 下，可用浏览器打开 <code>index.html</code> 查看未覆盖的分支。</p>
+<h2 id="内存泄漏与多线程"><a class="header" href="#内存泄漏与多线程">内存泄漏与多线程</a></h2>
+<ul>
+<li><code>test_memleak.cpp</code>：基于 AddressSanitizer / LeakSanitizer，对索引的构造/销毁路径进行验证。</li>
+<li><code>test_multi_thread.cpp</code>：验证并发 <code>Build</code> / <code>KnnSearch</code> / <code>RangeSearch</code> 下的正确性。</li>
+</ul>
+<h2 id="python-测试"><a class="header" href="#python-测试">Python 测试</a></h2>
+<p><code>tests/python/</code> 包含 <code>pyvsag</code> 的 pytest 用例。构建好 <code>pyvsag</code> 后：</p>
+<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
+cd tests/python &amp;&amp; pytest -q
+</code></pre>
+<h2 id="参考"><a class="header" href="#参考">参考</a></h2>
+<ul>
+<li>功能测试源代码目录：<code>tests/</code></li>
+<li>脚本入口：<code>Makefile</code> 中的 <code>test</code>、<code>cov</code>、<code>asan</code> 目标</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="贡献到-vsag"><a class="header" href="#贡献到-vsag">贡献到 VSAG</a></h1>
 <p>首先，感谢你愿意花时间为 VSAG 做贡献！正是像你一样的贡献者帮助 VSAG 项目变得更好。🎉</p>
@@ -486,15 +696,30 @@ git checkout -b my-topic-branch
 <li>当你向 VSAG 项目贡献新功能时，维护成本（默认情况下）会转移给 VSAG 开发组。这意味着我们要考虑贡献的好处和维护的成本。</li>
 </ul>
 <h3 id="签署-dcodeveloper-certificate-of-origin"><a class="header" href="#签署-dcodeveloper-certificate-of-origin">签署 DCO（Developer Certificate of Origin）</a></h3>
-<p>对于本项目的所有贡献必须同意并附带 <a href="https://developercertificate.org/">Developer Certificate of Origin (后面简称为 DCO)</a> 的确认。对于 DCO 的确认和同意<em>必须</em> 包含在每一个 Commit Message 中，并且<em>必须</em>采用 <code>Signed-off-by: {{Full Name}} &lt;{{email address}}&gt;</code> （不带 <code>{}</code>）的形式。如果贡献者不能或不愿意同意 DCO，则他们的贡献将不会被接收。</p>
-<p>贡献者可以通过在 Commit Message 中添加以下 Signed-off-by 行来签署他们遵守 DCO：</p>
-<pre><code class="language-bash">This is my commit message
+<p>对于本项目的所有贡献必须同意并附带 <a href="https://developercertificate.org/">Developer Certificate of Origin（后简称 DCO）</a> 的确认。对 DCO 的确认和同意<strong>必须</strong>包含在每一个 Commit Message 中，并采用 <code>Signed-off-by: {{Full Name}} &lt;{{email address}}&gt;</code>（不带 <code>{}</code>）的形式。如果贡献者不能或不愿意同意 DCO，其贡献将不会被接收。</p>
+<p>贡献者可以通过在 Commit Message 中添加如下 Signed-off-by 行来签署 DCO：</p>
+<pre><code class="language-text">This is my commit message
 
 Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
 </code></pre>
-<p>Git 还有一个 <code>-s</code> 命令行选项，可以自动将其附加到你的提交消息中：</p>
+<p>Git 还有一个 <code>-s</code> 命令行选项，可以在提交时自动附加 Signed-off-by 行：</p>
 <pre><code class="language-bash">git commit -s -m "This is my commit message"
 </code></pre>
+<p>对于由人类开发者和 AI Coding Agent（如 OpenCode、Claude Code、Codex 等）共同完成的贡献，请为<strong>每一位协作者</strong>各添加一行 <code>Signed-off-by</code> trailer，例如：</p>
+<pre><code class="language-text">Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
+Signed-off-by: OpenCode (claude-sonnet-4.5) &lt;noreply@opencode.ai&gt;
+</code></pre>
+<h3 id="commit-信息与-pr-标签"><a class="header" href="#commit-信息与-pr-标签">Commit 信息与 PR 标签</a></h3>
+<ul>
+<li>Commit 信息请遵循 <a href="https://www.conventionalcommits.org/">Conventional Commits</a>，常用前缀包括 <code>feat:</code>、<code>fix:</code>、<code>docs:</code>、<code>chore:</code>、<code>refactor:</code>、<code>test:</code>、<code>ci:</code> 等；</li>
+<li>如果该 commit 无需触发 CI，请将 <code>[skip ci]</code> 放在 commit subject 的<strong>开头</strong>，例如 <code>[skip ci] docs: fix typo in README</code>；</li>
+<li>每一个 PR 都<strong>必须</strong>至少包含以下两类 label（由 Mergify 强制校验，否则无法合并）：
+<ul>
+<li><code>kind/*</code>：变更类型，可选值为 <code>kind/bug</code>、<code>kind/feature</code>、<code>kind/improvement</code>、<code>kind/documentation</code>；</li>
+<li><code>version/*</code>：目标版本，例如 <code>version/1.0</code>、<code>version/0.18</code>。</li>
+</ul>
+</li>
+</ul>
 <h3 id="编码风格"><a class="header" href="#编码风格">编码风格</a></h3>
 <p>VSAG 项目编码风格基于 <a href="https://google.github.io/styleguide/cppguide.html">Google C++ 风格指南</a> 做了一些修改，包括缩进、命名规则、行宽等，具体可以参考以下两个配置文件：</p>
 <ul>
@@ -517,18 +742,332 @@ Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="范围搜索"><a class="header" href="#范围搜索">范围搜索</a></h1>
+<p>除了 k-近邻搜索（<code>KnnSearch</code>），VSAG 还支持<strong>范围搜索</strong>（<code>RangeSearch</code>）：返回所有与查询向量距离
+小于或等于指定半径的结果。该接口适用于阈值过滤、去重、近似召回等场景。</p>
+<h2 id="基本用法"><a class="header" href="#基本用法">基本用法</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+// 1. 构造索引（以 HNSW 为例）
+auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_params).value();
+index-&gt;Build(dataset);
+
+// 2. 准备查询
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(dim)-&gt;Float32Vectors(query_vec)-&gt;Owner(false);
+
+// 3. 范围搜索
+float radius = 0.5f;
+auto result = index-&gt;RangeSearch(query, radius, search_params);
+if (result.has_value()) {
+    auto ids = result.value()-&gt;GetIds();
+    auto dists = result.value()-&gt;GetDistances();
+    int64_t n = result.value()-&gt;GetDim();
+    // ...
+}
+</code></pre>
+<blockquote>
+<p>完整示例参见 <code>examples/cpp/302_feature_range_search.cpp</code>。</p>
+</blockquote>
+<h2 id="limited_size-参数"><a class="header" href="#limited_size-参数"><code>limited_size</code> 参数</a></h2>
+<p><code>RangeSearch</code> 支持通过 <code>limited_size</code> 限制返回结果的最大数量：</p>
+<pre><code class="language-cpp">// 返回最多 100 条满足半径条件的结果
+auto result = index-&gt;RangeSearch(query, radius, search_params, /*limited_size=*/100);
+</code></pre>
+<ul>
+<li><code>limited_size = -1</code>（默认）：返回所有满足条件的结果（不限）。</li>
+<li><code>limited_size &gt; 0</code>：在满足半径条件的候选中返回最多这么多条。</li>
+<li><code>limited_size = 0</code>：非法取值，实现中会显式拒绝
+（<code>CHECK_ARGUMENT(limited_size != 0, ...)</code>）。</li>
+</ul>
+<h2 id="与-filter-组合"><a class="header" href="#与-filter-组合">与 Filter 组合</a></h2>
+<p><code>RangeSearch</code> 的签名与 <code>KnnSearch</code> 一致，同样支持传入过滤器（见 <code>examples/cpp/301_feature_filter.cpp</code>）。
+过滤器在搜索过程中即时生效，而不是事后过滤，效率更高。</p>
+<h2 id="支持情况"><a class="header" href="#支持情况">支持情况</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引类型</th><th>支持 RangeSearch</th></tr>
+</thead>
+<tbody>
+<tr><td>hnsw</td><td>是</td></tr>
+<tr><td>hgraph</td><td>是</td></tr>
+<tr><td>diskann</td><td>是</td></tr>
+<tr><td>ivf</td><td>是</td></tr>
+<tr><td>brute_force</td><td>是</td></tr>
+<tr><td>sindi</td><td>稀疏向量场景支持</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="注意事项"><a class="header" href="#注意事项">注意事项</a></h2>
+<ul>
+<li>距离度量（内积 / L2 / 余弦）会影响 <code>radius</code> 的语义。请与索引创建时的 <code>metric_type</code> 保持一致。</li>
+<li>当 <code>radius</code> 过大时结果集可能巨大，建议配合 <code>limited_size</code> 使用。</li>
+<li>HNSW / HGraph 类图索引下，<code>RangeSearch</code> 的 <code>ef</code> 等运行期参数与 <code>KnnSearch</code> 共享含义。</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="优化器"><a class="header" href="#优化器">优化器</a></h1>
+<h1 id="优化器tune"><a class="header" href="#优化器tune">优化器（Tune）</a></h1>
+<p>对于图类索引（HNSW、HGraph），VSAG 提供 <code>Tune</code> 接口，根据给定查询集自动调整运行期参数以在<strong>召回率</strong>
+与<strong>延迟</strong>之间取得更好的权衡。其底层实现即历史版本中的 ELP Optimizer。</p>
+<h2 id="基本用法-1"><a class="header" href="#基本用法-1">基本用法</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+auto index = vsag::Factory::CreateIndex("hgraph", build_params).value();
+index-&gt;Build(base_dataset);
+
+std::string tune_params = R"(
+{
+    "queries_dataset": "path/or/inline/queries",
+    "target_recall": 0.95,
+    "top_k": 10
+}
+)";
+auto ret = index-&gt;Tune(tune_params);
+</code></pre>
+<p><code>Tune</code> 的第二个参数 <code>disable_future_tuning=false</code> 默认允许后续多次调用继续调整；设为 <code>true</code> 会冻结参数。</p>
+<h2 id="与-elp-optimizer-的关系"><a class="header" href="#与-elp-optimizer-的关系">与 ELP Optimizer 的关系</a></h2>
+<p>历史文献（见 <a href="#科研论文">科研论文</a>）中提到的 “ELP Optimizer” 对应实现键
+<code>use_elp_optimizer</code>，现已收敛到统一的 <code>Tune</code> 接口背后，用户无需直接操作。</p>
+<h2 id="适用索引"><a class="header" href="#适用索引">适用索引</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引类型</th><th>支持 Tune</th></tr>
+</thead>
+<tbody>
+<tr><td>hnsw</td><td>是</td></tr>
+<tr><td>hgraph</td><td>是</td></tr>
+<tr><td>diskann</td><td>部分参数</td></tr>
+<tr><td>ivf / sindi / brute_force</td><td>否</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="示例"><a class="header" href="#示例">示例</a></h2>
+<p><code>examples/cpp/318_feature_tune.cpp</code> 给出了端到端的调优流程：</p>
+<ol>
+<li>构造索引并 <code>Build</code>；</li>
+<li>使用一份代表性查询集调用 <code>Tune</code>；</li>
+<li>序列化调优后的索引供生产环境使用。</li>
+</ol>
+<h2 id="注意事项-1"><a class="header" href="#注意事项-1">注意事项</a></h2>
+<ul>
+<li>调优依赖查询集的分布，建议使用真实业务分布下的样本。</li>
+<li>调优后的参数会随索引元信息一起 <code>Serialize</code> / <code>Deserialize</code>，部署后仍然生效。</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="序列化格式"><a class="header" href="#序列化格式">序列化格式</a></h1>
+<p>VSAG 索引可通过多种方式序列化与反序列化，便于持久化、跨进程共享及分布式部署。</p>
+<h2 id="三种接口"><a class="header" href="#三种接口">三种接口</a></h2>
+<h3 id="1-binaryset--readerset"><a class="header" href="#1-binaryset--readerset">1. <code>BinarySet</code> / <code>ReaderSet</code></a></h3>
+<p>最灵活的方式，把索引拆分为多个命名二进制段。适合用户自己管理存储介质（例如对象存储、KV、分片上传）。</p>
+<pre><code class="language-cpp">// 保存
+vsag::BinarySet bs = index-&gt;Serialize().value();
+for (const auto&amp; key : bs.GetKeys()) {
+    auto binary = bs.Get(key);
+    // 写入存储介质
+}
+
+// 加载
+vsag::BinarySet bs_loaded;
+// 从介质中读取每个 key 对应的 Binary 放入 bs_loaded
+auto empty = vsag::Factory::CreateIndex("hnsw", build_params).value();
+empty-&gt;Deserialize(bs_loaded);
+</code></pre>
+<p><code>ReaderSet</code> 与 <code>BinarySet</code> 类似，但通过用户自定义的 <code>Reader</code> 按需读取，避免一次性加载全部数据，
+常用于内存受限或部分反序列化场景（例如 DiskANN 的磁盘部分）。</p>
+<h3 id="2-文件流stdostream--stdistream"><a class="header" href="#2-文件流stdostream--stdistream">2. 文件流（<code>std::ostream</code> / <code>std::istream</code>）</a></h3>
+<p>最简单的方式，将索引整体写入文件或内存流：</p>
+<pre><code class="language-cpp">std::ofstream out("index.bin", std::ios::binary);
+index-&gt;Serialize(out);
+
+std::ifstream in("index.bin", std::ios::binary);
+empty-&gt;Deserialize(in);
+</code></pre>
+<h3 id="3-自定义写函数writefunctype"><a class="header" href="#3-自定义写函数writefunctype">3. 自定义写函数（<code>WriteFuncType</code>）</a></h3>
+<p>对于流式/分块写入的后端，可传入写回调：</p>
+<pre><code class="language-cpp">index-&gt;Serialize([&amp;](const void* buf, uint64_t offset, uint64_t size) {
+    // 将 [buf, buf+size) 写入 offset 位置
+});
+</code></pre>
+<h2 id="注意事项-2"><a class="header" href="#注意事项-2">注意事项</a></h2>
+<ul>
+<li><code>Deserialize</code> 要求目标索引为<strong>空</strong>索引，并且参数配置与序列化时一致（如 <code>dim</code>、<code>metric_type</code>）。</li>
+<li>跨大版本升级时请关注 <a href="#版本日志">版本日志</a> 中的兼容性说明。</li>
+<li>DiskANN 的磁盘索引文件独立管理，<code>Serialize</code> 返回的是内存侧元信息。</li>
+<li>示例参考：<code>examples/cpp/318_feature_tune.cpp</code>、<code>examples/cpp/401_persistent_kv.cpp</code>、
+<code>examples/cpp/402_persistent_streaming.cpp</code>。</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="内存管理"><a class="header" href="#内存管理">内存管理</a></h1>
+<p>VSAG 在关键路径上大量使用自定义 <code>Allocator</code> 与 <code>Resource</code>，允许用户：</p>
+<ul>
+<li>接入业务侧已有的内存池；</li>
+<li>对索引内存占用进行度量与上限控制；</li>
+<li>在多进程 / NUMA 环境下精细分配内存来源。</li>
+</ul>
+<h2 id="自定义-allocator"><a class="header" href="#自定义-allocator">自定义 Allocator</a></h2>
+<pre><code class="language-cpp">class MyAllocator : public vsag::Allocator {
+public:
+    std::string Name() override { return "my_allocator"; }
+    void* Allocate(size_t size) override;
+    void Deallocate(void* p) override;
+    void* Reallocate(void* p, size_t size) override;
+    // ...
+};
+
+auto allocator = std::make_shared&lt;MyAllocator&gt;();
+auto resource = std::make_shared&lt;vsag::Resource&gt;(allocator, /*thread_pool=*/nullptr);
+auto engine = vsag::Engine(resource);
+
+auto index = engine.CreateIndex("hgraph", build_params).value();
+</code></pre>
+<p>完整示例参见 <code>examples/cpp/201_custom_allocator.cpp</code>。</p>
+<h2 id="搜索路径上的临时-allocator"><a class="header" href="#搜索路径上的临时-allocator">搜索路径上的临时 Allocator</a></h2>
+<p><code>KnnSearch</code> / <code>RangeSearch</code> 支持为单次搜索注入临时 <code>Allocator</code>，用于在线程局部的 arena 中分配工作区，
+避免与全局堆竞争：</p>
+<pre><code class="language-cpp">vsag::SearchParam search_param;
+search_param.allocator = thread_local_allocator.get();
+auto result = index-&gt;KnnSearch(query, k, search_param);
+</code></pre>
+<p>示例：<code>examples/cpp/313_feature_search_allocator.cpp</code>、<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>。</p>
+<h2 id="估算与查询内存占用"><a class="header" href="#估算与查询内存占用">估算与查询内存占用</a></h2>
+<ul>
+<li><code>Index::EstimateMemory(data_num)</code>：在构建前估算索引将占用的内存（示例：<code>examples/cpp/308_feature_estimate_memory.cpp</code>）。</li>
+<li><code>Index::GetMemoryUsage()</code>：查询当前实际占用的字节数（示例：<code>examples/cpp/319_feature_get_memory_usage.cpp</code>）。</li>
+</ul>
+<h2 id="线程池"><a class="header" href="#线程池">线程池</a></h2>
+<p><code>Resource</code> 也接受用户提供的 <code>ThreadPool</code>，与 Allocator 配合可完全托管并行度与资源归属。见
+<code>examples/cpp/203_custom_thread_pool.cpp</code>。</p>
+<h2 id="注意事项-3"><a class="header" href="#注意事项-3">注意事项</a></h2>
+<ul>
+<li>自定义 Allocator 必须是线程安全的。</li>
+<li><code>Allocator</code> 生命周期必须覆盖所有引用它的索引与结果对象。</li>
+<li>若未显式指定，VSAG 会创建一个默认的基于 <code>malloc</code> 的 allocator。</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="图索引增强"><a class="header" href="#图索引增强">图索引增强</a></h1>
+<p>图类索引（HNSW、HGraph）在“困难查询“（与真实近邻连通性较弱）下可能出现召回率下降。
+VSAG 通过 <strong>Conjugate Graph</strong>（共轭图）机制对这类查询进行在线/离线修补，在几乎不增加索引体积的
+情况下显著改善尾部召回。</p>
+<h2 id="启用共轭图"><a class="header" href="#启用共轭图">启用共轭图</a></h2>
+<p>构建时开启：</p>
+<pre><code class="language-json">{
+    "hnsw": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "use_conjugate_graph": true
+    }
+}
+</code></pre>
+<p>搜索时通过搜索参数 JSON 中的 <code>use_conjugate_graph_search</code> 字段控制是否启用
+（<code>KnnSearch</code> 并不存在额外的布尔参数重载）：</p>
+<pre><code class="language-cpp">std::string search_param_json = R"({
+    "hnsw": {
+        "ef_search": 100,
+        "use_conjugate_graph_search": true
+    }
+})";
+auto result = index-&gt;KnnSearch(query, k, search_param_json);
+</code></pre>
+<h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
+<p>共轭图由原图在训练数据上的“失败路径“反向构建而成，在搜索时作为补充的候选边参与贪心扩展。
+它相当于对主图的一层轻量索引补丁，典型体积 &lt; 主图 10%。</p>
+<h2 id="示例-1"><a class="header" href="#示例-1">示例</a></h2>
+<p><code>examples/cpp/304_feature_enhance_graph.cpp</code> 给出了从构建、训练到对比召回率的完整流程。</p>
+<h2 id="适用场景"><a class="header" href="#适用场景">适用场景</a></h2>
+<ul>
+<li>数据分布存在稀疏簇或离群点；</li>
+<li>对 P99 召回敏感的在线场景；</li>
+<li>希望在不重建索引的前提下小幅提升召回。</li>
+</ul>
+<h2 id="注意事项-4"><a class="header" href="#注意事项-4">注意事项</a></h2>
+<ul>
+<li>启用后构建时间会略有增加。</li>
+<li>共轭图数据会随索引一并序列化。</li>
+<li>与 <code>Tune</code> 可以叠加使用，分别作用于路由质量与运行期参数。</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="内存-磁盘混合索引"><a class="header" href="#内存-磁盘混合索引">内存-磁盘混合索引</a></h1>
+<h1 id="内存-磁盘混合索引diskann"><a class="header" href="#内存-磁盘混合索引diskann">内存-磁盘混合索引（DiskANN）</a></h1>
+<p>在海量向量场景下，将整个图索引放入内存既昂贵又浪费。VSAG 提供的 <code>diskann</code> 索引将：</p>
+<ul>
+<li>**压缩后的向量（PQ）**保留在内存中，用于快速剪枝；</li>
+<li><strong>完整向量</strong>与<strong>图结构</strong>存储在磁盘，按查询路径异步读取。</li>
+</ul>
+<p>从而在有限内存预算下支撑 10 亿级向量的近邻查询。</p>
+<h2 id="构建-diskann"><a class="header" href="#构建-diskann">构建 DiskANN</a></h2>
+<pre><code class="language-cpp">std::string build_params = R"(
+{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "diskann": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "pq_sample_rate": 0.1,
+        "pq_dims": 32,
+        "use_async_io": true
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("diskann", build_params).value();
+index-&gt;Build(dataset);
+</code></pre>
+<p>完整例子：<code>examples/cpp/102_index_diskann.cpp</code>。</p>
+<h2 id="异步-iolibaio"><a class="header" href="#异步-iolibaio">异步 IO（libaio）</a></h2>
+<p>Linux 下可在构建参数中开启 <code>use_async_io</code>，搜索路径会通过 libaio 并发发起读请求。
+需要在编译时打开 <code>VSAG_ENABLE_LIBAIO=ON</code>（详见 <a href="#编译构建">编译构建</a>）。</p>
+<h2 id="文件布局"><a class="header" href="#文件布局">文件布局</a></h2>
+<p><code>diskann</code> 在磁盘上产生两类文件：</p>
+<ul>
+<li><code>*.index</code>：图结构；</li>
+<li><code>*.data</code>：完整精度向量。</li>
+</ul>
+<p>反序列化时需要同时可访问这两份数据。</p>
+<h2 id="注意事项-5"><a class="header" href="#注意事项-5">注意事项</a></h2>
+<ul>
+<li>磁盘介质建议使用 NVMe SSD；HDD 下查询延迟会显著退化。</li>
+<li>内存中 PQ 的压缩率与精度由 <code>pq_dims</code> 控制，过小会导致召回下降。</li>
+<li>冷启动时建议对索引文件做预热（随机读几兆）以建立 page cache。</li>
+<li>当前 DiskANN 不支持在线插入 / 删除；如需增删请重建。</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="版本日志"><a class="header" href="#版本日志">版本日志</a></h1>
+<p>VSAG 的正式发布历史与变更说明维护在 GitHub Releases 页面：</p>
+<ul>
+<li><a href="https://github.com/antgroup/vsag/releases">Releases on GitHub</a></li>
+</ul>
+<p>每个发布版本包含：</p>
+<ul>
+<li><strong>新增功能</strong>（Features）</li>
+<li><strong>改进</strong>（Improvements）</li>
+<li><strong>缺陷修复</strong>（Bug Fixes）</li>
+<li><strong>不兼容变更</strong>（Breaking Changes，如有）</li>
+<li><strong>贡献者名单</strong></li>
+</ul>
+<h2 id="版本号规范"><a class="header" href="#版本号规范">版本号规范</a></h2>
+<p>VSAG 遵循 <a href="https://semver.org/">Semantic Versioning 2.0</a>：</p>
+<ul>
+<li><code>MAJOR.MINOR.PATCH</code></li>
+<li><code>MAJOR</code> 通常伴随 API / 序列化格式的不兼容修改；</li>
+<li><code>MINOR</code> 新增功能但保持向后兼容；</li>
+<li><code>PATCH</code> 仅包含缺陷修复与性能改进。</li>
+</ul>
+<h2 id="如何获取对应版本"><a class="header" href="#如何获取对应版本">如何获取对应版本</a></h2>
+<h3 id="c--源码"><a class="header" href="#c--源码">C++ / 源码</a></h3>
+<pre><code class="language-bash">git checkout vX.Y.Z
+make release
+</code></pre>
+<h3 id="python"><a class="header" href="#python">Python</a></h3>
+<pre><code class="language-bash">pip install pyvsag==X.Y.Z
+</code></pre>
+<h3 id="nodejs--typescript"><a class="header" href="#nodejs--typescript">Node.js / TypeScript</a></h3>
+<pre><code class="language-bash">npm install vsag@X.Y.Z
+</code></pre>
+<h2 id="升级建议"><a class="header" href="#升级建议">升级建议</a></h2>
+<ul>
+<li>跨大版本升级前，请先阅读对应 Release 的 <strong>Breaking Changes</strong> 部分；</li>
+<li>涉及序列化格式变更时，建议先在测试环境验证反序列化兼容性；</li>
+<li>生产环境灰度升级，结合 <a href="#性能评估工具eval_performance">性能评估工具</a> 对比召回与延迟。</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="路线图"><a class="header" href="#路线图">路线图</a></h1>
 <p>当下，随着 AI 能力的持续增强和优秀开源大模型的普及，非结构化数据检索需求激增。向量算法作为非结构化数据检索技术的关键，其重要性不言而喻。VSAG 社区将会持续投入算法研发，帮助社区的合作伙伴，提升数据检索性能，提高数据检索实时性，持续降低检索服务成本。</p>
@@ -575,8 +1114,63 @@ Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
 <p>除此之外，我们还有很多功能特性会在开源社区讨论-开发-实现，如果你对此感兴趣，请关注 VSAG 项目！</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="开源社区"><a class="header" href="#开源社区">开源社区</a></h1>
+<p>VSAG 是一个由蚂蚁集团开源并持续在 GitHub 上维护的项目，欢迎开发者、研究者和使用者加入社区。</p>
+<h2 id="交流渠道"><a class="header" href="#交流渠道">交流渠道</a></h2>
+<ul>
+<li><strong>GitHub Issues</strong>：报告缺陷、提交特性请求、讨论设计方案。
+<a href="https://github.com/antgroup/vsag/issues">https://github.com/antgroup/vsag/issues</a></li>
+<li><strong>GitHub Discussions</strong>（若开启）：长期话题、用法问答、最佳实践。</li>
+<li><strong>Pull Request</strong>：任何代码、文档、示例改动都通过 PR 提交，详见 <a href="#贡献到-vsag">贡献到 VSAG</a>。</li>
+<li><strong>钉钉 / 微信群</strong>：如社区公告给出入口，可在 README 顶部找到最新链接。</li>
+</ul>
+<h2 id="项目治理"><a class="header" href="#项目治理">项目治理</a></h2>
+<ul>
+<li>维护者团队负责代码评审、发版与路线图；</li>
+<li>所有 PR 需经过至少一次代码评审 + 必需的 CI 检查；</li>
+<li>每个 PR 必须附带 <code>kind/*</code> 与 <code>version/*</code> 两类标签，由 Mergify 强制检查（见 <a href="#贡献到-vsag">贡献者指南</a>）。</li>
+</ul>
+<h2 id="贡献方式"><a class="header" href="#贡献方式">贡献方式</a></h2>
+<p>不止于写代码，以下都是欢迎的贡献形式：</p>
+<ul>
+<li><strong>文档</strong>：修正错别字、补充示例、翻译页面；</li>
+<li><strong>示例</strong>：在 <code>examples/cpp/</code> 或 <code>examples/python/</code> 新增端到端 demo；</li>
+<li><strong>Benchmark</strong>：提交新的测试机型 / 数据集结果，丰富 <a href="#标准环境性能参考">标准环境性能参考</a>；</li>
+<li><strong>生态集成</strong>：为 VSAG 编写其他语言 / 数据库的绑定或适配层；</li>
+<li><strong>科普文章</strong>：欢迎投稿到 <code>docs/blog/</code>（详见仓库 README）。</li>
+</ul>
+<h2 id="行为准则"><a class="header" href="#行为准则">行为准则</a></h2>
+<p>社区遵循 <a href="https://www.contributor-covenant.org/">Contributor Covenant Code of Conduct</a>。
+请以建设性、尊重的方式参与讨论。</p>
+<h2 id="相关项目"><a class="header" href="#相关项目">相关项目</a></h2>
+<p>参见 <a href="#关联项目">关联项目</a>。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="关联项目"><a class="header" href="#关联项目">关联项目</a></h1>
+<p>本页收录与 VSAG 相关或集成了 VSAG 的上下游项目，便于用户快速搭建完整方案。</p>
+<h2 id="使用-vsag-的项目"><a class="header" href="#使用-vsag-的项目">使用 VSAG 的项目</a></h2>
+<ul>
+<li><strong><a href="https://github.com/oceanbase/oceanbase">OceanBase</a></strong>：蚂蚁集团开源的分布式关系数据库，向量检索能力基于 VSAG。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/issues">MyScale / OpenSearch / 其他向量数据库</a></strong>：如有集成 PR 或 issue，欢迎补充到本页面。</li>
+</ul>
+<h2 id="vsag-的依赖与灵感来源"><a class="header" href="#vsag-的依赖与灵感来源">VSAG 的依赖与灵感来源</a></h2>
+<ul>
+<li><strong><a href="https://github.com/nmslib/hnswlib">hnswlib</a></strong>：HNSW 的经典实现，VSAG 中的 HNSW 索引在接口与算法上受其影响。</li>
+<li><strong><a href="https://github.com/microsoft/DiskANN">DiskANN</a></strong>：微软研究院的大规模磁盘向量检索工作，VSAG 的 <code>diskann</code> 索引基于该思路实现。</li>
+<li><strong><a href="https://github.com/facebookresearch/faiss">Faiss</a></strong>：Meta 的向量检索库；VSAG 在 IVF / 量化思路上有所借鉴。</li>
+<li><strong><a href="https://github.com/microsoft/SPTAG">SPANN / SPTAG</a></strong>：微软的大规模向量检索工程，提供了混合索引的思路。</li>
+</ul>
+<h2 id="生态工具"><a class="header" href="#生态工具">生态工具</a></h2>
+<ul>
+<li><strong><a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a></strong>：行业通用的 ANN 基准测试工具，VSAG 自带 <a href="#性能评估工具eval_performance">性能评估工具</a> 与其数据集格式兼容。</li>
+<li><strong><a href="https://github.com/pybind/pybind11">pybind11</a></strong>：<code>pyvsag</code> Python 绑定基于此实现。</li>
+<li><strong><a href="https://napi.rs/">napi-rs</a></strong>：<code>typescript/</code> 下的 Node.js 绑定基于此实现。</li>
+</ul>
+<h2 id="绑定与语言支持"><a class="header" href="#绑定与语言支持">绑定与语言支持</a></h2>
+<ul>
+<li><strong>C++</strong>（原生）</li>
+<li><strong>Python</strong>：<code>pyvsag</code>，源码位于 <code>python_bindings/</code> 与 <code>python/</code>。</li>
+<li><strong>Node.js / TypeScript</strong>：源码位于 <code>typescript/</code>，npm 包名 <code>vsag</code>。</li>
+</ul>
+<p>欢迎提交 PR 完善本列表。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="科研论文"><a class="header" href="#科研论文">科研论文</a></h1>
 <h2 id="1-effective-and-general-distance-computation-for-approximate-nearest-neighbor-search-icde25"><a class="header" href="#1-effective-and-general-distance-computation-for-approximate-nearest-neighbor-search-icde25">1. Effective and General Distance Computation for Approximate Nearest Neighbor Search <a href="http://arxiv.org/abs/2404.16322">[ICDE’25]</a></a></h2>
@@ -587,7 +1181,8 @@ Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
 <h2 id="2-vsag-an-optimized-search-framework-for-graph-based-approximate-nearest-neighbor-search-vldb25"><a class="header" href="#2-vsag-an-optimized-search-framework-for-graph-based-approximate-nearest-neighbor-search-vldb25">2. VSAG: An Optimized Search Framework for Graph-based Approximate Nearest Neighbor Search <a href="http://arxiv.org/abs/2503.17911">[VLDB’25]</a></a></h2>
 <p>摘要（翻译）：近似最近邻搜索（ANNS）是向量数据库和人工智能基础设施中的一个基础问题。近期的基于图的ANNS算法在实现高搜索精度的同时，也达到了实用的效率。尽管取得了这些进展，但由于基于图的搜索所带来的随机内存访问模式以及向量距离计算的高昂开销，这些算法在生产环境中仍然面临性能瓶颈。此外，基于图的ANNS算法的性能对参数高度敏感，而选择最优参数的成本又极其高昂——例如，手动调参需要反复重建索引。本文介绍了VSAG，一个旨在提升基于图的ANNS算法在生产环境中性能的开源框架。VSAG已在蚂蚁集团的各项服务中大规模部署，并集成了三项关键优化：(i) 高效的内存访问：通过预取技术和缓存友好的向量组织方式，减少L3缓存未命中；(ii) 自动化参数调优：无需重建索引即可自动选择性能最优的参数；(iii) 高效的距离计算：利用现代硬件、标量量化技术，并智能地切换至低精度表示，从而显著降低距离计算的成本。我们在真实数据集上对VSAG进行了评估。实验结果表明，在保证同等精度的前提下，VSAG达到了业界顶尖的性能水平，且相比业界标准库HNSWlib，其加速比可高达4倍。</p>
 <blockquote>
-<p>该功能已集成于 VSAG 库中，通过 <code>Optimizer-&gt;optimize()</code> 启用。</p>
+<p>该功能已集成于 VSAG 库中，通过统一的 <a href="#优化器tune"><code>Tune</code></a> 接口启用（历史上称为
+“ELP Optimizer”，底层实现键为 <code>use_elp_optimizer</code>）。</p>
 </blockquote>
 <h2 id="3-enhancegraph-a-continuously-enhanced-graph-based-index-for-high-dimensional-approximate-nearest-neighbor-search-arxiv"><a class="header" href="#3-enhancegraph-a-continuously-enhanced-graph-based-index-for-high-dimensional-approximate-nearest-neighbor-search-arxiv">3. EnhanceGraph: A Continuously Enhanced Graph-based Index for High-dimensional Approximate Nearest Neighbor Search <a href="https://arxiv.org/abs/2506.13144">[arxiv]</a></a></h2>
 <p>摘要（翻译）：随着深度学习技术的飞速发展，高维向量空间中的近似最近邻搜索近年来受到了广泛关注。我们观察到，在基于图的索引的整个生命周期中，会产生大量的搜索日志与构建日志。然而，由于现有索引具有静态特性，这两类有价值的日志并未得到充分利用。本文提出了EnhanceGraph框架，该框架将这两类日志整合到一种名为“共轭图”（conjugate graph）的新型结构中，并利用该共轭图来提升搜索质量。通过对基于图的索引的局限性进行理论分析与观察，我们提出了若干优化方法。针对搜索日志，共轭图存储从局部最优解到全局最优解的边，以增强路由至最近邻的能力；针对构建日志，共轭图存储从邻近图（proximity graph）中被剪除的边，以增强对k最近邻的检索能力。我们在多个公开及真实的工业数据集上的实验结果表明，EnhanceGraph在不牺牲搜索效率的前提下，显著提升了搜索精度，其中召回率（recall）的最大提升幅度达到了从41.74%至93.42%。此外，我们的EnhanceGraph算法已被集成到蚂蚁集团的开源向量库VSAG中。</p>
@@ -604,37 +1199,321 @@ Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
 </blockquote>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="最佳实践"><a class="header" href="#最佳实践">最佳实践</a></h1>
+<p>本页整理在生产环境使用 VSAG 的经验性建议，作为参数手册与性能调优的补充。</p>
+<h2 id="索引选型"><a class="header" href="#索引选型">索引选型</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>场景</th><th>推荐索引</th><th>理由</th></tr>
+</thead>
+<tbody>
+<tr><td>中等规模（≤ 1000 万）纯内存、对召回/延迟要求极高</td><td><code>hgraph</code></td><td>统一的高质量图索引，支持多种量化与 Tune</td></tr>
+<tr><td>兼容既有 HNSW 部署</td><td><code>hnsw</code></td><td>接口与参数最贴近 hnswlib</td></tr>
+<tr><td>10 亿级向量、内存受限</td><td><code>diskann</code></td><td>内存只放 PQ，完整向量在磁盘</td></tr>
+<tr><td>候选召回层 / 粗排</td><td><code>ivf</code></td><td>训练后即可大规模并行</td></tr>
+<tr><td>小规模、需要 100% 精度</td><td><code>brute_force</code></td><td>暴力搜索，作为召回率 baseline</td></tr>
+<tr><td>多租户 / 分区数据</td><td><code>pyramid</code></td><td>一个索引内部多棵子图，支持按 tag 检索</td></tr>
+<tr><td>稀疏向量（BM25 / SPLADE 类）</td><td><code>sindi</code></td><td>专为稀疏向量设计</td></tr>
+</tbody>
+</table>
+</div>
+<p>详细参数参见 <a href="#索引参数">索引参数</a>。</p>
+<h2 id="构建阶段"><a class="header" href="#构建阶段">构建阶段</a></h2>
+<ul>
+<li><strong>先确定 metric</strong>：<code>l2</code> / <code>ip</code> / <code>cosine</code> 不可在构建后变更。</li>
+<li><strong><code>ef_construction</code></strong>：典型 200~500。过小召回不足；过大构建显著变慢。</li>
+<li><strong><code>max_degree</code> / <code>M</code></strong>：典型 16~48。越大召回越高、内存也越高。</li>
+<li><strong>量化策略</strong>：延迟敏感场景建议 <code>sq8</code> 或 <code>pq</code>；精度敏感建议 <code>fp32</code> 或 <code>fp16</code>。</li>
+<li><strong>并行构建</strong>：使用自定义 <code>ThreadPool</code>（见 <code>examples/cpp/203_custom_thread_pool.cpp</code>）以控制并发度。</li>
+</ul>
+<h2 id="搜索阶段"><a class="header" href="#搜索阶段">搜索阶段</a></h2>
+<ul>
+<li><strong><code>ef_search</code></strong>：典型 <code>topk ~ topk * 10</code>，可按 QPS / 召回率做 grid search。</li>
+<li><strong>批量搜索</strong>：多查询合并可提升缓存命中；参考 <code>examples/cpp/205_*</code>（若提供）或业务侧批量化。</li>
+<li><strong>Filter</strong>：使用内置 <code>Filter</code>（<code>examples/cpp/301_feature_filter.cpp</code>），不要在结果侧二次过滤。</li>
+<li><strong>临时 Allocator</strong>：高并发在线服务建议每线程一份 arena allocator，见 <a href="#内存管理">内存管理</a>。</li>
+</ul>
+<h2 id="调优"><a class="header" href="#调优">调优</a></h2>
+<ul>
+<li>使用 <a href="#优化器tune"><code>Tune</code></a> 对真实查询分布进行调参；</li>
+<li>对尾部困难查询，启用 <a href="#图索引增强">共轭图</a>；</li>
+<li>使用 <a href="#性能评估工具eval_performance"><code>eval_performance</code></a> 做持续回归测试。</li>
+</ul>
+<h2 id="部署"><a class="header" href="#部署">部署</a></h2>
+<ul>
+<li>推荐使用官方 Docker 镜像，详见 <a href="#安装">安装</a>。</li>
+<li>生产二进制建议选择对应 ABI 的发布包：<code>dist-pre-cxx11-abi</code>、<code>dist-cxx11-abi</code>、<code>dist-libcxx</code>（见 <a href="#编译构建">编译构建</a>）。</li>
+<li>开启 <code>VSAG_ENABLE_INTEL_MKL=ON</code> 可在 Intel CPU 上获得额外加速；</li>
+<li>DiskANN 建议使用 NVMe SSD，并配合 <code>VSAG_ENABLE_LIBAIO=ON</code>。</li>
+</ul>
+<h2 id="可观测"><a class="header" href="#可观测">可观测</a></h2>
+<ul>
+<li><code>Index::GetMemoryUsage()</code> 暴露运行时内存；</li>
+<li>搜索路径上可用自定义 <code>Logger</code>（<code>examples/cpp/202_custom_logger.cpp</code>）接入业务日志；</li>
+<li>结合 <code>eval_performance</code> 将关键指标写入 InfluxDB 进行长期监控。</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="索引参数"><a class="header" href="#索引参数">索引参数</a></h1>
+<p>本页汇总 VSAG 各索引类型的常用参数。完整枚举请参考源码：</p>
+<ul>
+<li>构建参数键：<code>src/constants.cpp</code></li>
+<li>公开常量：<code>include/vsag/constants.h</code></li>
+<li>每个索引的示例：<code>examples/cpp/101_index_hnsw.cpp</code> 等</li>
+</ul>
+<h2 id="通用参数"><a class="header" href="#通用参数">通用参数</a></h2>
+<p>所有索引在构建时都需要提供以下顶层字段：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>取值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>正整数</td><td>向量维度，构建后不可更改</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code></td><td>向量数据类型，决定索引内部表示</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>距离度量</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h2>
+<p>HNSW 使用 <code>hnsw</code> 子对象承载构建参数，并不支持 HGraph 专有参数（如 <code>base_quantization_type</code>）。</p>
+<pre><code class="language-json">{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "hnsw": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "use_conjugate_graph": false
+    }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>典型值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
+<tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
+<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td>是否构建 <a href="#图索引增强">共轭图</a></td></tr>
+</tbody>
+</table>
+</div>
+<p>搜索时：</p>
+<pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
+</code></pre>
+<h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
+<p>HGraph 的构建参数使用通用的 <code>index_param</code> 键（参见 <code>examples/cpp/103_index_hgraph.cpp</code>）；
+<code>hgraph</code> 键则保留给搜索期参数。</p>
+<pre><code class="language-json">{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "index_param": {
+        "base_quantization_type": "fp32",
+        "max_degree": 32,
+        "ef_construction": 400
+    }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>典型值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
+<tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略</td></tr>
+</tbody>
+</table>
+</div>
+<p>搜索时：</p>
+<pre><code class="language-json">{"hgraph": {"ef_search": 100}}
+</code></pre>
+<h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
+<pre><code class="language-json">{
+    "diskann": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "pq_sample_rate": 0.1,
+        "pq_dims": 32,
+        "use_async_io": true
+    }
+}
+</code></pre>
+<h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
+<pre><code class="language-json">{
+    "ivf": {
+        "nlist": 4096,
+        "base_quantization_type": "sq8",
+        "nprobe": 32
+    }
+}
+</code></pre>
+<h2 id="brute-force"><a class="header" href="#brute-force">Brute Force</a></h2>
+<pre><code class="language-json">{"brute_force": {}}
+</code></pre>
+<p>无需额外参数。</p>
+<h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
+<p>Pyramid 支持按 tag 组织多棵子图：</p>
+<pre><code class="language-json">{
+    "pyramid": {
+        "tag_dim": 1,
+        "max_degree": 24,
+        "ef_construction": 300
+    }
+}
+</code></pre>
+<h2 id="sindi稀疏向量"><a class="header" href="#sindi稀疏向量">SINDI（稀疏向量）</a></h2>
+<pre><code class="language-json">{
+    "sindi": {
+        "top_k": 32,
+        "doc_prune_ratio": 0.1
+    }
+}
+</code></pre>
+<h2 id="运行期参数"><a class="header" href="#运行期参数">运行期参数</a></h2>
+<p>除构建参数外，<code>Index::Tune</code> 与 <code>SearchParam</code> 可在运行时调整 <code>ef_search</code>、<code>nprobe</code> 等参数。参考
+<a href="#优化器tune">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="标准环境性能参考"><a class="header" href="#标准环境性能参考">标准环境性能参考</a></h1>
+<p>本页作为官方性能数据的入口与说明。具体数值建议以 GitHub 最新发布的 benchmark 结果为准，
+并通过 <a href="#性能评估工具eval_performance">性能评估工具</a> 在目标环境中复测。</p>
+<h2 id="参考机型"><a class="header" href="#参考机型">参考机型</a></h2>
+<p>官方基准测试默认在以下量级的机型上进行（具体 SKU 以 Release Notes 为准）：</p>
+<ul>
+<li><strong>CPU</strong>：主流 x86_64 服务器 CPU（支持 AVX2 / AVX-512）</li>
+<li><strong>内存</strong>：足够覆盖索引 + 操作系统 page cache 的 DDR4/DDR5</li>
+<li><strong>磁盘</strong>：NVMe SSD（DiskANN 场景）</li>
+<li><strong>操作系统</strong>：Ubuntu 20.04 / 22.04 或 CentOS 7 / 8</li>
+<li><strong>编译</strong>：<code>make release</code>，MKL 默认<strong>关闭</strong>（<code>VSAG_ENABLE_INTEL_MKL=OFF</code>）。
+如需启用请显式设置 <code>VSAG_ENABLE_INTEL_MKL=ON make release</code>
+（或直接使用 CMake 时使用 <code>-DENABLE_INTEL_MKL=ON</code>）</li>
+</ul>
+<h2 id="参考数据集"><a class="header" href="#参考数据集">参考数据集</a></h2>
+<p>官方对比常用以下数据集（HDF5 格式，兼容 <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a>）：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>数据集</th><th>维度</th><th>距离</th><th>规模</th></tr>
+</thead>
+<tbody>
+<tr><td>SIFT-1M</td><td>128</td><td>L2</td><td>1,000,000</td></tr>
+<tr><td>GIST-1M</td><td>960</td><td>L2</td><td>1,000,000</td></tr>
+<tr><td>Deep-10M</td><td>96</td><td>L2</td><td>10,000,000</td></tr>
+<tr><td>Text-to-Image-1M</td><td>200</td><td>IP</td><td>1,000,000</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="关键指标"><a class="header" href="#关键指标">关键指标</a></h2>
+<ul>
+<li>QPS（单线程 / 多线程）</li>
+<li>平均召回率（Recall@k）</li>
+<li>P50 / P95 / P99 延迟</li>
+<li>峰值内存、索引体积</li>
+<li>构建时间</li>
+</ul>
+<h2 id="如何复现"><a class="header" href="#如何复现">如何复现</a></h2>
+<pre><code class="language-bash">make release
+./build-release/tools/eval/eval_performance --config tools/eval/eval_template.yaml
+</code></pre>
+<p>将输出的 JSON / Markdown 结果与官方对比，可定位性能回归或量化退化。</p>
+<h2 id="如何贡献你的数据"><a class="header" href="#如何贡献你的数据">如何贡献你的数据</a></h2>
+<p>欢迎通过 PR 向本页面补充“其他机型下的结果“章节；提交时请附：</p>
+<ul>
+<li>详细 CPU / 内存 / 磁盘信息；</li>
+<li>VSAG 版本（<code>git rev-parse HEAD</code>）；</li>
+<li><code>eval_performance</code> 输出（建议使用 JSON + Markdown 两种格式）；</li>
+<li>构建命令与环境变量（如 <code>VSAG_ENABLE_INTEL_MKL</code> 等）。</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="性能评估工具eval_performance"><a class="header" href="#性能评估工具eval_performance">性能评估工具（eval_performance）</a></h1>
-<p>eval_performance 是一个 VSAG 提供的性能评估工具，用于评估当前版本 VSAG 索引性能表现。</p>
+<p><code>eval_performance</code> 是 VSAG 自带的命令行性能评估工具，位于 <code>tools/eval/</code>，编译后二进制路径为
+<code>build-release/tools/eval/eval_performance</code>。它可以用于对比不同索引、不同参数组合的吞吐、延迟与召回率。</p>
+<h2 id="构建"><a class="header" href="#构建">构建</a></h2>
+<p><code>tools/</code> 默认不会编译，需要显式开启：</p>
+<pre><code class="language-bash"># 通过项目 Makefile
+VSAG_ENABLE_TOOLS=ON make release
+# 或：make dev
+
+# 也可直接通过 CMake
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_TOOLS=ON
+cmake --build build-release -j
+# 产物：./build-release/tools/eval/eval_performance
+</code></pre>
+<p>需要系统安装 HDF5（Ubuntu: <code>apt install libhdf5-dev</code>；CentOS: <code>yum install hdf5-devel</code>）。</p>
+<h2 id="两种模式"><a class="header" href="#两种模式">两种模式</a></h2>
+<h3 id="1-命令行模式适合单次快速测试"><a class="header" href="#1-命令行模式适合单次快速测试">1. 命令行模式（适合单次快速测试）</a></h3>
+<pre><code class="language-bash">./build-release/tools/eval/eval_performance \
+    --datapath /tmp/sift-128-euclidean.hdf5 \
+    --index_name hgraph \
+    --type search \
+    --create_params '{"dim":128,"dtype":"float32","metric_type":"l2","index_param":{"base_quantization_type":"fp32","max_degree":32,"ef_construction":300}}' \
+    --search_params '{"hgraph":{"ef_search":60}}' \
+    --topk 10
+</code></pre>
+<h3 id="2-配置文件模式适合批量对比"><a class="header" href="#2-配置文件模式适合批量对比">2. 配置文件模式（适合批量对比）</a></h3>
+<pre><code class="language-bash">./build-release/tools/eval/eval_performance --config my_eval.yaml
+</code></pre>
+<p>参考模板 <code>tools/eval/eval_template.yaml</code>，一份配置可包含多个 <code>eval_caseN</code> 并分别使用不同参数。</p>
+<h2 id="支持的评估维度"><a class="header" href="#支持的评估维度">支持的评估维度</a></h2>
+<ul>
+<li><strong>效率</strong>：QPS、TPS</li>
+<li><strong>效果</strong>：平均召回率、分位召回率（P0/P10/P50/P90…）</li>
+<li><strong>延迟</strong>：平均延迟、P50/P95/P99 延迟</li>
+<li><strong>资源</strong>：峰值内存占用</li>
+</ul>
+<h2 id="搜索模式"><a class="header" href="#搜索模式">搜索模式</a></h2>
+<p><code>search_mode</code> 支持 <code>knn</code>、<code>range</code>、<code>knn_filter</code>、<code>range_filter</code> 四种。</p>
+<h2 id="结果导出"><a class="header" href="#结果导出">结果导出</a></h2>
+<ul>
+<li><code>table</code>：输出到 stdout 或文件；</li>
+<li><code>json</code>：便于自动化处理；</li>
+<li><code>line_protocol</code>：直接写入 InfluxDB（支持 token 认证）；</li>
+<li><code>markdown</code>：便于贴到 issue / 文档。</li>
+</ul>
+<h2 id="数据集"><a class="header" href="#数据集">数据集</a></h2>
+<p>可使用 <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a> 提供的 HDF5 格式数据集
+（如 <code>sift-128-euclidean.hdf5</code>、<code>gist-960-euclidean.hdf5</code>）。</p>
+<h2 id="参考-1"><a class="header" href="#参考-1">参考</a></h2>
+<ul>
+<li>源码：<code>tools/eval/</code></li>
+<li>英文说明：<code>tools/eval/README.md</code></li>
+<li>标准机型的基准结果见 <a href="#标准环境性能参考">标准环境性能参考</a>。</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="贡献者列表"><a class="header" href="#贡献者列表">贡献者列表</a></h1>
-<p>以下是 VSAG 项目的贡献者（更新于 2025-11-20），按照第一次贡献时间排序：</p>
+<p>以下是 VSAG 项目的贡献者（更新于 2026-04-21），按照第一次贡献的时间排序：</p>
 <ul>
 <li>2024-07-26 Xiangyu Wang (<a href="https://github.com/wxyucs/">wxyucs</a>) from AntGroup</li>
 <li>2024-08-21 Jiabao Jin (<a href="https://github.com/inabao">inabao</a>) from AntGroup</li>
-<li>2024-08-30 👑Haotian Li (<a href="https://github.com/LHT129">LHT129</a>) from AntGroup</li>
+<li>2024-08-30 👑 Haotian Li (<a href="https://github.com/LHT129">LHT129</a>) from AntGroup</li>
 <li>2024-09-04 Xiaoyao Zhong (<a href="https://github.com/ShawnShawnYou">ShawnShawnYou</a>) from AntGroup</li>
-<li>2024-10-23 <a href="https://github.com/jiacai2050">jiacai2050</a></li>
+<li>2024-10-23 Jiacai Liu (<a href="https://github.com/jiacai2050">jiacai2050</a>)</li>
 <li>2024-10-28 <a href="https://github.com/Coien-rr">Coien-rr</a></li>
 <li>2024-12-16 Mingyu Yang (<a href="https://github.com/mingyu-hkustgz">mingyu-hkustgz</a>) from HKUST(GZ)</li>
 <li>2025-01-24 <a href="https://github.com/Carrot-77">Carrot-77</a> from OceanBase</li>
 <li>2025-03-05 Deming Chu (<a href="https://github.com/nedchu">nedchu</a>) from AntGroup</li>
-<li>2025-03-25 <a href="https://github.com/lyxiong0">lyxiong0</a> from OceanBase</li>
+<li>2025-03-25 Liyao Xiong (<a href="https://github.com/lyxiong0">lyxiong0</a>) from OceanBase</li>
 <li>2025-04-15 <a href="https://github.com/skylhd">skylhd</a> from OceanBase</li>
-<li>2025-05-06 <a href="https://github.com/shadowao">shadowao</a> from OceanBase</li>
+<li>2025-04-23 azl (<a href="https://github.com/shadowao">shadowao</a>) from OceanBase</li>
 <li>2025-06-10 <a href="https://github.com/dasurax">dasurax</a> from AntGroup</li>
-<li>2025-06-12 <a href="https://github.com/yulijunzj">yulijunzj</a> from AntGroup</li>
+<li>2025-06-12 L J. Yun (<a href="https://github.com/yulijunzj">yulijunzj</a>) from AntGroup</li>
 <li>2025-06-13 <a href="https://github.com/Danbaiwq">Danbaiwq</a> from OceanBase</li>
 <li>2025-06-17 <a href="https://github.com/jingyueob">jingyueob</a> from OceanBase</li>
-<li>2025-07-28 <a href="https://github.com/jac0626">jac0626</a></li>
-<li>2025-07-29 <a href="https://github.com/mly5269">mly5269</a></li>
-<li>2025-08-18 <a href="https://github.com/HeHuMing">HeHuMing</a></li>
+<li>2025-07-28 jac (<a href="https://github.com/jac0626">jac0626</a>)</li>
+<li>2025-07-29 mly (<a href="https://github.com/mly5269">mly5269</a>)</li>
+<li>2025-08-25 HuMing He (<a href="https://github.com/HeHuMing">HeHuMing</a>)</li>
 <li>2025-10-22 <a href="https://github.com/cubicc">cubicc</a> from ByteDance</li>
 <li>2025-10-29 <a href="https://github.com/Roxanne0321">Roxanne0321</a> from AntGroup</li>
-<li>2025-11-20 <a href="https://github.com/hhy3">hhy3</a></li>
+<li>2025-11-12 baoyuan (<a href="https://github.com/misaka0714">misaka0714</a>)</li>
+<li>2025-11-20 Zihao Wang (<a href="https://github.com/hhy3">hhy3</a>)</li>
+<li>2025-12-19 Xinger (<a href="https://github.com/Ningsir">Ningsir</a>)</li>
+<li>2026-02-05 <a href="https://github.com/stuBirdFly">stuBirdFly</a></li>
+<li>2026-04-08 Sun Jiayu (<a href="https://github.com/pkusunjy">pkusunjy</a>)</li>
+<li>2026-04-20 wei (<a href="https://github.com/jiaweizone">jiaweizone</a>)</li>
+<li>2026-04-20 <a href="https://github.com/XFMENG17">XFMENG17</a></li>
 </ul>
 
                     </main>

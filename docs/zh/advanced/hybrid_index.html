@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-639c14c6.js";
+            window.path_to_searchindex_js = "../searchindex-c4d3605a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c7f9de74.js"></script>
+        <script src="../toc-61b45d24.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -174,7 +174,49 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="内存-磁盘混合索引"><a class="header" href="#内存-磁盘混合索引">内存-磁盘混合索引</a></h1>
+                        <h1 id="内存-磁盘混合索引diskann"><a class="header" href="#内存-磁盘混合索引diskann">内存-磁盘混合索引（DiskANN）</a></h1>
+<p>在海量向量场景下，将整个图索引放入内存既昂贵又浪费。VSAG 提供的 <code>diskann</code> 索引将：</p>
+<ul>
+<li>**压缩后的向量（PQ）**保留在内存中，用于快速剪枝；</li>
+<li><strong>完整向量</strong>与<strong>图结构</strong>存储在磁盘，按查询路径异步读取。</li>
+</ul>
+<p>从而在有限内存预算下支撑 10 亿级向量的近邻查询。</p>
+<h2 id="构建-diskann"><a class="header" href="#构建-diskann">构建 DiskANN</a></h2>
+<pre><code class="language-cpp">std::string build_params = R"(
+{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "diskann": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "pq_sample_rate": 0.1,
+        "pq_dims": 32,
+        "use_async_io": true
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("diskann", build_params).value();
+index-&gt;Build(dataset);
+</code></pre>
+<p>完整例子：<code>examples/cpp/102_index_diskann.cpp</code>。</p>
+<h2 id="异步-iolibaio"><a class="header" href="#异步-iolibaio">异步 IO（libaio）</a></h2>
+<p>Linux 下可在构建参数中开启 <code>use_async_io</code>，搜索路径会通过 libaio 并发发起读请求。
+需要在编译时打开 <code>VSAG_ENABLE_LIBAIO=ON</code>（详见 <a href="../development/building.html">编译构建</a>）。</p>
+<h2 id="文件布局"><a class="header" href="#文件布局">文件布局</a></h2>
+<p><code>diskann</code> 在磁盘上产生两类文件：</p>
+<ul>
+<li><code>*.index</code>：图结构；</li>
+<li><code>*.data</code>：完整精度向量。</li>
+</ul>
+<p>反序列化时需要同时可访问这两份数据。</p>
+<h2 id="注意事项"><a class="header" href="#注意事项">注意事项</a></h2>
+<ul>
+<li>磁盘介质建议使用 NVMe SSD；HDD 下查询延迟会显著退化。</li>
+<li>内存中 PQ 的压缩率与精度由 <code>pq_dims</code> 控制，过小会导致召回下降。</li>
+<li>冷启动时建议对索引文件做预热（随机读几兆）以建立 page cache。</li>
+<li>当前 DiskANN 不支持在线插入 / 删除；如需增删请重建。</li>
+</ul>
 
                     </main>
 

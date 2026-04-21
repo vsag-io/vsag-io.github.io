@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>编译构建 - VSAG文档</title>
+        <title>索引参数 - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -174,112 +174,139 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="编译构建"><a class="header" href="#编译构建">编译构建</a></h1>
-<p>VSAG 是一个 C++ 项目，使用 CMake 构建。项目源码使用 C++17 标准编写，请确保你使用的编译器支持 C++17 的语法。我们建议你使用 GCC 9.4.0 或者 Clang 13.0.0 以后的版本，因为这些版本在我们的开发中工作良好。</p>
-<p>在 CMake 配置中，有许多参数和编译目标。为了方便使用，我们将常用的编译目标（或命令）写到了 Makefile 中，使用 Unix Makefiles 进行管理，已避免记忆各种配置或者从命令行输入大段参数。这些编译目标（或命令）可以通过在项目根目录运行 <code>make help</code> 查看：</p>
-<pre><code class="language-bash">Usage: make &lt;target&gt;
-
-Targets:
-help:                    ## Show the help.
-##
-## ================ development ================
-debug:                   ## Build vsag with debug options.
-dev:                     ## Build full developer configuration.
-test:                    ## Build and run unit tests.
-asan:                    ## Build with AddressSanitizer option.
-test_asan: asan          ## Run unit tests with AddressSanitizer option.
-tsan:                    ## Build with ThreadSanitizer option.
-test_tsan: tsan          ## Run unit tests with ThreadSanitizer option.
-clean:                   ## Clear build/ directory.
-##
-## ================ integration ================
-fmt:                     ## Format codes.
-cov:                     ## Build unit tests with code coverage enabled.
-lint:                    ## Check coding styles defined in `.clang-tidy`.
-fix-lint:                ## Fix coding style issues in-place via clang-apply-replacements, use it be careful!!!
-test_parallel:           ## Run all tests parallel (used in CI).
-test_asan_parallel: asan ## Run unit tests parallel with AddressSanitizer option.
-test_tsan_parallel: tsan ## Run unit tests parallel with ThreadSanitizer option.
-##
-## ================ distribution ================
-release:                 ## Build vsag with release options.
-dist-pre-cxx11-abi:      ## Build vsag with distribution options.
-dist-cxx11-abi:          ## Build vsag with distribution options.
-dist-libcxx:             ## Build vsag using libc++.
-pyvsag:                  ## Build a specific Python version wheel. Usage: make pyvsag PY_VERSION=3.10
-pyvsag-all:              ## Build wheels for all supported versions. Usage: make pyvsag-all
-clean-release:           ## Clear build-release/ directory.
-install:                 ## Build and install the release version of vsag.
-</code></pre>
-<h2 id="编译-vsag-库"><a class="header" href="#编译-vsag-库">编译 VSAG 库</a></h2>
-<p><code>make debug</code> 是我们开发中最常用的命令，它会以开发模式编译整个项目，禁用大多数优化（<code>-O0</code>）并生成调试信息（<code>-g</code>）。该目标默认关闭测试、示例、工具、Python 绑定与 <code>mockimpl</code>；如需同时启用它们，可使用 <code>make dev</code>。</p>
-<p>在默认设置下，开发模式的编译产物会生成在 <code>./build/</code> 目录中。可以通过如下命令运行单元测试：</p>
-<pre><code class="language-bash">./build/tests/unittests
-</code></pre>
-<p>以及通过如下命令运行功能测试：</p>
-<pre><code class="language-bash">./build/tests/functests
-</code></pre>
-<h2 id="运行测试用例"><a class="header" href="#运行测试用例">运行测试用例</a></h2>
-<p>除了上面提到的方法——编译后手动运行测试用例，VSAG 还支持用一条命令完成编译和运行所有测试：</p>
-<pre><code class="language-bash">make test
-</code></pre>
-<p>在我们的开发工作流中，代码修改完成后需要使用上述命令通过所有测试后，才会提交到 GitHub 仓库中。</p>
-<h2 id="内存和多线程测试"><a class="header" href="#内存和多线程测试">内存和多线程测试</a></h2>
-<p>VSAG 是一个索引库，有大量的内存分配和并行计算的代码。我们依赖 AddressSanitizer 和 ThreadSanitizer 来检查发现内存和多线程的问题。当你在开发过程中遇到可疑的内存问题或者多线程问题，可以使用 <code>make test_asan</code> 或者 <code>make test_tsan</code> 来帮助问题发现。</p>
-<h2 id="清除编译工作区"><a class="header" href="#清除编译工作区">清除编译工作区</a></h2>
-<p>当你在调试第三方库引入，或者 CMake options 时，可能会遇到明明修改了 cmake 文件却没有变化的问题，不妨试试 <code>make clean</code> 指令。它会清除掉 <code>build/</code> 目录的所有内容，然后你就可以像刚下载的新项目一样从头编译了。</p>
-<h2 id="格式化代码"><a class="header" href="#格式化代码">格式化代码</a></h2>
-<p>我们使用 clang-format 工具来保持代码风格的统一，对应的配置文件路径是 <code>vsag/.clang-format</code>。</p>
-<p><code>make fmt</code> 命令会自动将 VSAG 的源代码格式化。这个命令需要你的环境中安装有 <a href="https://clang.llvm.org/docs/ClangFormat.html">clang-format</a>。GitHub CI 会在每一个 Pull Request 中运行代码风格检查，以保证合并进主分支的代码风格一致。</p>
-<h2 id="代码覆盖率统计"><a class="header" href="#代码覆盖率统计">代码覆盖率统计</a></h2>
-<p><code>make cov</code> 会使用 coverage 参数来编译 VSAG 项目，使得测试用例运行后能够得到代码覆盖率统计文件。</p>
-<h2 id="静态代码分析"><a class="header" href="#静态代码分析">静态代码分析</a></h2>
-<p>VSAG 使用 <a href="https://clang.llvm.org/extra/clang-tidy/">clang-tidy</a> 工具来实现静态代码分析，旨在提前暴露一些编程规范上的问题，对应的配置文件路径是 <code>vsag/.clang-tidy</code>。</p>
-<p>使用 <code>make lint</code> 可以在本地执行静态代码分析任务。同样地，可以使用 <code>make fix-lint</code> 来自动完成代码修复。</p>
-<blockquote>
-<p>需要注意的是，fix-lint 命令会在源文件上直接修改，请确定你希望这样做！</p>
-</blockquote>
-<h2 id="编译发布模式"><a class="header" href="#编译发布模式">编译发布模式</a></h2>
-<p>在生产环境中，我们需要使用发布模式的 VSAG 库。在此模式下，编译器会尽可能优化代码生成，以实现更好的运行性能。使用以下命令生成发布模式的 VSAG 库：</p>
-<pre><code class="language-bash">make release
-</code></pre>
-<p>为了和开发模式的产物区分开，发布模式的产物默认生成在 <code>./build-release/</code> 目录中。</p>
-<p>如果你需要分发预编译产物，可使用以下目标以控制 ABI：</p>
+                        <h1 id="索引参数"><a class="header" href="#索引参数">索引参数</a></h1>
+<p>本页汇总 VSAG 各索引类型的常用参数。完整枚举请参考源码：</p>
 <ul>
-<li><code>make dist-pre-cxx11-abi</code>：使用 <code>-D_GLIBCXX_USE_CXX11_ABI=0</code> 构建（pre-C++11 ABI）；</li>
-<li><code>make dist-cxx11-abi</code>：使用 <code>-D_GLIBCXX_USE_CXX11_ABI=1</code> 构建（C++11 ABI）；</li>
-<li><code>make dist-libcxx</code>：使用 <code>libc++</code> 代替 <code>libstdc++</code> 构建。</li>
+<li>构建参数键：<code>src/constants.cpp</code></li>
+<li>公开常量：<code>include/vsag/constants.h</code></li>
+<li>每个索引的示例：<code>examples/cpp/101_index_hnsw.cpp</code> 等</li>
 </ul>
-<h2 id="编译-pyvsag-包"><a class="header" href="#编译-pyvsag-包">编译 pyvsag 包</a></h2>
-<p>pyvsag 是 VSAG 的 Python 版本。通过 <code>pip install pyvsag</code> 下载安装的 wheel 包就是通过 <code>make pyvsag</code> 命令构建出来的。</p>
-<p>默认会使用 <code>PY_VERSION=3.10</code>，你可以显式指定目标 Python 版本：</p>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.11
+<h2 id="通用参数"><a class="header" href="#通用参数">通用参数</a></h2>
+<p>所有索引在构建时都需要提供以下顶层字段：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>取值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>正整数</td><td>向量维度，构建后不可更改</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code></td><td>向量数据类型，决定索引内部表示</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>距离度量</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h2>
+<p>HNSW 使用 <code>hnsw</code> 子对象承载构建参数，并不支持 HGraph 专有参数（如 <code>base_quantization_type</code>）。</p>
+<pre><code class="language-json">{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "hnsw": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "use_conjugate_graph": false
+    }
+}
 </code></pre>
-<p>或者一次构建所有受支持版本的 wheel：</p>
-<pre><code class="language-bash">make pyvsag-all
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>典型值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
+<tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
+<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td>是否构建 <a href="../advanced/enhance_graph.html">共轭图</a></td></tr>
+</tbody>
+</table>
+</div>
+<p>搜索时：</p>
+<pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
 </code></pre>
-<h2 id="环境变量"><a class="header" href="#环境变量">环境变量</a></h2>
-<p>在 Makefile 文件的开始可以看到一些 VSAG 编译系统定义的环境变量。这些变量可以通过命令行运行 <code>export</code> 命令，或者在 <code>.bashrc</code> / <code>.zshrc</code> 等 shell 配置文件中设置来修改。</p>
-<p>环境变量说明如下：</p>
-<ul>
-<li><code>CMAKE_GENERATOR</code>：CMake 内部使用什么来编译项目，默认是 <code>"Unix Makefiles"</code>，其他可选值请参考 <a href="https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html">CMake Generators</a>；</li>
-<li><code>CMAKE_INSTALL_PREFIX</code>：安装路径，即运行 <code>make install</code> 后头文件和库文件会被安装到哪里，一般不需要修改；</li>
-<li><code>COMPILE_JOBS</code>：编译并行度，默认是 6 并行编译，建议设置成你的 CPU 核数以提高编译速度；</li>
-<li><code>DEBUG_BUILD_DIR</code>：开发模式产物目录，非必要不修改；</li>
-<li><code>RELEASE_BUILD_DIR</code>：发布模式产物目录，非必要不修改；</li>
-<li><code>VSAG_ENABLE_INTEL_MKL</code>：是否启用 Intel MKL 作为 BLAS 后端，默认 <code>OFF</code>；关闭时使用 OpenBLAS；</li>
-<li><code>VSAG_ENABLE_LIBAIO</code>：是否启用 <code>libaio</code>，默认 <code>ON</code>。</li>
-</ul>
+<h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
+<p>HGraph 的构建参数使用通用的 <code>index_param</code> 键（参见 <code>examples/cpp/103_index_hgraph.cpp</code>）；
+<code>hgraph</code> 键则保留给搜索期参数。</p>
+<pre><code class="language-json">{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "index_param": {
+        "base_quantization_type": "fp32",
+        "max_degree": 32,
+        "ef_construction": 400
+    }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>典型值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
+<tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略</td></tr>
+</tbody>
+</table>
+</div>
+<p>搜索时：</p>
+<pre><code class="language-json">{"hgraph": {"ef_search": 100}}
+</code></pre>
+<h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
+<pre><code class="language-json">{
+    "diskann": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "pq_sample_rate": 0.1,
+        "pq_dims": 32,
+        "use_async_io": true
+    }
+}
+</code></pre>
+<h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
+<pre><code class="language-json">{
+    "ivf": {
+        "nlist": 4096,
+        "base_quantization_type": "sq8",
+        "nprobe": 32
+    }
+}
+</code></pre>
+<h2 id="brute-force"><a class="header" href="#brute-force">Brute Force</a></h2>
+<pre><code class="language-json">{"brute_force": {}}
+</code></pre>
+<p>无需额外参数。</p>
+<h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
+<p>Pyramid 支持按 tag 组织多棵子图：</p>
+<pre><code class="language-json">{
+    "pyramid": {
+        "tag_dim": 1,
+        "max_degree": 24,
+        "ef_construction": 300
+    }
+}
+</code></pre>
+<h2 id="sindi稀疏向量"><a class="header" href="#sindi稀疏向量">SINDI（稀疏向量）</a></h2>
+<pre><code class="language-json">{
+    "sindi": {
+        "top_k": 32,
+        "doc_prune_ratio": 0.1
+    }
+}
+</code></pre>
+<h2 id="运行期参数"><a class="header" href="#运行期参数">运行期参数</a></h2>
+<p>除构建参数外，<code>Index::Tune</code> 与 <code>SearchParam</code> 可在运行时调整 <code>ef_search</code>、<code>nprobe</code> 等参数。参考
+<a href="../advanced/optimizer.html">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../development/code_structure.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../resources/best_practices.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/testing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../resources/performance.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -289,11 +316,11 @@ install:                 ## Build and install the release version of vsag.
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../development/code_structure.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../resources/best_practices.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/testing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../resources/performance.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

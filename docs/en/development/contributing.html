@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="zh" class="light sidebar-visible" dir="ltr">
+<html lang="en" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>编译构建 - VSAG文档</title>
+        <title>Contributing - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c4d3605a.js";
+            window.path_to_searchindex_js = "../searchindex-a23063df.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-61b45d24.js"></script>
+        <script src="../toc-5aac5128.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -137,7 +137,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG文档</h1>
+                    <h1 class="menu-title">VSAG Documentation</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -174,112 +174,127 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="编译构建"><a class="header" href="#编译构建">编译构建</a></h1>
-<p>VSAG 是一个 C++ 项目，使用 CMake 构建。项目源码使用 C++17 标准编写，请确保你使用的编译器支持 C++17 的语法。我们建议你使用 GCC 9.4.0 或者 Clang 13.0.0 以后的版本，因为这些版本在我们的开发中工作良好。</p>
-<p>在 CMake 配置中，有许多参数和编译目标。为了方便使用，我们将常用的编译目标（或命令）写到了 Makefile 中，使用 Unix Makefiles 进行管理，已避免记忆各种配置或者从命令行输入大段参数。这些编译目标（或命令）可以通过在项目根目录运行 <code>make help</code> 查看：</p>
-<pre><code class="language-bash">Usage: make &lt;target&gt;
+                        <h1 id="contributing-to-vsag"><a class="header" href="#contributing-to-vsag">Contributing to VSAG</a></h1>
+<p>First of all, thank you for taking the time to contribute to VSAG! Contributors like you are what keep the project alive and growing. 🎉</p>
+<blockquote>
+<p>If this is your first open-source contribution, we recommend walking through the
+<a href="https://github.com/firstcontributions/first-contributions">First Contributions</a> tutorial to get
+familiar with the basic workflow.</p>
+</blockquote>
+<p>The sections below cover what you may want to know before contributing.</p>
+<h2 id="ways-to-contribute"><a class="header" href="#ways-to-contribute">Ways to Contribute</a></h2>
+<ol>
+<li><strong>Report bugs.</strong> File a bug issue with enough detail to reproduce the problem. If you consider
+the issue urgent, mention the VSAG team in a comment.</li>
+<li><strong>Propose features.</strong> File a feature request issue describing the expected behavior. Discuss the
+design with the VSAG team and the community before implementation. Once the plan is agreed,
+follow the <a href="#contribution-flow">contribution flow</a>.</li>
+<li><strong>Implement features or fix bugs.</strong> Pick up an open issue and follow the
+<a href="#contribution-flow">contribution flow</a>. Feel free to ask for clarifications by commenting on
+the issue and @-mentioning the VSAG team.</li>
+</ol>
+<h2 id="contribution-flow"><a class="header" href="#contribution-flow">Contribution Flow</a></h2>
+<blockquote>
+<p>We use <a href="https://docs.github.com/en/get-started/using-github/github-flow">GitHub Flow</a> to
+collaborate on VSAG.</p>
+</blockquote>
+<ol>
+<li>Fork the VSAG repository on GitHub.</li>
+<li>Clone your fork locally: <code>git clone git@github.com:&lt;yourname&gt;/vsag.git</code>.</li>
+<li>Create a working branch: <code>git checkout -b my-topic-branch</code>.</li>
+<li>Make changes, run local checks, commit, and push with
+<code>git push --set-upstream origin my-topic-branch</code>.</li>
+<li>Open a pull request on GitHub.</li>
+</ol>
+<p>If you already have a local clone, update it before starting so that merge conflicts are less
+likely:</p>
+<pre><code class="language-bash">git remote add upstream git@github.com:antgroup/vsag.git
+git checkout main
+git pull upstream main
+git checkout -b my-topic-branch
+</code></pre>
+<h2 id="guidelines"><a class="header" href="#guidelines">Guidelines</a></h2>
+<p>Before opening a pull request, make sure your changes pass local checks and follow the VSAG
+coding style.</p>
+<ul>
+<li>New features must ship with tests that demonstrate correct behavior and guard against
+regressions.</li>
+<li>Bug fixes should add a regression test covering the triggering case; a missing test is usually
+what allowed the bug in the first place.</li>
+<li>Preserve API compatibility when editing code under <code>include/</code>.</li>
+<li>Do not include internal headers (from <code>src/</code>) in public headers (under <code>include/</code>).</li>
+<li>When contributing a new feature, remember that the maintenance cost shifts to the VSAG team by
+default — we evaluate contributions by weighing benefit against long-term maintenance.</li>
+</ul>
+<h2 id="signing-off-dco"><a class="header" href="#signing-off-dco">Signing Off (DCO)</a></h2>
+<p>All contributions to this project must include a
+<a href="https://developercertificate.org/">Developer Certificate of Origin (DCO)</a> sign-off. The sign-off
+<strong>must</strong> be included in every commit message in the form
+<code>Signed-off-by: {{Full Name}} &lt;{{email address}}&gt;</code> (without the <code>{}</code>). Contributions without a DCO
+sign-off cannot be accepted.</p>
+<pre><code class="language-text">This is my commit message
 
-Targets:
-help:                    ## Show the help.
-##
-## ================ development ================
-debug:                   ## Build vsag with debug options.
-dev:                     ## Build full developer configuration.
-test:                    ## Build and run unit tests.
-asan:                    ## Build with AddressSanitizer option.
-test_asan: asan          ## Run unit tests with AddressSanitizer option.
-tsan:                    ## Build with ThreadSanitizer option.
-test_tsan: tsan          ## Run unit tests with ThreadSanitizer option.
-clean:                   ## Clear build/ directory.
-##
-## ================ integration ================
-fmt:                     ## Format codes.
-cov:                     ## Build unit tests with code coverage enabled.
-lint:                    ## Check coding styles defined in `.clang-tidy`.
-fix-lint:                ## Fix coding style issues in-place via clang-apply-replacements, use it be careful!!!
-test_parallel:           ## Run all tests parallel (used in CI).
-test_asan_parallel: asan ## Run unit tests parallel with AddressSanitizer option.
-test_tsan_parallel: tsan ## Run unit tests parallel with ThreadSanitizer option.
-##
-## ================ distribution ================
-release:                 ## Build vsag with release options.
-dist-pre-cxx11-abi:      ## Build vsag with distribution options.
-dist-cxx11-abi:          ## Build vsag with distribution options.
-dist-libcxx:             ## Build vsag using libc++.
-pyvsag:                  ## Build a specific Python version wheel. Usage: make pyvsag PY_VERSION=3.10
-pyvsag-all:              ## Build wheels for all supported versions. Usage: make pyvsag-all
-clean-release:           ## Clear build-release/ directory.
-install:                 ## Build and install the release version of vsag.
+Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
 </code></pre>
-<h2 id="编译-vsag-库"><a class="header" href="#编译-vsag-库">编译 VSAG 库</a></h2>
-<p><code>make debug</code> 是我们开发中最常用的命令，它会以开发模式编译整个项目，禁用大多数优化（<code>-O0</code>）并生成调试信息（<code>-g</code>）。该目标默认关闭测试、示例、工具、Python 绑定与 <code>mockimpl</code>；如需同时启用它们，可使用 <code>make dev</code>。</p>
-<p>在默认设置下，开发模式的编译产物会生成在 <code>./build/</code> 目录中。可以通过如下命令运行单元测试：</p>
-<pre><code class="language-bash">./build/tests/unittests
+<p>Git provides a <code>-s</code> flag that appends the trailer automatically:</p>
+<pre><code class="language-bash">git commit -s -m "This is my commit message"
 </code></pre>
-<p>以及通过如下命令运行功能测试：</p>
-<pre><code class="language-bash">./build/tests/functests
+<p>For contributions co-authored by a human developer and an AI coding agent (OpenCode, Claude Code,
+Codex, etc.), include a <code>Signed-off-by</code> trailer for <strong>each</strong> collaborator, for example:</p>
+<pre><code class="language-text">Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
+Signed-off-by: OpenCode (claude-sonnet-4.5) &lt;noreply@opencode.ai&gt;
 </code></pre>
-<h2 id="运行测试用例"><a class="header" href="#运行测试用例">运行测试用例</a></h2>
-<p>除了上面提到的方法——编译后手动运行测试用例，VSAG 还支持用一条命令完成编译和运行所有测试：</p>
+<h2 id="commit-messages-and-pr-labels"><a class="header" href="#commit-messages-and-pr-labels">Commit Messages and PR Labels</a></h2>
+<ul>
+<li>Follow <a href="https://www.conventionalcommits.org/">Conventional Commits</a>; common prefixes include
+<code>feat:</code>, <code>fix:</code>, <code>docs:</code>, <code>chore:</code>, <code>refactor:</code>, <code>test:</code>, <code>ci:</code>.</li>
+<li>If a commit must skip CI, put <code>[skip ci]</code> at the <strong>beginning</strong> of the subject line, e.g.
+<code>[skip ci] docs: fix typo in README</code>.</li>
+<li>Every PR <strong>must</strong> carry two labels (enforced by Mergify, required to merge):
+<ul>
+<li><code>kind/*</code>: <code>kind/bug</code>, <code>kind/feature</code>, <code>kind/improvement</code>, or <code>kind/documentation</code>.</li>
+<li><code>version/*</code>: the target release, e.g. <code>version/1.0</code>, <code>version/0.18</code>.</li>
+</ul>
+</li>
+</ul>
+<h2 id="coding-style"><a class="header" href="#coding-style">Coding Style</a></h2>
+<p>VSAG follows the
+<a href="https://google.github.io/styleguide/cppguide.html">Google C++ Style Guide</a> with project-specific
+tweaks covering indentation, naming, and line width. The authoritative configuration lives in the
+repository:</p>
+<ul>
+<li>clang-format: <a href="https://github.com/antgroup/vsag/blob/main/.clang-format">https://github.com/antgroup/vsag/blob/main/.clang-format</a></li>
+<li>clang-tidy: <a href="https://github.com/antgroup/vsag/blob/main/.clang-tidy">https://github.com/antgroup/vsag/blob/main/.clang-tidy</a></li>
+</ul>
+<blockquote>
+<p><code>clang-tidy</code> enforces not only naming conventions but also style checks such as magic-number
+usage.</p>
+</blockquote>
+<p>The Makefile exposes formatting targets; <code>clang-format</code> and <code>clang-tidy</code> (both version 15) must be
+installed.</p>
+<p>Format code:</p>
+<pre><code class="language-bash">make fmt
+</code></pre>
+<p>Run static analysis (fix the reported issues manually):</p>
+<pre><code class="language-bash">make lint
+</code></pre>
+<p>Some clang-tidy findings can be auto-fixed:</p>
+<pre><code class="language-bash">make fix-lint
+</code></pre>
+<h2 id="local-testing"><a class="header" href="#local-testing">Local Testing</a></h2>
+<p>Run the full test suite and make sure it passes:</p>
 <pre><code class="language-bash">make test
 </code></pre>
-<p>在我们的开发工作流中，代码修改完成后需要使用上述命令通过所有测试后，才会提交到 GitHub 仓库中。</p>
-<h2 id="内存和多线程测试"><a class="header" href="#内存和多线程测试">内存和多线程测试</a></h2>
-<p>VSAG 是一个索引库，有大量的内存分配和并行计算的代码。我们依赖 AddressSanitizer 和 ThreadSanitizer 来检查发现内存和多线程的问题。当你在开发过程中遇到可疑的内存问题或者多线程问题，可以使用 <code>make test_asan</code> 或者 <code>make test_tsan</code> 来帮助问题发现。</p>
-<h2 id="清除编译工作区"><a class="header" href="#清除编译工作区">清除编译工作区</a></h2>
-<p>当你在调试第三方库引入，或者 CMake options 时，可能会遇到明明修改了 cmake 文件却没有变化的问题，不妨试试 <code>make clean</code> 指令。它会清除掉 <code>build/</code> 目录的所有内容，然后你就可以像刚下载的新项目一样从头编译了。</p>
-<h2 id="格式化代码"><a class="header" href="#格式化代码">格式化代码</a></h2>
-<p>我们使用 clang-format 工具来保持代码风格的统一，对应的配置文件路径是 <code>vsag/.clang-format</code>。</p>
-<p><code>make fmt</code> 命令会自动将 VSAG 的源代码格式化。这个命令需要你的环境中安装有 <a href="https://clang.llvm.org/docs/ClangFormat.html">clang-format</a>。GitHub CI 会在每一个 Pull Request 中运行代码风格检查，以保证合并进主分支的代码风格一致。</p>
-<h2 id="代码覆盖率统计"><a class="header" href="#代码覆盖率统计">代码覆盖率统计</a></h2>
-<p><code>make cov</code> 会使用 coverage 参数来编译 VSAG 项目，使得测试用例运行后能够得到代码覆盖率统计文件。</p>
-<h2 id="静态代码分析"><a class="header" href="#静态代码分析">静态代码分析</a></h2>
-<p>VSAG 使用 <a href="https://clang.llvm.org/extra/clang-tidy/">clang-tidy</a> 工具来实现静态代码分析，旨在提前暴露一些编程规范上的问题，对应的配置文件路径是 <code>vsag/.clang-tidy</code>。</p>
-<p>使用 <code>make lint</code> 可以在本地执行静态代码分析任务。同样地，可以使用 <code>make fix-lint</code> 来自动完成代码修复。</p>
-<blockquote>
-<p>需要注意的是，fix-lint 命令会在源文件上直接修改，请确定你希望这样做！</p>
-</blockquote>
-<h2 id="编译发布模式"><a class="header" href="#编译发布模式">编译发布模式</a></h2>
-<p>在生产环境中，我们需要使用发布模式的 VSAG 库。在此模式下，编译器会尽可能优化代码生成，以实现更好的运行性能。使用以下命令生成发布模式的 VSAG 库：</p>
-<pre><code class="language-bash">make release
-</code></pre>
-<p>为了和开发模式的产物区分开，发布模式的产物默认生成在 <code>./build-release/</code> 目录中。</p>
-<p>如果你需要分发预编译产物，可使用以下目标以控制 ABI：</p>
-<ul>
-<li><code>make dist-pre-cxx11-abi</code>：使用 <code>-D_GLIBCXX_USE_CXX11_ABI=0</code> 构建（pre-C++11 ABI）；</li>
-<li><code>make dist-cxx11-abi</code>：使用 <code>-D_GLIBCXX_USE_CXX11_ABI=1</code> 构建（C++11 ABI）；</li>
-<li><code>make dist-libcxx</code>：使用 <code>libc++</code> 代替 <code>libstdc++</code> 构建。</li>
-</ul>
-<h2 id="编译-pyvsag-包"><a class="header" href="#编译-pyvsag-包">编译 pyvsag 包</a></h2>
-<p>pyvsag 是 VSAG 的 Python 版本。通过 <code>pip install pyvsag</code> 下载安装的 wheel 包就是通过 <code>make pyvsag</code> 命令构建出来的。</p>
-<p>默认会使用 <code>PY_VERSION=3.10</code>，你可以显式指定目标 Python 版本：</p>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.11
-</code></pre>
-<p>或者一次构建所有受支持版本的 wheel：</p>
-<pre><code class="language-bash">make pyvsag-all
-</code></pre>
-<h2 id="环境变量"><a class="header" href="#环境变量">环境变量</a></h2>
-<p>在 Makefile 文件的开始可以看到一些 VSAG 编译系统定义的环境变量。这些变量可以通过命令行运行 <code>export</code> 命令，或者在 <code>.bashrc</code> / <code>.zshrc</code> 等 shell 配置文件中设置来修改。</p>
-<p>环境变量说明如下：</p>
-<ul>
-<li><code>CMAKE_GENERATOR</code>：CMake 内部使用什么来编译项目，默认是 <code>"Unix Makefiles"</code>，其他可选值请参考 <a href="https://cmake.org/cmake/help/latest/manual/cmake-generators.7.html">CMake Generators</a>；</li>
-<li><code>CMAKE_INSTALL_PREFIX</code>：安装路径，即运行 <code>make install</code> 后头文件和库文件会被安装到哪里，一般不需要修改；</li>
-<li><code>COMPILE_JOBS</code>：编译并行度，默认是 6 并行编译，建议设置成你的 CPU 核数以提高编译速度；</li>
-<li><code>DEBUG_BUILD_DIR</code>：开发模式产物目录，非必要不修改；</li>
-<li><code>RELEASE_BUILD_DIR</code>：发布模式产物目录，非必要不修改；</li>
-<li><code>VSAG_ENABLE_INTEL_MKL</code>：是否启用 Intel MKL 作为 BLAS 后端，默认 <code>OFF</code>；关闭时使用 OpenBLAS；</li>
-<li><code>VSAG_ENABLE_LIBAIO</code>：是否启用 <code>libaio</code>，默认 <code>ON</code>。</li>
-</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../development/code_structure.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../development/testing.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/testing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/range_search.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -289,11 +304,11 @@ install:                 ## Build and install the release version of vsag.
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../development/code_structure.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../development/testing.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/testing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/range_search.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-639c14c6.js";
+            window.path_to_searchindex_js = "../searchindex-c4d3605a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c7f9de74.js"></script>
+        <script src="../toc-61b45d24.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -175,12 +175,61 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="标准环境性能参考"><a class="header" href="#标准环境性能参考">标准环境性能参考</a></h1>
+<p>本页作为官方性能数据的入口与说明。具体数值建议以 GitHub 最新发布的 benchmark 结果为准，
+并通过 <a href="eval.html">性能评估工具</a> 在目标环境中复测。</p>
+<h2 id="参考机型"><a class="header" href="#参考机型">参考机型</a></h2>
+<p>官方基准测试默认在以下量级的机型上进行（具体 SKU 以 Release Notes 为准）：</p>
+<ul>
+<li><strong>CPU</strong>：主流 x86_64 服务器 CPU（支持 AVX2 / AVX-512）</li>
+<li><strong>内存</strong>：足够覆盖索引 + 操作系统 page cache 的 DDR4/DDR5</li>
+<li><strong>磁盘</strong>：NVMe SSD（DiskANN 场景）</li>
+<li><strong>操作系统</strong>：Ubuntu 20.04 / 22.04 或 CentOS 7 / 8</li>
+<li><strong>编译</strong>：<code>make release</code>，MKL 默认<strong>关闭</strong>（<code>VSAG_ENABLE_INTEL_MKL=OFF</code>）。
+如需启用请显式设置 <code>VSAG_ENABLE_INTEL_MKL=ON make release</code>
+（或直接使用 CMake 时使用 <code>-DENABLE_INTEL_MKL=ON</code>）</li>
+</ul>
+<h2 id="参考数据集"><a class="header" href="#参考数据集">参考数据集</a></h2>
+<p>官方对比常用以下数据集（HDF5 格式，兼容 <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a>）：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>数据集</th><th>维度</th><th>距离</th><th>规模</th></tr>
+</thead>
+<tbody>
+<tr><td>SIFT-1M</td><td>128</td><td>L2</td><td>1,000,000</td></tr>
+<tr><td>GIST-1M</td><td>960</td><td>L2</td><td>1,000,000</td></tr>
+<tr><td>Deep-10M</td><td>96</td><td>L2</td><td>10,000,000</td></tr>
+<tr><td>Text-to-Image-1M</td><td>200</td><td>IP</td><td>1,000,000</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="关键指标"><a class="header" href="#关键指标">关键指标</a></h2>
+<ul>
+<li>QPS（单线程 / 多线程）</li>
+<li>平均召回率（Recall@k）</li>
+<li>P50 / P95 / P99 延迟</li>
+<li>峰值内存、索引体积</li>
+<li>构建时间</li>
+</ul>
+<h2 id="如何复现"><a class="header" href="#如何复现">如何复现</a></h2>
+<pre><code class="language-bash">make release
+./build-release/tools/eval/eval_performance --config tools/eval/eval_template.yaml
+</code></pre>
+<p>将输出的 JSON / Markdown 结果与官方对比，可定位性能回归或量化退化。</p>
+<h2 id="如何贡献你的数据"><a class="header" href="#如何贡献你的数据">如何贡献你的数据</a></h2>
+<p>欢迎通过 PR 向本页面补充“其他机型下的结果“章节；提交时请附：</p>
+<ul>
+<li>详细 CPU / 内存 / 磁盘信息；</li>
+<li>VSAG 版本（<code>git rev-parse HEAD</code>）；</li>
+<li><code>eval_performance</code> 输出（建议使用 JSON + Markdown 两种格式）；</li>
+<li>构建命令与环境变量（如 <code>VSAG_ENABLE_INTEL_MKL</code> 等）。</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../resources/best_practices.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../resources/index_parameters.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -194,7 +243,7 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../resources/best_practices.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../resources/index_parameters.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

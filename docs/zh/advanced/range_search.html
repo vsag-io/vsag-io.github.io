@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-639c14c6.js";
+            window.path_to_searchindex_js = "../searchindex-c4d3605a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c7f9de74.js"></script>
+        <script src="../toc-61b45d24.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -175,6 +175,68 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="范围搜索"><a class="header" href="#范围搜索">范围搜索</a></h1>
+<p>除了 k-近邻搜索（<code>KnnSearch</code>），VSAG 还支持<strong>范围搜索</strong>（<code>RangeSearch</code>）：返回所有与查询向量距离
+小于或等于指定半径的结果。该接口适用于阈值过滤、去重、近似召回等场景。</p>
+<h2 id="基本用法"><a class="header" href="#基本用法">基本用法</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+// 1. 构造索引（以 HNSW 为例）
+auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_params).value();
+index-&gt;Build(dataset);
+
+// 2. 准备查询
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(dim)-&gt;Float32Vectors(query_vec)-&gt;Owner(false);
+
+// 3. 范围搜索
+float radius = 0.5f;
+auto result = index-&gt;RangeSearch(query, radius, search_params);
+if (result.has_value()) {
+    auto ids = result.value()-&gt;GetIds();
+    auto dists = result.value()-&gt;GetDistances();
+    int64_t n = result.value()-&gt;GetDim();
+    // ...
+}
+</code></pre>
+<blockquote>
+<p>完整示例参见 <code>examples/cpp/302_feature_range_search.cpp</code>。</p>
+</blockquote>
+<h2 id="limited_size-参数"><a class="header" href="#limited_size-参数"><code>limited_size</code> 参数</a></h2>
+<p><code>RangeSearch</code> 支持通过 <code>limited_size</code> 限制返回结果的最大数量：</p>
+<pre><code class="language-cpp">// 返回最多 100 条满足半径条件的结果
+auto result = index-&gt;RangeSearch(query, radius, search_params, /*limited_size=*/100);
+</code></pre>
+<ul>
+<li><code>limited_size = -1</code>（默认）：返回所有满足条件的结果（不限）。</li>
+<li><code>limited_size &gt; 0</code>：在满足半径条件的候选中返回最多这么多条。</li>
+<li><code>limited_size = 0</code>：非法取值，实现中会显式拒绝
+（<code>CHECK_ARGUMENT(limited_size != 0, ...)</code>）。</li>
+</ul>
+<h2 id="与-filter-组合"><a class="header" href="#与-filter-组合">与 Filter 组合</a></h2>
+<p><code>RangeSearch</code> 的签名与 <code>KnnSearch</code> 一致，同样支持传入过滤器（见 <code>examples/cpp/301_feature_filter.cpp</code>）。
+过滤器在搜索过程中即时生效，而不是事后过滤，效率更高。</p>
+<h2 id="支持情况"><a class="header" href="#支持情况">支持情况</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引类型</th><th>支持 RangeSearch</th></tr>
+</thead>
+<tbody>
+<tr><td>hnsw</td><td>是</td></tr>
+<tr><td>hgraph</td><td>是</td></tr>
+<tr><td>diskann</td><td>是</td></tr>
+<tr><td>ivf</td><td>是</td></tr>
+<tr><td>brute_force</td><td>是</td></tr>
+<tr><td>sindi</td><td>稀疏向量场景支持</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="注意事项"><a class="header" href="#注意事项">注意事项</a></h2>
+<ul>
+<li>距离度量（内积 / L2 / 余弦）会影响 <code>radius</code> 的语义。请与索引创建时的 <code>metric_type</code> 保持一致。</li>
+<li>当 <code>radius</code> 过大时结果集可能巨大，建议配合 <code>limited_size</code> 使用。</li>
+<li>HNSW / HGraph 类图索引下，<code>RangeSearch</code> 的 <code>ef</code> 等运行期参数与 <code>KnnSearch</code> 共享含义。</li>
+</ul>
 
                     </main>
 

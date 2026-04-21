@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-639c14c6.js";
+            window.path_to_searchindex_js = "../searchindex-c4d3605a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c7f9de74.js"></script>
+        <script src="../toc-61b45d24.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -175,6 +175,52 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="运行测试"><a class="header" href="#运行测试">运行测试</a></h1>
+<p>VSAG 采用 <a href="https://github.com/catchorg/Catch2">Catch2</a> 作为测试框架，测试分为两类：</p>
+<ul>
+<li><strong>单元测试</strong>：与源码同目录，位于 <code>src/</code> 下，聚焦单个类/函数的行为。</li>
+<li><strong>功能测试</strong>：位于 <code>tests/</code> 目录，覆盖跨模块、端到端的索引行为。典型用例包括 <code>test_hnsw.cpp</code>、
+<code>test_hgraph.cpp</code>、<code>test_diskann.cpp</code>、<code>test_ivf.cpp</code>、<code>test_pyramid.cpp</code>、<code>test_sindi.cpp</code>、
+<code>test_brute_force.cpp</code>、<code>test_multi_thread.cpp</code>、<code>test_memleak.cpp</code> 等。</li>
+</ul>
+<h2 id="构建并运行全部测试"><a class="header" href="#构建并运行全部测试">构建并运行全部测试</a></h2>
+<p><code>make test</code> 会以 Debug 配置重新编译（启用 <code>ENABLE_TESTS=ON</code>）并运行单元与功能测试：</p>
+<pre><code class="language-bash">make test
+</code></pre>
+<p>说明：</p>
+<ol>
+<li>运行 <code>src/</code> 下的单元测试；</li>
+<li>运行 <code>tests/</code> 下的功能测试；</li>
+<li><code>make test</code> 并未开启覆盖率（<code>ENABLE_COVERAGE=ON</code>）。需要覆盖率报告时请使用
+<code>make cov</code>：该目标仅完成带覆盖率插桩的编译，随后需要手动运行测试二进制以生成报告。</li>
+</ol>
+<h2 id="仅运行单个测试二进制"><a class="header" href="#仅运行单个测试二进制">仅运行单个测试二进制</a></h2>
+<p>构建完成后，可直接运行单个测试：</p>
+<pre><code class="language-bash">./build-debug/tests/functional_tests "[hgraph]"
+./build-debug/tests/functional_tests "[hnsw][concurrent]"
+</code></pre>
+<p>Catch2 支持按名字、tag、通配符等方式筛选用例，详见 <code>--help</code>。</p>
+<h2 id="覆盖率"><a class="header" href="#覆盖率">覆盖率</a></h2>
+<p>贡献时应保持 <code>src/</code> 与 <code>include/</code> 下代码的行覆盖率不低于 <strong>90%</strong>。在本地执行：</p>
+<pre><code class="language-bash">make cov
+# 然后运行测试二进制以采集覆盖率，例如：
+./build-debug/tests/functional_tests
+</code></pre>
+<p>报告会输出到 <code>build-debug/coverage/</code> 下，可用浏览器打开 <code>index.html</code> 查看未覆盖的分支。</p>
+<h2 id="内存泄漏与多线程"><a class="header" href="#内存泄漏与多线程">内存泄漏与多线程</a></h2>
+<ul>
+<li><code>test_memleak.cpp</code>：基于 AddressSanitizer / LeakSanitizer，对索引的构造/销毁路径进行验证。</li>
+<li><code>test_multi_thread.cpp</code>：验证并发 <code>Build</code> / <code>KnnSearch</code> / <code>RangeSearch</code> 下的正确性。</li>
+</ul>
+<h2 id="python-测试"><a class="header" href="#python-测试">Python 测试</a></h2>
+<p><code>tests/python/</code> 包含 <code>pyvsag</code> 的 pytest 用例。构建好 <code>pyvsag</code> 后：</p>
+<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
+cd tests/python &amp;&amp; pytest -q
+</code></pre>
+<h2 id="参考"><a class="header" href="#参考">参考</a></h2>
+<ul>
+<li>功能测试源代码目录：<code>tests/</code></li>
+<li>脚本入口：<code>Makefile</code> 中的 <code>test</code>、<code>cov</code>、<code>asan</code> 目标</li>
+</ul>
 
                     </main>
 

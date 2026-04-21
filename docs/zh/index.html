@@ -35,10 +35,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-639c14c6.js";
+            window.path_to_searchindex_js = "searchindex-c4d3605a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-c7f9de74.js"></script>
+        <script src="toc-61b45d24.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -174,13 +174,21 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="vsag介绍"><a class="header" href="#vsag介绍">VSAG介绍</a></h1>
-<p><strong>VSAG</strong> 全称（Vector Search Algorithm Group）是一个用于相似性检索的库。允许用户在各种规模的向量集合中进行高效搜索，尤其是那些无法完全加载到内存中的集合。同时，VSAG 还提供了基于向量维度和数据规模自动生成参数的方法，使开发者无需了解算法原理即可快速上手使用。VSAG 使用 C++ 编写，并提供一个简单的 Python 包装叫 pyvsag。该项目主要由蚂蚁集团开发。</p>
+                        <h1 id="vsag-介绍"><a class="header" href="#vsag-介绍">VSAG 介绍</a></h1>
+<p><strong>VSAG</strong> 全称 Vector Search Algorithm Group，是一个用于相似性检索的向量索引库。VSAG 允许用户在各种规模的向量集合中进行高效搜索，包括无法完全放入内存的集合，同时提供基于向量维度和数据规模自动生成参数的能力，使开发者无需深入了解底层算法原理即可快速上手。</p>
+<p>VSAG 使用 C++ 编写，并提供：</p>
 <ul>
-<li>索引 <strong>低内存用量</strong> 可以降低使用成本</li>
-<li>多平台指令集适配提供 <strong>高性能</strong> 检索</li>
-<li>支持 bitmap 和 callback 两种 <strong>混合搜索</strong> 方式</li>
-<li>使用 C++ 编写，并提供 <a href="https://github.com/antgroup/vsag/blob/main/README.md#integrate-with-cmake">基于 CMake 的集成方法</a></li>
+<li>Python 包装 <a href="https://pypi.org/project/pyvsag/"><code>pyvsag</code></a></li>
+<li>Node.js / TypeScript 绑定 <code>vsag</code>（由 <code>napi-rs</code> 生成）</li>
+</ul>
+<p>该项目由蚂蚁集团发起并主导开发，目前以开源社区的方式维护。</p>
+<h2 id="主要特性"><a class="header" href="#主要特性">主要特性</a></h2>
+<ul>
+<li><strong>低内存占用</strong>：通过量化（RaBitQ、PQ、SQ4/SQ8）与内存-磁盘混合索引降低使用成本；</li>
+<li><strong>高性能检索</strong>：针对 x86_64（SSE/AVX/AVX2/AVX512/AMX）和 ARM（Neon/SVE）做了指令集适配；</li>
+<li><strong>丰富的索引类型</strong>：HGraph、HNSW、DiskANN、IVF、Pyramid、BruteForce、SINDI（稀疏）等；</li>
+<li><strong>灵活的过滤与混合搜索</strong>：支持 bitmap 与 callback 两种过滤方式，以及混合 <code>(data vector, attribute)</code> 查询；</li>
+<li><strong>易于集成</strong>：提供基于 CMake 的集成方式，详见 <a href="https://github.com/antgroup/vsag/blob/main/README.md#integrate-with-cmake">README</a>。</li>
 </ul>
 <h2 id="contributing"><a class="header" href="#contributing">Contributing</a></h2>
 <p>VSAG 是免费和开源的。你可以在 <a href="https://github.com/antgroup/vsag">GitHub</a> 上获取到源代码，以及提交错误报告和功能请求到 <a href="https://github.com/antgroup/vsag/issues">GitHub问题跟踪器</a> 上。VSAG 依靠社区来修复错误和增加功能：如果你想做出贡献，请阅读 <a href="https://github.com/antgroup/vsag/blob/main/CONTRIBUTING.md">贡献指南</a> 并考虑 <a href="https://github.com/antgroup/vsag/pulls">创建合并请求</a>。</p>

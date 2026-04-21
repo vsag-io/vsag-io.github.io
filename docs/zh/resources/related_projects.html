@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-639c14c6.js";
+            window.path_to_searchindex_js = "../searchindex-c4d3605a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c7f9de74.js"></script>
+        <script src="../toc-61b45d24.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -175,6 +175,32 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="关联项目"><a class="header" href="#关联项目">关联项目</a></h1>
+<p>本页收录与 VSAG 相关或集成了 VSAG 的上下游项目，便于用户快速搭建完整方案。</p>
+<h2 id="使用-vsag-的项目"><a class="header" href="#使用-vsag-的项目">使用 VSAG 的项目</a></h2>
+<ul>
+<li><strong><a href="https://github.com/oceanbase/oceanbase">OceanBase</a></strong>：蚂蚁集团开源的分布式关系数据库，向量检索能力基于 VSAG。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/issues">MyScale / OpenSearch / 其他向量数据库</a></strong>：如有集成 PR 或 issue，欢迎补充到本页面。</li>
+</ul>
+<h2 id="vsag-的依赖与灵感来源"><a class="header" href="#vsag-的依赖与灵感来源">VSAG 的依赖与灵感来源</a></h2>
+<ul>
+<li><strong><a href="https://github.com/nmslib/hnswlib">hnswlib</a></strong>：HNSW 的经典实现，VSAG 中的 HNSW 索引在接口与算法上受其影响。</li>
+<li><strong><a href="https://github.com/microsoft/DiskANN">DiskANN</a></strong>：微软研究院的大规模磁盘向量检索工作，VSAG 的 <code>diskann</code> 索引基于该思路实现。</li>
+<li><strong><a href="https://github.com/facebookresearch/faiss">Faiss</a></strong>：Meta 的向量检索库；VSAG 在 IVF / 量化思路上有所借鉴。</li>
+<li><strong><a href="https://github.com/microsoft/SPTAG">SPANN / SPTAG</a></strong>：微软的大规模向量检索工程，提供了混合索引的思路。</li>
+</ul>
+<h2 id="生态工具"><a class="header" href="#生态工具">生态工具</a></h2>
+<ul>
+<li><strong><a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a></strong>：行业通用的 ANN 基准测试工具，VSAG 自带 <a href="eval.html">性能评估工具</a> 与其数据集格式兼容。</li>
+<li><strong><a href="https://github.com/pybind/pybind11">pybind11</a></strong>：<code>pyvsag</code> Python 绑定基于此实现。</li>
+<li><strong><a href="https://napi.rs/">napi-rs</a></strong>：<code>typescript/</code> 下的 Node.js 绑定基于此实现。</li>
+</ul>
+<h2 id="绑定与语言支持"><a class="header" href="#绑定与语言支持">绑定与语言支持</a></h2>
+<ul>
+<li><strong>C++</strong>（原生）</li>
+<li><strong>Python</strong>：<code>pyvsag</code>，源码位于 <code>python_bindings/</code> 与 <code>python/</code>。</li>
+<li><strong>Node.js / TypeScript</strong>：源码位于 <code>typescript/</code>，npm 包名 <code>vsag</code>。</li>
+</ul>
+<p>欢迎提交 PR 完善本列表。</p>
 
                     </main>
 

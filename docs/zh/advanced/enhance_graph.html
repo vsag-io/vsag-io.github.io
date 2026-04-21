@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-639c14c6.js";
+            window.path_to_searchindex_js = "../searchindex-c4d3605a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c7f9de74.js"></script>
+        <script src="../toc-61b45d24.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -175,6 +175,46 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="图索引增强"><a class="header" href="#图索引增强">图索引增强</a></h1>
+<p>图类索引（HNSW、HGraph）在“困难查询“（与真实近邻连通性较弱）下可能出现召回率下降。
+VSAG 通过 <strong>Conjugate Graph</strong>（共轭图）机制对这类查询进行在线/离线修补，在几乎不增加索引体积的
+情况下显著改善尾部召回。</p>
+<h2 id="启用共轭图"><a class="header" href="#启用共轭图">启用共轭图</a></h2>
+<p>构建时开启：</p>
+<pre><code class="language-json">{
+    "hnsw": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "use_conjugate_graph": true
+    }
+}
+</code></pre>
+<p>搜索时通过搜索参数 JSON 中的 <code>use_conjugate_graph_search</code> 字段控制是否启用
+（<code>KnnSearch</code> 并不存在额外的布尔参数重载）：</p>
+<pre><code class="language-cpp">std::string search_param_json = R"({
+    "hnsw": {
+        "ef_search": 100,
+        "use_conjugate_graph_search": true
+    }
+})";
+auto result = index-&gt;KnnSearch(query, k, search_param_json);
+</code></pre>
+<h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
+<p>共轭图由原图在训练数据上的“失败路径“反向构建而成，在搜索时作为补充的候选边参与贪心扩展。
+它相当于对主图的一层轻量索引补丁，典型体积 &lt; 主图 10%。</p>
+<h2 id="示例"><a class="header" href="#示例">示例</a></h2>
+<p><code>examples/cpp/304_feature_enhance_graph.cpp</code> 给出了从构建、训练到对比召回率的完整流程。</p>
+<h2 id="适用场景"><a class="header" href="#适用场景">适用场景</a></h2>
+<ul>
+<li>数据分布存在稀疏簇或离群点；</li>
+<li>对 P99 召回敏感的在线场景；</li>
+<li>希望在不重建索引的前提下小幅提升召回。</li>
+</ul>
+<h2 id="注意事项"><a class="header" href="#注意事项">注意事项</a></h2>
+<ul>
+<li>启用后构建时间会略有增加。</li>
+<li>共轭图数据会随索引一并序列化。</li>
+<li>与 <code>Tune</code> 可以叠加使用，分别作用于路由质量与运行期参数。</li>
+</ul>
 
                     </main>
 
