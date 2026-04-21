@@ -12,7 +12,9 @@ build:
 	mdbook build docs/en  -d $(BOOK)/docs/en
 	mdbook build blogs/zh -d $(BOOK)/blogs/zh
 	mdbook build blogs/en -d $(BOOK)/blogs/en
-	cp assets/index.html $(BOOK)/index.html
+	cp landing/index.html  $(BOOK)/index.html
+	cp landing/style.css   $(BOOK)/style.css
+	cp landing/favicon.svg $(BOOK)/favicon.svg
 	cp assets/docs-index.html $(BOOK)/docs/index.html
 	cp CNAME $(BOOK)/CNAME
 
