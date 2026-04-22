@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="light sidebar-visible" dir="ltr">
+<html lang="zh" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Building - VSAG Documentation</title>
+        <title>IVF - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-550ec713.js";
+            window.path_to_searchindex_js = "../searchindex-9e6e7d00.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-71c64059.js"></script>
+        <script src="../toc-28e646d5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -137,7 +137,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG Documentation</h1>
+                    <h1 class="menu-title">VSAG文档</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -174,94 +174,129 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="building"><a class="header" href="#building">Building</a></h1>
-<p>This page documents how to build VSAG from source.</p>
-<h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
+                        <h1 id="ivf"><a class="header" href="#ivf">IVF</a></h1>
+<p>IVF（Inverted File，倒排索引）是 VSAG 的 <strong>分桶式</strong> 索引。它在构建时将语料聚类成若干桶，
+查询时只扫描与查询距离最近的若干个桶的中心对应的倒排列表，把 O(N) 的线性扫描降为
+O(N · <code>scan_buckets_count</code> / <code>buckets_count</code>)，并通过这两个参数在召回与延迟之间进行权衡。</p>
+<p>与图索引相比，IVF 在召回上略有损失，但换来了更低的内存开销、更高的批量吞吐以及更简单的
+切片方式——因此在语料非常大（数亿及以上）、内存紧张、或查询可天然并行化的场景中，
+IVF 通常是一个更合适的默认选择。</p>
 <ul>
-<li><strong>OS</strong>: Ubuntu 20.04+ or CentOS 7+</li>
-<li><strong>Compiler</strong>: GCC 9.4.0+ or Clang 13.0.0+</li>
-<li><strong>CMake</strong>: 3.18.0+</li>
-<li><strong>clang-format / clang-tidy</strong>: exactly version 15 (enforced)</li>
-<li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for DiskANN async IO), Intel MKL.</li>
+<li>源码：<code>src/algorithm/ivf.{h,cpp}</code>、<code>src/algorithm/ivf_parameter.{h,cpp}</code></li>
+<li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/106_index_ivf.cpp"><code>examples/cpp/106_index_ivf.cpp</code></a></li>
 </ul>
-<p>We recommend using the official Docker dev image, which already contains the matching toolchain:</p>
-<pre><code class="language-bash">docker pull vsaglib/vsag:ubuntu
+<h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
+<ol>
+<li><strong>聚类。</strong> 在数据集的采样上运行 k-means（或随机采样，<code>ivf_train_type: "random"</code>）
+得到 <code>buckets_count</code> 个中心（centroid）。</li>
+<li><strong>分配。</strong> 每条向量被写入距离最近的中心对应的倒排列表，以配置的粗量化
+（<code>base_quantization_type</code>）存储；可选地再保留一份高精度副本（<code>use_reorder: true</code>）
+用于精排。</li>
+<li><strong>检索。</strong> 查询时先计算查询向量与所有中心的距离，选出最近的 <code>scan_buckets_count</code>
+个桶；然后只在这些桶内对向量打分。启用精排时，<code>factor</code> 控制从粗排阶段多取多少候选
+再送入精排器重打分。</li>
+</ol>
+<p>此外还有一种 <strong>GNO-IMI</strong> 策略（<code>partition_strategy_type: "gno_imi"</code>），它把空间按两组
+正交中心划分（<code>first_order_buckets_count</code> × <code>second_order_buckets_count</code>），在超大规模
+语料上能得到更精细的分区。</p>
+<h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "buckets_count": 256,
+        "base_quantization_type": "sq8",
+        "partition_strategy_type": "ivf",
+        "ivf_train_type": "kmeans"
+    }
+})";
+auto index = vsag::Factory::CreateIndex("ivf", params).value();
+
+// 构建索引。
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
+index-&gt;Build(base);
+
+// 执行检索。
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10,
+    R"({"ivf": {"scan_buckets_count": 16}})").value();
 </code></pre>
-<h2 id="makefile-targets"><a class="header" href="#makefile-targets">Makefile Targets</a></h2>
-<p>Running <code>make help</code> prints a concise list; the most common targets are:</p>
-<pre><code class="language-text">debug       Build debug binaries (no sanitizers; tests/tools/examples OFF by default)
-release     Build release binaries (tests/tools/examples OFF by default)
-dev         Developer build: debug + tests + tools + examples
-test        Build with tests enabled and run unit + functional tests
-cov         Build with coverage instrumentation enabled
-asan        Build with AddressSanitizer
-tsan        Build with ThreadSanitizer
-fmt         Run clang-format
-lint        Run clang-tidy
-fix-lint    Apply clang-tidy fix-its in-place (destructive)
-pyvsag      Build pyvsag for a specific Python version (PY_VERSION=...)
-pyvsag-all  Build pyvsag wheels for all supported Python versions
-dist-pre-cxx11-abi  Build redistributable tarball (pre-C++11 ABI)
-dist-cxx11-abi      Build redistributable tarball (C++11 ABI)
-dist-libcxx         Build redistributable tarball (libc++)
-clean       Remove build trees
-</code></pre>
-<h2 id="step-by-step"><a class="header" href="#step-by-step">Step-by-Step</a></h2>
-<pre><code class="language-bash">git clone https://github.com/antgroup/vsag.git
-cd vsag
-make release
-</code></pre>
-<p>Resulting binaries from a plain <code>make release</code>:</p>
-<ul>
-<li>Library: <code>build-release/src/libvsag.{a,so}</code></li>
-</ul>
-<p>Examples and tools are not built by default. To include them, either use <code>make dev</code>, or enable
-the corresponding Makefile variables (<code>VSAG_ENABLE_EXAMPLES=ON</code>, <code>VSAG_ENABLE_TOOLS=ON</code>) or the
-underlying CMake cache options (<code>-DENABLE_EXAMPLES=ON</code>, <code>-DENABLE_TOOLS=ON</code>).</p>
-<h2 id="environment-variables--cmake-options"><a class="header" href="#environment-variables--cmake-options">Environment Variables / CMake Options</a></h2>
-<p>The Makefile exposes a few <code>VSAG_ENABLE_*</code> environment variables that are translated into CMake
-cache options (<code>ENABLE_*</code>). Defaults below reflect a plain <code>make release</code>.</p>
+<h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
+<p>构建参数放在 <code>index_param</code> 下。完整列表请见 <a href="../resources/index_parameters.html">索引参数</a>
+及仓库中的 <code>docs/ivf.md</code>。</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Makefile env var</th><th>CMake option</th><th>Default</th><th>Effect</th></tr>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>VSAG_ENABLE_INTEL_MKL</code></td><td><code>ENABLE_INTEL_MKL</code></td><td><code>OFF</code></td><td>Use Intel MKL for BLAS kernels</td></tr>
-<tr><td><code>VSAG_ENABLE_LIBAIO</code></td><td><code>ENABLE_LIBAIO</code></td><td><code>ON</code> on Linux</td><td>Enable DiskANN async IO via libaio</td></tr>
-<tr><td><code>VSAG_ENABLE_TOOLS</code></td><td><code>ENABLE_TOOLS</code></td><td><code>OFF</code></td><td>Build utilities under <code>tools/</code></td></tr>
-<tr><td><code>VSAG_ENABLE_EXAMPLES</code></td><td><code>ENABLE_EXAMPLES</code></td><td><code>OFF</code></td><td>Build sample programs under <code>examples/cpp/</code></td></tr>
-<tr><td>n/a</td><td><code>CMAKE_BUILD_TYPE</code></td><td>driven by Makefile target</td><td>Debug / Release</td></tr>
+<tr><td><code>partition_strategy_type</code></td><td>string</td><td><code>"ivf"</code></td><td>分桶策略：<code>ivf</code>（单层）或 <code>gno_imi</code>（双层正交）</td></tr>
+<tr><td><code>buckets_count</code></td><td>int</td><td><code>10</code></td><td>倒排列表数量（<code>ivf</code> 策略下生效）</td></tr>
+<tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第一级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
+<tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第二级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
+<tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>中心训练方式：<code>kmeans</code> 或 <code>random</code></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code></td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排量化类型（<code>use_reorder: true</code> 时使用）</td></tr>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>粗排向量的存储后端</td></tr>
+<tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>精排向量的存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>mmap_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>reader_io</code>）</td></tr>
+<tr><td><code>precise_file_path</code></td><td>string</td><td><code>""</code></td><td>当精排 IO 为磁盘后端时的文件路径</td></tr>
 </tbody>
 </table>
 </div>
-<p>When invoking CMake directly instead of using <code>make</code>, use the underlying CMake cache option names:</p>
-<pre><code class="language-bash">cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_INTEL_MKL=ON
-cmake --build build-release -j
+<p><code>buckets_count</code> 的经验值一般为 <code>sqrt(N)</code> ~ <code>4 * sqrt(N)</code>，其中 <code>N</code> 是语料规模。</p>
+<h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
+<p>检索参数放在 <code>ivf</code> 子对象下：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>scan_buckets_count</code></td><td>int</td><td>—（必填）</td><td>每次查询扫描的桶数，须 ≤ <code>buckets_count</code></td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>2.0</code></td><td>启用精排时，粗排阶段会预取 <code>factor * topk</code> 个候选再重打分</td></tr>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>单次查询内扫描桶时使用的线程数</td></tr>
+<tr><td><code>timeout_ms</code></td><td>double</td><td><code>+∞</code></td><td>单次查询最长耗时（毫秒），超时会返回当前的部分结果</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"ivf": {"scan_buckets_count": 32, "factor": 2.0, "parallelism": 4}})").value();
 </code></pre>
-<h2 id="python-wheel-pyvsag"><a class="header" href="#python-wheel-pyvsag">Python Wheel (pyvsag)</a></h2>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
-# Or build all supported versions in parallel:
-make pyvsag-all
-</code></pre>
-<p>Wheels are emitted under <code>python/dist/</code>.</p>
-<h2 id="distribution-tarballs"><a class="header" href="#distribution-tarballs">Distribution Tarballs</a></h2>
-<p>For ABI-compatible redistribution use one of:</p>
-<pre><code class="language-bash">make dist-pre-cxx11-abi   # _GLIBCXX_USE_CXX11_ABI=0
-make dist-cxx11-abi       # _GLIBCXX_USE_CXX11_ABI=1
-make dist-libcxx          # libc++ (Clang)
-</code></pre>
-<p>The produced tarballs contain headers, static/shared libraries, and version metadata.</p>
+<h2 id="何时选择-ivf"><a class="header" href="#何时选择-ivf">何时选择 IVF</a></h2>
+<ul>
+<li>超大规模语料（数亿及以上），工作集无法完全放入内存。</li>
+<li>对每秒查询数（QPS）敏感、对单次延迟相对宽松的批量或高吞吐场景。</li>
+<li>内存紧张的部署，可使用激进的量化方案（<code>sq8</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>）配合
+<code>use_reorder</code> 恢复召回。</li>
+<li>对切片友好的部署：桶天然映射到分片或磁盘块。</li>
+</ul>
+<p>对于延迟敏感、要求高召回的稠密 embedding 场景，请优先比较 <a href="hgraph.html">HGraph</a>。</p>
+<h2 id="相关文档"><a class="header" href="#相关文档">相关文档</a></h2>
+<ul>
+<li><a href="../guide/create_index.html">创建索引</a></li>
+<li><a href="../resources/index_parameters.html">索引参数</a></li>
+<li><a href="../advanced/hybrid_index.html">内存-磁盘混合索引</a></li>
+<li><a href="../advanced/serialization.html">序列化格式</a></li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../development/code_structure.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../indexes/hgraph.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/testing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/sindi.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -271,11 +306,11 @@ make dist-libcxx          # libc++ (Clang)
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../development/code_structure.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../indexes/hgraph.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/testing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/sindi.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

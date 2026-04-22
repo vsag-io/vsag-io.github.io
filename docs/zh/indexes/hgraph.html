@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="light sidebar-visible" dir="ltr">
+<html lang="zh" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Building - VSAG Documentation</title>
+        <title>HGraph - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-550ec713.js";
+            window.path_to_searchindex_js = "../searchindex-9e6e7d00.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-71c64059.js"></script>
+        <script src="../toc-28e646d5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -137,7 +137,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG Documentation</h1>
+                    <h1 class="menu-title">VSAG文档</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -174,94 +174,122 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="building"><a class="header" href="#building">Building</a></h1>
-<p>This page documents how to build VSAG from source.</p>
-<h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
+                        <h1 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h1>
+<p>HGraph 是 VSAG 的旗舰 <strong>图索引</strong>。它构建的是与 HNSW 思路类似的多层近邻图，但在此基础上
+提供了更丰富的量化方案、统一的构建参数 schema（<code>index_param</code>），并原生支持精排（reorder）、
+增量更新、删除、以及基于 ELP 的运行时自动调优。</p>
+<p>对于大多数稠密向量场景（文本 / 图像 / 多模态 embedding，维度 64–4096，规模从数千到数亿），
+HGraph 都是推荐的默认索引。</p>
 <ul>
-<li><strong>OS</strong>: Ubuntu 20.04+ or CentOS 7+</li>
-<li><strong>Compiler</strong>: GCC 9.4.0+ or Clang 13.0.0+</li>
-<li><strong>CMake</strong>: 3.18.0+</li>
-<li><strong>clang-format / clang-tidy</strong>: exactly version 15 (enforced)</li>
-<li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for DiskANN async IO), Intel MKL.</li>
+<li>源码：<code>src/algorithm/hgraph.{h,cpp}</code></li>
+<li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/103_index_hgraph.cpp"><code>examples/cpp/103_index_hgraph.cpp</code></a></li>
 </ul>
-<p>We recommend using the official Docker dev image, which already contains the matching toolchain:</p>
-<pre><code class="language-bash">docker pull vsaglib/vsag:ubuntu
+<h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
+<ol>
+<li><strong>构图。</strong> 向量被组织成层级近邻图：上层作为导航入口，底层连接每个数据点到在
+<code>max_degree</code> 预算内的最近邻。构图算法可以是 NSW 风格插入（<code>graph_type: "nsw"</code>，默认）
+或 ODescent（<code>graph_type: "odescent"</code>）。</li>
+<li><strong>量化。</strong> 底层存储使用可配置的量化器进行压缩（<code>base_quantization_type</code> —
+<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>）。
+可选地再保留一份高精度副本（<code>use_reorder: true</code> 搭配 <code>precise_quantization_type</code>），
+用于对粗排结果进行重打分。</li>
+<li><strong>搜索。</strong> 自顶向下在图上做贪心 beam search，扩展候选集到 <code>ef_search</code> 个节点；如启用精排，
+最终结果会在高精度表示上重新打分。</li>
+</ol>
+<h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 32,
+        "ef_construction": 400
+    }
+})";
+auto index = vsag::Factory::CreateIndex("hgraph", params).value();
+
+// 构建索引。
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
+index-&gt;Build(base);
+
+// 执行检索。
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10, R"({"hgraph": {"ef_search": 100}})").value();
 </code></pre>
-<h2 id="makefile-targets"><a class="header" href="#makefile-targets">Makefile Targets</a></h2>
-<p>Running <code>make help</code> prints a concise list; the most common targets are:</p>
-<pre><code class="language-text">debug       Build debug binaries (no sanitizers; tests/tools/examples OFF by default)
-release     Build release binaries (tests/tools/examples OFF by default)
-dev         Developer build: debug + tests + tools + examples
-test        Build with tests enabled and run unit + functional tests
-cov         Build with coverage instrumentation enabled
-asan        Build with AddressSanitizer
-tsan        Build with ThreadSanitizer
-fmt         Run clang-format
-lint        Run clang-tidy
-fix-lint    Apply clang-tidy fix-its in-place (destructive)
-pyvsag      Build pyvsag for a specific Python version (PY_VERSION=...)
-pyvsag-all  Build pyvsag wheels for all supported Python versions
-dist-pre-cxx11-abi  Build redistributable tarball (pre-C++11 ABI)
-dist-cxx11-abi      Build redistributable tarball (C++11 ABI)
-dist-libcxx         Build redistributable tarball (libc++)
-clean       Remove build trees
-</code></pre>
-<h2 id="step-by-step"><a class="header" href="#step-by-step">Step-by-Step</a></h2>
-<pre><code class="language-bash">git clone https://github.com/antgroup/vsag.git
-cd vsag
-make release
-</code></pre>
-<p>Resulting binaries from a plain <code>make release</code>:</p>
-<ul>
-<li>Library: <code>build-release/src/libvsag.{a,so}</code></li>
-</ul>
-<p>Examples and tools are not built by default. To include them, either use <code>make dev</code>, or enable
-the corresponding Makefile variables (<code>VSAG_ENABLE_EXAMPLES=ON</code>, <code>VSAG_ENABLE_TOOLS=ON</code>) or the
-underlying CMake cache options (<code>-DENABLE_EXAMPLES=ON</code>, <code>-DENABLE_TOOLS=ON</code>).</p>
-<h2 id="environment-variables--cmake-options"><a class="header" href="#environment-variables--cmake-options">Environment Variables / CMake Options</a></h2>
-<p>The Makefile exposes a few <code>VSAG_ENABLE_*</code> environment variables that are translated into CMake
-cache options (<code>ENABLE_*</code>). Defaults below reflect a plain <code>make release</code>.</p>
+<h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
+<p>构建参数放在 <code>index_param</code> 下。下表列出最常用的配置项；完整列表请见
+<a href="../resources/index_parameters.html">索引参数</a> 以及仓库中的 <code>docs/hgraph.md</code>。</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Makefile env var</th><th>CMake option</th><th>Default</th><th>Effect</th></tr>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>VSAG_ENABLE_INTEL_MKL</code></td><td><code>ENABLE_INTEL_MKL</code></td><td><code>OFF</code></td><td>Use Intel MKL for BLAS kernels</td></tr>
-<tr><td><code>VSAG_ENABLE_LIBAIO</code></td><td><code>ENABLE_LIBAIO</code></td><td><code>ON</code> on Linux</td><td>Enable DiskANN async IO via libaio</td></tr>
-<tr><td><code>VSAG_ENABLE_TOOLS</code></td><td><code>ENABLE_TOOLS</code></td><td><code>OFF</code></td><td>Build utilities under <code>tools/</code></td></tr>
-<tr><td><code>VSAG_ENABLE_EXAMPLES</code></td><td><code>ENABLE_EXAMPLES</code></td><td><code>OFF</code></td><td>Build sample programs under <code>examples/cpp/</code></td></tr>
-<tr><td>n/a</td><td><code>CMAKE_BUILD_TYPE</code></td><td>driven by Makefile target</td><td>Debug / Release</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—（必填）</td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code></td></tr>
+<tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>图节点最大出度</td></tr>
+<tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>构建阶段的候选集大小（越大召回越高，构建越慢）</td></tr>
+<tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td>构图算法：<code>nsw</code> 或 <code>odescent</code></td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否额外保留一份高精度副本用于精排</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型（仅在 <code>use_reorder: true</code> 时生效）</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
+<tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>构建阶段并发线程数</td></tr>
+<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否在插入时做重复 ID 检测</td></tr>
+<tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>是否支持 <code>Remove()</code></td></tr>
+<tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>除量化副本外再保留原始向量（<code>cosine</code> 场景有用）</td></tr>
+<tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>构建完成后自动调优检索参数</td></tr>
+<tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>mmap_io</code>）</td></tr>
+<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>磁盘后端时的文件路径（使用 <code>mmap_io</code> / <code>async_io</code> / <code>buffer_io</code> 时必填）</td></tr>
+<tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>初始容量提示（不会限制最终规模）</td></tr>
 </tbody>
 </table>
 </div>
-<p>When invoking CMake directly instead of using <code>make</code>, use the underlying CMake cache option names:</p>
-<pre><code class="language-bash">cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_INTEL_MKL=ON
-cmake --build build-release -j
+<h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
+<p>检索参数放在 <code>hgraph</code> 子对象下：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ef_search</code></td><td>int</td><td>搜索前沿候选集的大小，越大召回越高、查询越慢</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk, R"({"hgraph": {"ef_search": 200}})").value();
 </code></pre>
-<h2 id="python-wheel-pyvsag"><a class="header" href="#python-wheel-pyvsag">Python Wheel (pyvsag)</a></h2>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
-# Or build all supported versions in parallel:
-make pyvsag-all
-</code></pre>
-<p>Wheels are emitted under <code>python/dist/</code>.</p>
-<h2 id="distribution-tarballs"><a class="header" href="#distribution-tarballs">Distribution Tarballs</a></h2>
-<p>For ABI-compatible redistribution use one of:</p>
-<pre><code class="language-bash">make dist-pre-cxx11-abi   # _GLIBCXX_USE_CXX11_ABI=0
-make dist-cxx11-abi       # _GLIBCXX_USE_CXX11_ABI=1
-make dist-libcxx          # libc++ (Clang)
-</code></pre>
-<p>The produced tarballs contain headers, static/shared libraries, and version metadata.</p>
+<h2 id="何时选择-hgraph"><a class="header" href="#何时选择-hgraph">何时选择 HGraph</a></h2>
+<ul>
+<li>维度大约在 64–4096 的稠密 float 向量。</li>
+<li>对延迟敏感且要求高召回的场景。</li>
+<li>需要增量插入（可选通过 <code>support_remove</code> 打开删除）的混合负载。</li>
+<li>内存受限环境，可用 <code>sq8</code> / <code>sq4_uniform</code> / <code>pq</code> 压缩，再配合 <code>use_reorder</code> 弥补召回。</li>
+</ul>
+<p>如果你的业务偏向粗粒度分桶（每次查询只扫部分桶）或严重受 SSD I/O 制约，建议先对比
+<a href="ivf.html">IVF</a> 再决定是否选择 HGraph。</p>
+<h2 id="相关文档"><a class="header" href="#相关文档">相关文档</a></h2>
+<ul>
+<li><a href="../guide/create_index.html">创建索引</a></li>
+<li><a href="../advanced/enhance_graph.html">图索引增强</a></li>
+<li><a href="../advanced/optimizer.html">优化器</a></li>
+<li><a href="../advanced/serialization.html">序列化格式</a></li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../development/code_structure.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../indexes/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/testing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/ivf.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -271,11 +299,11 @@ make dist-libcxx          # libc++ (Clang)
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../development/code_structure.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../indexes/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/testing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/ivf.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

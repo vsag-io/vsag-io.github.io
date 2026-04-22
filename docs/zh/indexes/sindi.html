@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="light sidebar-visible" dir="ltr">
+<html lang="zh" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Building - VSAG Documentation</title>
+        <title>SINDI - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-550ec713.js";
+            window.path_to_searchindex_js = "../searchindex-9e6e7d00.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-71c64059.js"></script>
+        <script src="../toc-28e646d5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -137,7 +137,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG Documentation</h1>
+                    <h1 class="menu-title">VSAG文档</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -174,94 +174,126 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="building"><a class="header" href="#building">Building</a></h1>
-<p>This page documents how to build VSAG from source.</p>
-<h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
+                        <h1 id="sindi"><a class="header" href="#sindi">SINDI</a></h1>
+<p>SINDI（<strong>S</strong>parse <strong>IN</strong>verted <strong>D</strong>ense <strong>I</strong>ndex）是 VSAG 面向 <strong>稀疏向量</strong> 的索引——
+例如 BM25、SPLADE 以及其他学习稀疏（learned sparse）编码器产出的向量。与稠密索引
+（HGraph、IVF）不同，SINDI 直接在“词项-权重”对上工作，是 VSAG 中唯一接受
+<code>dtype: "sparse"</code> 的索引。</p>
 <ul>
-<li><strong>OS</strong>: Ubuntu 20.04+ or CentOS 7+</li>
-<li><strong>Compiler</strong>: GCC 9.4.0+ or Clang 13.0.0+</li>
-<li><strong>CMake</strong>: 3.18.0+</li>
-<li><strong>clang-format / clang-tidy</strong>: exactly version 15 (enforced)</li>
-<li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for DiskANN async IO), Intel MKL.</li>
+<li>源码：<code>src/algorithm/sindi/</code></li>
+<li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/109_index_sindi.cpp"><code>examples/cpp/109_index_sindi.cpp</code></a></li>
 </ul>
-<p>We recommend using the official Docker dev image, which already contains the matching toolchain:</p>
-<pre><code class="language-bash">docker pull vsaglib/vsag:ubuntu
+<h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
+<ol>
+<li><strong>基于窗口的倒排表。</strong> 文档按固定窗口大小（<code>window_size</code>）分组，每个窗口独立维护一套
+倒排表——即“词项 → <code>(doc_id, value)</code> 列表”的映射。</li>
+<li><strong>可选的剪枝与量化。</strong> 构建时可通过 <code>doc_prune_ratio</code> 按文档粒度丢弃权重最低的词项；
+通过 <code>use_quantization</code> 压缩词项权重以进一步节省内存。</li>
+<li><strong>打分。</strong> 检索时，SINDI 遍历查询向量的非零项，按窗口访问对应的倒排表，使用大小为
+<code>n_candidate</code> 的大顶堆聚合得分，最后取 top-k。启用 <code>use_reorder</code> 时，候选会在高精度
+扁平副本上重打分。</li>
+</ol>
+<p>返回的距离为 <code>1 - inner_product</code>，使结果与稠密索引一样按升序排序。</p>
+<h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
+        "window_size": 50000,
+        "doc_prune_ratio": 0.0,
+        "use_quantization": false,
+        "use_reorder": false
+    }
+})";
+auto index = vsag::Factory::CreateIndex("sindi", params).value();
+
+// 使用 SparseVector 构建数据集。
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)
+    -&gt;SparseVectors(sparse_vectors)  // vsag::SparseVector*
+    -&gt;Ids(ids)
+    -&gt;Owner(false);
+index-&gt;Build(base);
+
+// 执行检索。
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;SparseVectors(&amp;query_vec)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10,
+    R"({"sindi": {"n_candidate": 100}})").value();
 </code></pre>
-<h2 id="makefile-targets"><a class="header" href="#makefile-targets">Makefile Targets</a></h2>
-<p>Running <code>make help</code> prints a concise list; the most common targets are:</p>
-<pre><code class="language-text">debug       Build debug binaries (no sanitizers; tests/tools/examples OFF by default)
-release     Build release binaries (tests/tools/examples OFF by default)
-dev         Developer build: debug + tests + tools + examples
-test        Build with tests enabled and run unit + functional tests
-cov         Build with coverage instrumentation enabled
-asan        Build with AddressSanitizer
-tsan        Build with ThreadSanitizer
-fmt         Run clang-format
-lint        Run clang-tidy
-fix-lint    Apply clang-tidy fix-its in-place (destructive)
-pyvsag      Build pyvsag for a specific Python version (PY_VERSION=...)
-pyvsag-all  Build pyvsag wheels for all supported Python versions
-dist-pre-cxx11-abi  Build redistributable tarball (pre-C++11 ABI)
-dist-cxx11-abi      Build redistributable tarball (C++11 ABI)
-dist-libcxx         Build redistributable tarball (libc++)
-clean       Remove build trees
-</code></pre>
-<h2 id="step-by-step"><a class="header" href="#step-by-step">Step-by-Step</a></h2>
-<pre><code class="language-bash">git clone https://github.com/antgroup/vsag.git
-cd vsag
-make release
-</code></pre>
-<p>Resulting binaries from a plain <code>make release</code>:</p>
-<ul>
-<li>Library: <code>build-release/src/libvsag.{a,so}</code></li>
-</ul>
-<p>Examples and tools are not built by default. To include them, either use <code>make dev</code>, or enable
-the corresponding Makefile variables (<code>VSAG_ENABLE_EXAMPLES=ON</code>, <code>VSAG_ENABLE_TOOLS=ON</code>) or the
-underlying CMake cache options (<code>-DENABLE_EXAMPLES=ON</code>, <code>-DENABLE_TOOLS=ON</code>).</p>
-<h2 id="environment-variables--cmake-options"><a class="header" href="#environment-variables--cmake-options">Environment Variables / CMake Options</a></h2>
-<p>The Makefile exposes a few <code>VSAG_ENABLE_*</code> environment variables that are translated into CMake
-cache options (<code>ENABLE_*</code>). Defaults below reflect a plain <code>make release</code>.</p>
+<h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
+<p>构建参数放在 <code>index_param</code> 下。<code>dtype</code> <strong>必须</strong> 为 <code>"sparse"</code>，<code>metric_type</code> <strong>必须</strong>
+为 <code>"ip"</code>。</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Makefile env var</th><th>CMake option</th><th>Default</th><th>Effect</th></tr>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>VSAG_ENABLE_INTEL_MKL</code></td><td><code>ENABLE_INTEL_MKL</code></td><td><code>OFF</code></td><td>Use Intel MKL for BLAS kernels</td></tr>
-<tr><td><code>VSAG_ENABLE_LIBAIO</code></td><td><code>ENABLE_LIBAIO</code></td><td><code>ON</code> on Linux</td><td>Enable DiskANN async IO via libaio</td></tr>
-<tr><td><code>VSAG_ENABLE_TOOLS</code></td><td><code>ENABLE_TOOLS</code></td><td><code>OFF</code></td><td>Build utilities under <code>tools/</code></td></tr>
-<tr><td><code>VSAG_ENABLE_EXAMPLES</code></td><td><code>ENABLE_EXAMPLES</code></td><td><code>OFF</code></td><td>Build sample programs under <code>examples/cpp/</code></td></tr>
-<tr><td>n/a</td><td><code>CMAKE_BUILD_TYPE</code></td><td>driven by Makefile target</td><td>Debug / Release</td></tr>
+<tr><td><code>dim</code></td><td>int</td><td>—（必填）</td><td>单条稀疏向量允许的最大非零项数量，<strong>不是</strong> 词表大小</td></tr>
+<tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>词项 ID 的上界（应 ≥ 最大词项 ID + 1）</td></tr>
+<tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>每个窗口容纳的文档数（取值范围 10 000 – 60 000）</td></tr>
+<tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建阶段按文档丢弃权重最低词项的比例（0.0 – 0.9）</td></tr>
+<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>是否量化词项权重以降低内存</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留一份高精度扁平副本用于精排（内存约翻倍）</td></tr>
+<tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>仅用于内存估算</td></tr>
 </tbody>
 </table>
 </div>
-<p>When invoking CMake directly instead of using <code>make</code>, use the underlying CMake cache option names:</p>
-<pre><code class="language-bash">cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_INTEL_MKL=ON
-cmake --build build-release -j
+<blockquote>
+<p><strong><code>dim</code> 与 <code>term_id_limit</code> 的区别。</strong> 对于稀疏向量 <code>{0:0.1, 2:0.5, 177:0.8}</code>，
+<code>dim</code> 为 <code>3</code>（三个非零项），而 <code>term_id_limit</code> 至少应为 <code>178</code>（最大词项 ID + 1）。
+<code>term_id_limit</code> 要按词表大小估计，这是使用时最常见的坑。</p>
+</blockquote>
+<h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
+<p>检索参数放在 <code>sindi</code> 子对象下：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>候选堆大小。为 <code>0</code> 时自动取 <code>SPARSE_AMPLIFICATION_FACTOR · topk</code>（500 倍）；若显式设置，须满足 <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code></td></tr>
+<tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>查询时丢弃权重最低查询项的比例（0.0 – 0.9）</td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>查询时丢弃倒排表中低权项的比例（0.0 – 0.9）</td></tr>
+<tr><td><code>use_term_lists_heap_insert</code></td><td>bool</td><td><code>true</code></td><td>按倒排表顺序做堆插入，通常更快</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"sindi": {"n_candidate": 200, "query_prune_ratio": 0.1}})").value();
 </code></pre>
-<h2 id="python-wheel-pyvsag"><a class="header" href="#python-wheel-pyvsag">Python Wheel (pyvsag)</a></h2>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
-# Or build all supported versions in parallel:
-make pyvsag-all
-</code></pre>
-<p>Wheels are emitted under <code>python/dist/</code>.</p>
-<h2 id="distribution-tarballs"><a class="header" href="#distribution-tarballs">Distribution Tarballs</a></h2>
-<p>For ABI-compatible redistribution use one of:</p>
-<pre><code class="language-bash">make dist-pre-cxx11-abi   # _GLIBCXX_USE_CXX11_ABI=0
-make dist-cxx11-abi       # _GLIBCXX_USE_CXX11_ABI=1
-make dist-libcxx          # libc++ (Clang)
-</code></pre>
-<p>The produced tarballs contain headers, static/shared libraries, and version metadata.</p>
+<h2 id="何时选择-sindi"><a class="header" href="#何时选择-sindi">何时选择 SINDI</a></h2>
+<ul>
+<li>使用 BM25、SPLADE、uniCOIL 等学习稀疏编码器的稀疏检索场景。</li>
+<li>稠密 + 稀疏的混合检索管线：SINDI 负责稀疏一路，HGraph / IVF 负责稠密 embedding。</li>
+<li>稀疏语料的内存受限部署：<code>use_quantization: true</code> 大致能把内存减半，略损召回；
+<code>use_reorder: true</code> 以内存换召回。</li>
+</ul>
+<p>SINDI <strong>不支持</strong> 稠密向量，只支持内积相似度。范围检索与基于 ID 的过滤均已支持，
+具体用法参见示例代码。</p>
+<h2 id="相关文档"><a class="header" href="#相关文档">相关文档</a></h2>
+<ul>
+<li><a href="../guide/create_index.html">创建索引</a></li>
+<li><a href="../resources/index_parameters.html">索引参数</a></li>
+<li><a href="../guide/knn_search.html">k-近邻搜索</a></li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../development/code_structure.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../indexes/ivf.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/testing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/pyramid.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -271,11 +303,11 @@ make dist-libcxx          # libc++ (Clang)
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../development/code_structure.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../indexes/ivf.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/testing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/pyramid.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

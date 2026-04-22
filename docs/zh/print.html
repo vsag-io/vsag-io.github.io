@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-c4d3605a.js";
+            window.path_to_searchindex_js = "searchindex-9e6e7d00.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-61b45d24.js"></script>
+        <script src="toc-28e646d5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -358,17 +358,17 @@
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>名称</th><th><code>name</code> 字符串</th><th>适用场景</th></tr>
+<tr><th>名称</th><th><code>name</code> 字符串</th><th>文档</th><th>适用场景</th></tr>
 </thead>
 <tbody>
-<tr><td>HNSW</td><td><code>hnsw</code></td><td>纯内存图索引，兼容 HNSWLIB 的序列化格式（参见：<code>include/vsag/constants.h</code> 的 <code>INDEX_HNSW</code>）</td></tr>
-<tr><td>HGraph</td><td><code>hgraph</code></td><td>VSAG 自研图索引，支持多级量化和调优（详见 <code>examples/cpp/103_index_hgraph.cpp</code>）</td></tr>
-<tr><td>DiskANN</td><td><code>diskann</code></td><td>内存-磁盘混合索引，适合超出内存规模的数据集</td></tr>
-<tr><td>IVF</td><td><code>ivf</code></td><td>倒排索引，适合大 <code>k</code> 和批量查询</td></tr>
-<tr><td>Pyramid</td><td><code>pyramid</code></td><td>多层级索引结构</td></tr>
-<tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>基于 GNO-IMI 的倒排索引变体</td></tr>
-<tr><td>SINDI</td><td><code>sindi</code></td><td>稀疏向量上的倒排索引</td></tr>
-<tr><td>BruteForce</td><td><code>brute_force</code></td><td>暴力搜索，用作基准或小数据集</td></tr>
+<tr><td>HGraph</td><td><code>hgraph</code></td><td><a href="#hgraph">HGraph</a></td><td>VSAG 自研图索引，支持多级量化和调优（详见 <code>examples/cpp/103_index_hgraph.cpp</code>）</td></tr>
+<tr><td>IVF</td><td><code>ivf</code></td><td><a href="#ivf">IVF</a></td><td>倒排索引，适合大 <code>k</code> 和批量查询</td></tr>
+<tr><td>SINDI</td><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>稀疏向量上的倒排索引</td></tr>
+<tr><td>Pyramid</td><td><code>pyramid</code></td><td><a href="#pyramid">Pyramid</a></td><td>多层级 / 按路径分区的索引结构</td></tr>
+<tr><td>BruteForce</td><td><code>brute_force</code></td><td>—</td><td>暴力搜索，用作基准或小数据集</td></tr>
+<tr><td>HNSW</td><td><code>hnsw</code></td><td>—</td><td>纯内存图索引（<strong>已弃用</strong>，新部署请改用 <code>hgraph</code>）</td></tr>
+<tr><td>DiskANN</td><td><code>diskann</code></td><td>—</td><td>内存-磁盘混合索引（<strong>已弃用</strong>，新部署请改用 <code>ivf</code>）</td></tr>
+<tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>—</td><td>基于 GNO-IMI 的倒排索引变体（作为 <code>ivf</code> 的 <code>partition_strategy_type</code>）</td></tr>
 </tbody>
 </table>
 </div>
@@ -468,6 +468,502 @@ for rid, rdist in zip(result_ids, result_dists):
 <li>构建 wheel 时所使用的依赖项与发布版 C++ 库相同（OpenBLAS、libaio 等）。</li>
 </ul>
 <p>关于可用参数和索引类型，请参考 <a href="#创建索引">创建索引</a> 和 <a href="#索引参数">索引参数</a>。</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="索引"><a class="header" href="#索引">索引</a></h1>
+<p>VSAG 提供了一系列索引实现，它们共享同一套构建式 API、同一种序列化格式、同一组操作
+（<code>Build</code>、<code>Add</code>、<code>KnnSearch</code>、<code>RangeSearch</code>、<code>Remove</code>、<code>Serialize</code> / <code>Deserialize</code> 等），
+差异在于底层使用的数据结构与折中取舍。</p>
+<p>本节覆盖当前活跃维护的索引：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引</th><th>文档</th><th>适用场景</th></tr>
+</thead>
+<tbody>
+<tr><td><code>hgraph</code></td><td><a href="#hgraph">HGraph</a></td><td>通用高召回图索引，量化选项丰富</td></tr>
+<tr><td><code>ivf</code></td><td><a href="#ivf">IVF</a></td><td>基于分桶的检索，适合高吞吐批查询与超大规模语料</td></tr>
+<tr><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>稀疏向量（BM25 / 学习稀疏）上的内积检索</td></tr>
+<tr><td><code>pyramid</code></td><td><a href="#pyramid">Pyramid</a></td><td>多租户 / 标签分区的层级索引</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>brute_force</code> 作为精确检索基线也可使用（见
+<a href="#创建索引">创建索引</a> 与 <code>examples/cpp/105_index_brute_force.cpp</code>）。</p>
+<p><code>hnsw</code> 与 <code>diskann</code> 保留用于向后兼容，但已 <strong>弃用</strong>；新部署请优先选择 <code>hgraph</code>（图索引）
+或 <code>ivf</code>（分桶索引）。</p>
+<h2 id="参数约定"><a class="header" href="#参数约定">参数约定</a></h2>
+<p>所有索引共享以下顶层构建字段：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>可选值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>正整数</td><td>向量维度；构建后不可变</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> 仅 SINDI 使用</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>查询时必须保持一致（SINDI 仅支持 <code>ip</code>）</td></tr>
+</tbody>
+</table>
+</div>
+<p>索引特有的构建参数放在 <code>index_param</code> 子对象中；查询参数放在以索引名命名的子对象中
+（例如 <code>hgraph</code>、<code>ivf</code>、<code>sindi</code>、<code>pyramid</code>）。具体参数定义在各索引页面内给出，也可查阅
+<a href="#索引参数">索引参数</a> 进行总览。</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h1>
+<p>HGraph 是 VSAG 的旗舰 <strong>图索引</strong>。它构建的是与 HNSW 思路类似的多层近邻图，但在此基础上
+提供了更丰富的量化方案、统一的构建参数 schema（<code>index_param</code>），并原生支持精排（reorder）、
+增量更新、删除、以及基于 ELP 的运行时自动调优。</p>
+<p>对于大多数稠密向量场景（文本 / 图像 / 多模态 embedding，维度 64–4096，规模从数千到数亿），
+HGraph 都是推荐的默认索引。</p>
+<ul>
+<li>源码：<code>src/algorithm/hgraph.{h,cpp}</code></li>
+<li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/103_index_hgraph.cpp"><code>examples/cpp/103_index_hgraph.cpp</code></a></li>
+</ul>
+<h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
+<ol>
+<li><strong>构图。</strong> 向量被组织成层级近邻图：上层作为导航入口，底层连接每个数据点到在
+<code>max_degree</code> 预算内的最近邻。构图算法可以是 NSW 风格插入（<code>graph_type: "nsw"</code>，默认）
+或 ODescent（<code>graph_type: "odescent"</code>）。</li>
+<li><strong>量化。</strong> 底层存储使用可配置的量化器进行压缩（<code>base_quantization_type</code> —
+<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>）。
+可选地再保留一份高精度副本（<code>use_reorder: true</code> 搭配 <code>precise_quantization_type</code>），
+用于对粗排结果进行重打分。</li>
+<li><strong>搜索。</strong> 自顶向下在图上做贪心 beam search，扩展候选集到 <code>ef_search</code> 个节点；如启用精排，
+最终结果会在高精度表示上重新打分。</li>
+</ol>
+<h2 id="快速开始-1"><a class="header" href="#快速开始-1">快速开始</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 32,
+        "ef_construction": 400
+    }
+})";
+auto index = vsag::Factory::CreateIndex("hgraph", params).value();
+
+// 构建索引。
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
+index-&gt;Build(base);
+
+// 执行检索。
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10, R"({"hgraph": {"ef_search": 100}})").value();
+</code></pre>
+<h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
+<p>构建参数放在 <code>index_param</code> 下。下表列出最常用的配置项；完整列表请见
+<a href="#索引参数">索引参数</a> 以及仓库中的 <code>docs/hgraph.md</code>。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—（必填）</td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code></td></tr>
+<tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>图节点最大出度</td></tr>
+<tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>构建阶段的候选集大小（越大召回越高，构建越慢）</td></tr>
+<tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td>构图算法：<code>nsw</code> 或 <code>odescent</code></td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否额外保留一份高精度副本用于精排</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型（仅在 <code>use_reorder: true</code> 时生效）</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
+<tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>构建阶段并发线程数</td></tr>
+<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否在插入时做重复 ID 检测</td></tr>
+<tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>是否支持 <code>Remove()</code></td></tr>
+<tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>除量化副本外再保留原始向量（<code>cosine</code> 场景有用）</td></tr>
+<tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>构建完成后自动调优检索参数</td></tr>
+<tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>mmap_io</code>）</td></tr>
+<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>磁盘后端时的文件路径（使用 <code>mmap_io</code> / <code>async_io</code> / <code>buffer_io</code> 时必填）</td></tr>
+<tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>初始容量提示（不会限制最终规模）</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
+<p>检索参数放在 <code>hgraph</code> 子对象下：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ef_search</code></td><td>int</td><td>搜索前沿候选集的大小，越大召回越高、查询越慢</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk, R"({"hgraph": {"ef_search": 200}})").value();
+</code></pre>
+<h2 id="何时选择-hgraph"><a class="header" href="#何时选择-hgraph">何时选择 HGraph</a></h2>
+<ul>
+<li>维度大约在 64–4096 的稠密 float 向量。</li>
+<li>对延迟敏感且要求高召回的场景。</li>
+<li>需要增量插入（可选通过 <code>support_remove</code> 打开删除）的混合负载。</li>
+<li>内存受限环境，可用 <code>sq8</code> / <code>sq4_uniform</code> / <code>pq</code> 压缩，再配合 <code>use_reorder</code> 弥补召回。</li>
+</ul>
+<p>如果你的业务偏向粗粒度分桶（每次查询只扫部分桶）或严重受 SSD I/O 制约，建议先对比
+<a href="#ivf">IVF</a> 再决定是否选择 HGraph。</p>
+<h2 id="相关文档"><a class="header" href="#相关文档">相关文档</a></h2>
+<ul>
+<li><a href="#创建索引">创建索引</a></li>
+<li><a href="#图索引增强">图索引增强</a></li>
+<li><a href="#优化器tune">优化器</a></li>
+<li><a href="#序列化格式">序列化格式</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="ivf"><a class="header" href="#ivf">IVF</a></h1>
+<p>IVF（Inverted File，倒排索引）是 VSAG 的 <strong>分桶式</strong> 索引。它在构建时将语料聚类成若干桶，
+查询时只扫描与查询距离最近的若干个桶的中心对应的倒排列表，把 O(N) 的线性扫描降为
+O(N · <code>scan_buckets_count</code> / <code>buckets_count</code>)，并通过这两个参数在召回与延迟之间进行权衡。</p>
+<p>与图索引相比，IVF 在召回上略有损失，但换来了更低的内存开销、更高的批量吞吐以及更简单的
+切片方式——因此在语料非常大（数亿及以上）、内存紧张、或查询可天然并行化的场景中，
+IVF 通常是一个更合适的默认选择。</p>
+<ul>
+<li>源码：<code>src/algorithm/ivf.{h,cpp}</code>、<code>src/algorithm/ivf_parameter.{h,cpp}</code></li>
+<li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/106_index_ivf.cpp"><code>examples/cpp/106_index_ivf.cpp</code></a></li>
+</ul>
+<h2 id="工作原理-1"><a class="header" href="#工作原理-1">工作原理</a></h2>
+<ol>
+<li><strong>聚类。</strong> 在数据集的采样上运行 k-means（或随机采样，<code>ivf_train_type: "random"</code>）
+得到 <code>buckets_count</code> 个中心（centroid）。</li>
+<li><strong>分配。</strong> 每条向量被写入距离最近的中心对应的倒排列表，以配置的粗量化
+（<code>base_quantization_type</code>）存储；可选地再保留一份高精度副本（<code>use_reorder: true</code>）
+用于精排。</li>
+<li><strong>检索。</strong> 查询时先计算查询向量与所有中心的距离，选出最近的 <code>scan_buckets_count</code>
+个桶；然后只在这些桶内对向量打分。启用精排时，<code>factor</code> 控制从粗排阶段多取多少候选
+再送入精排器重打分。</li>
+</ol>
+<p>此外还有一种 <strong>GNO-IMI</strong> 策略（<code>partition_strategy_type: "gno_imi"</code>），它把空间按两组
+正交中心划分（<code>first_order_buckets_count</code> × <code>second_order_buckets_count</code>），在超大规模
+语料上能得到更精细的分区。</p>
+<h2 id="快速开始-2"><a class="header" href="#快速开始-2">快速开始</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "buckets_count": 256,
+        "base_quantization_type": "sq8",
+        "partition_strategy_type": "ivf",
+        "ivf_train_type": "kmeans"
+    }
+})";
+auto index = vsag::Factory::CreateIndex("ivf", params).value();
+
+// 构建索引。
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
+index-&gt;Build(base);
+
+// 执行检索。
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10,
+    R"({"ivf": {"scan_buckets_count": 16}})").value();
+</code></pre>
+<h2 id="构建参数-1"><a class="header" href="#构建参数-1">构建参数</a></h2>
+<p>构建参数放在 <code>index_param</code> 下。完整列表请见 <a href="#索引参数">索引参数</a>
+及仓库中的 <code>docs/ivf.md</code>。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>partition_strategy_type</code></td><td>string</td><td><code>"ivf"</code></td><td>分桶策略：<code>ivf</code>（单层）或 <code>gno_imi</code>（双层正交）</td></tr>
+<tr><td><code>buckets_count</code></td><td>int</td><td><code>10</code></td><td>倒排列表数量（<code>ivf</code> 策略下生效）</td></tr>
+<tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第一级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
+<tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第二级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
+<tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>中心训练方式：<code>kmeans</code> 或 <code>random</code></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code></td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排量化类型（<code>use_reorder: true</code> 时使用）</td></tr>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>粗排向量的存储后端</td></tr>
+<tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>精排向量的存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>mmap_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>reader_io</code>）</td></tr>
+<tr><td><code>precise_file_path</code></td><td>string</td><td><code>""</code></td><td>当精排 IO 为磁盘后端时的文件路径</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>buckets_count</code> 的经验值一般为 <code>sqrt(N)</code> ~ <code>4 * sqrt(N)</code>，其中 <code>N</code> 是语料规模。</p>
+<h2 id="检索参数-1"><a class="header" href="#检索参数-1">检索参数</a></h2>
+<p>检索参数放在 <code>ivf</code> 子对象下：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>scan_buckets_count</code></td><td>int</td><td>—（必填）</td><td>每次查询扫描的桶数，须 ≤ <code>buckets_count</code></td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>2.0</code></td><td>启用精排时，粗排阶段会预取 <code>factor * topk</code> 个候选再重打分</td></tr>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>单次查询内扫描桶时使用的线程数</td></tr>
+<tr><td><code>timeout_ms</code></td><td>double</td><td><code>+∞</code></td><td>单次查询最长耗时（毫秒），超时会返回当前的部分结果</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"ivf": {"scan_buckets_count": 32, "factor": 2.0, "parallelism": 4}})").value();
+</code></pre>
+<h2 id="何时选择-ivf"><a class="header" href="#何时选择-ivf">何时选择 IVF</a></h2>
+<ul>
+<li>超大规模语料（数亿及以上），工作集无法完全放入内存。</li>
+<li>对每秒查询数（QPS）敏感、对单次延迟相对宽松的批量或高吞吐场景。</li>
+<li>内存紧张的部署，可使用激进的量化方案（<code>sq8</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>）配合
+<code>use_reorder</code> 恢复召回。</li>
+<li>对切片友好的部署：桶天然映射到分片或磁盘块。</li>
+</ul>
+<p>对于延迟敏感、要求高召回的稠密 embedding 场景，请优先比较 <a href="#hgraph">HGraph</a>。</p>
+<h2 id="相关文档-1"><a class="header" href="#相关文档-1">相关文档</a></h2>
+<ul>
+<li><a href="#创建索引">创建索引</a></li>
+<li><a href="#索引参数">索引参数</a></li>
+<li><a href="#内存-磁盘混合索引diskann">内存-磁盘混合索引</a></li>
+<li><a href="#序列化格式">序列化格式</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="sindi"><a class="header" href="#sindi">SINDI</a></h1>
+<p>SINDI（<strong>S</strong>parse <strong>IN</strong>verted <strong>D</strong>ense <strong>I</strong>ndex）是 VSAG 面向 <strong>稀疏向量</strong> 的索引——
+例如 BM25、SPLADE 以及其他学习稀疏（learned sparse）编码器产出的向量。与稠密索引
+（HGraph、IVF）不同，SINDI 直接在“词项-权重”对上工作，是 VSAG 中唯一接受
+<code>dtype: "sparse"</code> 的索引。</p>
+<ul>
+<li>源码：<code>src/algorithm/sindi/</code></li>
+<li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/109_index_sindi.cpp"><code>examples/cpp/109_index_sindi.cpp</code></a></li>
+</ul>
+<h2 id="工作原理-2"><a class="header" href="#工作原理-2">工作原理</a></h2>
+<ol>
+<li><strong>基于窗口的倒排表。</strong> 文档按固定窗口大小（<code>window_size</code>）分组，每个窗口独立维护一套
+倒排表——即“词项 → <code>(doc_id, value)</code> 列表”的映射。</li>
+<li><strong>可选的剪枝与量化。</strong> 构建时可通过 <code>doc_prune_ratio</code> 按文档粒度丢弃权重最低的词项；
+通过 <code>use_quantization</code> 压缩词项权重以进一步节省内存。</li>
+<li><strong>打分。</strong> 检索时，SINDI 遍历查询向量的非零项，按窗口访问对应的倒排表，使用大小为
+<code>n_candidate</code> 的大顶堆聚合得分，最后取 top-k。启用 <code>use_reorder</code> 时，候选会在高精度
+扁平副本上重打分。</li>
+</ol>
+<p>返回的距离为 <code>1 - inner_product</code>，使结果与稠密索引一样按升序排序。</p>
+<h2 id="快速开始-3"><a class="header" href="#快速开始-3">快速开始</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
+        "window_size": 50000,
+        "doc_prune_ratio": 0.0,
+        "use_quantization": false,
+        "use_reorder": false
+    }
+})";
+auto index = vsag::Factory::CreateIndex("sindi", params).value();
+
+// 使用 SparseVector 构建数据集。
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)
+    -&gt;SparseVectors(sparse_vectors)  // vsag::SparseVector*
+    -&gt;Ids(ids)
+    -&gt;Owner(false);
+index-&gt;Build(base);
+
+// 执行检索。
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;SparseVectors(&amp;query_vec)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10,
+    R"({"sindi": {"n_candidate": 100}})").value();
+</code></pre>
+<h2 id="构建参数-2"><a class="header" href="#构建参数-2">构建参数</a></h2>
+<p>构建参数放在 <code>index_param</code> 下。<code>dtype</code> <strong>必须</strong> 为 <code>"sparse"</code>，<code>metric_type</code> <strong>必须</strong>
+为 <code>"ip"</code>。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>int</td><td>—（必填）</td><td>单条稀疏向量允许的最大非零项数量，<strong>不是</strong> 词表大小</td></tr>
+<tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>词项 ID 的上界（应 ≥ 最大词项 ID + 1）</td></tr>
+<tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>每个窗口容纳的文档数（取值范围 10 000 – 60 000）</td></tr>
+<tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建阶段按文档丢弃权重最低词项的比例（0.0 – 0.9）</td></tr>
+<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>是否量化词项权重以降低内存</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留一份高精度扁平副本用于精排（内存约翻倍）</td></tr>
+<tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>仅用于内存估算</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p><strong><code>dim</code> 与 <code>term_id_limit</code> 的区别。</strong> 对于稀疏向量 <code>{0:0.1, 2:0.5, 177:0.8}</code>，
+<code>dim</code> 为 <code>3</code>（三个非零项），而 <code>term_id_limit</code> 至少应为 <code>178</code>（最大词项 ID + 1）。
+<code>term_id_limit</code> 要按词表大小估计，这是使用时最常见的坑。</p>
+</blockquote>
+<h2 id="检索参数-2"><a class="header" href="#检索参数-2">检索参数</a></h2>
+<p>检索参数放在 <code>sindi</code> 子对象下：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>候选堆大小。为 <code>0</code> 时自动取 <code>SPARSE_AMPLIFICATION_FACTOR · topk</code>（500 倍）；若显式设置，须满足 <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code></td></tr>
+<tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>查询时丢弃权重最低查询项的比例（0.0 – 0.9）</td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>查询时丢弃倒排表中低权项的比例（0.0 – 0.9）</td></tr>
+<tr><td><code>use_term_lists_heap_insert</code></td><td>bool</td><td><code>true</code></td><td>按倒排表顺序做堆插入，通常更快</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"sindi": {"n_candidate": 200, "query_prune_ratio": 0.1}})").value();
+</code></pre>
+<h2 id="何时选择-sindi"><a class="header" href="#何时选择-sindi">何时选择 SINDI</a></h2>
+<ul>
+<li>使用 BM25、SPLADE、uniCOIL 等学习稀疏编码器的稀疏检索场景。</li>
+<li>稠密 + 稀疏的混合检索管线：SINDI 负责稀疏一路，HGraph / IVF 负责稠密 embedding。</li>
+<li>稀疏语料的内存受限部署：<code>use_quantization: true</code> 大致能把内存减半，略损召回；
+<code>use_reorder: true</code> 以内存换召回。</li>
+</ul>
+<p>SINDI <strong>不支持</strong> 稠密向量，只支持内积相似度。范围检索与基于 ID 的过滤均已支持，
+具体用法参见示例代码。</p>
+<h2 id="相关文档-2"><a class="header" href="#相关文档-2">相关文档</a></h2>
+<ul>
+<li><a href="#创建索引">创建索引</a></li>
+<li><a href="#索引参数">索引参数</a></li>
+<li><a href="#k-近邻搜索">k-近邻搜索</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h1>
+<p>Pyramid 是 VSAG 的 <strong>层级路径分区</strong> 图索引。每条向量都附带一个路径字符串（例如
+<code>"a/d/f"</code>），Pyramid 会按路径树为每个节点构建一个子图；查询时提供一个路径前缀，
+检索即被限定在相应的子树内。</p>
+<p>这种设计非常适合多租户部署、标签分区的物料库，或者任何“一个逻辑索引服务多个群体、
+群体之间不允许结果交叉”的场景。</p>
+<ul>
+<li>源码：<code>src/algorithm/pyramid.{h,cpp}</code>、<code>src/algorithm/pyramid_zparameters.{h,cpp}</code></li>
+<li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
+</ul>
+<h2 id="工作原理-3"><a class="header" href="#工作原理-3">工作原理</a></h2>
+<ol>
+<li><strong>路径树。</strong> 每条向量在 ID 之外还携带一个 <code>path</code>，分隔符为 <code>/</code>
+（例如 <code>"tenant_a/lang_en/topic_news"</code>）。Pyramid 会为构建期间出现过的每个路径前缀
+维护一个子索引。</li>
+<li><strong>按层构建子图。</strong> 默认情况下每一层都会独立构建一张近邻图。可以用 <code>no_build_levels</code>
+跳过那些太小或太粗、不适合构图的层级——这些层级仍作为透传容器存在，但检索会退化为
+线性扫描。</li>
+<li><strong>图的构建。</strong> 每个子图与 HGraph 采用同一套机制：<code>nsw</code> 插入或 <code>odescent</code>，并通过
+<code>graph_iter_turn</code>、<code>neighbor_sample_rate</code>、<code>alpha</code> 控制构图剪枝。底层向量按
+<code>base_quantization_type</code> 存储；启用精排时另外保留一份高精度副本。</li>
+<li><strong>检索。</strong> 查询向量同样要附带路径。搜索会顺路径树向下走到最具体匹配查询路径的子图，
+然后在该子图内执行图检索（<code>ef_search</code>；中间层由 <code>subindex_ef_search</code> 控制）。</li>
+</ol>
+<h2 id="快速开始-4"><a class="header" href="#快速开始-4">快速开始</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 32,
+        "alpha": 1.2,
+        "graph_type": "odescent",
+        "graph_iter_turn": 15,
+        "neighbor_sample_rate": 0.2,
+        "no_build_levels": [0, 1],
+        "use_reorder": true,
+        "build_thread_count": 16
+    }
+})";
+auto index = vsag::Factory::CreateIndex("pyramid", params).value();
+
+// 构建时为每条向量提供路径。
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)
+    -&gt;Dim(128)
+    -&gt;Ids(ids)
+    -&gt;Paths(paths)          // std::string* 长度为 n，例如 "a/d/f"
+    -&gt;Float32Vectors(data)
+    -&gt;Owner(false);
+index-&gt;Build(base);
+
+// 按路径前缀执行检索。
+std::string query_path = "a/d";
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)
+    -&gt;Dim(128)
+    -&gt;Float32Vectors(q)
+    -&gt;Paths(&amp;query_path)
+    -&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10,
+    R"({"pyramid": {"ef_search": 100}})").value();
+</code></pre>
+<h2 id="构建参数-3"><a class="header" href="#构建参数-3">构建参数</a></h2>
+<p>构建参数放在 <code>index_param</code> 下。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>底层量化类型（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>）</td></tr>
+<tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>子图内节点的最大出度</td></tr>
+<tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code> 或 <code>odescent</code></td></tr>
+<tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td><code>nsw</code> 构图时的候选集大小</td></tr>
+<tr><td><code>alpha</code></td><td>float</td><td><code>1.2</code></td><td>构图剪枝系数</td></tr>
+<tr><td><code>graph_iter_turn</code></td><td>int</td><td>—</td><td>ODescent 迭代轮数（<code>graph_type: "odescent"</code> 时生效）</td></tr>
+<tr><td><code>neighbor_sample_rate</code></td><td>float</td><td>—</td><td>ODescent 的邻居采样比率</td></tr>
+<tr><td><code>no_build_levels</code></td><td>int[]</td><td><code>[]</code></td><td>跳过构图的层级（从根节点开始的 0-based 下标）</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型</td></tr>
+<tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>子索引的最小规模；小于该值的分区会退化为线性扫描</td></tr>
+<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否允许重复 ID</td></tr>
+<tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>构建阶段并发线程数</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="检索参数-3"><a class="header" href="#检索参数-3">检索参数</a></h2>
+<p>检索参数放在 <code>pyramid</code> 子对象下：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>叶子层子图检索的候选集大小</td></tr>
+<tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>沿路径向下遍历中间子图时的候选集大小</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"pyramid": {"ef_search": 200, "subindex_ef_search": 80}})").value();
+</code></pre>
+<h2 id="何时选择-pyramid"><a class="header" href="#何时选择-pyramid">何时选择 Pyramid</a></h2>
+<ul>
+<li>多租户服务：每个租户只能看到自己分区的结果，且希望避免为每个租户单独维护一份索引。</li>
+<li>带有层级标签的物料库（语言 / 地域 / 品类），查询永远限定在某个已知的前缀下。</li>
+<li>小分区非常多的负载：可以用 <code>no_build_levels</code> 与 <code>index_min_size</code> 跳过那些小到不值得
+构图的分区。</li>
+</ul>
+<p>如果不需要按路径限定查询范围，<a href="#hgraph">HGraph</a> 更简洁，性能通常也更高。</p>
+<h2 id="相关文档-3"><a class="header" href="#相关文档-3">相关文档</a></h2>
+<ul>
+<li><a href="#创建索引">创建索引</a></li>
+<li><a href="#索引参数">索引参数</a></li>
+<li><a href="#图索引增强">图索引增强</a></li>
+<li><a href="#hgraph">HGraph</a></li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="代码目录结构"><a class="header" href="#代码目录结构">代码目录结构</a></h1>
 <p>VSAG 项目代码处于快速迭代中，目录组织并不完美，这里仅对当前目录的功能划分做简要介绍。</p>
@@ -968,7 +1464,7 @@ VSAG 通过 <strong>Conjugate Graph</strong>（共轭图）机制对这类查询
 })";
 auto result = index-&gt;KnnSearch(query, k, search_param_json);
 </code></pre>
-<h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
+<h2 id="工作原理-4"><a class="header" href="#工作原理-4">工作原理</a></h2>
 <p>共轭图由原图在训练数据上的“失败路径“反向构建而成，在搜索时作为补充的候选边参与贪心扩展。
 它相当于对主图的一层轻量索引补丁，典型体积 &lt; 主图 10%。</p>
 <h2 id="示例-1"><a class="header" href="#示例-1">示例</a></h2>
@@ -1302,7 +1798,7 @@ make release
 <p>搜索时：</p>
 <pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
 </code></pre>
-<h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
+<h2 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h2>
 <p>HGraph 的构建参数使用通用的 <code>index_param</code> 键（参见 <code>examples/cpp/103_index_hgraph.cpp</code>）；
 <code>hgraph</code> 键则保留给搜索期参数。</p>
 <pre><code class="language-json">{
@@ -1342,7 +1838,7 @@ make release
     }
 }
 </code></pre>
-<h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
+<h2 id="ivf-1"><a class="header" href="#ivf-1">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {
         "nlist": 4096,
@@ -1355,7 +1851,7 @@ make release
 <pre><code class="language-json">{"brute_force": {}}
 </code></pre>
 <p>无需额外参数。</p>
-<h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
+<h2 id="pyramid-1"><a class="header" href="#pyramid-1">Pyramid</a></h2>
 <p>Pyramid 支持按 tag 组织多棵子图：</p>
 <pre><code class="language-json">{
     "pyramid": {

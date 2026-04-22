@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Building - VSAG Documentation</title>
+        <title>Overview - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -174,94 +174,57 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="building"><a class="header" href="#building">Building</a></h1>
-<p>This page documents how to build VSAG from source.</p>
-<h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
-<ul>
-<li><strong>OS</strong>: Ubuntu 20.04+ or CentOS 7+</li>
-<li><strong>Compiler</strong>: GCC 9.4.0+ or Clang 13.0.0+</li>
-<li><strong>CMake</strong>: 3.18.0+</li>
-<li><strong>clang-format / clang-tidy</strong>: exactly version 15 (enforced)</li>
-<li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for DiskANN async IO), Intel MKL.</li>
-</ul>
-<p>We recommend using the official Docker dev image, which already contains the matching toolchain:</p>
-<pre><code class="language-bash">docker pull vsaglib/vsag:ubuntu
-</code></pre>
-<h2 id="makefile-targets"><a class="header" href="#makefile-targets">Makefile Targets</a></h2>
-<p>Running <code>make help</code> prints a concise list; the most common targets are:</p>
-<pre><code class="language-text">debug       Build debug binaries (no sanitizers; tests/tools/examples OFF by default)
-release     Build release binaries (tests/tools/examples OFF by default)
-dev         Developer build: debug + tests + tools + examples
-test        Build with tests enabled and run unit + functional tests
-cov         Build with coverage instrumentation enabled
-asan        Build with AddressSanitizer
-tsan        Build with ThreadSanitizer
-fmt         Run clang-format
-lint        Run clang-tidy
-fix-lint    Apply clang-tidy fix-its in-place (destructive)
-pyvsag      Build pyvsag for a specific Python version (PY_VERSION=...)
-pyvsag-all  Build pyvsag wheels for all supported Python versions
-dist-pre-cxx11-abi  Build redistributable tarball (pre-C++11 ABI)
-dist-cxx11-abi      Build redistributable tarball (C++11 ABI)
-dist-libcxx         Build redistributable tarball (libc++)
-clean       Remove build trees
-</code></pre>
-<h2 id="step-by-step"><a class="header" href="#step-by-step">Step-by-Step</a></h2>
-<pre><code class="language-bash">git clone https://github.com/antgroup/vsag.git
-cd vsag
-make release
-</code></pre>
-<p>Resulting binaries from a plain <code>make release</code>:</p>
-<ul>
-<li>Library: <code>build-release/src/libvsag.{a,so}</code></li>
-</ul>
-<p>Examples and tools are not built by default. To include them, either use <code>make dev</code>, or enable
-the corresponding Makefile variables (<code>VSAG_ENABLE_EXAMPLES=ON</code>, <code>VSAG_ENABLE_TOOLS=ON</code>) or the
-underlying CMake cache options (<code>-DENABLE_EXAMPLES=ON</code>, <code>-DENABLE_TOOLS=ON</code>).</p>
-<h2 id="environment-variables--cmake-options"><a class="header" href="#environment-variables--cmake-options">Environment Variables / CMake Options</a></h2>
-<p>The Makefile exposes a few <code>VSAG_ENABLE_*</code> environment variables that are translated into CMake
-cache options (<code>ENABLE_*</code>). Defaults below reflect a plain <code>make release</code>.</p>
+                        <h1 id="indexes"><a class="header" href="#indexes">Indexes</a></h1>
+<p>VSAG ships a family of index implementations that share a single builder-style API,
+one serialization format, and one set of operations (<code>Build</code>, <code>Add</code>, <code>KnnSearch</code>,
+<code>RangeSearch</code>, <code>Remove</code>, <code>Serialize</code> / <code>Deserialize</code>, …). They differ in the data
+structures and trade-offs they use under the hood.</p>
+<p>The pages in this section cover the actively developed indexes:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Makefile env var</th><th>CMake option</th><th>Default</th><th>Effect</th></tr>
+<tr><th>Index</th><th>Page</th><th>Best for</th></tr>
 </thead>
 <tbody>
-<tr><td><code>VSAG_ENABLE_INTEL_MKL</code></td><td><code>ENABLE_INTEL_MKL</code></td><td><code>OFF</code></td><td>Use Intel MKL for BLAS kernels</td></tr>
-<tr><td><code>VSAG_ENABLE_LIBAIO</code></td><td><code>ENABLE_LIBAIO</code></td><td><code>ON</code> on Linux</td><td>Enable DiskANN async IO via libaio</td></tr>
-<tr><td><code>VSAG_ENABLE_TOOLS</code></td><td><code>ENABLE_TOOLS</code></td><td><code>OFF</code></td><td>Build utilities under <code>tools/</code></td></tr>
-<tr><td><code>VSAG_ENABLE_EXAMPLES</code></td><td><code>ENABLE_EXAMPLES</code></td><td><code>OFF</code></td><td>Build sample programs under <code>examples/cpp/</code></td></tr>
-<tr><td>n/a</td><td><code>CMAKE_BUILD_TYPE</code></td><td>driven by Makefile target</td><td>Debug / Release</td></tr>
+<tr><td><code>hgraph</code></td><td><a href="hgraph.html">HGraph</a></td><td>General-purpose, high-recall graph with rich quantization options</td></tr>
+<tr><td><code>ivf</code></td><td><a href="ivf.html">IVF</a></td><td>Partition-based search, high-throughput batch queries, large corpora</td></tr>
+<tr><td><code>sindi</code></td><td><a href="sindi.html">SINDI</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product</td></tr>
+<tr><td><code>pyramid</code></td><td><a href="pyramid.html">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
 </tbody>
 </table>
 </div>
-<p>When invoking CMake directly instead of using <code>make</code>, use the underlying CMake cache option names:</p>
-<pre><code class="language-bash">cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_INTEL_MKL=ON
-cmake --build build-release -j
-</code></pre>
-<h2 id="python-wheel-pyvsag"><a class="header" href="#python-wheel-pyvsag">Python Wheel (pyvsag)</a></h2>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
-# Or build all supported versions in parallel:
-make pyvsag-all
-</code></pre>
-<p>Wheels are emitted under <code>python/dist/</code>.</p>
-<h2 id="distribution-tarballs"><a class="header" href="#distribution-tarballs">Distribution Tarballs</a></h2>
-<p>For ABI-compatible redistribution use one of:</p>
-<pre><code class="language-bash">make dist-pre-cxx11-abi   # _GLIBCXX_USE_CXX11_ABI=0
-make dist-cxx11-abi       # _GLIBCXX_USE_CXX11_ABI=1
-make dist-libcxx          # libc++ (Clang)
-</code></pre>
-<p>The produced tarballs contain headers, static/shared libraries, and version metadata.</p>
+<p><code>brute_force</code> is also available as an exact-search baseline (see
+<a href="../guide/create_index.html">Creating an Index</a> and <code>examples/cpp/105_index_brute_force.cpp</code>).</p>
+<p><code>hnsw</code> and <code>diskann</code> are retained for backward compatibility but are <strong>deprecated</strong>; new
+deployments should prefer <code>hgraph</code> (graph-based) or <code>ivf</code> (partition-based) instead.</p>
+<h2 id="parameter-conventions"><a class="header" href="#parameter-conventions">Parameter conventions</a></h2>
+<p>All indexes share the same top-level build fields:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Values</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>positive integer</td><td>Vector dimensionality; fixed after build</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> is SINDI only</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Must match at query time (SINDI is <code>ip</code> only)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Index-specific build parameters live under the <code>index_param</code> sub-object; search-time
+parameters live under a sub-object named after the index (e.g. <code>hgraph</code>, <code>ivf</code>,
+<code>sindi</code>, <code>pyramid</code>). Concrete schemas are documented on each page and enumerated in
+<a href="../resources/index_parameters.html">Index Parameters</a>.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../development/code_structure.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../guide/pyvsag.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/testing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/hgraph.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -271,11 +234,11 @@ make dist-libcxx          # libc++ (Clang)
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../development/code_structure.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../guide/pyvsag.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/testing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/hgraph.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

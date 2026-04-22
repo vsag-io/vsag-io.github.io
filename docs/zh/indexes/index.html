@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="light sidebar-visible" dir="ltr">
+<html lang="zh" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Building - VSAG Documentation</title>
+        <title>总览 - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-550ec713.js";
+            window.path_to_searchindex_js = "../searchindex-9e6e7d00.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-71c64059.js"></script>
+        <script src="../toc-28e646d5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -137,7 +137,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG Documentation</h1>
+                    <h1 class="menu-title">VSAG文档</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -174,94 +174,55 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="building"><a class="header" href="#building">Building</a></h1>
-<p>This page documents how to build VSAG from source.</p>
-<h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
-<ul>
-<li><strong>OS</strong>: Ubuntu 20.04+ or CentOS 7+</li>
-<li><strong>Compiler</strong>: GCC 9.4.0+ or Clang 13.0.0+</li>
-<li><strong>CMake</strong>: 3.18.0+</li>
-<li><strong>clang-format / clang-tidy</strong>: exactly version 15 (enforced)</li>
-<li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for DiskANN async IO), Intel MKL.</li>
-</ul>
-<p>We recommend using the official Docker dev image, which already contains the matching toolchain:</p>
-<pre><code class="language-bash">docker pull vsaglib/vsag:ubuntu
-</code></pre>
-<h2 id="makefile-targets"><a class="header" href="#makefile-targets">Makefile Targets</a></h2>
-<p>Running <code>make help</code> prints a concise list; the most common targets are:</p>
-<pre><code class="language-text">debug       Build debug binaries (no sanitizers; tests/tools/examples OFF by default)
-release     Build release binaries (tests/tools/examples OFF by default)
-dev         Developer build: debug + tests + tools + examples
-test        Build with tests enabled and run unit + functional tests
-cov         Build with coverage instrumentation enabled
-asan        Build with AddressSanitizer
-tsan        Build with ThreadSanitizer
-fmt         Run clang-format
-lint        Run clang-tidy
-fix-lint    Apply clang-tidy fix-its in-place (destructive)
-pyvsag      Build pyvsag for a specific Python version (PY_VERSION=...)
-pyvsag-all  Build pyvsag wheels for all supported Python versions
-dist-pre-cxx11-abi  Build redistributable tarball (pre-C++11 ABI)
-dist-cxx11-abi      Build redistributable tarball (C++11 ABI)
-dist-libcxx         Build redistributable tarball (libc++)
-clean       Remove build trees
-</code></pre>
-<h2 id="step-by-step"><a class="header" href="#step-by-step">Step-by-Step</a></h2>
-<pre><code class="language-bash">git clone https://github.com/antgroup/vsag.git
-cd vsag
-make release
-</code></pre>
-<p>Resulting binaries from a plain <code>make release</code>:</p>
-<ul>
-<li>Library: <code>build-release/src/libvsag.{a,so}</code></li>
-</ul>
-<p>Examples and tools are not built by default. To include them, either use <code>make dev</code>, or enable
-the corresponding Makefile variables (<code>VSAG_ENABLE_EXAMPLES=ON</code>, <code>VSAG_ENABLE_TOOLS=ON</code>) or the
-underlying CMake cache options (<code>-DENABLE_EXAMPLES=ON</code>, <code>-DENABLE_TOOLS=ON</code>).</p>
-<h2 id="environment-variables--cmake-options"><a class="header" href="#environment-variables--cmake-options">Environment Variables / CMake Options</a></h2>
-<p>The Makefile exposes a few <code>VSAG_ENABLE_*</code> environment variables that are translated into CMake
-cache options (<code>ENABLE_*</code>). Defaults below reflect a plain <code>make release</code>.</p>
+                        <h1 id="索引"><a class="header" href="#索引">索引</a></h1>
+<p>VSAG 提供了一系列索引实现，它们共享同一套构建式 API、同一种序列化格式、同一组操作
+（<code>Build</code>、<code>Add</code>、<code>KnnSearch</code>、<code>RangeSearch</code>、<code>Remove</code>、<code>Serialize</code> / <code>Deserialize</code> 等），
+差异在于底层使用的数据结构与折中取舍。</p>
+<p>本节覆盖当前活跃维护的索引：</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Makefile env var</th><th>CMake option</th><th>Default</th><th>Effect</th></tr>
+<tr><th>索引</th><th>文档</th><th>适用场景</th></tr>
 </thead>
 <tbody>
-<tr><td><code>VSAG_ENABLE_INTEL_MKL</code></td><td><code>ENABLE_INTEL_MKL</code></td><td><code>OFF</code></td><td>Use Intel MKL for BLAS kernels</td></tr>
-<tr><td><code>VSAG_ENABLE_LIBAIO</code></td><td><code>ENABLE_LIBAIO</code></td><td><code>ON</code> on Linux</td><td>Enable DiskANN async IO via libaio</td></tr>
-<tr><td><code>VSAG_ENABLE_TOOLS</code></td><td><code>ENABLE_TOOLS</code></td><td><code>OFF</code></td><td>Build utilities under <code>tools/</code></td></tr>
-<tr><td><code>VSAG_ENABLE_EXAMPLES</code></td><td><code>ENABLE_EXAMPLES</code></td><td><code>OFF</code></td><td>Build sample programs under <code>examples/cpp/</code></td></tr>
-<tr><td>n/a</td><td><code>CMAKE_BUILD_TYPE</code></td><td>driven by Makefile target</td><td>Debug / Release</td></tr>
+<tr><td><code>hgraph</code></td><td><a href="hgraph.html">HGraph</a></td><td>通用高召回图索引，量化选项丰富</td></tr>
+<tr><td><code>ivf</code></td><td><a href="ivf.html">IVF</a></td><td>基于分桶的检索，适合高吞吐批查询与超大规模语料</td></tr>
+<tr><td><code>sindi</code></td><td><a href="sindi.html">SINDI</a></td><td>稀疏向量（BM25 / 学习稀疏）上的内积检索</td></tr>
+<tr><td><code>pyramid</code></td><td><a href="pyramid.html">Pyramid</a></td><td>多租户 / 标签分区的层级索引</td></tr>
 </tbody>
 </table>
 </div>
-<p>When invoking CMake directly instead of using <code>make</code>, use the underlying CMake cache option names:</p>
-<pre><code class="language-bash">cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_INTEL_MKL=ON
-cmake --build build-release -j
-</code></pre>
-<h2 id="python-wheel-pyvsag"><a class="header" href="#python-wheel-pyvsag">Python Wheel (pyvsag)</a></h2>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
-# Or build all supported versions in parallel:
-make pyvsag-all
-</code></pre>
-<p>Wheels are emitted under <code>python/dist/</code>.</p>
-<h2 id="distribution-tarballs"><a class="header" href="#distribution-tarballs">Distribution Tarballs</a></h2>
-<p>For ABI-compatible redistribution use one of:</p>
-<pre><code class="language-bash">make dist-pre-cxx11-abi   # _GLIBCXX_USE_CXX11_ABI=0
-make dist-cxx11-abi       # _GLIBCXX_USE_CXX11_ABI=1
-make dist-libcxx          # libc++ (Clang)
-</code></pre>
-<p>The produced tarballs contain headers, static/shared libraries, and version metadata.</p>
+<p><code>brute_force</code> 作为精确检索基线也可使用（见
+<a href="../guide/create_index.html">创建索引</a> 与 <code>examples/cpp/105_index_brute_force.cpp</code>）。</p>
+<p><code>hnsw</code> 与 <code>diskann</code> 保留用于向后兼容，但已 <strong>弃用</strong>；新部署请优先选择 <code>hgraph</code>（图索引）
+或 <code>ivf</code>（分桶索引）。</p>
+<h2 id="参数约定"><a class="header" href="#参数约定">参数约定</a></h2>
+<p>所有索引共享以下顶层构建字段：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>可选值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>正整数</td><td>向量维度；构建后不可变</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> 仅 SINDI 使用</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>查询时必须保持一致（SINDI 仅支持 <code>ip</code>）</td></tr>
+</tbody>
+</table>
+</div>
+<p>索引特有的构建参数放在 <code>index_param</code> 子对象中；查询参数放在以索引名命名的子对象中
+（例如 <code>hgraph</code>、<code>ivf</code>、<code>sindi</code>、<code>pyramid</code>）。具体参数定义在各索引页面内给出，也可查阅
+<a href="../resources/index_parameters.html">索引参数</a> 进行总览。</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../development/code_structure.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../guide/pyvsag.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/testing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/hgraph.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -271,11 +232,11 @@ make dist-libcxx          # libc++ (Clang)
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../development/code_structure.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../guide/pyvsag.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/testing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/hgraph.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

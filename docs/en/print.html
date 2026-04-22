@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a23063df.js";
+            window.path_to_searchindex_js = "searchindex-550ec713.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-5aac5128.js"></script>
+        <script src="toc-71c64059.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -339,16 +339,16 @@ index-specific options.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Name</th><th>Description</th><th>Example</th></tr>
+<tr><th>Name</th><th>Description</th><th>Page</th><th>Example</th></tr>
 </thead>
 <tbody>
-<tr><td><code>hnsw</code></td><td>Classic HNSW graph index</td><td><code>examples/cpp/101_index_hnsw.cpp</code></td></tr>
-<tr><td><code>hgraph</code></td><td>Improved graph index with richer quantization options</td><td><code>examples/cpp/103_index_hgraph.cpp</code></td></tr>
-<tr><td><code>diskann</code></td><td>Memory-disk hybrid, suitable for billion-scale datasets</td><td><code>examples/cpp/102_index_diskann.cpp</code></td></tr>
-<tr><td><code>ivf</code></td><td>Inverted file with quantization</td><td><code>examples/cpp/106_index_ivf.cpp</code></td></tr>
-<tr><td><code>pyramid</code></td><td>Multi-tenant / tag-partitioned graph index</td><td><code>examples/cpp/107_index_pyramid.cpp</code></td></tr>
-<tr><td><code>sindi</code></td><td>Sparse-vector index (e.g. BM25, SPLADE)</td><td><code>examples/cpp/109_index_sindi.cpp</code></td></tr>
-<tr><td><code>brute_force</code></td><td>Exact exhaustive search; useful as baseline</td><td><code>examples/cpp/105_index_brute_force.cpp</code></td></tr>
+<tr><td><code>hgraph</code></td><td>Improved graph index with richer quantization options</td><td><a href="#hgraph">HGraph</a></td><td><code>examples/cpp/103_index_hgraph.cpp</code></td></tr>
+<tr><td><code>ivf</code></td><td>Inverted file with quantization</td><td><a href="#ivf">IVF</a></td><td><code>examples/cpp/106_index_ivf.cpp</code></td></tr>
+<tr><td><code>sindi</code></td><td>Sparse-vector index (e.g. BM25, SPLADE)</td><td><a href="#sindi">SINDI</a></td><td><code>examples/cpp/109_index_sindi.cpp</code></td></tr>
+<tr><td><code>pyramid</code></td><td>Multi-tenant / tag-partitioned graph index</td><td><a href="#pyramid">Pyramid</a></td><td><code>examples/cpp/107_index_pyramid.cpp</code></td></tr>
+<tr><td><code>brute_force</code></td><td>Exact exhaustive search; useful as baseline</td><td>—</td><td><code>examples/cpp/105_index_brute_force.cpp</code></td></tr>
+<tr><td><code>hnsw</code></td><td>Classic HNSW graph index (<strong>deprecated</strong> — prefer <code>hgraph</code>)</td><td>—</td><td><code>examples/cpp/101_index_hnsw.cpp</code></td></tr>
+<tr><td><code>diskann</code></td><td>Memory-disk hybrid (<strong>deprecated</strong> — prefer <code>ivf</code>)</td><td>—</td><td><code>examples/cpp/102_index_diskann.cpp</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -455,6 +455,537 @@ new_index.load("index.bin")
 build an index in Python and load it in C++ (and vice versa) as long as parameters match.</p>
 <h2 id="more-examples"><a class="header" href="#more-examples">More Examples</a></h2>
 <p>See <code>examples/python/</code> in the repository.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="indexes"><a class="header" href="#indexes">Indexes</a></h1>
+<p>VSAG ships a family of index implementations that share a single builder-style API,
+one serialization format, and one set of operations (<code>Build</code>, <code>Add</code>, <code>KnnSearch</code>,
+<code>RangeSearch</code>, <code>Remove</code>, <code>Serialize</code> / <code>Deserialize</code>, …). They differ in the data
+structures and trade-offs they use under the hood.</p>
+<p>The pages in this section cover the actively developed indexes:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index</th><th>Page</th><th>Best for</th></tr>
+</thead>
+<tbody>
+<tr><td><code>hgraph</code></td><td><a href="#hgraph">HGraph</a></td><td>General-purpose, high-recall graph with rich quantization options</td></tr>
+<tr><td><code>ivf</code></td><td><a href="#ivf">IVF</a></td><td>Partition-based search, high-throughput batch queries, large corpora</td></tr>
+<tr><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product</td></tr>
+<tr><td><code>pyramid</code></td><td><a href="#pyramid">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>brute_force</code> is also available as an exact-search baseline (see
+<a href="#creating-an-index">Creating an Index</a> and <code>examples/cpp/105_index_brute_force.cpp</code>).</p>
+<p><code>hnsw</code> and <code>diskann</code> are retained for backward compatibility but are <strong>deprecated</strong>; new
+deployments should prefer <code>hgraph</code> (graph-based) or <code>ivf</code> (partition-based) instead.</p>
+<h2 id="parameter-conventions"><a class="header" href="#parameter-conventions">Parameter conventions</a></h2>
+<p>All indexes share the same top-level build fields:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Values</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>positive integer</td><td>Vector dimensionality; fixed after build</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> is SINDI only</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Must match at query time (SINDI is <code>ip</code> only)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Index-specific build parameters live under the <code>index_param</code> sub-object; search-time
+parameters live under a sub-object named after the index (e.g. <code>hgraph</code>, <code>ivf</code>,
+<code>sindi</code>, <code>pyramid</code>). Concrete schemas are documented on each page and enumerated in
+<a href="#index-parameters">Index Parameters</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h1>
+<p>HGraph is VSAG’s flagship <strong>graph-based</strong> index. It builds a hierarchical proximity graph
+similar in spirit to HNSW, but with a richer set of quantization options, a unified
+build-parameter schema (<code>index_param</code>), and first-class support for reordering,
+incremental updates, deletion, and ELP-based runtime tuning.</p>
+<p>For most dense-vector workloads (text / image / multimodal embeddings, 64–4096 dims,
+from a few thousand up to hundreds of millions of points), HGraph is the recommended
+default.</p>
+<ul>
+<li>Source: <code>src/algorithm/hgraph.{h,cpp}</code></li>
+<li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/103_index_hgraph.cpp"><code>examples/cpp/103_index_hgraph.cpp</code></a></li>
+</ul>
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
+<ol>
+<li><strong>Graph construction.</strong> Vectors are organised in a layered proximity graph; upper
+layers act as navigation aids, the bottom layer connects every data point to its
+nearest neighbours within a <code>max_degree</code> budget. The construction algorithm can be
+either NSW-style insertion (<code>graph_type: "nsw"</code>, the default) or ODescent
+(<code>graph_type: "odescent"</code>).</li>
+<li><strong>Quantization.</strong> The base storage is compressed with a configurable quantizer
+(<code>base_quantization_type</code> — <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>,
+<code>pq</code>, <code>pqfs</code>, <code>rabitq</code>). Optionally, a second high-precision copy is kept
+(<code>use_reorder: true</code> with <code>precise_quantization_type</code>) and used to re-rank the
+candidates returned by the coarse search.</li>
+<li><strong>Search.</strong> Greedy beam search traverses the graph top-down, expanding the current
+frontier up to <code>ef_search</code> candidates. When reordering is enabled, the final list is
+re-scored against the precise representation.</li>
+</ol>
+<h2 id="quick-start-1"><a class="header" href="#quick-start-1">Quick start</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 32,
+        "ef_construction": 400
+    }
+})";
+auto index = vsag::Factory::CreateIndex("hgraph", params).value();
+
+// Build.
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
+index-&gt;Build(base);
+
+// Search.
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10, R"({"hgraph": {"ef_search": 100}})").value();
+</code></pre>
+<h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
+<p>Build-time parameters live under <code>index_param</code>. The table below highlights the keys
+most users need; the exhaustive list is in <a href="#index-parameters">Index Parameters</a>
+and <code>docs/hgraph.md</code> in the repository.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>— (required)</td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code></td></tr>
+<tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per graph node</td></tr>
+<tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size during build (higher = better recall, slower build)</td></tr>
+<tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td>Graph algorithm: <code>nsw</code> or <code>odescent</code></td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse search</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (takes effect only with <code>use_reorder: true</code>)</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default.</td></tr>
+<tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>Threads used to parallelise build</td></tr>
+<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Enable duplicate-ID detection on insert</td></tr>
+<tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>Remove()</code> on the built index</td></tr>
+<tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Keep the raw vector in addition to the quantized copy (useful for <code>cosine</code>)</td></tr>
+<tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>Auto-tune search parameters after build</td></tr>
+<tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend (<code>memory_io</code>, <code>block_memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>mmap_io</code>)</td></tr>
+<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>File path; required when the corresponding <code>*_io_type</code> is disk-backed (<code>buffer_io</code>, <code>async_io</code>, <code>mmap_io</code>)</td></tr>
+<tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>Initial capacity hint (doesn’t cap the final size)</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
+<p>Search-time parameters live under the <code>hgraph</code> sub-object:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ef_search</code></td><td>int</td><td>Size of the search frontier. Larger = higher recall, slower query.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk, R"({"hgraph": {"ef_search": 200}})").value();
+</code></pre>
+<h2 id="when-to-use-hgraph"><a class="header" href="#when-to-use-hgraph">When to use HGraph</a></h2>
+<ul>
+<li>Dense float vectors with dimensions roughly between 64 and 4096.</li>
+<li>Latency-sensitive queries where high recall matters.</li>
+<li>Mixed workloads with incremental insertion (optionally deletion via <code>support_remove</code>).</li>
+<li>Memory-constrained deployments that benefit from <code>sq8</code> / <code>sq4_uniform</code> / <code>pq</code> — often
+in combination with <code>use_reorder</code> to recover recall.</li>
+</ul>
+<p>If your workload is partition-heavy (coarse-grained buckets scanned per query) or
+strongly I/O-bound on a SSD, compare against <a href="#ivf">IVF</a> before committing to HGraph.</p>
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
+<ul>
+<li><a href="#creating-an-index">Creating an Index</a></li>
+<li><a href="#graph-index-enhancement">Graph Enhancement</a></li>
+<li><a href="#optimizer-tune">Optimizer (Tune)</a></li>
+<li><a href="#serialization">Serialization</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="ivf"><a class="header" href="#ivf">IVF</a></h1>
+<p>IVF (Inverted File) is VSAG’s <strong>partition-based</strong> index. It clusters the corpus into
+buckets at build time, and at query time only scans the buckets whose centroids are
+closest to the query. This turns an O(N) linear scan into O(N · <code>scan_buckets_count</code>
+/ <code>buckets_count</code>) with tunable recall/latency.</p>
+<p>IVF trades a little recall (compared to graph indexes) for lower memory overhead,
+higher throughput on batch workloads, and simpler sharding — which makes it a good
+default when the corpus is large (hundreds of millions or more), when memory is
+tight, or when queries are naturally parallelizable.</p>
+<ul>
+<li>Source: <code>src/algorithm/ivf.{h,cpp}</code>, <code>src/algorithm/ivf_parameter.{h,cpp}</code></li>
+<li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/106_index_ivf.cpp"><code>examples/cpp/106_index_ivf.cpp</code></a></li>
+</ul>
+<h2 id="how-it-works-1"><a class="header" href="#how-it-works-1">How it works</a></h2>
+<ol>
+<li><strong>Clustering.</strong> A sample of the dataset is clustered with k-means (or sampled
+randomly, <code>ivf_train_type: "random"</code>) to produce <code>buckets_count</code> centroids.</li>
+<li><strong>Assignment.</strong> Every vector is written to the inverted list of its nearest
+centroid, stored in the configured coarse quantization (<code>base_quantization_type</code>).
+Optionally, a second high-precision copy is kept (<code>use_reorder: true</code>) for
+post-filter reordering.</li>
+<li><strong>Search.</strong> For each query, the <code>scan_buckets_count</code> nearest centroids are
+computed first, then the vectors in those buckets are scored. When reordering is
+enabled, <code>factor</code> controls how many extra candidates are fetched from the coarse
+stage before being re-scored with the precise quantizer.</li>
+</ol>
+<p>A second partition strategy, <strong>GNO-IMI</strong> (<code>partition_strategy_type: "gno_imi"</code>),
+splits the space into two orthogonal sets of centroids
+(<code>first_order_buckets_count</code> × <code>second_order_buckets_count</code>) for even finer
+partitioning on very large corpora.</p>
+<h2 id="quick-start-2"><a class="header" href="#quick-start-2">Quick start</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "buckets_count": 256,
+        "base_quantization_type": "sq8",
+        "partition_strategy_type": "ivf",
+        "ivf_train_type": "kmeans"
+    }
+})";
+auto index = vsag::Factory::CreateIndex("ivf", params).value();
+
+// Build.
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
+index-&gt;Build(base);
+
+// Search.
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10,
+    R"({"ivf": {"scan_buckets_count": 16}})").value();
+</code></pre>
+<h2 id="build-parameters-1"><a class="header" href="#build-parameters-1">Build parameters</a></h2>
+<p>Build-time parameters live under <code>index_param</code>. See
+<a href="#index-parameters">Index Parameters</a> and <code>docs/ivf.md</code> in the
+repository for the exhaustive list.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>partition_strategy_type</code></td><td>string</td><td><code>"ivf"</code></td><td><code>ivf</code> (single-level) or <code>gno_imi</code> (two-level orthogonal)</td></tr>
+<tr><td><code>buckets_count</code></td><td>int</td><td><code>10</code></td><td>Number of inverted lists (effective for <code>ivf</code>)</td></tr>
+<tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>First-level count (effective for <code>gno_imi</code>)</td></tr>
+<tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>Second-level count (effective for <code>gno_imi</code>)</td></tr>
+<tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>Centroid training: <code>kmeans</code> or <code>random</code></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code></td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ subspaces (required with <code>pq</code> / <code>pqfs</code>)</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse scan</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (with <code>use_reorder: true</code>)</td></tr>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>Storage backend for coarse codes</td></tr>
+<tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for precise codes (<code>memory_io</code>, <code>block_memory_io</code>, <code>mmap_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>reader_io</code>)</td></tr>
+<tr><td><code>precise_file_path</code></td><td>string</td><td><code>""</code></td><td>File path when the precise IO type is disk-backed</td></tr>
+</tbody>
+</table>
+</div>
+<p>A rule of thumb for <code>buckets_count</code> is <code>sqrt(N)</code> to <code>4 * sqrt(N)</code> where <code>N</code> is the
+corpus size.</p>
+<h2 id="search-parameters-1"><a class="header" href="#search-parameters-1">Search parameters</a></h2>
+<p>Search-time parameters live under the <code>ivf</code> sub-object:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>scan_buckets_count</code></td><td>int</td><td>— (required)</td><td>Number of buckets probed per query. Must be ≤ <code>buckets_count</code>.</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>2.0</code></td><td>With reordering enabled, pulls <code>factor * topk</code> coarse candidates before the precise rescore.</td></tr>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Threads used to scan buckets in parallel for a single query.</td></tr>
+<tr><td><code>timeout_ms</code></td><td>double</td><td><code>+∞</code></td><td>Hard cap in milliseconds; partial results are returned once exceeded.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"ivf": {"scan_buckets_count": 32, "factor": 2.0, "parallelism": 4}})").value();
+</code></pre>
+<h2 id="when-to-use-ivf"><a class="header" href="#when-to-use-ivf">When to use IVF</a></h2>
+<ul>
+<li>Large corpora (hundreds of millions of vectors and above), especially when the
+working set does not fit comfortably in RAM.</li>
+<li>Batch or high-throughput workloads where per-query latency is less critical than
+queries-per-second.</li>
+<li>Memory-tight deployments that benefit from aggressive quantization (<code>sq8</code>,
+<code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>) combined with <code>use_reorder</code> to recover recall.</li>
+<li>Shard-friendly setups: buckets map naturally onto shards or disk blocks.</li>
+</ul>
+<p>For latency-sensitive, high-recall workloads on dense embeddings, compare against
+<a href="#hgraph">HGraph</a> first.</p>
+<h2 id="see-also-1"><a class="header" href="#see-also-1">See also</a></h2>
+<ul>
+<li><a href="#creating-an-index">Creating an Index</a></li>
+<li><a href="#index-parameters">Index Parameters</a></li>
+<li><a href="#memory--disk-hybrid-index-diskann">Hybrid Memory-Disk Index</a></li>
+<li><a href="#serialization">Serialization</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="sindi"><a class="header" href="#sindi">SINDI</a></h1>
+<p>SINDI (<strong>S</strong>parse <strong>IN</strong>verted <strong>D</strong>ense <strong>I</strong>ndex) is VSAG’s index for <strong>sparse
+vectors</strong> — the kind produced by BM25, SPLADE, and other learned-sparse encoders.
+Unlike the dense indexes (HGraph, IVF), SINDI operates directly on term/value
+pairs and is the only VSAG index that accepts <code>dtype: "sparse"</code>.</p>
+<ul>
+<li>Source: <code>src/algorithm/sindi/</code></li>
+<li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/109_index_sindi.cpp"><code>examples/cpp/109_index_sindi.cpp</code></a></li>
+</ul>
+<h2 id="how-it-works-2"><a class="header" href="#how-it-works-2">How it works</a></h2>
+<ol>
+<li><strong>Window-based inverted lists.</strong> Documents are grouped into fixed-size windows
+(<code>window_size</code>). Within each window, an inverted list per term maps a term id
+to the <code>(doc_id, value)</code> pairs that mention it.</li>
+<li><strong>Optional pruning and quantization.</strong> During construction, <code>doc_prune_ratio</code>
+drops low-weight terms per document, and <code>use_quantization</code> compresses the term
+values to shrink memory further.</li>
+<li><strong>Scoring.</strong> At query time, SINDI iterates the non-zero terms of the query,
+walks the corresponding inverted lists in each window, aggregates contributions
+into a max-heap of size <code>n_candidate</code>, and returns the top-k. When <code>use_reorder</code>
+is enabled, the candidates are re-scored against a high-precision flat copy.</li>
+</ol>
+<p>Distance is returned as <code>1 - inner_product</code> so results sort ascending as in the
+dense indexes.</p>
+<h2 id="quick-start-3"><a class="header" href="#quick-start-3">Quick start</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
+        "window_size": 50000,
+        "doc_prune_ratio": 0.0,
+        "use_quantization": false,
+        "use_reorder": false
+    }
+})";
+auto index = vsag::Factory::CreateIndex("sindi", params).value();
+
+// Build a dataset of SparseVector.
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)
+    -&gt;SparseVectors(sparse_vectors)  // vsag::SparseVector*
+    -&gt;Ids(ids)
+    -&gt;Owner(false);
+index-&gt;Build(base);
+
+// Search.
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;SparseVectors(&amp;query_vec)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10,
+    R"({"sindi": {"n_candidate": 100}})").value();
+</code></pre>
+<h2 id="build-parameters-2"><a class="header" href="#build-parameters-2">Build parameters</a></h2>
+<p>Build-time parameters live under <code>index_param</code>. <code>dtype</code> <strong>must</strong> be <code>"sparse"</code>
+and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>int</td><td>— (required)</td><td>Maximum number of non-zero elements per sparse vector. <em>Not</em> the vocabulary size.</td></tr>
+<tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term id values (≥ max term id + 1).</td></tr>
+<tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window (range: 10 000 – 60 000).</td></tr>
+<tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight terms dropped per doc at build time (0.0 – 0.9).</td></tr>
+<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>Quantize stored term values to cut memory.</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision flat copy and rescore results (~2× memory).</td></tr>
+<tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>Hint for memory estimation only.</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p><strong><code>dim</code> vs <code>term_id_limit</code>.</strong> For the sparse vector <code>{0:0.1, 2:0.5, 177:0.8}</code>,
+<code>dim</code> is <code>3</code> (three non-zero entries) while <code>term_id_limit</code> must be ≥ <code>178</code>
+(largest term id + 1). Sizing <code>term_id_limit</code> to your vocabulary is the most
+common first-time mistake.</p>
+</blockquote>
+<h2 id="search-parameters-2"><a class="header" href="#search-parameters-2">Search parameters</a></h2>
+<p>Search-time parameters live under the <code>sindi</code> sub-object:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Candidate heap size. When <code>0</code>, defaults to <code>SPARSE_AMPLIFICATION_FACTOR · topk</code> (500×). If set, must satisfy <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code>.</td></tr>
+<tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight query terms skipped (0.0 – 0.9).</td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of term-list entries skipped (0.0 – 0.9).</td></tr>
+<tr><td><code>use_term_lists_heap_insert</code></td><td>bool</td><td><code>true</code></td><td>Term-list-ordered heap insertion; usually faster.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"sindi": {"n_candidate": 200, "query_prune_ratio": 0.1}})").value();
+</code></pre>
+<h2 id="when-to-use-sindi"><a class="header" href="#when-to-use-sindi">When to use SINDI</a></h2>
+<ul>
+<li>Sparse retrieval with BM25, SPLADE, uniCOIL, or similar learned-sparse encoders.</li>
+<li>Hybrid dense+sparse pipelines where SINDI handles the sparse leg in parallel with
+HGraph / IVF for dense embeddings.</li>
+<li>Memory-constrained deployments of sparse corpora (<code>use_quantization: true</code>
+roughly halves memory with a small recall loss; <code>use_reorder: true</code> trades
+memory for recall).</li>
+</ul>
+<p>SINDI does <strong>not</strong> accept dense vectors and supports only inner-product similarity.
+Range search and id-based filtering are supported; see the example for usage.</p>
+<h2 id="see-also-2"><a class="header" href="#see-also-2">See also</a></h2>
+<ul>
+<li><a href="#creating-an-index">Creating an Index</a></li>
+<li><a href="#index-parameters">Index Parameters</a></li>
+<li><a href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h1>
+<p>Pyramid is VSAG’s <strong>hierarchical, path-partitioned</strong> graph index. Every vector is
+tagged with a path string such as <code>"a/d/f"</code>, and Pyramid builds a graph per node
+in that path tree. At query time you supply a path prefix, and Pyramid restricts
+the search to the corresponding sub-tree.</p>
+<p>This is ideal for multi-tenant deployments, tag-partitioned catalogs, or any
+scenario where one logical index serves many groups that must not cross-contaminate
+results.</p>
+<ul>
+<li>Source: <code>src/algorithm/pyramid.{h,cpp}</code>, <code>src/algorithm/pyramid_zparameters.{h,cpp}</code></li>
+<li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
+</ul>
+<h2 id="how-it-works-3"><a class="header" href="#how-it-works-3">How it works</a></h2>
+<ol>
+<li><strong>Path tree.</strong> Each vector carries a <code>path</code> in addition to its id. Paths use
+<code>/</code> as separator (e.g. <code>"tenant_a/lang_en/topic_news"</code>). Pyramid builds one
+sub-index for every path prefix seen during build.</li>
+<li><strong>Per-level sub-graphs.</strong> By default every level gets its own proximity graph.
+Use <code>no_build_levels</code> to skip levels that are too small or too coarse to
+benefit from graph indexing — those levels still exist as passthrough
+containers, but search degrades to a scan.</li>
+<li><strong>Graph construction.</strong> Each sub-graph is built with the same machinery as
+HGraph: <code>nsw</code> insertion or <code>odescent</code> with <code>graph_iter_turn</code>,
+<code>neighbor_sample_rate</code>, and <code>alpha</code> for pruning. Base vectors are stored in
+<code>base_quantization_type</code>; optional reordering keeps a high-precision copy.</li>
+<li><strong>Search.</strong> Query vectors also carry a path. The search walks down the tree
+to the most specific sub-graph matching the query path and runs a graph search
+there with <code>ef_search</code> (and <code>subindex_ef_search</code> for intermediate levels).</li>
+</ol>
+<h2 id="quick-start-4"><a class="header" href="#quick-start-4">Quick start</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 32,
+        "alpha": 1.2,
+        "graph_type": "odescent",
+        "graph_iter_turn": 15,
+        "neighbor_sample_rate": 0.2,
+        "no_build_levels": [0, 1],
+        "use_reorder": true,
+        "build_thread_count": 16
+    }
+})";
+auto index = vsag::Factory::CreateIndex("pyramid", params).value();
+
+// Build with per-vector paths.
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)
+    -&gt;Dim(128)
+    -&gt;Ids(ids)
+    -&gt;Paths(paths)          // std::string* of length n, e.g. "a/d/f"
+    -&gt;Float32Vectors(data)
+    -&gt;Owner(false);
+index-&gt;Build(base);
+
+// Search restricted to a path prefix.
+std::string query_path = "a/d";
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)
+    -&gt;Dim(128)
+    -&gt;Float32Vectors(q)
+    -&gt;Paths(&amp;query_path)
+    -&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10,
+    R"({"pyramid": {"ef_search": 100}})").value();
+</code></pre>
+<h2 id="build-parameters-3"><a class="header" href="#build-parameters-3">Build parameters</a></h2>
+<p>Build-time parameters live under <code>index_param</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>).</td></tr>
+<tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per node within a sub-graph.</td></tr>
+<tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code> or <code>odescent</code>.</td></tr>
+<tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size for <code>nsw</code> builds.</td></tr>
+<tr><td><code>alpha</code></td><td>float</td><td><code>1.2</code></td><td>Pruning factor during graph construction.</td></tr>
+<tr><td><code>graph_iter_turn</code></td><td>int</td><td>—</td><td>ODescent iterations (effective with <code>graph_type: "odescent"</code>).</td></tr>
+<tr><td><code>neighbor_sample_rate</code></td><td>float</td><td>—</td><td>ODescent neighbor sampling rate.</td></tr>
+<tr><td><code>no_build_levels</code></td><td>int[]</td><td><code>[]</code></td><td>Tree levels that skip graph construction (0-indexed from the root).</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy for rescoring.</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer for reordering.</td></tr>
+<tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>Minimum sub-index size; smaller groups fall back to scan.</td></tr>
+<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Allow duplicate ids.</td></tr>
+<tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>Threads used for parallel build.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="search-parameters-3"><a class="header" href="#search-parameters-3">Search parameters</a></h2>
+<p>Search-time parameters live under the <code>pyramid</code> sub-object:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>Candidate list size for the leaf-level graph search.</td></tr>
+<tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>Candidate list size used when traversing intermediate sub-graphs on the path.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"pyramid": {"ef_search": 200, "subindex_ef_search": 80}})").value();
+</code></pre>
+<h2 id="when-to-use-pyramid"><a class="header" href="#when-to-use-pyramid">When to use Pyramid</a></h2>
+<ul>
+<li>Multi-tenant services where each tenant must see results only from its own
+partition, and you would otherwise maintain one index per tenant.</li>
+<li>Content catalogs with hierarchical tags (language / region / category) where
+queries always scope to a known prefix.</li>
+<li>Workloads with many small partitions: <code>no_build_levels</code> and <code>index_min_size</code>
+let you skip graph construction for partitions too small to benefit.</li>
+</ul>
+<p>If you don’t need path-based scoping, <a href="#hgraph">HGraph</a> is simpler and generally
+faster.</p>
+<h2 id="see-also-3"><a class="header" href="#see-also-3">See also</a></h2>
+<ul>
+<li><a href="#creating-an-index">Creating an Index</a></li>
+<li><a href="#index-parameters">Index Parameters</a></li>
+<li><a href="#graph-index-enhancement">Graph Enhancement</a></li>
+<li><a href="#hgraph">HGraph</a></li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="code-structure"><a class="header" href="#code-structure">Code Structure</a></h1>
 <p>This page gives a quick tour of the VSAG repository layout.</p>
@@ -988,7 +1519,7 @@ using a <strong>conjugate graph</strong>, noticeably improving tail recall at al
 })";
 auto result = index-&gt;KnnSearch(query, k, search_param_json);
 </code></pre>
-<h2 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h2>
+<h2 id="how-it-works-4"><a class="header" href="#how-it-works-4">How It Works</a></h2>
 <p>The conjugate graph is built by inverting “failure paths” over the training data on the original
 graph and then used as additional candidate edges during greedy expansion at search time. It is a
 lightweight patch on the main graph, typically below 10% of the main graph’s size.</p>
@@ -1288,7 +1819,7 @@ such as <code>base_quantization_type</code>.</p>
 <p>At search time:</p>
 <pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
 </code></pre>
-<h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
+<h2 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h2>
 <p>HGraph places its build parameters under the generic <code>index_param</code> key (see
 <code>examples/cpp/103_index_hgraph.cpp</code>); the <code>hgraph</code> key is reserved for search-time parameters.</p>
 <pre><code class="language-json">{
@@ -1328,7 +1859,7 @@ such as <code>base_quantization_type</code>.</p>
     }
 }
 </code></pre>
-<h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
+<h2 id="ivf-1"><a class="header" href="#ivf-1">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {
         "nlist": 4096,
@@ -1341,7 +1872,7 @@ such as <code>base_quantization_type</code>.</p>
 <pre><code class="language-json">{"brute_force": {}}
 </code></pre>
 <p>No extra parameters.</p>
-<h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
+<h2 id="pyramid-1"><a class="header" href="#pyramid-1">Pyramid</a></h2>
 <p>Pyramid supports organising multiple subgraphs by tag:</p>
 <pre><code class="language-json">{
     "pyramid": {

@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c4d3605a.js";
+            window.path_to_searchindex_js = "../searchindex-9e6e7d00.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-61b45d24.js"></script>
+        <script src="../toc-28e646d5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -184,17 +184,17 @@
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>名称</th><th><code>name</code> 字符串</th><th>适用场景</th></tr>
+<tr><th>名称</th><th><code>name</code> 字符串</th><th>文档</th><th>适用场景</th></tr>
 </thead>
 <tbody>
-<tr><td>HNSW</td><td><code>hnsw</code></td><td>纯内存图索引，兼容 HNSWLIB 的序列化格式（参见：<code>include/vsag/constants.h</code> 的 <code>INDEX_HNSW</code>）</td></tr>
-<tr><td>HGraph</td><td><code>hgraph</code></td><td>VSAG 自研图索引，支持多级量化和调优（详见 <code>examples/cpp/103_index_hgraph.cpp</code>）</td></tr>
-<tr><td>DiskANN</td><td><code>diskann</code></td><td>内存-磁盘混合索引，适合超出内存规模的数据集</td></tr>
-<tr><td>IVF</td><td><code>ivf</code></td><td>倒排索引，适合大 <code>k</code> 和批量查询</td></tr>
-<tr><td>Pyramid</td><td><code>pyramid</code></td><td>多层级索引结构</td></tr>
-<tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>基于 GNO-IMI 的倒排索引变体</td></tr>
-<tr><td>SINDI</td><td><code>sindi</code></td><td>稀疏向量上的倒排索引</td></tr>
-<tr><td>BruteForce</td><td><code>brute_force</code></td><td>暴力搜索，用作基准或小数据集</td></tr>
+<tr><td>HGraph</td><td><code>hgraph</code></td><td><a href="../indexes/hgraph.html">HGraph</a></td><td>VSAG 自研图索引，支持多级量化和调优（详见 <code>examples/cpp/103_index_hgraph.cpp</code>）</td></tr>
+<tr><td>IVF</td><td><code>ivf</code></td><td><a href="../indexes/ivf.html">IVF</a></td><td>倒排索引，适合大 <code>k</code> 和批量查询</td></tr>
+<tr><td>SINDI</td><td><code>sindi</code></td><td><a href="../indexes/sindi.html">SINDI</a></td><td>稀疏向量上的倒排索引</td></tr>
+<tr><td>Pyramid</td><td><code>pyramid</code></td><td><a href="../indexes/pyramid.html">Pyramid</a></td><td>多层级 / 按路径分区的索引结构</td></tr>
+<tr><td>BruteForce</td><td><code>brute_force</code></td><td>—</td><td>暴力搜索，用作基准或小数据集</td></tr>
+<tr><td>HNSW</td><td><code>hnsw</code></td><td>—</td><td>纯内存图索引（<strong>已弃用</strong>，新部署请改用 <code>hgraph</code>）</td></tr>
+<tr><td>DiskANN</td><td><code>diskann</code></td><td>—</td><td>内存-磁盘混合索引（<strong>已弃用</strong>，新部署请改用 <code>ivf</code>）</td></tr>
+<tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>—</td><td>基于 GNO-IMI 的倒排索引变体（作为 <code>ivf</code> 的 <code>partition_strategy_type</code>）</td></tr>
 </tbody>
 </table>
 </div>
