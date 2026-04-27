@@ -153,10 +153,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9e6e7d00.js";
+            window.path_to_searchindex_js = "searchindex-63b57a6d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-28e646d5.js"></script>
+        <script src="toc-ad89cee4.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -308,6 +308,15 @@
 <li><strong>灵活的过滤与混合搜索</strong>：支持 bitmap 与 callback 两种过滤方式，以及混合 <code>(data vector, attribute)</code> 查询；</li>
 <li><strong>易于集成</strong>：提供基于 CMake 的集成方式，详见 <a href="https://github.com/antgroup/vsag/blob/main/README.md#integrate-with-cmake">README</a>。</li>
 </ul>
+<h2 id="如何阅读本文档"><a class="header" href="#如何阅读本文档">如何阅读本文档</a></h2>
+<ul>
+<li><strong>用户指南</strong>：如果你是新用户，请从安装、创建索引和搜索开始。</li>
+<li><strong>索引</strong>：比较不同索引类型，并查询索引参数。</li>
+<li><strong>高级功能</strong>：深入了解搜索、序列化、内存管理和混合索引能力。</li>
+<li><strong>性能与调优</strong>：查看最佳实践、<code>Tune</code>、性能参考和评估工具。</li>
+<li><strong>开发者指南</strong>：了解源码构建、测试和贡献流程。</li>
+<li><strong>资源</strong>：查看版本日志、路线图、社区、关联项目、论文和贡献者信息。</li>
+</ul>
 <h2 id="contributing"><a class="header" href="#contributing">Contributing</a></h2>
 <p>VSAG 是免费和开源的。你可以在 <a href="https://github.com/antgroup/vsag">GitHub</a> 上获取到源代码，以及提交错误报告和功能请求到 <a href="https://github.com/antgroup/vsag/issues">GitHub问题跟踪器</a> 上。VSAG 依靠社区来修复错误和增加功能：如果你想做出贡献，请阅读 <a href="https://github.com/antgroup/vsag/blob/main/CONTRIBUTING.md">贡献指南</a> 并考虑 <a href="https://github.com/antgroup/vsag/pulls">创建合并请求</a>。</p>
 <h2 id="license"><a class="header" href="#license">License</a></h2>
@@ -378,6 +387,74 @@
 <pre><code class="language-bash">make release &amp;&amp; make install
 </code></pre>
 <p>更多构建选项请参考 <a href="#编译构建">编译构建</a>。</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="创建索引"><a class="header" href="#创建索引">创建索引</a></h1>
+<p>VSAG 中所有检索能力都围绕 <code>Index</code> 接口展开。要使用某种索引，首先需要通过工厂方法 <code>vsag::Factory::CreateIndex(name, parameters)</code> 创建实例，其中：</p>
+<ul>
+<li><code>name</code> 是索引类型名称，对应 <code>include/vsag/constants.h</code> 中定义的常量；</li>
+<li><code>parameters</code> 是一段 JSON 字符串，声明数据类型、距离度量、维度等构建参数。</li>
+</ul>
+<h2 id="当前支持的索引类型"><a class="header" href="#当前支持的索引类型">当前支持的索引类型</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>名称</th><th><code>name</code> 字符串</th><th>文档</th><th>适用场景</th></tr>
+</thead>
+<tbody>
+<tr><td>HGraph</td><td><code>hgraph</code></td><td><a href="#hgraph-1">HGraph</a></td><td>VSAG 自研图索引，支持多级量化和调优（详见 <code>examples/cpp/103_index_hgraph.cpp</code>）</td></tr>
+<tr><td>IVF</td><td><code>ivf</code></td><td><a href="#ivf-1">IVF</a></td><td>倒排索引，适合大 <code>k</code> 和批量查询</td></tr>
+<tr><td>SINDI</td><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>稀疏向量上的倒排索引</td></tr>
+<tr><td>Pyramid</td><td><code>pyramid</code></td><td><a href="#pyramid-1">Pyramid</a></td><td>多层级 / 按路径分区的索引结构</td></tr>
+<tr><td>BruteForce</td><td><code>brute_force</code></td><td>—</td><td>暴力搜索，用作基准或小数据集</td></tr>
+<tr><td>HNSW</td><td><code>hnsw</code></td><td>—</td><td>纯内存图索引（<strong>已弃用</strong>，新部署请改用 <code>hgraph</code>）</td></tr>
+<tr><td>DiskANN</td><td><code>diskann</code></td><td>—</td><td>内存-磁盘混合索引（<strong>已弃用</strong>，新部署请改用 <code>ivf</code>）</td></tr>
+<tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>—</td><td>基于 GNO-IMI 的倒排索引变体（作为 <code>ivf</code> 的 <code>partition_strategy_type</code>）</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p>完整示例可在 <a href="https://github.com/antgroup/vsag/tree/main/examples/cpp"><code>examples/cpp/</code></a> 目录中按照前缀编号依次查看（<code>101_</code> ~ <code>109_</code> 为索引类型，<code>2xx_</code> 为自定义资源，<code>3xx_</code> 为功能特性）。</p>
+</blockquote>
+<h2 id="通用的构建参数"><a class="header" href="#通用的构建参数">通用的构建参数</a></h2>
+<p>所有索引在创建时都需要声明以下字段：</p>
+<ul>
+<li><code>dtype</code>：向量数据类型，当前常用为 <code>"float32"</code>；部分索引也支持 <code>"fp16"</code>、<code>"bf16"</code>、<code>"int8"</code>；</li>
+<li><code>metric_type</code>：距离度量方式，支持 <code>"l2"</code>、<code>"ip"</code>、<code>"cosine"</code>；</li>
+<li><code>dim</code>：向量维度，必须与后续写入的数据一致。</li>
+</ul>
+<p>索引特有参数以嵌套对象形式提供，例如 HNSW 的 <code>hnsw</code>、HGraph 的 <code>index_param</code>。</p>
+<h2 id="示例创建-hnsw-索引"><a class="header" href="#示例创建-hnsw-索引">示例：创建 HNSW 索引</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+auto hnsw_build_parameters = R"(
+{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "hnsw": {
+        "max_degree": 16,
+        "ef_construction": 100
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_parameters).value();
+</code></pre>
+<h2 id="示例创建-hgraph-索引"><a class="header" href="#示例创建-hgraph-索引">示例：创建 HGraph 索引</a></h2>
+<pre><code class="language-cpp">auto hgraph_build_parameters = R"(
+{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "max_degree": 32,
+        "ef_construction": 100,
+        "base_quantization_type": "sq8"
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_parameters).value();
+</code></pre>
+<p>不同索引支持的参数及其语义，请参考 <a href="#索引参数">索引参数</a>。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="k-近邻搜索"><a class="header" href="#k-近邻搜索">k-近邻搜索</a></h1>
 <p>以下内容假设你已经安装 VSAG。我们提供了 C++、Python、TypeScript 三种语言的代码示例，可以在 <a href="https://github.com/antgroup/vsag/tree/main/examples"><code>examples/</code></a> 目录找到。本页以 C++ <code>BruteForce</code> 索引为例，完整示例见 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>。</p>
@@ -465,74 +542,6 @@
 5583: 16.1256
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="创建索引"><a class="header" href="#创建索引">创建索引</a></h1>
-<p>VSAG 中所有检索能力都围绕 <code>Index</code> 接口展开。要使用某种索引，首先需要通过工厂方法 <code>vsag::Factory::CreateIndex(name, parameters)</code> 创建实例，其中：</p>
-<ul>
-<li><code>name</code> 是索引类型名称，对应 <code>include/vsag/constants.h</code> 中定义的常量；</li>
-<li><code>parameters</code> 是一段 JSON 字符串，声明数据类型、距离度量、维度等构建参数。</li>
-</ul>
-<h2 id="当前支持的索引类型"><a class="header" href="#当前支持的索引类型">当前支持的索引类型</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>名称</th><th><code>name</code> 字符串</th><th>文档</th><th>适用场景</th></tr>
-</thead>
-<tbody>
-<tr><td>HGraph</td><td><code>hgraph</code></td><td><a href="#hgraph">HGraph</a></td><td>VSAG 自研图索引，支持多级量化和调优（详见 <code>examples/cpp/103_index_hgraph.cpp</code>）</td></tr>
-<tr><td>IVF</td><td><code>ivf</code></td><td><a href="#ivf">IVF</a></td><td>倒排索引，适合大 <code>k</code> 和批量查询</td></tr>
-<tr><td>SINDI</td><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>稀疏向量上的倒排索引</td></tr>
-<tr><td>Pyramid</td><td><code>pyramid</code></td><td><a href="#pyramid">Pyramid</a></td><td>多层级 / 按路径分区的索引结构</td></tr>
-<tr><td>BruteForce</td><td><code>brute_force</code></td><td>—</td><td>暴力搜索，用作基准或小数据集</td></tr>
-<tr><td>HNSW</td><td><code>hnsw</code></td><td>—</td><td>纯内存图索引（<strong>已弃用</strong>，新部署请改用 <code>hgraph</code>）</td></tr>
-<tr><td>DiskANN</td><td><code>diskann</code></td><td>—</td><td>内存-磁盘混合索引（<strong>已弃用</strong>，新部署请改用 <code>ivf</code>）</td></tr>
-<tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>—</td><td>基于 GNO-IMI 的倒排索引变体（作为 <code>ivf</code> 的 <code>partition_strategy_type</code>）</td></tr>
-</tbody>
-</table>
-</div>
-<blockquote>
-<p>完整示例可在 <a href="https://github.com/antgroup/vsag/tree/main/examples/cpp"><code>examples/cpp/</code></a> 目录中按照前缀编号依次查看（<code>101_</code> ~ <code>109_</code> 为索引类型，<code>2xx_</code> 为自定义资源，<code>3xx_</code> 为功能特性）。</p>
-</blockquote>
-<h2 id="通用的构建参数"><a class="header" href="#通用的构建参数">通用的构建参数</a></h2>
-<p>所有索引在创建时都需要声明以下字段：</p>
-<ul>
-<li><code>dtype</code>：向量数据类型，当前常用为 <code>"float32"</code>；部分索引也支持 <code>"fp16"</code>、<code>"bf16"</code>、<code>"int8"</code>；</li>
-<li><code>metric_type</code>：距离度量方式，支持 <code>"l2"</code>、<code>"ip"</code>、<code>"cosine"</code>；</li>
-<li><code>dim</code>：向量维度，必须与后续写入的数据一致。</li>
-</ul>
-<p>索引特有参数以嵌套对象形式提供，例如 HNSW 的 <code>hnsw</code>、HGraph 的 <code>index_param</code>。</p>
-<h2 id="示例创建-hnsw-索引"><a class="header" href="#示例创建-hnsw-索引">示例：创建 HNSW 索引</a></h2>
-<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
-
-auto hnsw_build_parameters = R"(
-{
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128,
-    "hnsw": {
-        "max_degree": 16,
-        "ef_construction": 100
-    }
-}
-)";
-auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_parameters).value();
-</code></pre>
-<h2 id="示例创建-hgraph-索引"><a class="header" href="#示例创建-hgraph-索引">示例：创建 HGraph 索引</a></h2>
-<pre><code class="language-cpp">auto hgraph_build_parameters = R"(
-{
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128,
-    "index_param": {
-        "max_degree": 32,
-        "ef_construction": 100,
-        "base_quantization_type": "sq8"
-    }
-}
-)";
-auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_parameters).value();
-</code></pre>
-<p>不同索引支持的参数及其语义，请参考 <a href="#索引参数">索引参数</a>。</p>
-<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pyvsag"><a class="header" href="#pyvsag">pyvsag</a></h1>
 <p><code>pyvsag</code> 是 VSAG 的 Python 绑定包，接口封装基于 <a href="https://github.com/pybind/pybind11">pybind11</a> 实现，源代码位于仓库 <a href="https://github.com/antgroup/vsag/tree/main/python_bindings"><code>python_bindings/</code></a> 目录，打包脚本位于 <a href="https://github.com/antgroup/vsag/tree/main/python"><code>python/</code></a>。</p>
 <h2 id="安装-1"><a class="header" href="#安装-1">安装</a></h2>
@@ -597,10 +606,10 @@ for rid, rdist in zip(result_ids, result_dists):
 <tr><th>索引</th><th>文档</th><th>适用场景</th></tr>
 </thead>
 <tbody>
-<tr><td><code>hgraph</code></td><td><a href="#hgraph">HGraph</a></td><td>通用高召回图索引，量化选项丰富</td></tr>
-<tr><td><code>ivf</code></td><td><a href="#ivf">IVF</a></td><td>基于分桶的检索，适合高吞吐批查询与超大规模语料</td></tr>
+<tr><td><code>hgraph</code></td><td><a href="#hgraph-1">HGraph</a></td><td>通用高召回图索引，量化选项丰富</td></tr>
+<tr><td><code>ivf</code></td><td><a href="#ivf-1">IVF</a></td><td>基于分桶的检索，适合高吞吐批查询与超大规模语料</td></tr>
 <tr><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>稀疏向量（BM25 / 学习稀疏）上的内积检索</td></tr>
-<tr><td><code>pyramid</code></td><td><a href="#pyramid">Pyramid</a></td><td>多租户 / 标签分区的层级索引</td></tr>
+<tr><td><code>pyramid</code></td><td><a href="#pyramid-1">Pyramid</a></td><td>多租户 / 标签分区的层级索引</td></tr>
 </tbody>
 </table>
 </div>
@@ -626,7 +635,131 @@ for rid, rdist in zip(result_ids, result_dists):
 （例如 <code>hgraph</code>、<code>ivf</code>、<code>sindi</code>、<code>pyramid</code>）。具体参数定义在各索引页面内给出，也可查阅
 <a href="#索引参数">索引参数</a> 进行总览。</p>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h1>
+<h1 id="索引参数"><a class="header" href="#索引参数">索引参数</a></h1>
+<p>本页汇总 VSAG 各索引类型的常用参数。完整枚举请参考源码：</p>
+<ul>
+<li>构建参数键：<code>src/constants.cpp</code></li>
+<li>公开常量：<code>include/vsag/constants.h</code></li>
+<li>每个索引的示例：<code>examples/cpp/101_index_hnsw.cpp</code> 等</li>
+</ul>
+<h2 id="通用参数"><a class="header" href="#通用参数">通用参数</a></h2>
+<p>所有索引在构建时都需要提供以下顶层字段：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>取值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>正整数</td><td>向量维度，构建后不可更改</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code></td><td>向量数据类型，决定索引内部表示</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>距离度量</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h2>
+<p>HNSW 使用 <code>hnsw</code> 子对象承载构建参数，并不支持 HGraph 专有参数（如 <code>base_quantization_type</code>）。</p>
+<pre><code class="language-json">{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "hnsw": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "use_conjugate_graph": false
+    }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>典型值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
+<tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
+<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td>是否构建 <a href="#图索引增强">共轭图</a></td></tr>
+</tbody>
+</table>
+</div>
+<p>搜索时：</p>
+<pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
+</code></pre>
+<h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
+<p>HGraph 的构建参数使用通用的 <code>index_param</code> 键（参见 <code>examples/cpp/103_index_hgraph.cpp</code>）；
+<code>hgraph</code> 键则保留给搜索期参数。</p>
+<pre><code class="language-json">{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "index_param": {
+        "base_quantization_type": "fp32",
+        "max_degree": 32,
+        "ef_construction": 400
+    }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>典型值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
+<tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略</td></tr>
+</tbody>
+</table>
+</div>
+<p>搜索时：</p>
+<pre><code class="language-json">{"hgraph": {"ef_search": 100}}
+</code></pre>
+<h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
+<pre><code class="language-json">{
+    "diskann": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "pq_sample_rate": 0.1,
+        "pq_dims": 32,
+        "use_async_io": true
+    }
+}
+</code></pre>
+<h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
+<pre><code class="language-json">{
+    "ivf": {
+        "nlist": 4096,
+        "base_quantization_type": "sq8",
+        "nprobe": 32
+    }
+}
+</code></pre>
+<h2 id="brute-force"><a class="header" href="#brute-force">Brute Force</a></h2>
+<pre><code class="language-json">{"brute_force": {}}
+</code></pre>
+<p>无需额外参数。</p>
+<h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
+<p>Pyramid 支持按 tag 组织多棵子图：</p>
+<pre><code class="language-json">{
+    "pyramid": {
+        "tag_dim": 1,
+        "max_degree": 24,
+        "ef_construction": 300
+    }
+}
+</code></pre>
+<h2 id="sindi稀疏向量"><a class="header" href="#sindi稀疏向量">SINDI（稀疏向量）</a></h2>
+<pre><code class="language-json">{
+    "sindi": {
+        "top_k": 32,
+        "doc_prune_ratio": 0.1
+    }
+}
+</code></pre>
+<h2 id="运行期参数"><a class="header" href="#运行期参数">运行期参数</a></h2>
+<p>除构建参数外，<code>Index::Tune</code> 与 <code>SearchParam</code> 可在运行时调整 <code>ef_search</code>、<code>nprobe</code> 等参数。参考
+<a href="#优化器tune">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h1>
 <p>HGraph 是 VSAG 的旗舰 <strong>图索引</strong>。它构建的是与 HNSW 思路类似的多层近邻图，但在此基础上
 提供了更丰富的量化方案、统一的构建参数 schema（<code>index_param</code>），并原生支持精排（reorder）、
 增量更新、删除、以及基于 ELP 的运行时自动调优。</p>
@@ -724,7 +857,7 @@ auto result = index-&gt;KnnSearch(
 <li>内存受限环境，可用 <code>sq8</code> / <code>sq4_uniform</code> / <code>pq</code> 压缩，再配合 <code>use_reorder</code> 弥补召回。</li>
 </ul>
 <p>如果你的业务偏向粗粒度分桶（每次查询只扫部分桶）或严重受 SSD I/O 制约，建议先对比
-<a href="#ivf">IVF</a> 再决定是否选择 HGraph。</p>
+<a href="#ivf-1">IVF</a> 再决定是否选择 HGraph。</p>
 <h2 id="相关文档"><a class="header" href="#相关文档">相关文档</a></h2>
 <ul>
 <li><a href="#创建索引">创建索引</a></li>
@@ -733,7 +866,7 @@ auto result = index-&gt;KnnSearch(
 <li><a href="#序列化格式">序列化格式</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="ivf"><a class="header" href="#ivf">IVF</a></h1>
+<h1 id="ivf-1"><a class="header" href="#ivf-1">IVF</a></h1>
 <p>IVF（Inverted File，倒排索引）是 VSAG 的 <strong>分桶式</strong> 索引。它在构建时将语料聚类成若干桶，
 查询时只扫描与查询距离最近的若干个桶的中心对应的倒排列表，把 O(N) 的线性扫描降为
 O(N · <code>scan_buckets_count</code> / <code>buckets_count</code>)，并通过这两个参数在召回与延迟之间进行权衡。</p>
@@ -838,7 +971,7 @@ auto result = index-&gt;KnnSearch(
 <code>use_reorder</code> 恢复召回。</li>
 <li>对切片友好的部署：桶天然映射到分片或磁盘块。</li>
 </ul>
-<p>对于延迟敏感、要求高召回的稠密 embedding 场景，请优先比较 <a href="#hgraph">HGraph</a>。</p>
+<p>对于延迟敏感、要求高召回的稠密 embedding 场景，请优先比较 <a href="#hgraph-1">HGraph</a>。</p>
 <h2 id="相关文档-1"><a class="header" href="#相关文档-1">相关文档</a></h2>
 <ul>
 <li><a href="#创建索引">创建索引</a></li>
@@ -958,7 +1091,7 @@ auto result = index-&gt;KnnSearch(
 <li><a href="#k-近邻搜索">k-近邻搜索</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h1>
+<h1 id="pyramid-1"><a class="header" href="#pyramid-1">Pyramid</a></h1>
 <p>Pyramid 是 VSAG 的 <strong>层级路径分区</strong> 图索引。每条向量都附带一个路径字符串（例如
 <code>"a/d/f"</code>），Pyramid 会按路径树为每个节点构建一个子图；查询时提供一个路径前缀，
 检索即被限定在相应的子树内。</p>
@@ -1073,13 +1206,13 @@ auto result = index-&gt;KnnSearch(
 <li>小分区非常多的负载：可以用 <code>no_build_levels</code> 与 <code>index_min_size</code> 跳过那些小到不值得
 构图的分区。</li>
 </ul>
-<p>如果不需要按路径限定查询范围，<a href="#hgraph">HGraph</a> 更简洁，性能通常也更高。</p>
+<p>如果不需要按路径限定查询范围，<a href="#hgraph-1">HGraph</a> 更简洁，性能通常也更高。</p>
 <h2 id="相关文档-3"><a class="header" href="#相关文档-3">相关文档</a></h2>
 <ul>
 <li><a href="#创建索引">创建索引</a></li>
 <li><a href="#索引参数">索引参数</a></li>
 <li><a href="#图索引增强">图索引增强</a></li>
-<li><a href="#hgraph">HGraph</a></li>
+<li><a href="#hgraph-1">HGraph</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="代码目录结构"><a class="header" href="#代码目录结构">代码目录结构</a></h1>
@@ -1418,55 +1551,6 @@ auto result = index-&gt;RangeSearch(query, radius, search_params, /*limited_size
 <li>HNSW / HGraph 类图索引下，<code>RangeSearch</code> 的 <code>ef</code> 等运行期参数与 <code>KnnSearch</code> 共享含义。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="优化器tune"><a class="header" href="#优化器tune">优化器（Tune）</a></h1>
-<p>对于图类索引（HNSW、HGraph），VSAG 提供 <code>Tune</code> 接口，根据给定查询集自动调整运行期参数以在<strong>召回率</strong>
-与<strong>延迟</strong>之间取得更好的权衡。其底层实现即历史版本中的 ELP Optimizer。</p>
-<h2 id="基本用法-1"><a class="header" href="#基本用法-1">基本用法</a></h2>
-<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
-
-auto index = vsag::Factory::CreateIndex("hgraph", build_params).value();
-index-&gt;Build(base_dataset);
-
-std::string tune_params = R"(
-{
-    "queries_dataset": "path/or/inline/queries",
-    "target_recall": 0.95,
-    "top_k": 10
-}
-)";
-auto ret = index-&gt;Tune(tune_params);
-</code></pre>
-<p><code>Tune</code> 的第二个参数 <code>disable_future_tuning=false</code> 默认允许后续多次调用继续调整；设为 <code>true</code> 会冻结参数。</p>
-<h2 id="与-elp-optimizer-的关系"><a class="header" href="#与-elp-optimizer-的关系">与 ELP Optimizer 的关系</a></h2>
-<p>历史文献（见 <a href="#科研论文">科研论文</a>）中提到的 “ELP Optimizer” 对应实现键
-<code>use_elp_optimizer</code>，现已收敛到统一的 <code>Tune</code> 接口背后，用户无需直接操作。</p>
-<h2 id="适用索引"><a class="header" href="#适用索引">适用索引</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>索引类型</th><th>支持 Tune</th></tr>
-</thead>
-<tbody>
-<tr><td>hnsw</td><td>是</td></tr>
-<tr><td>hgraph</td><td>是</td></tr>
-<tr><td>diskann</td><td>部分参数</td></tr>
-<tr><td>ivf / sindi / brute_force</td><td>否</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="示例"><a class="header" href="#示例">示例</a></h2>
-<p><code>examples/cpp/318_feature_tune.cpp</code> 给出了端到端的调优流程：</p>
-<ol>
-<li>构造索引并 <code>Build</code>；</li>
-<li>使用一份代表性查询集调用 <code>Tune</code>；</li>
-<li>序列化调优后的索引供生产环境使用。</li>
-</ol>
-<h2 id="注意事项-1"><a class="header" href="#注意事项-1">注意事项</a></h2>
-<ul>
-<li>调优依赖查询集的分布，建议使用真实业务分布下的样本。</li>
-<li>调优后的参数会随索引元信息一起 <code>Serialize</code> / <code>Deserialize</code>，部署后仍然生效。</li>
-</ul>
-<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="序列化格式"><a class="header" href="#序列化格式">序列化格式</a></h1>
 <p>VSAG 索引可通过多种方式序列化与反序列化，便于持久化、跨进程共享及分布式部署。</p>
 <h2 id="三种接口"><a class="header" href="#三种接口">三种接口</a></h2>
@@ -1501,7 +1585,7 @@ empty-&gt;Deserialize(in);
     // 将 [buf, buf+size) 写入 offset 位置
 });
 </code></pre>
-<h2 id="注意事项-2"><a class="header" href="#注意事项-2">注意事项</a></h2>
+<h2 id="注意事项-1"><a class="header" href="#注意事项-1">注意事项</a></h2>
 <ul>
 <li><code>Deserialize</code> 要求目标索引为<strong>空</strong>索引，并且参数配置与序列化时一致（如 <code>dim</code>、<code>metric_type</code>）。</li>
 <li>跨大版本升级时请关注 <a href="#版本日志">版本日志</a> 中的兼容性说明。</li>
@@ -1550,7 +1634,7 @@ auto result = index-&gt;KnnSearch(query, k, search_param);
 <h2 id="线程池"><a class="header" href="#线程池">线程池</a></h2>
 <p><code>Resource</code> 也接受用户提供的 <code>ThreadPool</code>，与 Allocator 配合可完全托管并行度与资源归属。见
 <code>examples/cpp/203_custom_thread_pool.cpp</code>。</p>
-<h2 id="注意事项-3"><a class="header" href="#注意事项-3">注意事项</a></h2>
+<h2 id="注意事项-2"><a class="header" href="#注意事项-2">注意事项</a></h2>
 <ul>
 <li>自定义 Allocator 必须是线程安全的。</li>
 <li><code>Allocator</code> 生命周期必须覆盖所有引用它的索引与结果对象。</li>
@@ -1584,7 +1668,7 @@ auto result = index-&gt;KnnSearch(query, k, search_param_json);
 <h2 id="工作原理-4"><a class="header" href="#工作原理-4">工作原理</a></h2>
 <p>共轭图由原图在训练数据上的“失败路径“反向构建而成，在搜索时作为补充的候选边参与贪心扩展。
 它相当于对主图的一层轻量索引补丁，典型体积 &lt; 主图 10%。</p>
-<h2 id="示例-1"><a class="header" href="#示例-1">示例</a></h2>
+<h2 id="示例"><a class="header" href="#示例">示例</a></h2>
 <p><code>examples/cpp/304_feature_enhance_graph.cpp</code> 给出了从构建、训练到对比召回率的完整流程。</p>
 <h2 id="适用场景"><a class="header" href="#适用场景">适用场景</a></h2>
 <ul>
@@ -1592,7 +1676,7 @@ auto result = index-&gt;KnnSearch(query, k, search_param_json);
 <li>对 P99 召回敏感的在线场景；</li>
 <li>希望在不重建索引的前提下小幅提升召回。</li>
 </ul>
-<h2 id="注意事项-4"><a class="header" href="#注意事项-4">注意事项</a></h2>
+<h2 id="注意事项-3"><a class="header" href="#注意事项-3">注意事项</a></h2>
 <ul>
 <li>启用后构建时间会略有增加。</li>
 <li>共轭图数据会随索引一并序列化。</li>
@@ -1635,12 +1719,222 @@ index-&gt;Build(dataset);
 <li><code>*.data</code>：完整精度向量。</li>
 </ul>
 <p>反序列化时需要同时可访问这两份数据。</p>
-<h2 id="注意事项-5"><a class="header" href="#注意事项-5">注意事项</a></h2>
+<h2 id="注意事项-4"><a class="header" href="#注意事项-4">注意事项</a></h2>
 <ul>
 <li>磁盘介质建议使用 NVMe SSD；HDD 下查询延迟会显著退化。</li>
 <li>内存中 PQ 的压缩率与精度由 <code>pq_dims</code> 控制，过小会导致召回下降。</li>
 <li>冷启动时建议对索引文件做预热（随机读几兆）以建立 page cache。</li>
 <li>当前 DiskANN 不支持在线插入 / 删除；如需增删请重建。</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="最佳实践"><a class="header" href="#最佳实践">最佳实践</a></h1>
+<p>本页整理在生产环境使用 VSAG 的经验性建议，作为参数手册与性能调优的补充。</p>
+<h2 id="索引选型"><a class="header" href="#索引选型">索引选型</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>场景</th><th>推荐索引</th><th>理由</th></tr>
+</thead>
+<tbody>
+<tr><td>中等规模（≤ 1000 万）纯内存、对召回/延迟要求极高</td><td><code>hgraph</code></td><td>统一的高质量图索引，支持多种量化与 Tune</td></tr>
+<tr><td>兼容既有 HNSW 部署</td><td><code>hnsw</code></td><td>接口与参数最贴近 hnswlib</td></tr>
+<tr><td>10 亿级向量、内存受限</td><td><code>diskann</code></td><td>内存只放 PQ，完整向量在磁盘</td></tr>
+<tr><td>候选召回层 / 粗排</td><td><code>ivf</code></td><td>训练后即可大规模并行</td></tr>
+<tr><td>小规模、需要 100% 精度</td><td><code>brute_force</code></td><td>暴力搜索，作为召回率 baseline</td></tr>
+<tr><td>多租户 / 分区数据</td><td><code>pyramid</code></td><td>一个索引内部多棵子图，支持按 tag 检索</td></tr>
+<tr><td>稀疏向量（BM25 / SPLADE 类）</td><td><code>sindi</code></td><td>专为稀疏向量设计</td></tr>
+</tbody>
+</table>
+</div>
+<p>详细参数参见 <a href="#索引参数">索引参数</a>。</p>
+<h2 id="构建阶段"><a class="header" href="#构建阶段">构建阶段</a></h2>
+<ul>
+<li><strong>先确定 metric</strong>：<code>l2</code> / <code>ip</code> / <code>cosine</code> 不可在构建后变更。</li>
+<li><strong><code>ef_construction</code></strong>：典型 200~500。过小召回不足；过大构建显著变慢。</li>
+<li><strong><code>max_degree</code> / <code>M</code></strong>：典型 16~48。越大召回越高、内存也越高。</li>
+<li><strong>量化策略</strong>：延迟敏感场景建议 <code>sq8</code> 或 <code>pq</code>；精度敏感建议 <code>fp32</code> 或 <code>fp16</code>。</li>
+<li><strong>并行构建</strong>：使用自定义 <code>ThreadPool</code>（见 <code>examples/cpp/203_custom_thread_pool.cpp</code>）以控制并发度。</li>
+</ul>
+<h2 id="搜索阶段"><a class="header" href="#搜索阶段">搜索阶段</a></h2>
+<ul>
+<li><strong><code>ef_search</code></strong>：典型 <code>topk ~ topk * 10</code>，可按 QPS / 召回率做 grid search。</li>
+<li><strong>批量搜索</strong>：多查询合并可提升缓存命中；参考 <code>examples/cpp/205_*</code>（若提供）或业务侧批量化。</li>
+<li><strong>Filter</strong>：使用内置 <code>Filter</code>（<code>examples/cpp/301_feature_filter.cpp</code>），不要在结果侧二次过滤。</li>
+<li><strong>临时 Allocator</strong>：高并发在线服务建议每线程一份 arena allocator，见 <a href="#内存管理">内存管理</a>。</li>
+</ul>
+<h2 id="调优"><a class="header" href="#调优">调优</a></h2>
+<ul>
+<li>使用 <a href="#优化器tune"><code>Tune</code></a> 对真实查询分布进行调参；</li>
+<li>对尾部困难查询，启用 <a href="#图索引增强">共轭图</a>；</li>
+<li>使用 <a href="#性能评估工具eval_performance"><code>eval_performance</code></a> 做持续回归测试。</li>
+</ul>
+<h2 id="部署"><a class="header" href="#部署">部署</a></h2>
+<ul>
+<li>推荐使用官方 Docker 镜像，详见 <a href="#安装">安装</a>。</li>
+<li>生产二进制建议选择对应 ABI 的发布包：<code>dist-pre-cxx11-abi</code>、<code>dist-cxx11-abi</code>、<code>dist-libcxx</code>（见 <a href="#编译构建">编译构建</a>）。</li>
+<li>开启 <code>VSAG_ENABLE_INTEL_MKL=ON</code> 可在 Intel CPU 上获得额外加速；</li>
+<li>DiskANN 建议使用 NVMe SSD，并配合 <code>VSAG_ENABLE_LIBAIO=ON</code>。</li>
+</ul>
+<h2 id="可观测"><a class="header" href="#可观测">可观测</a></h2>
+<ul>
+<li><code>Index::GetMemoryUsage()</code> 暴露运行时内存；</li>
+<li>搜索路径上可用自定义 <code>Logger</code>（<code>examples/cpp/202_custom_logger.cpp</code>）接入业务日志；</li>
+<li>结合 <code>eval_performance</code> 将关键指标写入 InfluxDB 进行长期监控。</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="优化器tune"><a class="header" href="#优化器tune">优化器（Tune）</a></h1>
+<p>对于图类索引（HNSW、HGraph），VSAG 提供 <code>Tune</code> 接口，根据给定查询集自动调整运行期参数以在<strong>召回率</strong>
+与<strong>延迟</strong>之间取得更好的权衡。其底层实现即历史版本中的 ELP Optimizer。</p>
+<h2 id="基本用法-1"><a class="header" href="#基本用法-1">基本用法</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+auto index = vsag::Factory::CreateIndex("hgraph", build_params).value();
+index-&gt;Build(base_dataset);
+
+std::string tune_params = R"(
+{
+    "queries_dataset": "path/or/inline/queries",
+    "target_recall": 0.95,
+    "top_k": 10
+}
+)";
+auto ret = index-&gt;Tune(tune_params);
+</code></pre>
+<p><code>Tune</code> 的第二个参数 <code>disable_future_tuning=false</code> 默认允许后续多次调用继续调整；设为 <code>true</code> 会冻结参数。</p>
+<h2 id="与-elp-optimizer-的关系"><a class="header" href="#与-elp-optimizer-的关系">与 ELP Optimizer 的关系</a></h2>
+<p>历史文献（见 <a href="#科研论文">科研论文</a>）中提到的 “ELP Optimizer” 对应实现键
+<code>use_elp_optimizer</code>，现已收敛到统一的 <code>Tune</code> 接口背后，用户无需直接操作。</p>
+<h2 id="适用索引"><a class="header" href="#适用索引">适用索引</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引类型</th><th>支持 Tune</th></tr>
+</thead>
+<tbody>
+<tr><td>hnsw</td><td>是</td></tr>
+<tr><td>hgraph</td><td>是</td></tr>
+<tr><td>diskann</td><td>部分参数</td></tr>
+<tr><td>ivf / sindi / brute_force</td><td>否</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="示例-1"><a class="header" href="#示例-1">示例</a></h2>
+<p><code>examples/cpp/318_feature_tune.cpp</code> 给出了端到端的调优流程：</p>
+<ol>
+<li>构造索引并 <code>Build</code>；</li>
+<li>使用一份代表性查询集调用 <code>Tune</code>；</li>
+<li>序列化调优后的索引供生产环境使用。</li>
+</ol>
+<h2 id="注意事项-5"><a class="header" href="#注意事项-5">注意事项</a></h2>
+<ul>
+<li>调优依赖查询集的分布，建议使用真实业务分布下的样本。</li>
+<li>调优后的参数会随索引元信息一起 <code>Serialize</code> / <code>Deserialize</code>，部署后仍然生效。</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="标准环境性能参考"><a class="header" href="#标准环境性能参考">标准环境性能参考</a></h1>
+<p>本页作为官方性能数据的入口与说明。具体数值建议以 GitHub 最新发布的 benchmark 结果为准，
+并通过 <a href="#性能评估工具eval_performance">性能评估工具</a> 在目标环境中复测。</p>
+<h2 id="参考机型"><a class="header" href="#参考机型">参考机型</a></h2>
+<p>官方基准测试默认在以下量级的机型上进行（具体 SKU 以 Release Notes 为准）：</p>
+<ul>
+<li><strong>CPU</strong>：主流 x86_64 服务器 CPU（支持 AVX2 / AVX-512）</li>
+<li><strong>内存</strong>：足够覆盖索引 + 操作系统 page cache 的 DDR4/DDR5</li>
+<li><strong>磁盘</strong>：NVMe SSD（DiskANN 场景）</li>
+<li><strong>操作系统</strong>：Ubuntu 20.04 / 22.04 或 CentOS 7 / 8</li>
+<li><strong>编译</strong>：<code>make release</code>，MKL 默认<strong>关闭</strong>（<code>VSAG_ENABLE_INTEL_MKL=OFF</code>）。
+如需启用请显式设置 <code>VSAG_ENABLE_INTEL_MKL=ON make release</code>
+（或直接使用 CMake 时使用 <code>-DENABLE_INTEL_MKL=ON</code>）</li>
+</ul>
+<h2 id="参考数据集"><a class="header" href="#参考数据集">参考数据集</a></h2>
+<p>官方对比常用以下数据集（HDF5 格式，兼容 <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a>）：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>数据集</th><th>维度</th><th>距离</th><th>规模</th></tr>
+</thead>
+<tbody>
+<tr><td>SIFT-1M</td><td>128</td><td>L2</td><td>1,000,000</td></tr>
+<tr><td>GIST-1M</td><td>960</td><td>L2</td><td>1,000,000</td></tr>
+<tr><td>Deep-10M</td><td>96</td><td>L2</td><td>10,000,000</td></tr>
+<tr><td>Text-to-Image-1M</td><td>200</td><td>IP</td><td>1,000,000</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="关键指标"><a class="header" href="#关键指标">关键指标</a></h2>
+<ul>
+<li>QPS（单线程 / 多线程）</li>
+<li>平均召回率（Recall@k）</li>
+<li>P50 / P95 / P99 延迟</li>
+<li>峰值内存、索引体积</li>
+<li>构建时间</li>
+</ul>
+<h2 id="如何复现"><a class="header" href="#如何复现">如何复现</a></h2>
+<pre><code class="language-bash">make release
+./build-release/tools/eval/eval_performance --config tools/eval/eval_template.yaml
+</code></pre>
+<p>将输出的 JSON / Markdown 结果与官方对比，可定位性能回归或量化退化。</p>
+<h2 id="如何贡献你的数据"><a class="header" href="#如何贡献你的数据">如何贡献你的数据</a></h2>
+<p>欢迎通过 PR 向本页面补充“其他机型下的结果“章节；提交时请附：</p>
+<ul>
+<li>详细 CPU / 内存 / 磁盘信息；</li>
+<li>VSAG 版本（<code>git rev-parse HEAD</code>）；</li>
+<li><code>eval_performance</code> 输出（建议使用 JSON + Markdown 两种格式）；</li>
+<li>构建命令与环境变量（如 <code>VSAG_ENABLE_INTEL_MKL</code> 等）。</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="性能评估工具eval_performance"><a class="header" href="#性能评估工具eval_performance">性能评估工具（eval_performance）</a></h1>
+<p><code>eval_performance</code> 是 VSAG 自带的命令行性能评估工具，位于 <code>tools/eval/</code>，编译后二进制路径为
+<code>build-release/tools/eval/eval_performance</code>。它可以用于对比不同索引、不同参数组合的吞吐、延迟与召回率。</p>
+<h2 id="构建"><a class="header" href="#构建">构建</a></h2>
+<p><code>tools/</code> 默认不会编译，需要显式开启：</p>
+<pre><code class="language-bash"># 通过项目 Makefile
+VSAG_ENABLE_TOOLS=ON make release
+# 或：make dev
+
+# 也可直接通过 CMake
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_TOOLS=ON
+cmake --build build-release -j
+# 产物：./build-release/tools/eval/eval_performance
+</code></pre>
+<p>需要系统安装 HDF5（Ubuntu: <code>apt install libhdf5-dev</code>；CentOS: <code>yum install hdf5-devel</code>）。</p>
+<h2 id="两种模式"><a class="header" href="#两种模式">两种模式</a></h2>
+<h3 id="1-命令行模式适合单次快速测试"><a class="header" href="#1-命令行模式适合单次快速测试">1. 命令行模式（适合单次快速测试）</a></h3>
+<pre><code class="language-bash">./build-release/tools/eval/eval_performance \
+    --datapath /tmp/sift-128-euclidean.hdf5 \
+    --index_name hgraph \
+    --type search \
+    --create_params '{"dim":128,"dtype":"float32","metric_type":"l2","index_param":{"base_quantization_type":"fp32","max_degree":32,"ef_construction":300}}' \
+    --search_params '{"hgraph":{"ef_search":60}}' \
+    --topk 10
+</code></pre>
+<h3 id="2-配置文件模式适合批量对比"><a class="header" href="#2-配置文件模式适合批量对比">2. 配置文件模式（适合批量对比）</a></h3>
+<pre><code class="language-bash">./build-release/tools/eval/eval_performance --config my_eval.yaml
+</code></pre>
+<p>参考模板 <code>tools/eval/eval_template.yaml</code>，一份配置可包含多个 <code>eval_caseN</code> 并分别使用不同参数。</p>
+<h2 id="支持的评估维度"><a class="header" href="#支持的评估维度">支持的评估维度</a></h2>
+<ul>
+<li><strong>效率</strong>：QPS、TPS</li>
+<li><strong>效果</strong>：平均召回率、分位召回率（P0/P10/P50/P90…）</li>
+<li><strong>延迟</strong>：平均延迟、P50/P95/P99 延迟</li>
+<li><strong>资源</strong>：峰值内存占用</li>
+</ul>
+<h2 id="搜索模式"><a class="header" href="#搜索模式">搜索模式</a></h2>
+<p><code>search_mode</code> 支持 <code>knn</code>、<code>range</code>、<code>knn_filter</code>、<code>range_filter</code> 四种。</p>
+<h2 id="结果导出"><a class="header" href="#结果导出">结果导出</a></h2>
+<ul>
+<li><code>table</code>：输出到 stdout 或文件；</li>
+<li><code>json</code>：便于自动化处理；</li>
+<li><code>line_protocol</code>：直接写入 InfluxDB（支持 token 认证）；</li>
+<li><code>markdown</code>：便于贴到 issue / 文档。</li>
+</ul>
+<h2 id="数据集"><a class="header" href="#数据集">数据集</a></h2>
+<p>可使用 <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a> 提供的 HDF5 格式数据集
+（如 <code>sift-128-euclidean.hdf5</code>、<code>gist-960-euclidean.hdf5</code>）。</p>
+<h2 id="参考-1"><a class="header" href="#参考-1">参考</a></h2>
+<ul>
+<li>源码：<code>tools/eval/</code></li>
+<li>英文说明：<code>tools/eval/README.md</code></li>
+<li>标准机型的基准结果见 <a href="#标准环境性能参考">标准环境性能参考</a>。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="版本日志"><a class="header" href="#版本日志">版本日志</a></h1>
@@ -1810,291 +2104,6 @@ make release
 <blockquote>
 <p>SINDI 是 VSAG 库中的一个索引类型。</p>
 </blockquote>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="最佳实践"><a class="header" href="#最佳实践">最佳实践</a></h1>
-<p>本页整理在生产环境使用 VSAG 的经验性建议，作为参数手册与性能调优的补充。</p>
-<h2 id="索引选型"><a class="header" href="#索引选型">索引选型</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>场景</th><th>推荐索引</th><th>理由</th></tr>
-</thead>
-<tbody>
-<tr><td>中等规模（≤ 1000 万）纯内存、对召回/延迟要求极高</td><td><code>hgraph</code></td><td>统一的高质量图索引，支持多种量化与 Tune</td></tr>
-<tr><td>兼容既有 HNSW 部署</td><td><code>hnsw</code></td><td>接口与参数最贴近 hnswlib</td></tr>
-<tr><td>10 亿级向量、内存受限</td><td><code>diskann</code></td><td>内存只放 PQ，完整向量在磁盘</td></tr>
-<tr><td>候选召回层 / 粗排</td><td><code>ivf</code></td><td>训练后即可大规模并行</td></tr>
-<tr><td>小规模、需要 100% 精度</td><td><code>brute_force</code></td><td>暴力搜索，作为召回率 baseline</td></tr>
-<tr><td>多租户 / 分区数据</td><td><code>pyramid</code></td><td>一个索引内部多棵子图，支持按 tag 检索</td></tr>
-<tr><td>稀疏向量（BM25 / SPLADE 类）</td><td><code>sindi</code></td><td>专为稀疏向量设计</td></tr>
-</tbody>
-</table>
-</div>
-<p>详细参数参见 <a href="#索引参数">索引参数</a>。</p>
-<h2 id="构建阶段"><a class="header" href="#构建阶段">构建阶段</a></h2>
-<ul>
-<li><strong>先确定 metric</strong>：<code>l2</code> / <code>ip</code> / <code>cosine</code> 不可在构建后变更。</li>
-<li><strong><code>ef_construction</code></strong>：典型 200~500。过小召回不足；过大构建显著变慢。</li>
-<li><strong><code>max_degree</code> / <code>M</code></strong>：典型 16~48。越大召回越高、内存也越高。</li>
-<li><strong>量化策略</strong>：延迟敏感场景建议 <code>sq8</code> 或 <code>pq</code>；精度敏感建议 <code>fp32</code> 或 <code>fp16</code>。</li>
-<li><strong>并行构建</strong>：使用自定义 <code>ThreadPool</code>（见 <code>examples/cpp/203_custom_thread_pool.cpp</code>）以控制并发度。</li>
-</ul>
-<h2 id="搜索阶段"><a class="header" href="#搜索阶段">搜索阶段</a></h2>
-<ul>
-<li><strong><code>ef_search</code></strong>：典型 <code>topk ~ topk * 10</code>，可按 QPS / 召回率做 grid search。</li>
-<li><strong>批量搜索</strong>：多查询合并可提升缓存命中；参考 <code>examples/cpp/205_*</code>（若提供）或业务侧批量化。</li>
-<li><strong>Filter</strong>：使用内置 <code>Filter</code>（<code>examples/cpp/301_feature_filter.cpp</code>），不要在结果侧二次过滤。</li>
-<li><strong>临时 Allocator</strong>：高并发在线服务建议每线程一份 arena allocator，见 <a href="#内存管理">内存管理</a>。</li>
-</ul>
-<h2 id="调优"><a class="header" href="#调优">调优</a></h2>
-<ul>
-<li>使用 <a href="#优化器tune"><code>Tune</code></a> 对真实查询分布进行调参；</li>
-<li>对尾部困难查询，启用 <a href="#图索引增强">共轭图</a>；</li>
-<li>使用 <a href="#性能评估工具eval_performance"><code>eval_performance</code></a> 做持续回归测试。</li>
-</ul>
-<h2 id="部署"><a class="header" href="#部署">部署</a></h2>
-<ul>
-<li>推荐使用官方 Docker 镜像，详见 <a href="#安装">安装</a>。</li>
-<li>生产二进制建议选择对应 ABI 的发布包：<code>dist-pre-cxx11-abi</code>、<code>dist-cxx11-abi</code>、<code>dist-libcxx</code>（见 <a href="#编译构建">编译构建</a>）。</li>
-<li>开启 <code>VSAG_ENABLE_INTEL_MKL=ON</code> 可在 Intel CPU 上获得额外加速；</li>
-<li>DiskANN 建议使用 NVMe SSD，并配合 <code>VSAG_ENABLE_LIBAIO=ON</code>。</li>
-</ul>
-<h2 id="可观测"><a class="header" href="#可观测">可观测</a></h2>
-<ul>
-<li><code>Index::GetMemoryUsage()</code> 暴露运行时内存；</li>
-<li>搜索路径上可用自定义 <code>Logger</code>（<code>examples/cpp/202_custom_logger.cpp</code>）接入业务日志；</li>
-<li>结合 <code>eval_performance</code> 将关键指标写入 InfluxDB 进行长期监控。</li>
-</ul>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="索引参数"><a class="header" href="#索引参数">索引参数</a></h1>
-<p>本页汇总 VSAG 各索引类型的常用参数。完整枚举请参考源码：</p>
-<ul>
-<li>构建参数键：<code>src/constants.cpp</code></li>
-<li>公开常量：<code>include/vsag/constants.h</code></li>
-<li>每个索引的示例：<code>examples/cpp/101_index_hnsw.cpp</code> 等</li>
-</ul>
-<h2 id="通用参数"><a class="header" href="#通用参数">通用参数</a></h2>
-<p>所有索引在构建时都需要提供以下顶层字段：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>字段</th><th>取值</th><th>说明</th></tr>
-</thead>
-<tbody>
-<tr><td><code>dim</code></td><td>正整数</td><td>向量维度，构建后不可更改</td></tr>
-<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code></td><td>向量数据类型，决定索引内部表示</td></tr>
-<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>距离度量</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h2>
-<p>HNSW 使用 <code>hnsw</code> 子对象承载构建参数，并不支持 HGraph 专有参数（如 <code>base_quantization_type</code>）。</p>
-<pre><code class="language-json">{
-    "dim": 128,
-    "dtype": "float32",
-    "metric_type": "l2",
-    "hnsw": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "use_conjugate_graph": false
-    }
-}
-</code></pre>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>字段</th><th>典型值</th><th>说明</th></tr>
-</thead>
-<tbody>
-<tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
-<tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
-<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td>是否构建 <a href="#图索引增强">共轭图</a></td></tr>
-</tbody>
-</table>
-</div>
-<p>搜索时：</p>
-<pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
-</code></pre>
-<h2 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h2>
-<p>HGraph 的构建参数使用通用的 <code>index_param</code> 键（参见 <code>examples/cpp/103_index_hgraph.cpp</code>）；
-<code>hgraph</code> 键则保留给搜索期参数。</p>
-<pre><code class="language-json">{
-    "dim": 128,
-    "dtype": "float32",
-    "metric_type": "l2",
-    "index_param": {
-        "base_quantization_type": "fp32",
-        "max_degree": 32,
-        "ef_construction": 400
-    }
-}
-</code></pre>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>字段</th><th>典型值</th><th>说明</th></tr>
-</thead>
-<tbody>
-<tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
-<tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略</td></tr>
-</tbody>
-</table>
-</div>
-<p>搜索时：</p>
-<pre><code class="language-json">{"hgraph": {"ef_search": 100}}
-</code></pre>
-<h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
-<pre><code class="language-json">{
-    "diskann": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "pq_sample_rate": 0.1,
-        "pq_dims": 32,
-        "use_async_io": true
-    }
-}
-</code></pre>
-<h2 id="ivf-1"><a class="header" href="#ivf-1">IVF</a></h2>
-<pre><code class="language-json">{
-    "ivf": {
-        "nlist": 4096,
-        "base_quantization_type": "sq8",
-        "nprobe": 32
-    }
-}
-</code></pre>
-<h2 id="brute-force"><a class="header" href="#brute-force">Brute Force</a></h2>
-<pre><code class="language-json">{"brute_force": {}}
-</code></pre>
-<p>无需额外参数。</p>
-<h2 id="pyramid-1"><a class="header" href="#pyramid-1">Pyramid</a></h2>
-<p>Pyramid 支持按 tag 组织多棵子图：</p>
-<pre><code class="language-json">{
-    "pyramid": {
-        "tag_dim": 1,
-        "max_degree": 24,
-        "ef_construction": 300
-    }
-}
-</code></pre>
-<h2 id="sindi稀疏向量"><a class="header" href="#sindi稀疏向量">SINDI（稀疏向量）</a></h2>
-<pre><code class="language-json">{
-    "sindi": {
-        "top_k": 32,
-        "doc_prune_ratio": 0.1
-    }
-}
-</code></pre>
-<h2 id="运行期参数"><a class="header" href="#运行期参数">运行期参数</a></h2>
-<p>除构建参数外，<code>Index::Tune</code> 与 <code>SearchParam</code> 可在运行时调整 <code>ef_search</code>、<code>nprobe</code> 等参数。参考
-<a href="#优化器tune">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="标准环境性能参考"><a class="header" href="#标准环境性能参考">标准环境性能参考</a></h1>
-<p>本页作为官方性能数据的入口与说明。具体数值建议以 GitHub 最新发布的 benchmark 结果为准，
-并通过 <a href="#性能评估工具eval_performance">性能评估工具</a> 在目标环境中复测。</p>
-<h2 id="参考机型"><a class="header" href="#参考机型">参考机型</a></h2>
-<p>官方基准测试默认在以下量级的机型上进行（具体 SKU 以 Release Notes 为准）：</p>
-<ul>
-<li><strong>CPU</strong>：主流 x86_64 服务器 CPU（支持 AVX2 / AVX-512）</li>
-<li><strong>内存</strong>：足够覆盖索引 + 操作系统 page cache 的 DDR4/DDR5</li>
-<li><strong>磁盘</strong>：NVMe SSD（DiskANN 场景）</li>
-<li><strong>操作系统</strong>：Ubuntu 20.04 / 22.04 或 CentOS 7 / 8</li>
-<li><strong>编译</strong>：<code>make release</code>，MKL 默认<strong>关闭</strong>（<code>VSAG_ENABLE_INTEL_MKL=OFF</code>）。
-如需启用请显式设置 <code>VSAG_ENABLE_INTEL_MKL=ON make release</code>
-（或直接使用 CMake 时使用 <code>-DENABLE_INTEL_MKL=ON</code>）</li>
-</ul>
-<h2 id="参考数据集"><a class="header" href="#参考数据集">参考数据集</a></h2>
-<p>官方对比常用以下数据集（HDF5 格式，兼容 <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a>）：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>数据集</th><th>维度</th><th>距离</th><th>规模</th></tr>
-</thead>
-<tbody>
-<tr><td>SIFT-1M</td><td>128</td><td>L2</td><td>1,000,000</td></tr>
-<tr><td>GIST-1M</td><td>960</td><td>L2</td><td>1,000,000</td></tr>
-<tr><td>Deep-10M</td><td>96</td><td>L2</td><td>10,000,000</td></tr>
-<tr><td>Text-to-Image-1M</td><td>200</td><td>IP</td><td>1,000,000</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="关键指标"><a class="header" href="#关键指标">关键指标</a></h2>
-<ul>
-<li>QPS（单线程 / 多线程）</li>
-<li>平均召回率（Recall@k）</li>
-<li>P50 / P95 / P99 延迟</li>
-<li>峰值内存、索引体积</li>
-<li>构建时间</li>
-</ul>
-<h2 id="如何复现"><a class="header" href="#如何复现">如何复现</a></h2>
-<pre><code class="language-bash">make release
-./build-release/tools/eval/eval_performance --config tools/eval/eval_template.yaml
-</code></pre>
-<p>将输出的 JSON / Markdown 结果与官方对比，可定位性能回归或量化退化。</p>
-<h2 id="如何贡献你的数据"><a class="header" href="#如何贡献你的数据">如何贡献你的数据</a></h2>
-<p>欢迎通过 PR 向本页面补充“其他机型下的结果“章节；提交时请附：</p>
-<ul>
-<li>详细 CPU / 内存 / 磁盘信息；</li>
-<li>VSAG 版本（<code>git rev-parse HEAD</code>）；</li>
-<li><code>eval_performance</code> 输出（建议使用 JSON + Markdown 两种格式）；</li>
-<li>构建命令与环境变量（如 <code>VSAG_ENABLE_INTEL_MKL</code> 等）。</li>
-</ul>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="性能评估工具eval_performance"><a class="header" href="#性能评估工具eval_performance">性能评估工具（eval_performance）</a></h1>
-<p><code>eval_performance</code> 是 VSAG 自带的命令行性能评估工具，位于 <code>tools/eval/</code>，编译后二进制路径为
-<code>build-release/tools/eval/eval_performance</code>。它可以用于对比不同索引、不同参数组合的吞吐、延迟与召回率。</p>
-<h2 id="构建"><a class="header" href="#构建">构建</a></h2>
-<p><code>tools/</code> 默认不会编译，需要显式开启：</p>
-<pre><code class="language-bash"># 通过项目 Makefile
-VSAG_ENABLE_TOOLS=ON make release
-# 或：make dev
-
-# 也可直接通过 CMake
-cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_TOOLS=ON
-cmake --build build-release -j
-# 产物：./build-release/tools/eval/eval_performance
-</code></pre>
-<p>需要系统安装 HDF5（Ubuntu: <code>apt install libhdf5-dev</code>；CentOS: <code>yum install hdf5-devel</code>）。</p>
-<h2 id="两种模式"><a class="header" href="#两种模式">两种模式</a></h2>
-<h3 id="1-命令行模式适合单次快速测试"><a class="header" href="#1-命令行模式适合单次快速测试">1. 命令行模式（适合单次快速测试）</a></h3>
-<pre><code class="language-bash">./build-release/tools/eval/eval_performance \
-    --datapath /tmp/sift-128-euclidean.hdf5 \
-    --index_name hgraph \
-    --type search \
-    --create_params '{"dim":128,"dtype":"float32","metric_type":"l2","index_param":{"base_quantization_type":"fp32","max_degree":32,"ef_construction":300}}' \
-    --search_params '{"hgraph":{"ef_search":60}}' \
-    --topk 10
-</code></pre>
-<h3 id="2-配置文件模式适合批量对比"><a class="header" href="#2-配置文件模式适合批量对比">2. 配置文件模式（适合批量对比）</a></h3>
-<pre><code class="language-bash">./build-release/tools/eval/eval_performance --config my_eval.yaml
-</code></pre>
-<p>参考模板 <code>tools/eval/eval_template.yaml</code>，一份配置可包含多个 <code>eval_caseN</code> 并分别使用不同参数。</p>
-<h2 id="支持的评估维度"><a class="header" href="#支持的评估维度">支持的评估维度</a></h2>
-<ul>
-<li><strong>效率</strong>：QPS、TPS</li>
-<li><strong>效果</strong>：平均召回率、分位召回率（P0/P10/P50/P90…）</li>
-<li><strong>延迟</strong>：平均延迟、P50/P95/P99 延迟</li>
-<li><strong>资源</strong>：峰值内存占用</li>
-</ul>
-<h2 id="搜索模式"><a class="header" href="#搜索模式">搜索模式</a></h2>
-<p><code>search_mode</code> 支持 <code>knn</code>、<code>range</code>、<code>knn_filter</code>、<code>range_filter</code> 四种。</p>
-<h2 id="结果导出"><a class="header" href="#结果导出">结果导出</a></h2>
-<ul>
-<li><code>table</code>：输出到 stdout 或文件；</li>
-<li><code>json</code>：便于自动化处理；</li>
-<li><code>line_protocol</code>：直接写入 InfluxDB（支持 token 认证）；</li>
-<li><code>markdown</code>：便于贴到 issue / 文档。</li>
-</ul>
-<h2 id="数据集"><a class="header" href="#数据集">数据集</a></h2>
-<p>可使用 <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a> 提供的 HDF5 格式数据集
-（如 <code>sift-128-euclidean.hdf5</code>、<code>gist-960-euclidean.hdf5</code>）。</p>
-<h2 id="参考-1"><a class="header" href="#参考-1">参考</a></h2>
-<ul>
-<li>源码：<code>tools/eval/</code></li>
-<li>英文说明：<code>tools/eval/README.md</code></li>
-<li>标准机型的基准结果见 <a href="#标准环境性能参考">标准环境性能参考</a>。</li>
-</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="贡献者列表"><a class="header" href="#贡献者列表">贡献者列表</a></h1>
 <p>以下是 VSAG 项目的贡献者（更新于 2026-04-21），按照第一次贡献的时间排序：</p>

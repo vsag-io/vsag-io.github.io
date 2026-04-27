@@ -153,10 +153,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-550ec713.js";
+            window.path_to_searchindex_js = "searchindex-08ee0c6d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-71c64059.js"></script>
+        <script src="toc-0465ccce.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -309,10 +309,12 @@ enhancement, online <code>Tune</code>-based optimization, custom allocator / thr
 </ul>
 <h2 id="how-to-read-this-documentation"><a class="header" href="#how-to-read-this-documentation">How to Read This Documentation</a></h2>
 <ul>
-<li><strong>User Guide</strong> — start here if you are new to VSAG.</li>
-<li><strong>Developer Guide</strong> — building from source, running tests, contributing.</li>
-<li><strong>Advanced Features</strong> — deep dives into specific capabilities.</li>
-<li><strong>Resources</strong> — release notes, community links, parameter reference, benchmarks.</li>
+<li><strong>User Guide</strong> — start here if you are new to VSAG: install, create an index, and run search.</li>
+<li><strong>Indexes</strong> — compare supported index types and look up their parameters.</li>
+<li><strong>Advanced Features</strong> — deep dives into specific search, serialization, memory, and hybrid-index capabilities.</li>
+<li><strong>Performance and Tuning</strong> — best practices, <code>Tune</code>, benchmarks, and evaluation tooling.</li>
+<li><strong>Developer Guide</strong> — building from source, running tests, and contributing.</li>
+<li><strong>Resources</strong> — release notes, roadmap, community links, related projects, papers, and contributors.</li>
 </ul>
 <p>The Chinese version of the same documentation is available under <code>docs/docs/zh/</code>.</p>
 <h2 id="project-links"><a class="header" href="#project-links">Project Links</a></h2>
@@ -373,6 +375,74 @@ make release
 <p>If you build through the project Makefile, the corresponding environment variables are
 <code>VSAG_ENABLE_INTEL_MKL=ON</code>, <code>VSAG_ENABLE_LIBAIO=ON</code>, <code>VSAG_ENABLE_TOOLS=ON</code>, and
 <code>VSAG_ENABLE_EXAMPLES=ON</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="creating-an-index"><a class="header" href="#creating-an-index">Creating an Index</a></h1>
+<p>All VSAG indexes are built through <code>vsag::Factory::CreateIndex(name, build_params_json)</code>. The
+<code>name</code> selects the implementation; <code>build_params_json</code> configures dimension, metric, and
+index-specific options.</p>
+<h2 id="supported-index-types"><a class="header" href="#supported-index-types">Supported Index Types</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Name</th><th>Description</th><th>Page</th><th>Example</th></tr>
+</thead>
+<tbody>
+<tr><td><code>hgraph</code></td><td>Improved graph index with richer quantization options</td><td><a href="#hgraph-1">HGraph</a></td><td><code>examples/cpp/103_index_hgraph.cpp</code></td></tr>
+<tr><td><code>ivf</code></td><td>Inverted file with quantization</td><td><a href="#ivf-1">IVF</a></td><td><code>examples/cpp/106_index_ivf.cpp</code></td></tr>
+<tr><td><code>sindi</code></td><td>Sparse-vector index (e.g. BM25, SPLADE)</td><td><a href="#sindi">SINDI</a></td><td><code>examples/cpp/109_index_sindi.cpp</code></td></tr>
+<tr><td><code>pyramid</code></td><td>Multi-tenant / tag-partitioned graph index</td><td><a href="#pyramid-1">Pyramid</a></td><td><code>examples/cpp/107_index_pyramid.cpp</code></td></tr>
+<tr><td><code>brute_force</code></td><td>Exact exhaustive search; useful as baseline</td><td>—</td><td><code>examples/cpp/105_index_brute_force.cpp</code></td></tr>
+<tr><td><code>hnsw</code></td><td>Classic HNSW graph index (<strong>deprecated</strong> — prefer <code>hgraph</code>)</td><td>—</td><td><code>examples/cpp/101_index_hnsw.cpp</code></td></tr>
+<tr><td><code>diskann</code></td><td>Memory-disk hybrid (<strong>deprecated</strong> — prefer <code>ivf</code>)</td><td>—</td><td><code>examples/cpp/102_index_diskann.cpp</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="common-top-level-fields"><a class="header" href="#common-top-level-fields">Common Top-Level Fields</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Values</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>positive integer</td><td>Fixed after build</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code></td><td>Public API currently uses <code>float32</code></td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Must match at query time</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
+<h3 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h3>
+<pre><code class="language-cpp">std::string params = R"(
+{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "hnsw": {
+        "max_degree": 32,
+        "ef_construction": 400
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("hnsw", params).value();
+</code></pre>
+<h3 id="hgraph-with-fp16-quantization"><a class="header" href="#hgraph-with-fp16-quantization">HGraph with FP16 quantization</a></h3>
+<p>HGraph uses <code>index_param</code> as the build-time sub-object (<code>hgraph</code> is reserved for search-time
+parameters like <code>ef_search</code>). See <code>examples/cpp/103_index_hgraph.cpp</code>.</p>
+<pre><code class="language-cpp">std::string params = R"(
+{
+    "dim": 768,
+    "dtype": "float32",
+    "metric_type": "ip",
+    "index_param": {
+        "base_quantization_type": "fp16",
+        "max_degree": 32,
+        "ef_construction": 400
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("hgraph", params).value();
+</code></pre>
+<p>See <a href="#index-parameters">Index Parameters</a> for the full reference.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="k-nearest-neighbor-search"><a class="header" href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a></h1>
 <p>This page assumes VSAG is already installed. Examples are available in C++, Python, and TypeScript
@@ -448,74 +518,6 @@ for (int64_t i = 0; i &lt; result-&gt;GetDim(); ++i) {
 </code></pre>
 <p>The result contains up to <code>k</code> neighbors sorted by ascending distance to the query.</p>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="creating-an-index"><a class="header" href="#creating-an-index">Creating an Index</a></h1>
-<p>All VSAG indexes are built through <code>vsag::Factory::CreateIndex(name, build_params_json)</code>. The
-<code>name</code> selects the implementation; <code>build_params_json</code> configures dimension, metric, and
-index-specific options.</p>
-<h2 id="supported-index-types"><a class="header" href="#supported-index-types">Supported Index Types</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Name</th><th>Description</th><th>Page</th><th>Example</th></tr>
-</thead>
-<tbody>
-<tr><td><code>hgraph</code></td><td>Improved graph index with richer quantization options</td><td><a href="#hgraph">HGraph</a></td><td><code>examples/cpp/103_index_hgraph.cpp</code></td></tr>
-<tr><td><code>ivf</code></td><td>Inverted file with quantization</td><td><a href="#ivf">IVF</a></td><td><code>examples/cpp/106_index_ivf.cpp</code></td></tr>
-<tr><td><code>sindi</code></td><td>Sparse-vector index (e.g. BM25, SPLADE)</td><td><a href="#sindi">SINDI</a></td><td><code>examples/cpp/109_index_sindi.cpp</code></td></tr>
-<tr><td><code>pyramid</code></td><td>Multi-tenant / tag-partitioned graph index</td><td><a href="#pyramid">Pyramid</a></td><td><code>examples/cpp/107_index_pyramid.cpp</code></td></tr>
-<tr><td><code>brute_force</code></td><td>Exact exhaustive search; useful as baseline</td><td>—</td><td><code>examples/cpp/105_index_brute_force.cpp</code></td></tr>
-<tr><td><code>hnsw</code></td><td>Classic HNSW graph index (<strong>deprecated</strong> — prefer <code>hgraph</code>)</td><td>—</td><td><code>examples/cpp/101_index_hnsw.cpp</code></td></tr>
-<tr><td><code>diskann</code></td><td>Memory-disk hybrid (<strong>deprecated</strong> — prefer <code>ivf</code>)</td><td>—</td><td><code>examples/cpp/102_index_diskann.cpp</code></td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="common-top-level-fields"><a class="header" href="#common-top-level-fields">Common Top-Level Fields</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Values</th><th>Notes</th></tr>
-</thead>
-<tbody>
-<tr><td><code>dim</code></td><td>positive integer</td><td>Fixed after build</td></tr>
-<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code></td><td>Public API currently uses <code>float32</code></td></tr>
-<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Must match at query time</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
-<h3 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h3>
-<pre><code class="language-cpp">std::string params = R"(
-{
-    "dim": 128,
-    "dtype": "float32",
-    "metric_type": "l2",
-    "hnsw": {
-        "max_degree": 32,
-        "ef_construction": 400
-    }
-}
-)";
-auto index = vsag::Factory::CreateIndex("hnsw", params).value();
-</code></pre>
-<h3 id="hgraph-with-fp16-quantization"><a class="header" href="#hgraph-with-fp16-quantization">HGraph with FP16 quantization</a></h3>
-<p>HGraph uses <code>index_param</code> as the build-time sub-object (<code>hgraph</code> is reserved for search-time
-parameters like <code>ef_search</code>). See <code>examples/cpp/103_index_hgraph.cpp</code>.</p>
-<pre><code class="language-cpp">std::string params = R"(
-{
-    "dim": 768,
-    "dtype": "float32",
-    "metric_type": "ip",
-    "index_param": {
-        "base_quantization_type": "fp16",
-        "max_degree": 32,
-        "ef_construction": 400
-    }
-}
-)";
-auto index = vsag::Factory::CreateIndex("hgraph", params).value();
-</code></pre>
-<p>See <a href="#index-parameters">Index Parameters</a> for the full reference.</p>
-<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pyvsag"><a class="header" href="#pyvsag">pyvsag</a></h1>
 <p><code>pyvsag</code> is the official Python binding for VSAG, implemented with pybind11. Sources live under
 <code>python_bindings/</code> and <code>python/</code>.</p>
@@ -585,10 +587,10 @@ structures and trade-offs they use under the hood.</p>
 <tr><th>Index</th><th>Page</th><th>Best for</th></tr>
 </thead>
 <tbody>
-<tr><td><code>hgraph</code></td><td><a href="#hgraph">HGraph</a></td><td>General-purpose, high-recall graph with rich quantization options</td></tr>
-<tr><td><code>ivf</code></td><td><a href="#ivf">IVF</a></td><td>Partition-based search, high-throughput batch queries, large corpora</td></tr>
+<tr><td><code>hgraph</code></td><td><a href="#hgraph-1">HGraph</a></td><td>General-purpose, high-recall graph with rich quantization options</td></tr>
+<tr><td><code>ivf</code></td><td><a href="#ivf-1">IVF</a></td><td>Partition-based search, high-throughput batch queries, large corpora</td></tr>
 <tr><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product</td></tr>
-<tr><td><code>pyramid</code></td><td><a href="#pyramid">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
+<tr><td><code>pyramid</code></td><td><a href="#pyramid-1">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
 </tbody>
 </table>
 </div>
@@ -615,7 +617,134 @@ parameters live under a sub-object named after the index (e.g. <code>hgraph</cod
 <code>sindi</code>, <code>pyramid</code>). Concrete schemas are documented on each page and enumerated in
 <a href="#index-parameters">Index Parameters</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h1>
+<h1 id="index-parameters"><a class="header" href="#index-parameters">Index Parameters</a></h1>
+<p>This page summarises the commonly used parameters for every VSAG index type. For the full
+enumeration, consult the source:</p>
+<ul>
+<li>Build parameter keys: <code>src/constants.cpp</code></li>
+<li>Public constants: <code>include/vsag/constants.h</code></li>
+<li>Per-index examples: <code>examples/cpp/101_index_hnsw.cpp</code> and friends.</li>
+</ul>
+<h2 id="common-fields"><a class="header" href="#common-fields">Common Fields</a></h2>
+<p>Every index requires these top-level fields at build time:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Values</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>positive integer</td><td>Vector dimensionality; cannot change after build</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code></td><td>Vector data type; determines internal representation</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Distance metric</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="hnsw-1"><a class="header" href="#hnsw-1">HNSW</a></h2>
+<p>HNSW uses the <code>hnsw</code> sub-object for build parameters. It does not accept HGraph-only keys
+such as <code>base_quantization_type</code>.</p>
+<pre><code class="language-json">{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "hnsw": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "use_conjugate_graph": false
+    }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Typical</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
+<tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
+<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td>Build the <a href="#graph-index-enhancement">conjugate graph</a></td></tr>
+</tbody>
+</table>
+</div>
+<p>At search time:</p>
+<pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
+</code></pre>
+<h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
+<p>HGraph places its build parameters under the generic <code>index_param</code> key (see
+<code>examples/cpp/103_index_hgraph.cpp</code>); the <code>hgraph</code> key is reserved for search-time parameters.</p>
+<pre><code class="language-json">{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "index_param": {
+        "base_quantization_type": "fp32",
+        "max_degree": 32,
+        "ef_construction": 400
+    }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Typical</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
+<tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage</td></tr>
+</tbody>
+</table>
+</div>
+<p>At search time:</p>
+<pre><code class="language-json">{"hgraph": {"ef_search": 100}}
+</code></pre>
+<h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
+<pre><code class="language-json">{
+    "diskann": {
+        "max_degree": 32,
+        "ef_construction": 400,
+        "pq_sample_rate": 0.1,
+        "pq_dims": 32,
+        "use_async_io": true
+    }
+}
+</code></pre>
+<h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
+<pre><code class="language-json">{
+    "ivf": {
+        "nlist": 4096,
+        "base_quantization_type": "sq8",
+        "nprobe": 32
+    }
+}
+</code></pre>
+<h2 id="brute-force"><a class="header" href="#brute-force">Brute Force</a></h2>
+<pre><code class="language-json">{"brute_force": {}}
+</code></pre>
+<p>No extra parameters.</p>
+<h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
+<p>Pyramid supports organising multiple subgraphs by tag:</p>
+<pre><code class="language-json">{
+    "pyramid": {
+        "tag_dim": 1,
+        "max_degree": 24,
+        "ef_construction": 300
+    }
+}
+</code></pre>
+<h2 id="sindi-sparse-vectors"><a class="header" href="#sindi-sparse-vectors">SINDI (sparse vectors)</a></h2>
+<pre><code class="language-json">{
+    "sindi": {
+        "top_k": 32,
+        "doc_prune_ratio": 0.1
+    }
+}
+</code></pre>
+<h2 id="runtime-parameters"><a class="header" href="#runtime-parameters">Runtime Parameters</a></h2>
+<p>Beyond build-time parameters, <code>Index::Tune</code> and <code>SearchParam</code> tweak runtime settings such as
+<code>ef_search</code> and <code>nprobe</code>. See <a href="#optimizer-tune">Optimizer</a> and the
+<code>examples/cpp/3xx_feature_*.cpp</code> examples.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h1>
 <p>HGraph is VSAG’s flagship <strong>graph-based</strong> index. It builds a hierarchical proximity graph
 similar in spirit to HNSW, but with a richer set of quantization options, a unified
 build-parameter schema (<code>index_param</code>), and first-class support for reordering,
@@ -721,7 +850,7 @@ and <code>docs/hgraph.md</code> in the repository.</p>
 in combination with <code>use_reorder</code> to recover recall.</li>
 </ul>
 <p>If your workload is partition-heavy (coarse-grained buckets scanned per query) or
-strongly I/O-bound on a SSD, compare against <a href="#ivf">IVF</a> before committing to HGraph.</p>
+strongly I/O-bound on a SSD, compare against <a href="#ivf-1">IVF</a> before committing to HGraph.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
@@ -730,7 +859,7 @@ strongly I/O-bound on a SSD, compare against <a href="#ivf">IVF</a> before commi
 <li><a href="#serialization">Serialization</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="ivf"><a class="header" href="#ivf">IVF</a></h1>
+<h1 id="ivf-1"><a class="header" href="#ivf-1">IVF</a></h1>
 <p>IVF (Inverted File) is VSAG’s <strong>partition-based</strong> index. It clusters the corpus into
 buckets at build time, and at query time only scans the buckets whose centroids are
 closest to the query. This turns an O(N) linear scan into O(N · <code>scan_buckets_count</code>
@@ -845,7 +974,7 @@ queries-per-second.</li>
 <li>Shard-friendly setups: buckets map naturally onto shards or disk blocks.</li>
 </ul>
 <p>For latency-sensitive, high-recall workloads on dense embeddings, compare against
-<a href="#hgraph">HGraph</a> first.</p>
+<a href="#hgraph-1">HGraph</a> first.</p>
 <h2 id="see-also-1"><a class="header" href="#see-also-1">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
@@ -972,7 +1101,7 @@ Range search and id-based filtering are supported; see the example for usage.</p
 <li><a href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h1>
+<h1 id="pyramid-1"><a class="header" href="#pyramid-1">Pyramid</a></h1>
 <p>Pyramid is VSAG’s <strong>hierarchical, path-partitioned</strong> graph index. Every vector is
 tagged with a path string such as <code>"a/d/f"</code>, and Pyramid builds a graph per node
 in that path tree. At query time you supply a path prefix, and Pyramid restricts
@@ -1094,14 +1223,14 @@ queries always scope to a known prefix.</li>
 <li>Workloads with many small partitions: <code>no_build_levels</code> and <code>index_min_size</code>
 let you skip graph construction for partitions too small to benefit.</li>
 </ul>
-<p>If you don’t need path-based scoping, <a href="#hgraph">HGraph</a> is simpler and generally
+<p>If you don’t need path-based scoping, <a href="#hgraph-1">HGraph</a> is simpler and generally
 faster.</p>
 <h2 id="see-also-3"><a class="header" href="#see-also-3">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#index-parameters">Index Parameters</a></li>
 <li><a href="#graph-index-enhancement">Graph Enhancement</a></li>
-<li><a href="#hgraph">HGraph</a></li>
+<li><a href="#hgraph-1">HGraph</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="code-structure"><a class="header" href="#code-structure">Code Structure</a></h1>
@@ -1459,59 +1588,6 @@ unbounded memory usage.</li>
 between <code>RangeSearch</code> and <code>KnnSearch</code>.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="optimizer-tune"><a class="header" href="#optimizer-tune">Optimizer (Tune)</a></h1>
-<p>For graph-based indexes (HNSW, HGraph), VSAG exposes the <code>Tune</code> interface, which automatically
-adjusts runtime parameters based on a representative query set to get a better trade-off between
-<strong>recall</strong> and <strong>latency</strong>. Internally this is the historical “ELP Optimizer”.</p>
-<h2 id="basic-usage-1"><a class="header" href="#basic-usage-1">Basic Usage</a></h2>
-<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
-
-auto index = vsag::Factory::CreateIndex("hgraph", build_params).value();
-index-&gt;Build(base_dataset);
-
-std::string tune_params = R"(
-{
-    "queries_dataset": "path/or/inline/queries",
-    "target_recall": 0.95,
-    "top_k": 10
-}
-)";
-auto ret = index-&gt;Tune(tune_params);
-</code></pre>
-<p>The second argument <code>disable_future_tuning</code> defaults to <code>false</code>, allowing repeated calls to keep
-refining. Set it to <code>true</code> to freeze the parameters.</p>
-<h2 id="relationship-with-the-elp-optimizer"><a class="header" href="#relationship-with-the-elp-optimizer">Relationship with the ELP Optimizer</a></h2>
-<p>Older literature (see <a href="resources/research_papers.html">Research Papers</a>) refers to the “ELP
-Optimizer”. Its implementation key is <code>use_elp_optimizer</code>, which now lives behind the unified
-<code>Tune</code> API — users no longer need to flip it directly.</p>
-<h2 id="supported-indexes"><a class="header" href="#supported-indexes">Supported Indexes</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Index type</th><th>Supports Tune</th></tr>
-</thead>
-<tbody>
-<tr><td>hnsw</td><td>yes</td></tr>
-<tr><td>hgraph</td><td>yes</td></tr>
-<tr><td>diskann</td><td>partial</td></tr>
-<tr><td>ivf / sindi / brute_force</td><td>no</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="example"><a class="header" href="#example">Example</a></h2>
-<p><code>examples/cpp/318_feature_tune.cpp</code> walks through an end-to-end tuning flow:</p>
-<ol>
-<li>Create the index and <code>Build</code>.</li>
-<li>Call <code>Tune</code> with a representative query set.</li>
-<li>Serialize the tuned index for production use.</li>
-</ol>
-<h2 id="notes-1"><a class="header" href="#notes-1">Notes</a></h2>
-<ul>
-<li>Tuning is sensitive to the query distribution — use samples that reflect real traffic.</li>
-<li>Tuned parameters are persisted together with the index metadata via <code>Serialize</code>/<code>Deserialize</code>
-and remain in effect after deployment.</li>
-</ul>
-<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="serialization"><a class="header" href="#serialization">Serialization</a></h1>
 <p>VSAG indexes can be serialized and deserialized through several interfaces, supporting
 persistence, cross-process sharing, and distributed deployment.</p>
@@ -1549,7 +1625,7 @@ empty-&gt;Deserialize(in);
     // Write [buf, buf+size) at offset
 });
 </code></pre>
-<h2 id="notes-2"><a class="header" href="#notes-2">Notes</a></h2>
+<h2 id="notes-1"><a class="header" href="#notes-1">Notes</a></h2>
 <ul>
 <li><code>Deserialize</code> requires an <strong>empty</strong> target index whose configuration (<code>dim</code>, <code>metric_type</code>, etc.)
 matches the one used at serialization time.</li>
@@ -1605,7 +1681,7 @@ auto result = index-&gt;KnnSearch(query, k, search_param);
 <p><code>Resource</code> also accepts a user-supplied <code>ThreadPool</code>, which combined with a custom allocator gives
 full control over parallelism and resource ownership. See
 <code>examples/cpp/203_custom_thread_pool.cpp</code>.</p>
-<h2 id="notes-3"><a class="header" href="#notes-3">Notes</a></h2>
+<h2 id="notes-2"><a class="header" href="#notes-2">Notes</a></h2>
 <ul>
 <li>A custom allocator must be thread-safe.</li>
 <li>The allocator’s lifetime must outlive any index and result object referencing it.</li>
@@ -1640,7 +1716,7 @@ auto result = index-&gt;KnnSearch(query, k, search_param_json);
 <p>The conjugate graph is built by inverting “failure paths” over the training data on the original
 graph and then used as additional candidate edges during greedy expansion at search time. It is a
 lightweight patch on the main graph, typically below 10% of the main graph’s size.</p>
-<h2 id="example-1"><a class="header" href="#example-1">Example</a></h2>
+<h2 id="example"><a class="header" href="#example">Example</a></h2>
 <p><code>examples/cpp/304_feature_enhance_graph.cpp</code> walks through building, training, and comparing
 recall end-to-end.</p>
 <h2 id="when-to-use-it"><a class="header" href="#when-to-use-it">When to Use It</a></h2>
@@ -1649,7 +1725,7 @@ recall end-to-end.</p>
 <li>Online services sensitive to P99 recall.</li>
 <li>You want a recall boost without rebuilding the index.</li>
 </ul>
-<h2 id="notes-4"><a class="header" href="#notes-4">Notes</a></h2>
+<h2 id="notes-3"><a class="header" href="#notes-3">Notes</a></h2>
 <ul>
 <li>Build time increases slightly when enabled.</li>
 <li>Conjugate-graph data is serialized together with the index.</li>
@@ -1695,7 +1771,7 @@ This requires compiling with <code>VSAG_ENABLE_LIBAIO=ON</code> (see <a href="#b
 <li><code>*.data</code> — the full-precision vectors.</li>
 </ul>
 <p>Both files must be reachable at deserialization time.</p>
-<h2 id="notes-5"><a class="header" href="#notes-5">Notes</a></h2>
+<h2 id="notes-4"><a class="header" href="#notes-4">Notes</a></h2>
 <ul>
 <li>Prefer NVMe SSDs; on HDDs query latency degrades dramatically.</li>
 <li>The compression ratio and accuracy of the in-memory PQ depend on <code>pq_dims</code>; setting it too low
@@ -1704,121 +1780,6 @@ hurts recall.</li>
 <li>DiskANN does not currently support online insert/delete; rebuild the index when updates are
 needed.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="release-notes"><a class="header" href="#release-notes">Release Notes</a></h1>
-<p>VSAG’s official release history and change notes are maintained on GitHub Releases:</p>
-<ul>
-<li><a href="https://github.com/antgroup/vsag/releases">Releases on GitHub</a></li>
-</ul>
-<p>Each release includes:</p>
-<ul>
-<li><strong>Features</strong> — new functionality</li>
-<li><strong>Improvements</strong></li>
-<li><strong>Bug Fixes</strong></li>
-<li><strong>Breaking Changes</strong> (when applicable)</li>
-<li><strong>Contributor credits</strong></li>
-</ul>
-<h2 id="versioning"><a class="header" href="#versioning">Versioning</a></h2>
-<p>VSAG follows <a href="https://semver.org/">Semantic Versioning 2.0</a>:</p>
-<ul>
-<li><code>MAJOR.MINOR.PATCH</code></li>
-<li><code>MAJOR</code> generally comes with incompatible API or serialization changes.</li>
-<li><code>MINOR</code> adds functionality while remaining backward compatible.</li>
-<li><code>PATCH</code> contains only bug fixes and performance improvements.</li>
-</ul>
-<h2 id="getting-a-specific-version"><a class="header" href="#getting-a-specific-version">Getting a Specific Version</a></h2>
-<h3 id="c--source"><a class="header" href="#c--source">C++ / source</a></h3>
-<pre><code class="language-bash">git checkout vX.Y.Z
-make release
-</code></pre>
-<h3 id="python"><a class="header" href="#python">Python</a></h3>
-<pre><code class="language-bash">pip install pyvsag==X.Y.Z
-</code></pre>
-<h3 id="nodejs--typescript-1"><a class="header" href="#nodejs--typescript-1">Node.js / TypeScript</a></h3>
-<pre><code class="language-bash">npm install vsag@X.Y.Z
-</code></pre>
-<h2 id="upgrade-guidance"><a class="header" href="#upgrade-guidance">Upgrade Guidance</a></h2>
-<ul>
-<li>Read the <strong>Breaking Changes</strong> section of the corresponding release before upgrading across major
-versions.</li>
-<li>When the serialization format changes, validate deserialization compatibility in a staging
-environment first.</li>
-<li>Roll out gradually in production and use the
-<a href="#performance-evaluation-tool-eval_performance">performance evaluation tool</a> to compare recall and latency.</li>
-</ul>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="community"><a class="header" href="#community">Community</a></h1>
-<p>VSAG is open-sourced by Ant Group and is actively maintained on GitHub. Developers, researchers,
-and users are all welcome to join the community.</p>
-<h2 id="channels"><a class="header" href="#channels">Channels</a></h2>
-<ul>
-<li><strong>GitHub Issues</strong> — bug reports, feature requests, design discussions.
-<a href="https://github.com/antgroup/vsag/issues">https://github.com/antgroup/vsag/issues</a></li>
-<li><strong>GitHub Discussions</strong> (when enabled) — long-running topics, Q&amp;A, best practices.</li>
-<li><strong>Pull Requests</strong> — every code, doc, or example change goes through a PR. See
-<a href="#contributing-to-vsag">Contributing to VSAG</a>.</li>
-<li><strong>DingTalk / WeChat groups</strong> — if announced by the community, the latest invite links are
-pinned at the top of the repository README.</li>
-</ul>
-<h2 id="governance"><a class="header" href="#governance">Governance</a></h2>
-<ul>
-<li>A maintainer team owns code review, releases, and the roadmap.</li>
-<li>Every PR requires at least one approving review plus the required CI checks.</li>
-<li>Every PR must carry both a <code>kind/*</code> label and a <code>version/*</code> label (enforced by Mergify). See
-the <a href="#contributing-to-vsag">contributors’ guide</a>.</li>
-</ul>
-<h2 id="ways-to-contribute-1"><a class="header" href="#ways-to-contribute-1">Ways to Contribute</a></h2>
-<p>More than just code:</p>
-<ul>
-<li><strong>Docs</strong> — fix typos, add examples, translate pages.</li>
-<li><strong>Examples</strong> — contribute end-to-end demos to <code>examples/cpp/</code> or <code>examples/python/</code>.</li>
-<li><strong>Benchmarks</strong> — share results on new hardware or datasets, extending the
-<a href="#reference-performance">reference performance page</a>.</li>
-<li><strong>Ecosystem integrations</strong> — write bindings or adapters for other languages / databases.</li>
-<li><strong>Articles</strong> — guest posts are welcome under <code>docs/blog/</code> (see the repository README).</li>
-</ul>
-<h2 id="code-of-conduct"><a class="header" href="#code-of-conduct">Code of Conduct</a></h2>
-<p>The community follows the
-<a href="https://www.contributor-covenant.org/">Contributor Covenant Code of Conduct</a>. Please participate
-constructively and respectfully.</p>
-<h2 id="related-projects"><a class="header" href="#related-projects">Related Projects</a></h2>
-<p>See <a href="#related-projects-1">Related Projects</a>.</p>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="related-projects-1"><a class="header" href="#related-projects-1">Related Projects</a></h1>
-<p>This page lists upstream and downstream projects related to or integrating with VSAG, making it
-easier to assemble complete stacks.</p>
-<h2 id="projects-using-vsag"><a class="header" href="#projects-using-vsag">Projects Using VSAG</a></h2>
-<ul>
-<li><strong><a href="https://github.com/oceanbase/oceanbase">OceanBase</a></strong> — Ant Group’s open-source distributed
-relational database; its vector search is powered by VSAG.</li>
-<li><strong>Other vector databases / integrations</strong> — if you maintain an integration, feel free to open a
-PR to list it here.</li>
-</ul>
-<h2 id="dependencies-and-inspirations"><a class="header" href="#dependencies-and-inspirations">Dependencies and Inspirations</a></h2>
-<ul>
-<li><strong><a href="https://github.com/nmslib/hnswlib">hnswlib</a></strong> — the canonical HNSW implementation; VSAG’s
-HNSW interface and algorithms were influenced by it.</li>
-<li><strong><a href="https://github.com/microsoft/DiskANN">DiskANN</a></strong> — Microsoft Research’s large-scale on-disk
-vector search work; VSAG’s <code>diskann</code> index is based on this approach.</li>
-<li><strong><a href="https://github.com/facebookresearch/faiss">Faiss</a></strong> — Meta’s vector search library; VSAG
-borrows ideas in IVF and quantization.</li>
-<li><strong><a href="https://github.com/microsoft/SPTAG">SPANN / SPTAG</a></strong> — Microsoft’s large-scale retrieval
-system; shaped our hybrid-index approach.</li>
-</ul>
-<h2 id="ecosystem-tooling"><a class="header" href="#ecosystem-tooling">Ecosystem Tooling</a></h2>
-<ul>
-<li><strong><a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a></strong> — the de-facto ANN benchmark
-harness; VSAG’s <a href="#performance-evaluation-tool-eval_performance">performance evaluation tool</a> is compatible with its dataset format.</li>
-<li><strong><a href="https://github.com/pybind/pybind11">pybind11</a></strong> — powers the <code>pyvsag</code> Python binding.</li>
-<li><strong><a href="https://napi.rs/">napi-rs</a></strong> — powers the Node.js binding under <code>typescript/</code>.</li>
-</ul>
-<h2 id="bindings--language-support"><a class="header" href="#bindings--language-support">Bindings / Language Support</a></h2>
-<ul>
-<li><strong>C++</strong> (native)</li>
-<li><strong>Python</strong> — <code>pyvsag</code>, source under <code>python_bindings/</code> and <code>python/</code>.</li>
-<li><strong>Node.js / TypeScript</strong> — source under <code>typescript/</code>, npm package name <code>vsag</code>.</li>
-</ul>
-<p>Pull requests to extend this list are welcome.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h1>
 <p>This page gathers practical advice for running VSAG in production, as a companion to the
@@ -1885,132 +1846,58 @@ allocator; see <a href="#memory-management">Memory Management</a>.</li>
 <li><code>eval_performance</code> can write its metrics directly to InfluxDB for long-term monitoring.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="index-parameters"><a class="header" href="#index-parameters">Index Parameters</a></h1>
-<p>This page summarises the commonly used parameters for every VSAG index type. For the full
-enumeration, consult the source:</p>
+<h1 id="optimizer-tune"><a class="header" href="#optimizer-tune">Optimizer (Tune)</a></h1>
+<p>For graph-based indexes (HNSW, HGraph), VSAG exposes the <code>Tune</code> interface, which automatically
+adjusts runtime parameters based on a representative query set to get a better trade-off between
+<strong>recall</strong> and <strong>latency</strong>. Internally this is the historical “ELP Optimizer”.</p>
+<h2 id="basic-usage-1"><a class="header" href="#basic-usage-1">Basic Usage</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+auto index = vsag::Factory::CreateIndex("hgraph", build_params).value();
+index-&gt;Build(base_dataset);
+
+std::string tune_params = R"(
+{
+    "queries_dataset": "path/or/inline/queries",
+    "target_recall": 0.95,
+    "top_k": 10
+}
+)";
+auto ret = index-&gt;Tune(tune_params);
+</code></pre>
+<p>The second argument <code>disable_future_tuning</code> defaults to <code>false</code>, allowing repeated calls to keep
+refining. Set it to <code>true</code> to freeze the parameters.</p>
+<h2 id="relationship-with-the-elp-optimizer"><a class="header" href="#relationship-with-the-elp-optimizer">Relationship with the ELP Optimizer</a></h2>
+<p>Older literature (see <a href="#research-papers">Research Papers</a>) refers to the “ELP
+Optimizer”. Its implementation key is <code>use_elp_optimizer</code>, which now lives behind the unified
+<code>Tune</code> API — users no longer need to flip it directly.</p>
+<h2 id="supported-indexes"><a class="header" href="#supported-indexes">Supported Indexes</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index type</th><th>Supports Tune</th></tr>
+</thead>
+<tbody>
+<tr><td>hnsw</td><td>yes</td></tr>
+<tr><td>hgraph</td><td>yes</td></tr>
+<tr><td>diskann</td><td>partial</td></tr>
+<tr><td>ivf / sindi / brute_force</td><td>no</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="example-1"><a class="header" href="#example-1">Example</a></h2>
+<p><code>examples/cpp/318_feature_tune.cpp</code> walks through an end-to-end tuning flow:</p>
+<ol>
+<li>Create the index and <code>Build</code>.</li>
+<li>Call <code>Tune</code> with a representative query set.</li>
+<li>Serialize the tuned index for production use.</li>
+</ol>
+<h2 id="notes-5"><a class="header" href="#notes-5">Notes</a></h2>
 <ul>
-<li>Build parameter keys: <code>src/constants.cpp</code></li>
-<li>Public constants: <code>include/vsag/constants.h</code></li>
-<li>Per-index examples: <code>examples/cpp/101_index_hnsw.cpp</code> and friends.</li>
+<li>Tuning is sensitive to the query distribution — use samples that reflect real traffic.</li>
+<li>Tuned parameters are persisted together with the index metadata via <code>Serialize</code>/<code>Deserialize</code>
+and remain in effect after deployment.</li>
 </ul>
-<h2 id="common-fields"><a class="header" href="#common-fields">Common Fields</a></h2>
-<p>Every index requires these top-level fields at build time:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Values</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>dim</code></td><td>positive integer</td><td>Vector dimensionality; cannot change after build</td></tr>
-<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code></td><td>Vector data type; determines internal representation</td></tr>
-<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Distance metric</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="hnsw-1"><a class="header" href="#hnsw-1">HNSW</a></h2>
-<p>HNSW uses the <code>hnsw</code> sub-object for build parameters. It does not accept HGraph-only keys
-such as <code>base_quantization_type</code>.</p>
-<pre><code class="language-json">{
-    "dim": 128,
-    "dtype": "float32",
-    "metric_type": "l2",
-    "hnsw": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "use_conjugate_graph": false
-    }
-}
-</code></pre>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Typical</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
-<tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
-<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td>Build the <a href="#graph-index-enhancement">conjugate graph</a></td></tr>
-</tbody>
-</table>
-</div>
-<p>At search time:</p>
-<pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
-</code></pre>
-<h2 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h2>
-<p>HGraph places its build parameters under the generic <code>index_param</code> key (see
-<code>examples/cpp/103_index_hgraph.cpp</code>); the <code>hgraph</code> key is reserved for search-time parameters.</p>
-<pre><code class="language-json">{
-    "dim": 128,
-    "dtype": "float32",
-    "metric_type": "l2",
-    "index_param": {
-        "base_quantization_type": "fp32",
-        "max_degree": 32,
-        "ef_construction": 400
-    }
-}
-</code></pre>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Typical</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
-<tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage</td></tr>
-</tbody>
-</table>
-</div>
-<p>At search time:</p>
-<pre><code class="language-json">{"hgraph": {"ef_search": 100}}
-</code></pre>
-<h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
-<pre><code class="language-json">{
-    "diskann": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "pq_sample_rate": 0.1,
-        "pq_dims": 32,
-        "use_async_io": true
-    }
-}
-</code></pre>
-<h2 id="ivf-1"><a class="header" href="#ivf-1">IVF</a></h2>
-<pre><code class="language-json">{
-    "ivf": {
-        "nlist": 4096,
-        "base_quantization_type": "sq8",
-        "nprobe": 32
-    }
-}
-</code></pre>
-<h2 id="brute-force"><a class="header" href="#brute-force">Brute Force</a></h2>
-<pre><code class="language-json">{"brute_force": {}}
-</code></pre>
-<p>No extra parameters.</p>
-<h2 id="pyramid-1"><a class="header" href="#pyramid-1">Pyramid</a></h2>
-<p>Pyramid supports organising multiple subgraphs by tag:</p>
-<pre><code class="language-json">{
-    "pyramid": {
-        "tag_dim": 1,
-        "max_degree": 24,
-        "ef_construction": 300
-    }
-}
-</code></pre>
-<h2 id="sindi-sparse-vectors"><a class="header" href="#sindi-sparse-vectors">SINDI (sparse vectors)</a></h2>
-<pre><code class="language-json">{
-    "sindi": {
-        "top_k": 32,
-        "doc_prune_ratio": 0.1
-    }
-}
-</code></pre>
-<h2 id="runtime-parameters"><a class="header" href="#runtime-parameters">Runtime Parameters</a></h2>
-<p>Beyond build-time parameters, <code>Index::Tune</code> and <code>SearchParam</code> tweak runtime settings such as
-<code>ef_search</code> and <code>nprobe</code>. See <a href="#optimizer-tune">Optimizer</a> and the
-<code>examples/cpp/3xx_feature_*.cpp</code> examples.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="reference-performance"><a class="header" href="#reference-performance">Reference Performance</a></h1>
 <p>This page is the entry point and explanation for official performance numbers. For concrete
@@ -2126,6 +2013,237 @@ cmake --build build-release -j
 <li>English README: <code>tools/eval/README.md</code></li>
 <li>Reference numbers on standard hardware: <a href="#reference-performance">Reference Performance</a>.</li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="release-notes"><a class="header" href="#release-notes">Release Notes</a></h1>
+<p>VSAG’s official release history and change notes are maintained on GitHub Releases:</p>
+<ul>
+<li><a href="https://github.com/antgroup/vsag/releases">Releases on GitHub</a></li>
+</ul>
+<p>Each release includes:</p>
+<ul>
+<li><strong>Features</strong> — new functionality</li>
+<li><strong>Improvements</strong></li>
+<li><strong>Bug Fixes</strong></li>
+<li><strong>Breaking Changes</strong> (when applicable)</li>
+<li><strong>Contributor credits</strong></li>
+</ul>
+<h2 id="versioning"><a class="header" href="#versioning">Versioning</a></h2>
+<p>VSAG follows <a href="https://semver.org/">Semantic Versioning 2.0</a>:</p>
+<ul>
+<li><code>MAJOR.MINOR.PATCH</code></li>
+<li><code>MAJOR</code> generally comes with incompatible API or serialization changes.</li>
+<li><code>MINOR</code> adds functionality while remaining backward compatible.</li>
+<li><code>PATCH</code> contains only bug fixes and performance improvements.</li>
+</ul>
+<h2 id="getting-a-specific-version"><a class="header" href="#getting-a-specific-version">Getting a Specific Version</a></h2>
+<h3 id="c--source"><a class="header" href="#c--source">C++ / source</a></h3>
+<pre><code class="language-bash">git checkout vX.Y.Z
+make release
+</code></pre>
+<h3 id="python"><a class="header" href="#python">Python</a></h3>
+<pre><code class="language-bash">pip install pyvsag==X.Y.Z
+</code></pre>
+<h3 id="nodejs--typescript-1"><a class="header" href="#nodejs--typescript-1">Node.js / TypeScript</a></h3>
+<pre><code class="language-bash">npm install vsag@X.Y.Z
+</code></pre>
+<h2 id="upgrade-guidance"><a class="header" href="#upgrade-guidance">Upgrade Guidance</a></h2>
+<ul>
+<li>Read the <strong>Breaking Changes</strong> section of the corresponding release before upgrading across major
+versions.</li>
+<li>When the serialization format changes, validate deserialization compatibility in a staging
+environment first.</li>
+<li>Roll out gradually in production and use the
+<a href="#performance-evaluation-tool-eval_performance">performance evaluation tool</a> to compare recall and latency.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="roadmap"><a class="header" href="#roadmap">Roadmap</a></h1>
+<p>As AI capabilities keep advancing and strong open-source LLMs become widespread, demand for
+unstructured-data retrieval has exploded. Vector algorithms are the cornerstone of unstructured
+retrieval, and the VSAG community will keep investing in algorithmic research to help partners
+improve retrieval performance, reduce latency, and cut costs.</p>
+<p>In 2025 we plan to ship the first major release:</p>
+<ul>
+<li>VSAG 1.0 provides comprehensive support for both graph-based and inverted-index structures, as
+well as in-memory and memory-plus-disk hybrid retrieval modes, delivering low memory cost and
+outstanding search performance.</li>
+</ul>
+<p>Planned algorithms and features:</p>
+<ul>
+<li>Support for common data types to cover diverse unstructured retrieval scenarios
+<ul>
+<li>FP32 vectors: mainstream retrieval scenarios</li>
+<li>INT8, BF16, FP16 vectors: adapt to quantized embedding models without extra storage overhead</li>
+<li>Sparse vectors: extending text-retrieval workloads</li>
+</ul>
+</li>
+<li>Fully optimized core index types covering the majority of retrieval scenarios
+<ul>
+<li>Graph index HGraph: high precision and low latency</li>
+<li>Inverted index IVF: large K and batch query workloads</li>
+</ul>
+</li>
+<li>Rich quantization options for the memory/recall trade-off
+<ul>
+<li>RabitQ (BQ): ultra-high compression with minimal memory</li>
+<li>PQ: flexible compression ratios for accuracy-tolerant scenarios</li>
+<li>SQ4, SQ8: standard quantization with minor recall loss and large memory/perf gains</li>
+</ul>
+</li>
+<li>Multi-platform instruction support to simplify distribution
+<ul>
+<li>x86_64: SSE, AVX, AVX2, AVX-512</li>
+<li>ARM: NEON, SVE</li>
+<li>Optional matrix-multiplication libraries: Intel MKL, OpenBLAS</li>
+</ul>
+</li>
+<li>Resource isolation and fine-grained runtime configurability
+<ul>
+<li>Memory: per-index allocators, enabling tenant-level memory management</li>
+<li>CPU: injectable thread pools to boost write and search throughput</li>
+</ul>
+</li>
+</ul>
+<p>Beyond these, there is much more we want to discuss, design, and build in the open-source
+community — follow the VSAG project to stay up to date!</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="community"><a class="header" href="#community">Community</a></h1>
+<p>VSAG is open-sourced by Ant Group and is actively maintained on GitHub. Developers, researchers,
+and users are all welcome to join the community.</p>
+<h2 id="channels"><a class="header" href="#channels">Channels</a></h2>
+<ul>
+<li><strong>GitHub Issues</strong> — bug reports, feature requests, design discussions.
+<a href="https://github.com/antgroup/vsag/issues">https://github.com/antgroup/vsag/issues</a></li>
+<li><strong>GitHub Discussions</strong> (when enabled) — long-running topics, Q&amp;A, best practices.</li>
+<li><strong>Pull Requests</strong> — every code, doc, or example change goes through a PR. See
+<a href="#contributing-to-vsag">Contributing to VSAG</a>.</li>
+<li><strong>DingTalk / WeChat groups</strong> — if announced by the community, the latest invite links are
+pinned at the top of the repository README.</li>
+</ul>
+<h2 id="governance"><a class="header" href="#governance">Governance</a></h2>
+<ul>
+<li>A maintainer team owns code review, releases, and the roadmap.</li>
+<li>Every PR requires at least one approving review plus the required CI checks.</li>
+<li>Every PR must carry both a <code>kind/*</code> label and a <code>version/*</code> label (enforced by Mergify). See
+the <a href="#contributing-to-vsag">contributors’ guide</a>.</li>
+</ul>
+<h2 id="ways-to-contribute-1"><a class="header" href="#ways-to-contribute-1">Ways to Contribute</a></h2>
+<p>More than just code:</p>
+<ul>
+<li><strong>Docs</strong> — fix typos, add examples, translate pages.</li>
+<li><strong>Examples</strong> — contribute end-to-end demos to <code>examples/cpp/</code> or <code>examples/python/</code>.</li>
+<li><strong>Benchmarks</strong> — share results on new hardware or datasets, extending the
+<a href="#reference-performance">reference performance page</a>.</li>
+<li><strong>Ecosystem integrations</strong> — write bindings or adapters for other languages / databases.</li>
+<li><strong>Articles</strong> — guest posts are welcome under <code>docs/blog/</code> (see the repository README).</li>
+</ul>
+<h2 id="code-of-conduct"><a class="header" href="#code-of-conduct">Code of Conduct</a></h2>
+<p>The community follows the
+<a href="https://www.contributor-covenant.org/">Contributor Covenant Code of Conduct</a>. Please participate
+constructively and respectfully.</p>
+<h2 id="related-projects"><a class="header" href="#related-projects">Related Projects</a></h2>
+<p>See <a href="#related-projects-1">Related Projects</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="related-projects-1"><a class="header" href="#related-projects-1">Related Projects</a></h1>
+<p>This page lists upstream and downstream projects related to or integrating with VSAG, making it
+easier to assemble complete stacks.</p>
+<h2 id="projects-using-vsag"><a class="header" href="#projects-using-vsag">Projects Using VSAG</a></h2>
+<ul>
+<li><strong><a href="https://github.com/oceanbase/oceanbase">OceanBase</a></strong> — Ant Group’s open-source distributed
+relational database; its vector search is powered by VSAG.</li>
+<li><strong>Other vector databases / integrations</strong> — if you maintain an integration, feel free to open a
+PR to list it here.</li>
+</ul>
+<h2 id="dependencies-and-inspirations"><a class="header" href="#dependencies-and-inspirations">Dependencies and Inspirations</a></h2>
+<ul>
+<li><strong><a href="https://github.com/nmslib/hnswlib">hnswlib</a></strong> — the canonical HNSW implementation; VSAG’s
+HNSW interface and algorithms were influenced by it.</li>
+<li><strong><a href="https://github.com/microsoft/DiskANN">DiskANN</a></strong> — Microsoft Research’s large-scale on-disk
+vector search work; VSAG’s <code>diskann</code> index is based on this approach.</li>
+<li><strong><a href="https://github.com/facebookresearch/faiss">Faiss</a></strong> — Meta’s vector search library; VSAG
+borrows ideas in IVF and quantization.</li>
+<li><strong><a href="https://github.com/microsoft/SPTAG">SPANN / SPTAG</a></strong> — Microsoft’s large-scale retrieval
+system; shaped our hybrid-index approach.</li>
+</ul>
+<h2 id="ecosystem-tooling"><a class="header" href="#ecosystem-tooling">Ecosystem Tooling</a></h2>
+<ul>
+<li><strong><a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a></strong> — the de-facto ANN benchmark
+harness; VSAG’s <a href="#performance-evaluation-tool-eval_performance">performance evaluation tool</a> is compatible with its dataset format.</li>
+<li><strong><a href="https://github.com/pybind/pybind11">pybind11</a></strong> — powers the <code>pyvsag</code> Python binding.</li>
+<li><strong><a href="https://napi.rs/">napi-rs</a></strong> — powers the Node.js binding under <code>typescript/</code>.</li>
+</ul>
+<h2 id="bindings--language-support"><a class="header" href="#bindings--language-support">Bindings / Language Support</a></h2>
+<ul>
+<li><strong>C++</strong> (native)</li>
+<li><strong>Python</strong> — <code>pyvsag</code>, source under <code>python_bindings/</code> and <code>python/</code>.</li>
+<li><strong>Node.js / TypeScript</strong> — source under <code>typescript/</code>, npm package name <code>vsag</code>.</li>
+</ul>
+<p>Pull requests to extend this list are welcome.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="research-papers"><a class="header" href="#research-papers">Research Papers</a></h1>
+<h2 id="1-effective-and-general-distance-computation-for-approximate-nearest-neighbor-search-icde25"><a class="header" href="#1-effective-and-general-distance-computation-for-approximate-nearest-neighbor-search-icde25">1. Effective and General Distance Computation for Approximate Nearest Neighbor Search <a href="http://arxiv.org/abs/2404.16322">[ICDE’25]</a></a></h2>
+<p>Approximate K-nearest-neighbor (AKNN) search in high-dimensional spaces is a key and challenging
+problem. Distance computation dominates AKNN runtime, and existing approaches rely on approximate
+distances to gain efficiency, usually at the cost of accuracy. The state-of-the-art ADSampling
+uses random projection to estimate distances and a correction step to mitigate accuracy loss, but
+is limited in both effectiveness and generality because both steps depend on random projection.
+This work improves distance computation by using data-aware orthogonal projections and a
+data-driven correction procedure decoupled from the approximation step. Extensive experiments
+show 1.6×–2.1× speedups over ADSampling on real-world datasets with higher accuracy.</p>
+<blockquote>
+<p>Integrated into VSAG under the name BSA; used to reduce the amount of high-precision re-ranking
+data inside disk-based indexes.</p>
+</blockquote>
+<h2 id="2-vsag-an-optimized-search-framework-for-graph-based-approximate-nearest-neighbor-search-vldb25"><a class="header" href="#2-vsag-an-optimized-search-framework-for-graph-based-approximate-nearest-neighbor-search-vldb25">2. VSAG: An Optimized Search Framework for Graph-based Approximate Nearest Neighbor Search <a href="http://arxiv.org/abs/2503.17911">[VLDB’25]</a></a></h2>
+<p>Approximate nearest-neighbor search (ANNS) is foundational to vector databases and AI
+infrastructure. Recent graph-based ANNS algorithms deliver both high accuracy and practical
+efficiency, but production performance is still limited by random memory access patterns and
+expensive distance computations. Moreover, graph-based ANNS is highly parameter-sensitive, and
+finding optimal parameters traditionally requires repeatedly rebuilding the index. This paper
+introduces VSAG, an open-source framework that targets these issues in production. VSAG is widely
+deployed across Ant Group services and combines three key optimizations: (i) efficient memory
+access via prefetching and cache-friendly vector layout to reduce L3 misses; (ii) automatic
+parameter tuning without rebuilding the index; and (iii) efficient distance computation leveraging
+modern hardware, scalar quantization, and low-precision fallbacks. On real-world datasets VSAG
+matches or exceeds state-of-the-art accuracy while achieving up to 4× higher throughput than
+HNSWlib.</p>
+<blockquote>
+<p>Integrated into VSAG; enabled through the <a href="#optimizer-tune"><code>Tune</code></a> API (historically
+called the “ELP Optimizer” and implemented behind the <code>use_elp_optimizer</code> key).</p>
+</blockquote>
+<h2 id="3-enhancegraph-a-continuously-enhanced-graph-based-index-for-high-dimensional-approximate-nearest-neighbor-search-arxiv"><a class="header" href="#3-enhancegraph-a-continuously-enhanced-graph-based-index-for-high-dimensional-approximate-nearest-neighbor-search-arxiv">3. EnhanceGraph: A Continuously Enhanced Graph-based Index for High-dimensional Approximate Nearest Neighbor Search <a href="https://arxiv.org/abs/2506.13144">[arxiv]</a></a></h2>
+<p>Driven by rapid progress in deep learning, high-dimensional ANNS has received growing attention.
+We observe that graph-based indexes generate large amounts of search and construction logs over
+their lifetime, but static indexes fail to exploit these valuable signals. This paper proposes
+EnhanceGraph, a framework that folds both log types into a novel structure called a <strong>conjugate
+graph</strong> to improve search quality. Guided by theoretical analysis and observations of the
+limitations of graph-based indexes, we propose several optimisations: for search logs, the
+conjugate graph stores edges from local optima to the global optimum to strengthen routing;
+for construction logs it stores edges pruned from the proximity graph to improve k-NN recall.
+Experiments on public and real industrial datasets show EnhanceGraph significantly improves
+accuracy without sacrificing search efficiency, with recall gains reaching from 41.74% to 93.42%.
+EnhanceGraph has been integrated into VSAG.</p>
+<blockquote>
+<p>Integrated into VSAG on HNSW-like indexes; enable via the
+<a href="#graph-index-enhancement"><code>use_conjugate_graph</code></a> parameter.</p>
+</blockquote>
+<h2 id="4-sindi-an-efficient-index-for-approximate-maximum-inner-product-search-on-sparse-vectors-arxiv"><a class="header" href="#4-sindi-an-efficient-index-for-approximate-maximum-inner-product-search-on-sparse-vectors-arxiv">4. SINDI: an Efficient Index for Approximate Maximum Inner Product Search on Sparse Vectors <a href="https://arxiv.org/abs/2509.08395">[arxiv]</a></a></h2>
+<p>Maximum inner product search (MIPS) on sparse vectors is critical for multi-way retrieval used in
+retrieval-augmented generation (RAG). Recent inverted-index and graph-based algorithms combine
+high accuracy with practical efficiency, but production performance is often limited by redundant
+distance computations and frequent random memory accesses. Furthermore, the compressed storage
+format of sparse vectors makes it hard to take advantage of SIMD acceleration. This paper presents
+the Sparse Inverted Non-redundant Distance Index (SINDI), which combines three key optimisations:
+(i) efficient inner-product computation that uses SIMD acceleration and eliminates redundant
+identifier lookups for batched computations; (ii) memory-friendly design that replaces random
+access on raw vectors with sequential access on inverted lists, greatly reducing memory-access
+latency; and (iii) vector pruning that keeps only the non-zero entries with larger magnitude, so
+query throughput improves while accuracy is preserved. On real-world datasets SINDI is
+state-of-the-art across scales, languages, and models. On MsMarco, for Recall@50 above 99%, SINDI
+delivers 4.2×–26.4× higher single-thread QPS than SEISMIC and PyANNs. SINDI has been integrated
+into VSAG.</p>
+<blockquote>
+<p>SINDI is an index type inside VSAG.</p>
+</blockquote>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="contributors"><a class="header" href="#contributors">Contributors</a></h1>
 <p>The following is the list of VSAG contributors (updated 2026-04-21), ordered by the date of their

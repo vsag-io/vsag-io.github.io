@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Release Notes - VSAG Documentation</title>
+        <title>Research Papers - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -291,57 +291,81 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="release-notes"><a class="header" href="#release-notes">Release Notes</a></h1>
-<p>VSAG’s official release history and change notes are maintained on GitHub Releases:</p>
-<ul>
-<li><a href="https://github.com/antgroup/vsag/releases">Releases on GitHub</a></li>
-</ul>
-<p>Each release includes:</p>
-<ul>
-<li><strong>Features</strong> — new functionality</li>
-<li><strong>Improvements</strong></li>
-<li><strong>Bug Fixes</strong></li>
-<li><strong>Breaking Changes</strong> (when applicable)</li>
-<li><strong>Contributor credits</strong></li>
-</ul>
-<h2 id="versioning"><a class="header" href="#versioning">Versioning</a></h2>
-<p>VSAG follows <a href="https://semver.org/">Semantic Versioning 2.0</a>:</p>
-<ul>
-<li><code>MAJOR.MINOR.PATCH</code></li>
-<li><code>MAJOR</code> generally comes with incompatible API or serialization changes.</li>
-<li><code>MINOR</code> adds functionality while remaining backward compatible.</li>
-<li><code>PATCH</code> contains only bug fixes and performance improvements.</li>
-</ul>
-<h2 id="getting-a-specific-version"><a class="header" href="#getting-a-specific-version">Getting a Specific Version</a></h2>
-<h3 id="c--source"><a class="header" href="#c--source">C++ / source</a></h3>
-<pre><code class="language-bash">git checkout vX.Y.Z
-make release
-</code></pre>
-<h3 id="python"><a class="header" href="#python">Python</a></h3>
-<pre><code class="language-bash">pip install pyvsag==X.Y.Z
-</code></pre>
-<h3 id="nodejs--typescript"><a class="header" href="#nodejs--typescript">Node.js / TypeScript</a></h3>
-<pre><code class="language-bash">npm install vsag@X.Y.Z
-</code></pre>
-<h2 id="upgrade-guidance"><a class="header" href="#upgrade-guidance">Upgrade Guidance</a></h2>
-<ul>
-<li>Read the <strong>Breaking Changes</strong> section of the corresponding release before upgrading across major
-versions.</li>
-<li>When the serialization format changes, validate deserialization compatibility in a staging
-environment first.</li>
-<li>Roll out gradually in production and use the
-<a href="eval.html">performance evaluation tool</a> to compare recall and latency.</li>
-</ul>
+                        <h1 id="research-papers"><a class="header" href="#research-papers">Research Papers</a></h1>
+<h2 id="1-effective-and-general-distance-computation-for-approximate-nearest-neighbor-search-icde25"><a class="header" href="#1-effective-and-general-distance-computation-for-approximate-nearest-neighbor-search-icde25">1. Effective and General Distance Computation for Approximate Nearest Neighbor Search <a href="http://arxiv.org/abs/2404.16322">[ICDE’25]</a></a></h2>
+<p>Approximate K-nearest-neighbor (AKNN) search in high-dimensional spaces is a key and challenging
+problem. Distance computation dominates AKNN runtime, and existing approaches rely on approximate
+distances to gain efficiency, usually at the cost of accuracy. The state-of-the-art ADSampling
+uses random projection to estimate distances and a correction step to mitigate accuracy loss, but
+is limited in both effectiveness and generality because both steps depend on random projection.
+This work improves distance computation by using data-aware orthogonal projections and a
+data-driven correction procedure decoupled from the approximation step. Extensive experiments
+show 1.6×–2.1× speedups over ADSampling on real-world datasets with higher accuracy.</p>
+<blockquote>
+<p>Integrated into VSAG under the name BSA; used to reduce the amount of high-precision re-ranking
+data inside disk-based indexes.</p>
+</blockquote>
+<h2 id="2-vsag-an-optimized-search-framework-for-graph-based-approximate-nearest-neighbor-search-vldb25"><a class="header" href="#2-vsag-an-optimized-search-framework-for-graph-based-approximate-nearest-neighbor-search-vldb25">2. VSAG: An Optimized Search Framework for Graph-based Approximate Nearest Neighbor Search <a href="http://arxiv.org/abs/2503.17911">[VLDB’25]</a></a></h2>
+<p>Approximate nearest-neighbor search (ANNS) is foundational to vector databases and AI
+infrastructure. Recent graph-based ANNS algorithms deliver both high accuracy and practical
+efficiency, but production performance is still limited by random memory access patterns and
+expensive distance computations. Moreover, graph-based ANNS is highly parameter-sensitive, and
+finding optimal parameters traditionally requires repeatedly rebuilding the index. This paper
+introduces VSAG, an open-source framework that targets these issues in production. VSAG is widely
+deployed across Ant Group services and combines three key optimizations: (i) efficient memory
+access via prefetching and cache-friendly vector layout to reduce L3 misses; (ii) automatic
+parameter tuning without rebuilding the index; and (iii) efficient distance computation leveraging
+modern hardware, scalar quantization, and low-precision fallbacks. On real-world datasets VSAG
+matches or exceeds state-of-the-art accuracy while achieving up to 4× higher throughput than
+HNSWlib.</p>
+<blockquote>
+<p>Integrated into VSAG; enabled through the <a href="../advanced/optimizer.html"><code>Tune</code></a> API (historically
+called the “ELP Optimizer” and implemented behind the <code>use_elp_optimizer</code> key).</p>
+</blockquote>
+<h2 id="3-enhancegraph-a-continuously-enhanced-graph-based-index-for-high-dimensional-approximate-nearest-neighbor-search-arxiv"><a class="header" href="#3-enhancegraph-a-continuously-enhanced-graph-based-index-for-high-dimensional-approximate-nearest-neighbor-search-arxiv">3. EnhanceGraph: A Continuously Enhanced Graph-based Index for High-dimensional Approximate Nearest Neighbor Search <a href="https://arxiv.org/abs/2506.13144">[arxiv]</a></a></h2>
+<p>Driven by rapid progress in deep learning, high-dimensional ANNS has received growing attention.
+We observe that graph-based indexes generate large amounts of search and construction logs over
+their lifetime, but static indexes fail to exploit these valuable signals. This paper proposes
+EnhanceGraph, a framework that folds both log types into a novel structure called a <strong>conjugate
+graph</strong> to improve search quality. Guided by theoretical analysis and observations of the
+limitations of graph-based indexes, we propose several optimisations: for search logs, the
+conjugate graph stores edges from local optima to the global optimum to strengthen routing;
+for construction logs it stores edges pruned from the proximity graph to improve k-NN recall.
+Experiments on public and real industrial datasets show EnhanceGraph significantly improves
+accuracy without sacrificing search efficiency, with recall gains reaching from 41.74% to 93.42%.
+EnhanceGraph has been integrated into VSAG.</p>
+<blockquote>
+<p>Integrated into VSAG on HNSW-like indexes; enable via the
+<a href="../advanced/enhance_graph.html"><code>use_conjugate_graph</code></a> parameter.</p>
+</blockquote>
+<h2 id="4-sindi-an-efficient-index-for-approximate-maximum-inner-product-search-on-sparse-vectors-arxiv"><a class="header" href="#4-sindi-an-efficient-index-for-approximate-maximum-inner-product-search-on-sparse-vectors-arxiv">4. SINDI: an Efficient Index for Approximate Maximum Inner Product Search on Sparse Vectors <a href="https://arxiv.org/abs/2509.08395">[arxiv]</a></a></h2>
+<p>Maximum inner product search (MIPS) on sparse vectors is critical for multi-way retrieval used in
+retrieval-augmented generation (RAG). Recent inverted-index and graph-based algorithms combine
+high accuracy with practical efficiency, but production performance is often limited by redundant
+distance computations and frequent random memory accesses. Furthermore, the compressed storage
+format of sparse vectors makes it hard to take advantage of SIMD acceleration. This paper presents
+the Sparse Inverted Non-redundant Distance Index (SINDI), which combines three key optimisations:
+(i) efficient inner-product computation that uses SIMD acceleration and eliminates redundant
+identifier lookups for batched computations; (ii) memory-friendly design that replaces random
+access on raw vectors with sequential access on inverted lists, greatly reducing memory-access
+latency; and (iii) vector pruning that keeps only the non-zero entries with larger magnitude, so
+query throughput improves while accuracy is preserved. On real-world datasets SINDI is
+state-of-the-art across scales, languages, and models. On MsMarco, for Recall@50 above 99%, SINDI
+delivers 4.2×–26.4× higher single-thread QPS than SEISMIC and PyANNs. SINDI has been integrated
+into VSAG.</p>
+<blockquote>
+<p>SINDI is an index type inside VSAG.</p>
+</blockquote>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../resources/eval.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../resources/related_projects.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../resources/roadmap_2025.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../misc/contributors.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -351,11 +375,11 @@ environment first.</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../resources/eval.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../resources/related_projects.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../resources/roadmap_2025.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../misc/contributors.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
