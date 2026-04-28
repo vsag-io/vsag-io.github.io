@@ -153,10 +153,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-08ee0c6d.js";
+            window.path_to_searchindex_js = "searchindex-0202308a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-0465ccce.js"></script>
+        <script src="toc-6896f04e.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -2012,6 +2012,148 @@ cmake --build build-release -j
 <li>Source: <code>tools/eval/</code></li>
 <li>English README: <code>tools/eval/README.md</code></li>
 <li>Reference numbers on standard hardware: <a href="#reference-performance">Reference Performance</a>.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="index-analysis-analyzeindexbysearch--analyze_index"><a class="header" href="#index-analysis-analyzeindexbysearch--analyze_index">Index Analysis (<code>AnalyzeIndexBySearch</code> &amp; <code>analyze_index</code>)</a></h1>
+<p>VSAG ships an introspection capability for inspecting an index that has already been built or
+loaded, so you can diagnose recall regressions, quantization quality, graph health and search
+performance <strong>without</strong> rebuilding the index. This capability is exposed in two ways:</p>
+<ul>
+<li>the C++ API <code>Index::AnalyzeIndexBySearch</code> (declared in <code>include/vsag/index.h</code>);</li>
+<li>the command-line diagnostic tool <code>analyze_index</code>, located under <code>tools/analyze_index/</code>.</li>
+</ul>
+<h2 id="the-analyzeindexbysearch-api"><a class="header" href="#the-analyzeindexbysearch-api">The <code>AnalyzeIndexBySearch</code> API</a></h2>
+<pre><code class="language-cpp">// include/vsag/index.h
+virtual std::string
+AnalyzeIndexBySearch(const SearchRequest&amp; request);
+</code></pre>
+<ul>
+<li><strong>Input</strong>: a <code>SearchRequest</code> (query dataset + <code>topk</code> + search parameter JSON).</li>
+<li><strong>Output</strong>: a JSON-formatted string containing dynamic, query-driven metrics.</li>
+<li><strong>Supported indexes</strong>: currently <code>HGraph</code> and <code>IVF</code>. <code>Pyramid</code> only supports static analysis
+through <code>GetStats()</code> — it does not yet override <code>AnalyzeIndexBySearch</code>. Indexes that do not
+implement this API will throw an exception when called.</li>
+</ul>
+<p>It is complementary to <code>Index::GetStats()</code>, which reports static structural properties of the
+index without needing query data. For graph-based indexes, additional graph-health details such
+as degree distribution, entry-point quality, sub-index recall and low-recall hot-spots are
+exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBySearch</code>.</p>
+<h3 id="static-metrics-from-getstats"><a class="header" href="#static-metrics-from-getstats">Static metrics from <code>GetStats()</code></a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>total_count</code></td><td>Total number of vectors in the index</td></tr>
+<tr><td><code>deleted_count</code></td><td>Vectors marked for deletion</td></tr>
+<tr><td><code>connect_components</code></td><td>Connected components in the proximity graph</td></tr>
+<tr><td><code>duplicate_ratio</code></td><td>Proportion of duplicate vectors in the dataset</td></tr>
+<tr><td><code>avg_distance_base</code></td><td>Average pairwise distance on a sample of base vectors</td></tr>
+<tr><td><code>recall_base</code></td><td>Self-recall on a sample of base vectors (sanity check)</td></tr>
+<tr><td><code>proximity_recall_neighbor</code></td><td>Recall of neighbor lists vs. the true nearest neighbors</td></tr>
+<tr><td><code>quantization_bias_ratio</code></td><td>Bias introduced by quantized distance vs. exact distance</td></tr>
+<tr><td><code>quantization_inversion_count_rate</code></td><td>Rate of distance-order inversions caused by quantization</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="dynamic-metrics-from-analyzeindexbysearch"><a class="header" href="#dynamic-metrics-from-analyzeindexbysearch">Dynamic metrics from <code>AnalyzeIndexBySearch</code></a></h3>
+<p>Common query-driven metrics produced by HGraph (IVF currently does <strong>not</strong> emit these recall /
+distance / latency fields — see below):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>recall_query</code></td><td>Recall on the supplied query set against true nearest neighbors</td></tr>
+<tr><td><code>avg_distance_query</code></td><td>Average distance between query vectors and retrieved neighbors</td></tr>
+<tr><td><code>time_cost_query</code></td><td>Average per-query latency (milliseconds)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Quantization-related fields differ by index type — they are not unified across implementations:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index</th><th>Field</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>HGraph</code></td><td><code>quantization_bias_ratio_query</code></td><td>Quantization bias observed during search</td></tr>
+<tr><td><code>HGraph</code></td><td><code>quantization_inversion_count_rate_query</code></td><td>Quantization-induced ordering errors during search</td></tr>
+<tr><td><code>IVF</code></td><td><code>quantization_bias_ratio</code></td><td>Quantization bias observed during search (only when <code>use_reorder_</code> is enabled)</td></tr>
+<tr><td><code>IVF</code></td><td><code>quantization_inversion_count_rate</code></td><td>Quantization-induced ordering errors during search (only when <code>use_reorder_</code> is enabled)</td></tr>
+</tbody>
+</table>
+</div>
+<p>If you also need degree distribution, entry-point analysis or sub-index quality breakdown, look
+in the <code>GetStats()</code> JSON instead — <code>AnalyzeIndexBySearch</code> focuses on dynamic, query-driven
+signals.</p>
+<h2 id="the-analyze_index-tool"><a class="header" href="#the-analyze_index-tool">The <code>analyze_index</code> Tool</a></h2>
+<p><code>analyze_index</code> is the user-facing wrapper around the analyzer APIs. It loads a serialized VSAG
+index from disk, prints its metadata and <code>GetStats()</code> output, and (optionally) runs
+<code>AnalyzeIndexBySearch</code> against a query file.</p>
+<h3 id="building-2"><a class="header" href="#building-2">Building</a></h3>
+<p>Tools are not built by default — enable them explicitly:</p>
+<pre><code class="language-bash"># via the project Makefile
+VSAG_ENABLE_TOOLS=ON make release
+
+# or directly through CMake
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_TOOLS=ON
+cmake --build build-release -j
+# Output: ./build-release/tools/analyze_index/analyze_index
+</code></pre>
+<h3 id="command-line-arguments"><a class="header" href="#command-line-arguments">Command-line arguments</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Argument</th><th>Alias</th><th>Required</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>--index_path</code></td><td><code>-i</code></td><td><strong>Yes</strong></td><td>Path to the serialized VSAG index file.</td></tr>
+<tr><td><code>--build_parameter</code></td><td><code>-bp</code></td><td>No</td><td>Build parameters (JSON) used when reloading the index. Defaults to the parameters embedded in the index file.</td></tr>
+<tr><td><code>--query_path</code></td><td><code>-qp</code></td><td>No</td><td>Binary query dataset path. If omitted, only static analysis is performed.</td></tr>
+<tr><td><code>--search_parameter</code></td><td><code>-sp</code></td><td>No</td><td>Search parameters (JSON) used during dynamic analysis.</td></tr>
+<tr><td><code>--topk</code></td><td><code>-k</code></td><td>No</td><td>Top-K for dynamic analysis (default <code>100</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<p>The query file format is the simple binary <code>(uint32 rows, uint32 cols, float32 data...)</code> layout
+consumed by <code>load_query()</code> in <code>tools/analyze_index/analyze_index.cpp</code>.</p>
+<h3 id="two-analysis-modes"><a class="header" href="#two-analysis-modes">Two analysis modes</a></h3>
+<p><strong>1. Static analysis (no query file)</strong></p>
+<pre><code class="language-bash">./build-release/tools/analyze_index/analyze_index \
+    --index_path /path/to/my_index.hgraph
+</code></pre>
+<p>Reports the index name, dimension, data type, metric, build parameters, and <code>GetStats()</code> JSON.</p>
+<p><strong>2. Static + dynamic analysis</strong></p>
+<pre><code class="language-bash">./build-release/tools/analyze_index/analyze_index \
+    --index_path /path/to/my_index.ivf \
+    --query_path /path/to/queries.bin \
+    --search_parameter '{"ivf":{"scan_buckets_count":16}}' \
+    --topk 50
+</code></pre>
+<p>In addition to the static section, prints a <code>Search Analyze: { ... }</code> JSON block produced by
+<code>AnalyzeIndexBySearch</code>.</p>
+<h2 id="typical-use-cases"><a class="header" href="#typical-use-cases">Typical Use Cases</a></h2>
+<ul>
+<li><strong>Recall regression triage</strong>: confirm whether a drop is caused by quantization
+(<code>quantization_*</code> metrics), graph structure (<code>connect_components</code>,
+<code>proximity_recall_neighbor</code>), or query-side parameters (<code>recall_query</code> vs. <code>recall_base</code>).</li>
+<li><strong>Capacity / health checks</strong>: detect duplicated data (<code>duplicate_ratio</code>), disconnected
+components, or excessive deletions.</li>
+<li><strong>Parameter tuning</strong>: re-run <code>AnalyzeIndexBySearch</code> with different <code>search_parameter</code> values to
+pick an operating point that balances <code>recall_query</code> and <code>time_cost_query</code> — without rebuilding
+the index.</li>
+<li><strong>What-if experiments</strong>: override <code>--build_parameter</code> on load to evaluate alternative settings
+for indexes whose parameters are not embedded in the file.</li>
+</ul>
+<h2 id="references-2"><a class="header" href="#references-2">References</a></h2>
+<ul>
+<li>API: <code>Index::AnalyzeIndexBySearch</code> in <code>include/vsag/index.h</code></li>
+<li>Implementations: <code>src/analyzer/{analyzer,hgraph_analyzer,pyramid_analyzer}.h</code></li>
+<li>Tool source: <code>tools/analyze_index/</code></li>
+<li>Tool README: <code>tools/analyze_index/README.md</code></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="release-notes"><a class="header" href="#release-notes">Release Notes</a></h1>
