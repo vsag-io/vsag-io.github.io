@@ -153,7 +153,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-0202308a.js";
+            window.path_to_searchindex_js = "searchindex-2b8662fb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6896f04e.js"></script>
@@ -1983,11 +1983,38 @@ cmake --build build-release -j
     --search_params '{"hgraph":{"ef_search":60}}' \
     --topk 10
 </code></pre>
+<p>Useful flags include <code>--search_mode</code> (<code>knn</code> / <code>range</code> / <code>knn_filter</code> / <code>range_filter</code>),
+<code>--search-query-count</code>, <code>--delete-index-after-search</code>, and the various <code>--disable_*</code> switches that
+turn off individual metrics. See <code>tools/eval/README.md</code> for the full list.</p>
 <h3 id="2-config-file-mode-batch-comparisons"><a class="header" href="#2-config-file-mode-batch-comparisons">2. Config-file mode (batch comparisons)</a></h3>
-<pre><code class="language-bash">./build-release/tools/eval/eval_performance --config my_eval.yaml
+<p>The YAML file is passed directly as a positional argument (no <code>--config</code> flag):</p>
+<pre><code class="language-bash">./build-release/tools/eval/eval_performance my_eval.yaml
 </code></pre>
-<p>See the template <code>tools/eval/eval_template.yaml</code>. A single configuration can define multiple
-<code>eval_caseN</code> entries, each with its own parameter set.</p>
+<p>A reference template is available at <code>tools/eval/eval_template.yaml</code>. A single configuration can
+define multiple named cases, plus an optional <code>global</code> section that holds shared settings such as
+thread counts, exporters, and an embedded HTTP monitor.</p>
+<p>A minimal example:</p>
+<pre><code class="language-yaml">global:
+  num_threads_building: 8
+  num_threads_searching: 16
+  exporters:
+    print-directly:
+      to: stdout
+      format: table
+    save-to-file:
+      to: "file:///tmp/eval_results.json"
+      format: json
+
+eval_case1:
+  datapath: /tmp/sift-128-euclidean.hdf5
+  type: search
+  index_name: hgraph
+  create_params: '{"dim":128,"dtype":"float32","metric_type":"l2","index_param":{"base_quantization_type":"fp32","max_degree":32,"ef_construction":300}}'
+  search_params: '{"hgraph":{"ef_search":60}}'
+  index_path: /tmp/vsag_eval/hgraph_fp32
+  topk: 10
+</code></pre>
+<p>Note: under <code>global.exporters</code>, each entry is a <strong>named</strong> exporter (a YAML map), not a list item.</p>
 <h2 id="supported-dimensions"><a class="header" href="#supported-dimensions">Supported Dimensions</a></h2>
 <ul>
 <li><strong>Efficiency</strong>: QPS, TPS</li>
@@ -1997,20 +2024,37 @@ cmake --build build-release -j
 </ul>
 <h2 id="search-modes"><a class="header" href="#search-modes">Search Modes</a></h2>
 <p><code>search_mode</code> accepts <code>knn</code>, <code>range</code>, <code>knn_filter</code>, and <code>range_filter</code>.</p>
-<h2 id="output-formats"><a class="header" href="#output-formats">Output Formats</a></h2>
+<h2 id="output-formats-and-destinations"><a class="header" href="#output-formats-and-destinations">Output Formats and Destinations</a></h2>
+<p>Each exporter combines a <code>format</code> with a <code>to</code> destination.</p>
 <ul>
-<li><code>table</code> — to stdout or a file.</li>
-<li><code>json</code> — for downstream automation.</li>
-<li><code>line_protocol</code> — directly to InfluxDB (supports token auth).</li>
-<li><code>markdown</code> — handy when posting into an issue or document.</li>
+<li>Formats: <code>table</code> (or its alias <code>text</code>), <code>json</code>, <code>line_protocol</code> (for InfluxDB).</li>
+<li>Destinations:
+<ul>
+<li><code>stdout</code> — print to standard output.</li>
+<li><code>file://&lt;path&gt;</code> — write (overwrite) to a file.</li>
+<li><code>influxdb://&lt;host&gt;:&lt;port&gt;/&lt;path&gt;?&lt;query&gt;</code> — POST to an InfluxDB v2 endpoint. Use
+<code>format: line_protocol</code> and pass an authentication token via <code>vars.token</code> (the value must
+include the <code>Token </code> prefix, e.g. <code>Token &lt;your-influxdb-token&gt;</code>).</li>
 </ul>
+</li>
+</ul>
+<p>If no exporter is configured, results are printed to stdout in <code>table</code> format by default.</p>
+<h2 id="http-monitor-optional"><a class="header" href="#http-monitor-optional">HTTP Monitor (optional)</a></h2>
+<p>When configured, the tool starts an embedded HTTP server for the duration of a batch run and
+exposes live progress (current case, total cases, completion %) plus the latest metrics. This is
+helpful for long-running evaluations.</p>
+<pre><code class="language-yaml">global:
+  http_server:
+    enabled: true
+    port: 8080
+</code></pre>
 <h2 id="datasets"><a class="header" href="#datasets">Datasets</a></h2>
 <p>Any HDF5 dataset from <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a>
 (e.g. <code>sift-128-euclidean.hdf5</code>, <code>gist-960-euclidean.hdf5</code>) works out of the box.</p>
 <h2 id="references-1"><a class="header" href="#references-1">References</a></h2>
 <ul>
 <li>Source: <code>tools/eval/</code></li>
-<li>English README: <code>tools/eval/README.md</code></li>
+<li>Detailed README: <code>tools/eval/README.md</code></li>
 <li>Reference numbers on standard hardware: <a href="#reference-performance">Reference Performance</a>.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>

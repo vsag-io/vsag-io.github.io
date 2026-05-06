@@ -152,7 +152,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f7eb4d22.js";
+            window.path_to_searchindex_js = "../searchindex-a5d4991d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-3bea8361.js"></script>
@@ -316,10 +316,37 @@ cmake --build build-release -j
     --search_params '{"hgraph":{"ef_search":60}}' \
     --topk 10
 </code></pre>
+<p>常用参数还包括 <code>--search_mode</code>（<code>knn</code> / <code>range</code> / <code>knn_filter</code> / <code>range_filter</code>）、
+<code>--search-query-count</code>、<code>--delete-index-after-search</code>，以及一系列用于关闭单项指标的
+<code>--disable_*</code> 开关。完整参数列表见 <code>tools/eval/README.md</code>。</p>
 <h3 id="2-配置文件模式适合批量对比"><a class="header" href="#2-配置文件模式适合批量对比">2. 配置文件模式（适合批量对比）</a></h3>
-<pre><code class="language-bash">./build-release/tools/eval/eval_performance --config my_eval.yaml
+<p>YAML 文件作为位置参数直接传入（不需要 <code>--config</code> 标志）：</p>
+<pre><code class="language-bash">./build-release/tools/eval/eval_performance my_eval.yaml
 </code></pre>
-<p>参考模板 <code>tools/eval/eval_template.yaml</code>，一份配置可包含多个 <code>eval_caseN</code> 并分别使用不同参数。</p>
+<p>参考模板 <code>tools/eval/eval_template.yaml</code>。一份配置可以包含多个具名 case，并通过可选的
+<code>global</code> 段配置共享参数，例如线程数、导出器以及内嵌的 HTTP 监控服务。</p>
+<p>最小示例：</p>
+<pre><code class="language-yaml">global:
+  num_threads_building: 8
+  num_threads_searching: 16
+  exporters:
+    print-directly:
+      to: stdout
+      format: table
+    save-to-file:
+      to: "file:///tmp/eval_results.json"
+      format: json
+
+eval_case1:
+  datapath: /tmp/sift-128-euclidean.hdf5
+  type: search
+  index_name: hgraph
+  create_params: '{"dim":128,"dtype":"float32","metric_type":"l2","index_param":{"base_quantization_type":"fp32","max_degree":32,"ef_construction":300}}'
+  search_params: '{"hgraph":{"ef_search":60}}'
+  index_path: /tmp/vsag_eval/hgraph_fp32
+  topk: 10
+</code></pre>
+<p>注意：<code>global.exporters</code> 下每一项都是<strong>具名</strong>的导出器（即 YAML map），并不是数组。</p>
 <h2 id="支持的评估维度"><a class="header" href="#支持的评估维度">支持的评估维度</a></h2>
 <ul>
 <li><strong>效率</strong>：QPS、TPS</li>
@@ -329,20 +356,36 @@ cmake --build build-release -j
 </ul>
 <h2 id="搜索模式"><a class="header" href="#搜索模式">搜索模式</a></h2>
 <p><code>search_mode</code> 支持 <code>knn</code>、<code>range</code>、<code>knn_filter</code>、<code>range_filter</code> 四种。</p>
-<h2 id="结果导出"><a class="header" href="#结果导出">结果导出</a></h2>
+<h2 id="输出格式与导出目标"><a class="header" href="#输出格式与导出目标">输出格式与导出目标</a></h2>
+<p>每个导出器同时指定一种 <code>format</code> 与一个 <code>to</code> 目标。</p>
 <ul>
-<li><code>table</code>：输出到 stdout 或文件；</li>
-<li><code>json</code>：便于自动化处理；</li>
-<li><code>line_protocol</code>：直接写入 InfluxDB（支持 token 认证）；</li>
-<li><code>markdown</code>：便于贴到 issue / 文档。</li>
+<li>格式：<code>table</code>（或别名 <code>text</code>）、<code>json</code>、<code>line_protocol</code>（用于 InfluxDB）。</li>
+<li>目标：
+<ul>
+<li><code>stdout</code> — 输出到标准输出。</li>
+<li><code>file://&lt;path&gt;</code> — 写入文件（覆盖）。</li>
+<li><code>influxdb://&lt;host&gt;:&lt;port&gt;/&lt;path&gt;?&lt;query&gt;</code> — POST 到 InfluxDB v2 接口；
+需要使用 <code>format: line_protocol</code>，并通过 <code>vars.token</code> 传入鉴权令牌
+（值需包含 <code>Token </code> 前缀，例如 <code>Token &lt;your-influxdb-token&gt;</code>）。</li>
 </ul>
+</li>
+</ul>
+<p>如未配置任何导出器，结果默认以 <code>table</code> 格式打印到 stdout。</p>
+<h2 id="http-监控可选"><a class="header" href="#http-监控可选">HTTP 监控（可选）</a></h2>
+<p>启用后，工具会在批量评估运行期间启动一个内嵌 HTTP 服务，实时暴露当前进度（当前案例、
+总案例数、完成百分比）和最新指标，便于长时间任务的状态观察。</p>
+<pre><code class="language-yaml">global:
+  http_server:
+    enabled: true
+    port: 8080
+</code></pre>
 <h2 id="数据集"><a class="header" href="#数据集">数据集</a></h2>
 <p>可使用 <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a> 提供的 HDF5 格式数据集
 （如 <code>sift-128-euclidean.hdf5</code>、<code>gist-960-euclidean.hdf5</code>）。</p>
 <h2 id="参考"><a class="header" href="#参考">参考</a></h2>
 <ul>
 <li>源码：<code>tools/eval/</code></li>
-<li>英文说明：<code>tools/eval/README.md</code></li>
+<li>详细说明：<code>tools/eval/README.md</code></li>
 <li>标准机型的基准结果见 <a href="performance.html">标准环境性能参考</a>。</li>
 </ul>
 
