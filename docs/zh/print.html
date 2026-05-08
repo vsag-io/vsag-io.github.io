@@ -153,10 +153,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a5d4991d.js";
+            window.path_to_searchindex_js = "searchindex-c7f77580.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-3bea8361.js"></script>
+        <script src="toc-2bad7246.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1012,7 +1012,8 @@ std::string params = R"({
         "window_size": 50000,
         "doc_prune_ratio": 0.0,
         "use_quantization": false,
-        "use_reorder": false
+        "use_reorder": false,
+        "remap_term_ids": false
     }
 })";
 auto index = vsag::Factory::CreateIndex("sindi", params).value();
@@ -1045,8 +1046,9 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>词项 ID 的上界（应 ≥ 最大词项 ID + 1）</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>每个窗口容纳的文档数（取值范围 10 000 – 60 000）</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建阶段按文档丢弃权重最低词项的比例（0.0 – 0.9）</td></tr>
-<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>是否量化词项权重以降低内存</td></tr>
+<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>是否量化词项权重以降低内存；开启后使用 8-bit 标量量化（SQ8）</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留一份高精度扁平副本用于精排（内存约翻倍）</td></tr>
+<tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>是否在建索引前重映射词项 ID，适用于词项 ID 很稀疏或存在大量空洞的词表</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>仅用于内存估算</td></tr>
 </tbody>
 </table>
@@ -1084,6 +1086,30 @@ auto result = index-&gt;KnnSearch(
 </ul>
 <p>SINDI <strong>不支持</strong> 稠密向量，只支持内积相似度。范围检索与基于 ID 的过滤均已支持，
 具体用法参见示例代码。</p>
+<h2 id="实践建议"><a class="header" href="#实践建议">实践建议</a></h2>
+<ul>
+<li>中文数据集的稀疏向量，推荐使用 BGE-M3 编码；英文数据集更常见的默认选择是
+SPLADE。</li>
+<li>BGE-M3 同时支持 sparse 和 dense 输出。当前 SINDI 负责稀疏一路，VSAG 未来计划
+支持稀疏与稠密融合打分检索。</li>
+<li>稀疏向量不能完全替代 BM25 全文检索。实践中，BM25 + 稀疏向量 + 稠密向量的三路
+召回通常优于任意两路组合。</li>
+<li>在索引层面，SINDI 也可以承载 BM25 风格打分：查询侧用逆文档频率作为词项权重，
+文档侧用词频等特征计算出的词项权重作为向量值即可。</li>
+</ul>
+<h2 id="常用配置"><a class="header" href="#常用配置">常用配置</a></h2>
+<ol>
+<li>扁平暴力搜索索引。倒排索引保留全部非零项（<code>doc_prune_ratio: 0.0</code>），不保留正排索引
+重排（<code>use_reorder: false</code>），不开启量化（<code>use_quantization: false</code>）。这是最直接的
+高召回基线。</li>
+<li>剪枝高精索引。构建时剪掉大部分低权重词项（<code>doc_prune_ratio: 0.4</code>），保留正排索引
+用于重排（<code>use_reorder: true</code>），并开启量化减少倒排索引内存
+（<code>use_quantization: true</code>）。这是常见的精度与内存折中配置。</li>
+<li>超大稀疏词表支持。对于词项 ID 在 <code>uint32</code> 范围内非常稀疏的场景，例如基于哈希的
+分词器、外部词表 ID，或存在大量空白区间的词表，建议设置 <code>remap_term_ids: true</code>。
+这样可以避免管理大量空倒排列表带来的内存浪费，也能降低触达 <code>term_id_limit</code>
+上限的风险。</li>
+</ol>
 <h2 id="相关文档-2"><a class="header" href="#相关文档-2">相关文档</a></h2>
 <ul>
 <li><a href="#创建索引">创建索引</a></li>
@@ -1451,10 +1477,16 @@ Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
 <p>Git 还有一个 <code>-s</code> 命令行选项，可以在提交时自动附加 Signed-off-by 行：</p>
 <pre><code class="language-bash">git commit -s -m "This is my commit message"
 </code></pre>
-<p>对于由人类开发者和 AI Coding Agent（如 OpenCode、Claude Code、Codex 等）共同完成的贡献，请为<strong>每一位协作者</strong>各添加一行 <code>Signed-off-by</code> trailer，例如：</p>
+<p>对于借助 AI Coding Agent（如 OpenCode、Claude Code、Codex 等）完成的贡献，<strong>仅由人类贡献者</strong>
+签署 DCO；AI Agent <strong>不得</strong>添加自己的 <code>Signed-off-by</code> trailer，因为只有人类才能合法地证明
+DCO。每一位人类贡献者仍按常规各自添加自己的 <code>Signed-off-by:</code> trailer。除签名外，请按
+<a href="https://docs.kernel.org/process/coding-assistants.html">Linux 内核 AI Coding Assistants 规范</a>
+使用 <code>Assisted-by:</code> trailer 标注 AI 协助，格式为 <code>Assisted-by: AgentName:ModelVersion</code>。
+在 trailer 顺序上，请将人类的 <code>Signed-off-by:</code> 放在前面，<code>Assisted-by:</code> 放在其后，例如：</p>
 <pre><code class="language-text">Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
-Signed-off-by: OpenCode (claude-sonnet-4.5) &lt;noreply@opencode.ai&gt;
+Assisted-by: OpenCode:claude-opus-4.7
 </code></pre>
+<p>人类提交者需对 AI 生成的修改进行审阅、确保许可证合规，并对该贡献承担全部责任。</p>
 <h3 id="commit-信息与-pr-标签"><a class="header" href="#commit-信息与-pr-标签">Commit 信息与 PR 标签</a></h3>
 <ul>
 <li>Commit 信息请遵循 <a href="https://www.conventionalcommits.org/">Conventional Commits</a>，常用前缀包括 <code>feat:</code>、<code>fix:</code>、<code>docs:</code>、<code>chore:</code>、<code>refactor:</code>、<code>test:</code>、<code>ci:</code> 等；</li>
@@ -1727,6 +1759,153 @@ index-&gt;Build(dataset);
 <li>当前 DiskANN 不支持在线插入 / 删除；如需增删请重建。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="extra-info附加信息"><a class="header" href="#extra-info附加信息">Extra Info（附加信息）</a></h1>
+<p><code>extra_info</code> 是与每条向量一同存放在索引内部的、定长的不透明字节负载。它允许把少量与向量配对的
+非向量元数据（例如时间戳、类目 id、权限标签、应用自定义字段）直接保存在向量旁边，从而：</p>
+<ul>
+<li>通过向量 id 直接获取元数据，无需额外的 KV 存储。</li>
+<li>在不重新插入向量的前提下，原地更新某条向量对应的元数据。</li>
+<li>在图遍历<strong>过程中</strong>就基于元数据过滤候选，而不是事后再过滤搜索结果。</li>
+</ul>
+<p>VSAG 把该负载视为原始字节流，其内存布局、序列化与解释完全由用户自行决定。</p>
+<h2 id="索引支持情况"><a class="header" href="#索引支持情况">索引支持情况</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引</th><th style="text-align: center">Build/Add 时存入</th><th style="text-align: center"><code>GetExtraInfoByIds</code></th><th style="text-align: center"><code>UpdateExtraInfo</code></th><th style="text-align: center">图内过滤（<code>use_extra_info_filter</code>）</th><th style="text-align: center">搜索结果中返回</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>HGraph</strong></td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
+<tr><td>IVF</td><td style="text-align: center">支持</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
+<tr><td>SINDI</td><td style="text-align: center">支持</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
+</tbody>
+</table>
+</div>
+<p>只有 HGraph 注册了相关的能力标志位；如需完整体验请使用 HGraph。运行时可通过
+<code>index-&gt;CheckFeature(...)</code> 进行检查。</p>
+<h2 id="启用-extra-info"><a class="header" href="#启用-extra-info">启用 Extra Info</a></h2>
+<p>在创建索引的参数中，添加顶层整型字段 <code>extra_info_size</code>，其值为每条向量预留的字节数。索引一旦
+建立，该大小即被固定，并随索引一同序列化。</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "extra_info_size": 12,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 26,
+        "ef_construction": 100
+    }
+}
+</code></pre>
+<p>未设置 <code>extra_info_size</code> 或将其设为 <code>0</code> 即表示禁用该特性。</p>
+<h2 id="在-build--add-时提供-extra-info"><a class="header" href="#在-build--add-时提供-extra-info">在 Build / Add 时提供 Extra Info</a></h2>
+<p>通过 <code>Dataset</code> 的链式接口绑定字节缓冲区。该缓冲区必须连续，第 <code>i</code> 条向量的负载位于
+<code>i * extra_info_size</code> 字节偏移处。</p>
+<pre><code class="language-cpp">auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)
+    -&gt;Dim(dim)
+    -&gt;Ids(ids.data())
+    -&gt;Float32Vectors(vectors.data())
+    -&gt;ExtraInfos(extra_infos.data())   // 总长度 num_vectors * extra_info_size 字节
+    -&gt;ExtraInfoSize(extra_info_size)   // 必须与索引的 extra_info_size 完全一致
+    -&gt;Owner(false);
+
+index-&gt;Build(base);   // 或 index-&gt;Add(base)
+</code></pre>
+<p><code>ExtraInfoSize</code> 必须和索引创建时的 <code>extra_info_size</code> 完全相等，否则调用会被拒绝。</p>
+<h2 id="获取-extra-info"><a class="header" href="#获取-extra-info">获取 Extra Info</a></h2>
+<h3 id="在搜索结果中获取hgraph"><a class="header" href="#在搜索结果中获取hgraph">在搜索结果中获取（HGraph）</a></h3>
+<p>当 <code>extra_info_size &gt; 0</code> 时，HGraph 会自动在结果 <code>Dataset</code> 中填入每个返回 id 对应的字节负载：</p>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(query, k, search_params).value();
+const char* infos = result-&gt;GetExtraInfos();          // 长度 = result-&gt;GetDim() * extra_info_size
+</code></pre>
+<p>返回的结果 <code>Dataset</code> 中只设置了 <code>ExtraInfos</code> 缓冲区，<strong>并没有</strong>设置 <code>ExtraInfoSize</code>，
+因此 <code>result-&gt;GetExtraInfoSize()</code> 会返回 <code>0</code>。请使用建索引时配置的 <code>extra_info_size</code>
+来计算偏移和缓冲区长度。</p>
+<h3 id="通过-id-批量获取getextrainfobyids"><a class="header" href="#通过-id-批量获取getextrainfobyids">通过 ID 批量获取（<code>GetExtraInfoByIds</code>）</a></h3>
+<p>调用方需要预先分配 <code>count * extra_info_size</code> 字节的缓冲区：</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_GET_EXTRA_INFO_BY_ID)) {
+    std::vector&lt;char&gt; out(count * extra_info_size);
+    index-&gt;GetExtraInfoByIds(ids, count, out.data());
+}
+</code></pre>
+<p>若该能力未开启，调用会返回 <code>UNSUPPORTED_INDEX_OPERATION</code>。</p>
+<h2 id="原地更新-extra-info"><a class="header" href="#原地更新-extra-info">原地更新 Extra Info</a></h2>
+<p>无需触碰向量本身，即可更新单条向量的负载：</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT)) {
+    auto upd = vsag::Dataset::Make();
+    upd-&gt;NumElements(1)
+       -&gt;Ids(&amp;id)
+       -&gt;ExtraInfos(buffer.data())
+       -&gt;ExtraInfoSize(extra_info_size)
+       -&gt;Owner(false);
+    index-&gt;UpdateExtraInfo(upd);
+}
+</code></pre>
+<p>数据集必须只包含一条记录，且大小必须匹配。</p>
+<h2 id="基于-extra-info-的图内过滤hgraph"><a class="header" href="#基于-extra-info-的图内过滤hgraph">基于 Extra Info 的图内过滤（HGraph）</a></h2>
+<p>在过滤命中率较低的场景下，事后过滤会浪费大量计算。HGraph 可以在图遍历过程中，对每个候选向量
+直接调用用户定义的过滤器并传入其 extra_info 字节，从而让被过滤掉的候选根本不进入结果集。</p>
+<ol>
+<li>
+<p>重写 <code>vsag::Filter</code> 中接收字节缓冲区的版本：</p>
+<pre><code class="language-cpp">class CategoryFilter : public vsag::Filter {
+public:
+    CategoryFilter(uint32_t lo, uint32_t hi) : lo_(lo), hi_(hi) {}
+    bool CheckValid(int64_t /*id*/) const override { return true; }   // 该路径下不会被调用
+    bool CheckValid(const char* data) const override {
+        uint32_t category_id;
+        std::memcpy(&amp;category_id, data, sizeof(category_id));
+        return category_id &gt;= lo_ &amp;&amp; category_id &lt;= hi_;
+    }
+    float ValidRatio() const override { return 0.5F; }
+private:
+    uint32_t lo_, hi_;
+};
+</code></pre>
+</li>
+<li>
+<p>在搜索参数中的 <code>hgraph</code> 块开启 <code>use_extra_info_filter</code>，并把过滤器传入 <code>KnnSearch</code>：</p>
+<pre><code class="language-cpp">std::string search_params = R"({
+    "hgraph": {
+        "ef_search": 100,
+        "use_extra_info_filter": true
+    }
+})";
+auto filter = std::make_shared&lt;CategoryFilter&gt;(3, 7);
+auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
+</code></pre>
+</li>
+</ol>
+<p><code>use_extra_info_filter</code> 为 <code>true</code> 时，HGraph 会调用 <code>CheckValid(const char*)</code> 而不是
+<code>CheckValid(int64_t)</code>。可使用
+<code>index-&gt;CheckFeature(vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER)</code> 进行能力检查。</p>
+<h2 id="能力标志"><a class="header" href="#能力标志">能力标志</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>标志</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vsag::SUPPORT_GET_EXTRA_INFO_BY_ID</code></td><td>支持 <code>GetExtraInfoByIds</code>。</td></tr>
+<tr><td><code>vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT</code></td><td>支持线程安全的 <code>UpdateExtraInfo</code>。</td></tr>
+<tr><td><code>vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER</code></td><td>搜索时支持 <code>use_extra_info_filter</code>。</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="注意事项与限制"><a class="header" href="#注意事项与限制">注意事项与限制</a></h2>
+<ul>
+<li>负载是不透明的字节流，序列化/反序列化由用户负责，库内部仅按偏移做 <code>memcpy</code>。</li>
+<li><code>extra_info_size</code> 在 Build 时即被固定，并写入序列化后的索引。</li>
+<li>存储开销为 <code>extra_info_size * num_elements</code> 字节，会被计入 <code>EstimateMemory</code>。</li>
+<li>请尽量保持负载紧凑——它会驻留内存，并在图内过滤时被反复读取。</li>
+<li>该特性目前仅提供 C++ 接口，未提供 Python 绑定。</li>
+</ul>
+<h2 id="示例-1"><a class="header" href="#示例-1">示例</a></h2>
+<p>完整的可运行示例位于 <code>examples/cpp/320_feature_extra_info.cpp</code>，演示了在 HGraph 上启用
+<code>extra_info</code>、按 id 获取、图内过滤搜索以及原地更新等用法。</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="最佳实践"><a class="header" href="#最佳实践">最佳实践</a></h1>
 <p>本页整理在生产环境使用 VSAG 的经验性建议，作为参数手册与性能调优的补充。</p>
 <h2 id="索引选型"><a class="header" href="#索引选型">索引选型</a></h2>
@@ -1818,7 +1997,7 @@ auto ret = index-&gt;Tune(tune_params);
 </tbody>
 </table>
 </div>
-<h2 id="示例-1"><a class="header" href="#示例-1">示例</a></h2>
+<h2 id="示例-2"><a class="header" href="#示例-2">示例</a></h2>
 <p><code>examples/cpp/318_feature_tune.cpp</code> 给出了端到端的调优流程：</p>
 <ol>
 <li>构造索引并 <code>Build</code>；</li>

@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>代码目录结构 - VSAG文档</title>
+        <title>Extra Info（附加信息） - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -291,49 +291,162 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="代码目录结构"><a class="header" href="#代码目录结构">代码目录结构</a></h1>
-<p>VSAG 项目代码处于快速迭代中，目录组织并不完美，这里仅对当前目录的功能划分做简要介绍。</p>
-<h2 id="项目结构"><a class="header" href="#项目结构">项目结构</a></h2>
+                        <h1 id="extra-info附加信息"><a class="header" href="#extra-info附加信息">Extra Info（附加信息）</a></h1>
+<p><code>extra_info</code> 是与每条向量一同存放在索引内部的、定长的不透明字节负载。它允许把少量与向量配对的
+非向量元数据（例如时间戳、类目 id、权限标签、应用自定义字段）直接保存在向量旁边，从而：</p>
 <ul>
-<li><code>.circleci/</code>：CircleCI 配置文件；</li>
-<li><code>.github/</code>：GitHub 配置文件，包括 CI、Issue 模版、代码 Owner 等；</li>
-<li><code>cmake/</code>：CMake 工具函数，例如检测编译平台的指令集支持；</li>
-<li><code>docker/</code>：构建 CI 的 Dockerfile 以及用于二进制分发的 Dockerfile；</li>
-<li><code>docs/</code>：设计文档、用户文档（含本站点源）和博客文章；</li>
-<li><code>examples/</code>：C++、Python、TypeScript 的示例代码；</li>
-<li><code>extern/</code>：第三方库，以 CMake 的方式从 GitHub 下载和集成；</li>
-<li><code>include/</code>：公开头文件，对外稳定 API 都位于此目录；</li>
-<li><code>mockimpl/</code>：接口的 Mock 实现，可以用于简单的接口测试；</li>
-<li><code>python/</code>：pyvsag 打包和安装工具；</li>
-<li><code>python_bindings/</code>：基于 pybind11 的 Python 绑定实现；</li>
-<li><code>typescript/</code>：Node.js / TypeScript 绑定及对应 npm 包源代码；</li>
-<li><code>scripts/</code>：一些有用的工具脚本，例如安装依赖、计算代码覆盖率等；</li>
-<li><code>src/</code>：核心源代码和单元测试（<code>*_test.cpp</code>）；</li>
-<li><code>tests/</code>：功能测试用例；</li>
-<li><code>tools/</code>：相关工具，包括索引性能测试和兼容性检查工具。</li>
+<li>通过向量 id 直接获取元数据，无需额外的 KV 存储。</li>
+<li>在不重新插入向量的前提下，原地更新某条向量对应的元数据。</li>
+<li>在图遍历<strong>过程中</strong>就基于元数据过滤候选，而不是事后再过滤搜索结果。</li>
 </ul>
-<h2 id="核心源代码"><a class="header" href="#核心源代码">核心源代码</a></h2>
+<p>VSAG 把该负载视为原始字节流，其内存布局、序列化与解释完全由用户自行决定。</p>
+<h2 id="索引支持情况"><a class="header" href="#索引支持情况">索引支持情况</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引</th><th style="text-align: center">Build/Add 时存入</th><th style="text-align: center"><code>GetExtraInfoByIds</code></th><th style="text-align: center"><code>UpdateExtraInfo</code></th><th style="text-align: center">图内过滤（<code>use_extra_info_filter</code>）</th><th style="text-align: center">搜索结果中返回</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>HGraph</strong></td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
+<tr><td>IVF</td><td style="text-align: center">支持</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
+<tr><td>SINDI</td><td style="text-align: center">支持</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
+</tbody>
+</table>
+</div>
+<p>只有 HGraph 注册了相关的能力标志位；如需完整体验请使用 HGraph。运行时可通过
+<code>index-&gt;CheckFeature(...)</code> 进行检查。</p>
+<h2 id="启用-extra-info"><a class="header" href="#启用-extra-info">启用 Extra Info</a></h2>
+<p>在创建索引的参数中，添加顶层整型字段 <code>extra_info_size</code>，其值为每条向量预留的字节数。索引一旦
+建立，该大小即被固定，并随索引一同序列化。</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "extra_info_size": 12,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 26,
+        "ef_construction": 100
+    }
+}
+</code></pre>
+<p>未设置 <code>extra_info_size</code> 或将其设为 <code>0</code> 即表示禁用该特性。</p>
+<h2 id="在-build--add-时提供-extra-info"><a class="header" href="#在-build--add-时提供-extra-info">在 Build / Add 时提供 Extra Info</a></h2>
+<p>通过 <code>Dataset</code> 的链式接口绑定字节缓冲区。该缓冲区必须连续，第 <code>i</code> 条向量的负载位于
+<code>i * extra_info_size</code> 字节偏移处。</p>
+<pre><code class="language-cpp">auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)
+    -&gt;Dim(dim)
+    -&gt;Ids(ids.data())
+    -&gt;Float32Vectors(vectors.data())
+    -&gt;ExtraInfos(extra_infos.data())   // 总长度 num_vectors * extra_info_size 字节
+    -&gt;ExtraInfoSize(extra_info_size)   // 必须与索引的 extra_info_size 完全一致
+    -&gt;Owner(false);
+
+index-&gt;Build(base);   // 或 index-&gt;Add(base)
+</code></pre>
+<p><code>ExtraInfoSize</code> 必须和索引创建时的 <code>extra_info_size</code> 完全相等，否则调用会被拒绝。</p>
+<h2 id="获取-extra-info"><a class="header" href="#获取-extra-info">获取 Extra Info</a></h2>
+<h3 id="在搜索结果中获取hgraph"><a class="header" href="#在搜索结果中获取hgraph">在搜索结果中获取（HGraph）</a></h3>
+<p>当 <code>extra_info_size &gt; 0</code> 时，HGraph 会自动在结果 <code>Dataset</code> 中填入每个返回 id 对应的字节负载：</p>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(query, k, search_params).value();
+const char* infos = result-&gt;GetExtraInfos();          // 长度 = result-&gt;GetDim() * extra_info_size
+</code></pre>
+<p>返回的结果 <code>Dataset</code> 中只设置了 <code>ExtraInfos</code> 缓冲区，<strong>并没有</strong>设置 <code>ExtraInfoSize</code>，
+因此 <code>result-&gt;GetExtraInfoSize()</code> 会返回 <code>0</code>。请使用建索引时配置的 <code>extra_info_size</code>
+来计算偏移和缓冲区长度。</p>
+<h3 id="通过-id-批量获取getextrainfobyids"><a class="header" href="#通过-id-批量获取getextrainfobyids">通过 ID 批量获取（<code>GetExtraInfoByIds</code>）</a></h3>
+<p>调用方需要预先分配 <code>count * extra_info_size</code> 字节的缓冲区：</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_GET_EXTRA_INFO_BY_ID)) {
+    std::vector&lt;char&gt; out(count * extra_info_size);
+    index-&gt;GetExtraInfoByIds(ids, count, out.data());
+}
+</code></pre>
+<p>若该能力未开启，调用会返回 <code>UNSUPPORTED_INDEX_OPERATION</code>。</p>
+<h2 id="原地更新-extra-info"><a class="header" href="#原地更新-extra-info">原地更新 Extra Info</a></h2>
+<p>无需触碰向量本身，即可更新单条向量的负载：</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT)) {
+    auto upd = vsag::Dataset::Make();
+    upd-&gt;NumElements(1)
+       -&gt;Ids(&amp;id)
+       -&gt;ExtraInfos(buffer.data())
+       -&gt;ExtraInfoSize(extra_info_size)
+       -&gt;Owner(false);
+    index-&gt;UpdateExtraInfo(upd);
+}
+</code></pre>
+<p>数据集必须只包含一条记录，且大小必须匹配。</p>
+<h2 id="基于-extra-info-的图内过滤hgraph"><a class="header" href="#基于-extra-info-的图内过滤hgraph">基于 Extra Info 的图内过滤（HGraph）</a></h2>
+<p>在过滤命中率较低的场景下，事后过滤会浪费大量计算。HGraph 可以在图遍历过程中，对每个候选向量
+直接调用用户定义的过滤器并传入其 extra_info 字节，从而让被过滤掉的候选根本不进入结果集。</p>
+<ol>
+<li>
+<p>重写 <code>vsag::Filter</code> 中接收字节缓冲区的版本：</p>
+<pre><code class="language-cpp">class CategoryFilter : public vsag::Filter {
+public:
+    CategoryFilter(uint32_t lo, uint32_t hi) : lo_(lo), hi_(hi) {}
+    bool CheckValid(int64_t /*id*/) const override { return true; }   // 该路径下不会被调用
+    bool CheckValid(const char* data) const override {
+        uint32_t category_id;
+        std::memcpy(&amp;category_id, data, sizeof(category_id));
+        return category_id &gt;= lo_ &amp;&amp; category_id &lt;= hi_;
+    }
+    float ValidRatio() const override { return 0.5F; }
+private:
+    uint32_t lo_, hi_;
+};
+</code></pre>
+</li>
+<li>
+<p>在搜索参数中的 <code>hgraph</code> 块开启 <code>use_extra_info_filter</code>，并把过滤器传入 <code>KnnSearch</code>：</p>
+<pre><code class="language-cpp">std::string search_params = R"({
+    "hgraph": {
+        "ef_search": 100,
+        "use_extra_info_filter": true
+    }
+})";
+auto filter = std::make_shared&lt;CategoryFilter&gt;(3, 7);
+auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
+</code></pre>
+</li>
+</ol>
+<p><code>use_extra_info_filter</code> 为 <code>true</code> 时，HGraph 会调用 <code>CheckValid(const char*)</code> 而不是
+<code>CheckValid(int64_t)</code>。可使用
+<code>index-&gt;CheckFeature(vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER)</code> 进行能力检查。</p>
+<h2 id="能力标志"><a class="header" href="#能力标志">能力标志</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>标志</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vsag::SUPPORT_GET_EXTRA_INFO_BY_ID</code></td><td>支持 <code>GetExtraInfoByIds</code>。</td></tr>
+<tr><td><code>vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT</code></td><td>支持线程安全的 <code>UpdateExtraInfo</code>。</td></tr>
+<tr><td><code>vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER</code></td><td>搜索时支持 <code>use_extra_info_filter</code>。</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="注意事项与限制"><a class="header" href="#注意事项与限制">注意事项与限制</a></h2>
 <ul>
-<li><code>src/*.cpp</code>：各种公共功能代码实现，包括内存分配器、线程池等；</li>
-<li><code>src/algorithm/</code>：索引算法目录；</li>
-<li><code>src/data_cell/</code>：data cell 是数据的逻辑单元，索引算法依赖于 data cell；</li>
-<li><code>src/impl/</code>：一些功能和算子的实现，例如图结构增强、k-means 聚类等；</li>
-<li><code>src/index/</code>：索引层实现，和 algorithm 目录相互配合；</li>
-<li><code>src/io/</code>：数据 IO 实现，包括基于内存访问数据和基于磁盘访问数据的方法；</li>
-<li><code>src/quantization/</code>：量化方法，当前支持 SQ4/SQ8、PQ、RaBitQ 等量化方式；</li>
-<li><code>src/simd/</code>：指令集加速模块，根据运行平台自动选择最快的距离计算方法；</li>
-<li><code>src/utils/</code>：工具函数目录。</li>
+<li>负载是不透明的字节流，序列化/反序列化由用户负责，库内部仅按偏移做 <code>memcpy</code>。</li>
+<li><code>extra_info_size</code> 在 Build 时即被固定，并写入序列化后的索引。</li>
+<li>存储开销为 <code>extra_info_size * num_elements</code> 字节，会被计入 <code>EstimateMemory</code>。</li>
+<li>请尽量保持负载紧凑——它会驻留内存，并在图内过滤时被反复读取。</li>
+<li>该特性目前仅提供 C++ 接口，未提供 Python 绑定。</li>
 </ul>
+<h2 id="示例"><a class="header" href="#示例">示例</a></h2>
+<p>完整的可运行示例位于 <code>examples/cpp/320_feature_extra_info.cpp</code>，演示了在 HGraph 上启用
+<code>extra_info</code>、按 id 获取、图内过滤搜索以及原地更新等用法。</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../indexes/pyramid.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/hybrid_index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/building.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../resources/best_practices.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -343,11 +456,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../indexes/pyramid.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/hybrid_index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/building.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../resources/best_practices.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

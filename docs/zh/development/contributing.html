@@ -152,10 +152,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-a5d4991d.js";
+            window.path_to_searchindex_js = "../searchindex-c7f77580.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3bea8361.js"></script>
+        <script src="../toc-2bad7246.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -348,10 +348,16 @@ Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
 <p>Git 还有一个 <code>-s</code> 命令行选项，可以在提交时自动附加 Signed-off-by 行：</p>
 <pre><code class="language-bash">git commit -s -m "This is my commit message"
 </code></pre>
-<p>对于由人类开发者和 AI Coding Agent（如 OpenCode、Claude Code、Codex 等）共同完成的贡献，请为<strong>每一位协作者</strong>各添加一行 <code>Signed-off-by</code> trailer，例如：</p>
+<p>对于借助 AI Coding Agent（如 OpenCode、Claude Code、Codex 等）完成的贡献，<strong>仅由人类贡献者</strong>
+签署 DCO；AI Agent <strong>不得</strong>添加自己的 <code>Signed-off-by</code> trailer，因为只有人类才能合法地证明
+DCO。每一位人类贡献者仍按常规各自添加自己的 <code>Signed-off-by:</code> trailer。除签名外，请按
+<a href="https://docs.kernel.org/process/coding-assistants.html">Linux 内核 AI Coding Assistants 规范</a>
+使用 <code>Assisted-by:</code> trailer 标注 AI 协助，格式为 <code>Assisted-by: AgentName:ModelVersion</code>。
+在 trailer 顺序上，请将人类的 <code>Signed-off-by:</code> 放在前面，<code>Assisted-by:</code> 放在其后，例如：</p>
 <pre><code class="language-text">Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
-Signed-off-by: OpenCode (claude-sonnet-4.5) &lt;noreply@opencode.ai&gt;
+Assisted-by: OpenCode:claude-opus-4.7
 </code></pre>
+<p>人类提交者需对 AI 生成的修改进行审阅、确保许可证合规，并对该贡献承担全部责任。</p>
 <h3 id="commit-信息与-pr-标签"><a class="header" href="#commit-信息与-pr-标签">Commit 信息与 PR 标签</a></h3>
 <ul>
 <li>Commit 信息请遵循 <a href="https://www.conventionalcommits.org/">Conventional Commits</a>，常用前缀包括 <code>feat:</code>、<code>fix:</code>、<code>docs:</code>、<code>chore:</code>、<code>refactor:</code>、<code>test:</code>、<code>ci:</code> 等；</li>

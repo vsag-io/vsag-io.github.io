@@ -152,10 +152,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-a5d4991d.js";
+            window.path_to_searchindex_js = "../searchindex-c7f77580.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3bea8361.js"></script>
+        <script src="../toc-2bad7246.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -323,7 +323,8 @@ std::string params = R"({
         "window_size": 50000,
         "doc_prune_ratio": 0.0,
         "use_quantization": false,
-        "use_reorder": false
+        "use_reorder": false,
+        "remap_term_ids": false
     }
 })";
 auto index = vsag::Factory::CreateIndex("sindi", params).value();
@@ -356,8 +357,9 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>词项 ID 的上界（应 ≥ 最大词项 ID + 1）</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>每个窗口容纳的文档数（取值范围 10 000 – 60 000）</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建阶段按文档丢弃权重最低词项的比例（0.0 – 0.9）</td></tr>
-<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>是否量化词项权重以降低内存</td></tr>
+<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>是否量化词项权重以降低内存；开启后使用 8-bit 标量量化（SQ8）</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留一份高精度扁平副本用于精排（内存约翻倍）</td></tr>
+<tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>是否在建索引前重映射词项 ID，适用于词项 ID 很稀疏或存在大量空洞的词表</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>仅用于内存估算</td></tr>
 </tbody>
 </table>
@@ -395,6 +397,30 @@ auto result = index-&gt;KnnSearch(
 </ul>
 <p>SINDI <strong>不支持</strong> 稠密向量，只支持内积相似度。范围检索与基于 ID 的过滤均已支持，
 具体用法参见示例代码。</p>
+<h2 id="实践建议"><a class="header" href="#实践建议">实践建议</a></h2>
+<ul>
+<li>中文数据集的稀疏向量，推荐使用 BGE-M3 编码；英文数据集更常见的默认选择是
+SPLADE。</li>
+<li>BGE-M3 同时支持 sparse 和 dense 输出。当前 SINDI 负责稀疏一路，VSAG 未来计划
+支持稀疏与稠密融合打分检索。</li>
+<li>稀疏向量不能完全替代 BM25 全文检索。实践中，BM25 + 稀疏向量 + 稠密向量的三路
+召回通常优于任意两路组合。</li>
+<li>在索引层面，SINDI 也可以承载 BM25 风格打分：查询侧用逆文档频率作为词项权重，
+文档侧用词频等特征计算出的词项权重作为向量值即可。</li>
+</ul>
+<h2 id="常用配置"><a class="header" href="#常用配置">常用配置</a></h2>
+<ol>
+<li>扁平暴力搜索索引。倒排索引保留全部非零项（<code>doc_prune_ratio: 0.0</code>），不保留正排索引
+重排（<code>use_reorder: false</code>），不开启量化（<code>use_quantization: false</code>）。这是最直接的
+高召回基线。</li>
+<li>剪枝高精索引。构建时剪掉大部分低权重词项（<code>doc_prune_ratio: 0.4</code>），保留正排索引
+用于重排（<code>use_reorder: true</code>），并开启量化减少倒排索引内存
+（<code>use_quantization: true</code>）。这是常见的精度与内存折中配置。</li>
+<li>超大稀疏词表支持。对于词项 ID 在 <code>uint32</code> 范围内非常稀疏的场景，例如基于哈希的
+分词器、外部词表 ID，或存在大量空白区间的词表，建议设置 <code>remap_term_ids: true</code>。
+这样可以避免管理大量空倒排列表带来的内存浪费，也能降低触达 <code>term_id_limit</code>
+上限的风险。</li>
+</ol>
 <h2 id="相关文档"><a class="header" href="#相关文档">相关文档</a></h2>
 <ul>
 <li><a href="../guide/create_index.html">创建索引</a></li>

@@ -152,10 +152,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2b8662fb.js";
+            window.path_to_searchindex_js = "../searchindex-a108bc41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6896f04e.js"></script>
+        <script src="../toc-84d33ebd.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -327,7 +327,8 @@ std::string params = R"({
         "window_size": 50000,
         "doc_prune_ratio": 0.0,
         "use_quantization": false,
-        "use_reorder": false
+        "use_reorder": false,
+        "remap_term_ids": false
     }
 })";
 auto index = vsag::Factory::CreateIndex("sindi", params).value();
@@ -360,8 +361,9 @@ and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term id values (≥ max term id + 1).</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window (range: 10 000 – 60 000).</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight terms dropped per doc at build time (0.0 – 0.9).</td></tr>
-<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>Quantize stored term values to cut memory.</td></tr>
+<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>Quantize stored term values to cut memory; when enabled, uses 8-bit scalar quantization (SQ8).</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision flat copy and rescore results (~2× memory).</td></tr>
+<tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>Remap term IDs before indexing; useful when term IDs are sparse or have large gaps.</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>Hint for memory estimation only.</td></tr>
 </tbody>
 </table>
@@ -402,6 +404,35 @@ memory for recall).</li>
 </ul>
 <p>SINDI does <strong>not</strong> accept dense vectors and supports only inner-product similarity.
 Range search and id-based filtering are supported; see the example for usage.</p>
+<h2 id="practical-guidance"><a class="header" href="#practical-guidance">Practical guidance</a></h2>
+<ul>
+<li>For Chinese corpora, we recommend encoding sparse vectors with BGE-M3. For
+English corpora, SPLADE is the more common default.</li>
+<li>BGE-M3 can emit both sparse and dense vectors. Today SINDI handles the sparse
+leg, and VSAG plans to support fused sparse+dense scoring in a future release.</li>
+<li>Sparse vectors are not a complete replacement for BM25 full-text retrieval. In
+practice, three-way recall with BM25 + sparse + dense usually outperforms any
+two-way combination.</li>
+<li>At the index level, SINDI can also serve BM25-style scoring: use inverse
+document frequency as the query-side term weight, and use term-frequency-based
+weights as the document-side term value.</li>
+</ul>
+<h2 id="common-configurations"><a class="header" href="#common-configurations">Common configurations</a></h2>
+<ol>
+<li>Flat brute-force sparse index. Keep all non-zero terms in the inverted index
+(<code>doc_prune_ratio: 0.0</code>), disable the flat reranker (<code>use_reorder: false</code>),
+and disable quantization (<code>use_quantization: false</code>). This is the simplest
+high-recall baseline.</li>
+<li>Pruned high-accuracy index. Prune most low-weight terms during build
+(<code>doc_prune_ratio: 0.4</code>), keep the flat copy for reranking
+(<code>use_reorder: true</code>), and enable quantization to shrink inverted-list memory
+(<code>use_quantization: true</code>). This is a common balance between memory and
+recall.</li>
+<li>Very large sparse vocabularies. When term IDs are sparse within the <code>uint32</code>
+range, such as hash-based tokenizers, external vocabulary IDs, or vocabularies
+with large gaps, enable <code>remap_term_ids: true</code>. This avoids managing many
+empty posting lists and helps stay below the <code>term_id_limit</code> ceiling.</li>
+</ol>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="../guide/create_index.html">Creating an Index</a></li>

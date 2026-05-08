@@ -153,10 +153,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2b8662fb.js";
+            window.path_to_searchindex_js = "searchindex-a108bc41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-6896f04e.js"></script>
+        <script src="toc-84d33ebd.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1019,7 +1019,8 @@ std::string params = R"({
         "window_size": 50000,
         "doc_prune_ratio": 0.0,
         "use_quantization": false,
-        "use_reorder": false
+        "use_reorder": false,
+        "remap_term_ids": false
     }
 })";
 auto index = vsag::Factory::CreateIndex("sindi", params).value();
@@ -1052,8 +1053,9 @@ and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term id values (≥ max term id + 1).</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window (range: 10 000 – 60 000).</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight terms dropped per doc at build time (0.0 – 0.9).</td></tr>
-<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>Quantize stored term values to cut memory.</td></tr>
+<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>Quantize stored term values to cut memory; when enabled, uses 8-bit scalar quantization (SQ8).</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision flat copy and rescore results (~2× memory).</td></tr>
+<tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>Remap term IDs before indexing; useful when term IDs are sparse or have large gaps.</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>Hint for memory estimation only.</td></tr>
 </tbody>
 </table>
@@ -1094,6 +1096,35 @@ memory for recall).</li>
 </ul>
 <p>SINDI does <strong>not</strong> accept dense vectors and supports only inner-product similarity.
 Range search and id-based filtering are supported; see the example for usage.</p>
+<h2 id="practical-guidance"><a class="header" href="#practical-guidance">Practical guidance</a></h2>
+<ul>
+<li>For Chinese corpora, we recommend encoding sparse vectors with BGE-M3. For
+English corpora, SPLADE is the more common default.</li>
+<li>BGE-M3 can emit both sparse and dense vectors. Today SINDI handles the sparse
+leg, and VSAG plans to support fused sparse+dense scoring in a future release.</li>
+<li>Sparse vectors are not a complete replacement for BM25 full-text retrieval. In
+practice, three-way recall with BM25 + sparse + dense usually outperforms any
+two-way combination.</li>
+<li>At the index level, SINDI can also serve BM25-style scoring: use inverse
+document frequency as the query-side term weight, and use term-frequency-based
+weights as the document-side term value.</li>
+</ul>
+<h2 id="common-configurations"><a class="header" href="#common-configurations">Common configurations</a></h2>
+<ol>
+<li>Flat brute-force sparse index. Keep all non-zero terms in the inverted index
+(<code>doc_prune_ratio: 0.0</code>), disable the flat reranker (<code>use_reorder: false</code>),
+and disable quantization (<code>use_quantization: false</code>). This is the simplest
+high-recall baseline.</li>
+<li>Pruned high-accuracy index. Prune most low-weight terms during build
+(<code>doc_prune_ratio: 0.4</code>), keep the flat copy for reranking
+(<code>use_reorder: true</code>), and enable quantization to shrink inverted-list memory
+(<code>use_quantization: true</code>). This is a common balance between memory and
+recall.</li>
+<li>Very large sparse vocabularies. When term IDs are sparse within the <code>uint32</code>
+range, such as hash-based tokenizers, external vocabulary IDs, or vocabularies
+with large gaps, enable <code>remap_term_ids: true</code>. This avoids managing many
+empty posting lists and helps stay below the <code>term_id_limit</code> ceiling.</li>
+</ol>
 <h2 id="see-also-2"><a class="header" href="#see-also-2">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
@@ -1471,11 +1502,19 @@ Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
 <p>Git provides a <code>-s</code> flag that appends the trailer automatically:</p>
 <pre><code class="language-bash">git commit -s -m "This is my commit message"
 </code></pre>
-<p>For contributions co-authored by a human developer and an AI coding agent (OpenCode, Claude Code,
-Codex, etc.), include a <code>Signed-off-by</code> trailer for <strong>each</strong> collaborator, for example:</p>
+<p>For contributions made with the help of an AI coding agent (OpenCode, Claude Code, Codex,
+etc.), only human contributors sign off on the DCO; the AI agent <strong>must not</strong> add its
+own <code>Signed-off-by</code> trailer, because only a human can legally certify the DCO. Each human
+contributor still adds their own <code>Signed-off-by:</code> trailer as usual. Instead of signing off,
+attribute the AI agent with an <code>Assisted-by:</code> trailer that follows the
+<a href="https://docs.kernel.org/process/coding-assistants.html">Linux kernel AI Coding Assistants policy</a>,
+in the form <code>Assisted-by: AgentName:ModelVersion</code>. Place the human <code>Signed-off-by:</code> line(s) first,
+followed by the <code>Assisted-by:</code> line, for example:</p>
 <pre><code class="language-text">Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
-Signed-off-by: OpenCode (claude-sonnet-4.5) &lt;noreply@opencode.ai&gt;
+Assisted-by: OpenCode:claude-opus-4.7
 </code></pre>
+<p>The human submitter is responsible for reviewing AI-generated changes, ensuring license
+compliance, and taking full responsibility for the contribution.</p>
 <h2 id="commit-messages-and-pr-labels"><a class="header" href="#commit-messages-and-pr-labels">Commit Messages and PR Labels</a></h2>
 <ul>
 <li>Follow <a href="https://www.conventionalcommits.org/">Conventional Commits</a>; common prefixes include
@@ -1781,6 +1820,162 @@ hurts recall.</li>
 needed.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="extra-info"><a class="header" href="#extra-info">Extra Info</a></h1>
+<p><code>extra_info</code> is a fixed-size, opaque per-vector byte payload stored alongside vectors inside
+the index. It lets you keep small pieces of non-vector metadata (e.g. timestamps, category ids,
+permission tags, application-specific fields) right next to the vectors, so you can:</p>
+<ul>
+<li>Retrieve metadata by vector id without a separate KV store.</li>
+<li>Update a vector’s metadata in place without re-inserting the vector.</li>
+<li>Filter candidates <strong>during</strong> graph traversal using your own metadata, instead of post-filtering
+results.</li>
+</ul>
+<p>The library treats the payload as raw bytes — you fully own its layout, serialization, and
+interpretation.</p>
+<h2 id="index-support"><a class="header" href="#index-support">Index Support</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index</th><th style="text-align: center">Store on Build/Add</th><th style="text-align: center"><code>GetExtraInfoByIds</code></th><th style="text-align: center"><code>UpdateExtraInfo</code></th><th style="text-align: center">In-graph filter (<code>use_extra_info_filter</code>)</th><th style="text-align: center">Returned in search results</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>HGraph</strong></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
+<tr><td>IVF</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
+<tr><td>SINDI</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
+</tbody>
+</table>
+</div>
+<p>Only HGraph advertises the related capability flags; for the richest experience use HGraph.
+You can always check at runtime with <code>index-&gt;CheckFeature(...)</code>.</p>
+<h2 id="enabling-extra-info"><a class="header" href="#enabling-extra-info">Enabling Extra Info</a></h2>
+<p>Add the top-level integer field <code>extra_info_size</code> to the build parameters. The value is the size
+in bytes of the payload reserved per vector. Once an index is built, the size is fixed and is
+serialized together with the index.</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "extra_info_size": 12,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 26,
+        "ef_construction": 100
+    }
+}
+</code></pre>
+<p>If <code>extra_info_size</code> is omitted or set to <code>0</code>, the feature is disabled.</p>
+<h2 id="providing-extra-info-on-build--add"><a class="header" href="#providing-extra-info-on-build--add">Providing Extra Info on Build / Add</a></h2>
+<p>Use the <code>Dataset</code> builder API to attach the payload. The buffer must be contiguous, with vector
+<code>i</code>’s payload at byte offset <code>i * extra_info_size</code>.</p>
+<pre><code class="language-cpp">auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)
+    -&gt;Dim(dim)
+    -&gt;Ids(ids.data())
+    -&gt;Float32Vectors(vectors.data())
+    -&gt;ExtraInfos(extra_infos.data())   // num_vectors * extra_info_size bytes
+    -&gt;ExtraInfoSize(extra_info_size)   // must match the index's extra_info_size
+    -&gt;Owner(false);
+
+index-&gt;Build(base);   // or index-&gt;Add(base)
+</code></pre>
+<p><code>ExtraInfoSize</code> must equal the index’s <code>extra_info_size</code>; otherwise the call is rejected.</p>
+<h2 id="retrieving-extra-info"><a class="header" href="#retrieving-extra-info">Retrieving Extra Info</a></h2>
+<h3 id="from-search-results-hgraph"><a class="header" href="#from-search-results-hgraph">From Search Results (HGraph)</a></h3>
+<p>When <code>extra_info_size &gt; 0</code>, HGraph automatically populates the result <code>Dataset</code> with the matching
+extra_info bytes for every returned id:</p>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(query, k, search_params).value();
+const char* infos = result-&gt;GetExtraInfos();          // length = result-&gt;GetDim() * extra_info_size
+</code></pre>
+<p>The result <code>Dataset</code> carries the <code>ExtraInfos</code> buffer but <strong>does not</strong> set <code>ExtraInfoSize</code> on it,
+so <code>result-&gt;GetExtraInfoSize()</code> will return <code>0</code>. Use the <code>extra_info_size</code> you configured at
+build time to compute offsets and lengths.</p>
+<h3 id="by-ids-getextrainfobyids"><a class="header" href="#by-ids-getextrainfobyids">By Ids (<code>GetExtraInfoByIds</code>)</a></h3>
+<p>Allocate a <code>count * extra_info_size</code> byte buffer and call:</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_GET_EXTRA_INFO_BY_ID)) {
+    std::vector&lt;char&gt; out(count * extra_info_size);
+    index-&gt;GetExtraInfoByIds(ids, count, out.data());
+}
+</code></pre>
+<p>If the feature is not enabled, the call returns <code>UNSUPPORTED_INDEX_OPERATION</code>.</p>
+<h2 id="updating-extra-info-in-place"><a class="header" href="#updating-extra-info-in-place">Updating Extra Info In Place</a></h2>
+<p>Update a single vector’s payload without touching the vector itself:</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT)) {
+    auto upd = vsag::Dataset::Make();
+    upd-&gt;NumElements(1)
+       -&gt;Ids(&amp;id)
+       -&gt;ExtraInfos(buffer.data())
+       -&gt;ExtraInfoSize(extra_info_size)
+       -&gt;Owner(false);
+    index-&gt;UpdateExtraInfo(upd);
+}
+</code></pre>
+<p>The dataset must contain exactly one element and the size must match.</p>
+<h2 id="in-graph-filtering-with-extra-info-hgraph"><a class="header" href="#in-graph-filtering-with-extra-info-hgraph">In-Graph Filtering with Extra Info (HGraph)</a></h2>
+<p>Post-filtering can be wasteful when the filter prunes many candidates. HGraph can call your
+filter on each candidate’s extra_info bytes during graph traversal, so disqualified candidates
+never enter the result set.</p>
+<ol>
+<li>
+<p>Override the byte-buffer overload of <code>vsag::Filter</code>:</p>
+<pre><code class="language-cpp">class CategoryFilter : public vsag::Filter {
+public:
+    CategoryFilter(uint32_t lo, uint32_t hi) : lo_(lo), hi_(hi) {}
+    bool CheckValid(int64_t /*id*/) const override { return true; }   // unused on this path
+    bool CheckValid(const char* data) const override {
+        uint32_t category_id;
+        std::memcpy(&amp;category_id, data, sizeof(category_id));
+        return category_id &gt;= lo_ &amp;&amp; category_id &lt;= hi_;
+    }
+    float ValidRatio() const override { return 0.5F; }
+private:
+    uint32_t lo_, hi_;
+};
+</code></pre>
+</li>
+<li>
+<p>Enable <code>use_extra_info_filter</code> inside the <code>hgraph</code> block of the search parameters and pass the
+filter to <code>KnnSearch</code>:</p>
+<pre><code class="language-cpp">std::string search_params = R"({
+    "hgraph": {
+        "ef_search": 100,
+        "use_extra_info_filter": true
+    }
+})";
+auto filter = std::make_shared&lt;CategoryFilter&gt;(3, 7);
+auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
+</code></pre>
+</li>
+</ol>
+<p>When <code>use_extra_info_filter</code> is true, HGraph dispatches to <code>CheckValid(const char*)</code> instead of
+<code>CheckValid(int64_t)</code>. You can guard with
+<code>index-&gt;CheckFeature(vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER)</code>.</p>
+<h2 id="capability-flags"><a class="header" href="#capability-flags">Capability Flags</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vsag::SUPPORT_GET_EXTRA_INFO_BY_ID</code></td><td><code>GetExtraInfoByIds</code> is available.</td></tr>
+<tr><td><code>vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT</code></td><td><code>UpdateExtraInfo</code> is available and thread-safe.</td></tr>
+<tr><td><code>vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER</code></td><td><code>use_extra_info_filter</code> is available in search.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="notes-and-limitations"><a class="header" href="#notes-and-limitations">Notes and Limitations</a></h2>
+<ul>
+<li>The payload is opaque bytes; you are responsible for serialization/deserialization. The library
+only <code>memcpy</code>s by offset.</li>
+<li><code>extra_info_size</code> is fixed at build time and persisted in the serialized index.</li>
+<li>Storage cost is <code>extra_info_size * num_elements</code> bytes, accounted into <code>EstimateMemory</code>.</li>
+<li>Keep the payload compact — it is loaded into memory and walked during in-graph filtering.</li>
+<li>The feature is currently C++ only; there is no Python binding for <code>extra_info</code>.</li>
+</ul>
+<h2 id="example-1"><a class="header" href="#example-1">Example</a></h2>
+<p>A complete, runnable example is available at
+<code>examples/cpp/320_feature_extra_info.cpp</code>. It demonstrates building an HGraph index with
+<code>extra_info</code>, retrieval by id, in-graph filtering, and in-place updates.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h1>
 <p>This page gathers practical advice for running VSAG in production, as a companion to the
 parameter reference and performance tuning guide.</p>
@@ -1885,7 +2080,7 @@ Optimizer”. Its implementation key is <code>use_elp_optimizer</code>, which no
 </tbody>
 </table>
 </div>
-<h2 id="example-1"><a class="header" href="#example-1">Example</a></h2>
+<h2 id="example-2"><a class="header" href="#example-2">Example</a></h2>
 <p><code>examples/cpp/318_feature_tune.cpp</code> walks through an end-to-end tuning flow:</p>
 <ol>
 <li>Create the index and <code>Build</code>.</li>

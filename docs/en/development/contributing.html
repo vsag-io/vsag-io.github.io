@@ -152,10 +152,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2b8662fb.js";
+            window.path_to_searchindex_js = "../searchindex-a108bc41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6896f04e.js"></script>
+        <script src="../toc-84d33ebd.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -356,11 +356,19 @@ Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
 <p>Git provides a <code>-s</code> flag that appends the trailer automatically:</p>
 <pre><code class="language-bash">git commit -s -m "This is my commit message"
 </code></pre>
-<p>For contributions co-authored by a human developer and an AI coding agent (OpenCode, Claude Code,
-Codex, etc.), include a <code>Signed-off-by</code> trailer for <strong>each</strong> collaborator, for example:</p>
+<p>For contributions made with the help of an AI coding agent (OpenCode, Claude Code, Codex,
+etc.), only human contributors sign off on the DCO; the AI agent <strong>must not</strong> add its
+own <code>Signed-off-by</code> trailer, because only a human can legally certify the DCO. Each human
+contributor still adds their own <code>Signed-off-by:</code> trailer as usual. Instead of signing off,
+attribute the AI agent with an <code>Assisted-by:</code> trailer that follows the
+<a href="https://docs.kernel.org/process/coding-assistants.html">Linux kernel AI Coding Assistants policy</a>,
+in the form <code>Assisted-by: AgentName:ModelVersion</code>. Place the human <code>Signed-off-by:</code> line(s) first,
+followed by the <code>Assisted-by:</code> line, for example:</p>
 <pre><code class="language-text">Signed-off-by: Random J Developer &lt;random@developer.example.org&gt;
-Signed-off-by: OpenCode (claude-sonnet-4.5) &lt;noreply@opencode.ai&gt;
+Assisted-by: OpenCode:claude-opus-4.7
 </code></pre>
+<p>The human submitter is responsible for reviewing AI-generated changes, ensuring license
+compliance, and taking full responsibility for the contribution.</p>
 <h2 id="commit-messages-and-pr-labels"><a class="header" href="#commit-messages-and-pr-labels">Commit Messages and PR Labels</a></h2>
 <ul>
 <li>Follow <a href="https://www.conventionalcommits.org/">Conventional Commits</a>; common prefixes include
