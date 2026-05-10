@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-a108bc41.js";
+            window.path_to_searchindex_js = "../searchindex-0acf8409.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-84d33ebd.js"></script>
+        <script src="../toc-a7232b60.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,6 +305,12 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="memory--disk-hybrid-index-diskann"><a class="header" href="#memory--disk-hybrid-index-diskann">Memory + Disk Hybrid Index (DiskANN)</a></h1>
+<blockquote>
+<p>“Hybrid index” on this page refers to <strong>memory + disk storage</strong>. If you are looking for
+<strong>vector + structured-attribute</strong> hybrid search (sometimes called <em>hybrid search</em> in the
+literature), see <a href="attribute_filter.html">Attribute Filter (Hybrid Search)</a>. For id-based
+filtering during search, see <a href="filtered_search.html">Filtered Search</a>.</p>
+</blockquote>
 <p>For billion-scale vector datasets, fitting the full graph index in memory is expensive and
 wasteful. VSAG’s <code>diskann</code> index splits storage:</p>
 <ul>

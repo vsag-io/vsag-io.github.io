@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-c7f77580.js";
+            window.path_to_searchindex_js = "searchindex-58fb5d19.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-2bad7246.js"></script>
+        <script src="toc-caa7eb82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1596,6 +1596,442 @@ auto result = index-&gt;RangeSearch(query, radius, search_params, /*limited_size
 <li>HNSW / HGraph 类图索引下，<code>RangeSearch</code> 的 <code>ef</code> 等运行期参数与 <code>KnnSearch</code> 共享含义。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="带过滤的搜索"><a class="header" href="#带过滤的搜索">带过滤的搜索</a></h1>
+<p>带过滤的搜索（Filtered Search）允许在 <code>KnnSearch</code> 或 <code>RangeSearch</code> 中只保留满足应用自定义条件
+的向量。当底层索引算法支持时，VSAG 会在图遍历<strong>过程中</strong>应用该谓词，从而避免“先取 top-k 再丢弃”
+所带来的召回率损失与额外延迟。</p>
+<p>本文介绍三种基于 id 的过滤 API：</p>
+<ul>
+<li><strong>位图过滤（Bitset filter）</strong>：以向量 id 作为下标的紧凑位数组。</li>
+<li><strong>函数回调过滤（Function callback）</strong>：<code>std::function&lt;bool(int64_t)&gt;</code>。</li>
+<li><strong><code>Filter</code> 对象</strong>：继承自 <code>vsag::Filter</code> 的子类，除了判定逻辑之外还可以向算法暴露
+有效占比、分布等提示信息。</li>
+</ul>
+<p>如果谓词是结构化字段上的 SQL 风格表达式，请阅读
+<a href="#属性过滤混合搜索">属性过滤（混合搜索）</a>；如果是基于每条向量的不透明字节负载在图内过滤，
+请阅读 <a href="#extra-info附加信息">Extra Info</a>。</p>
+<blockquote>
+<p>注意：本文与 <a href="#内存-磁盘混合索引diskann">内存-磁盘混合索引</a> 无关，后者描述的是 DiskANN 的存储布局，
+而非搜索阶段的过滤。</p>
+</blockquote>
+<h2 id="真值约定"><a class="header" href="#真值约定">真值约定</a></h2>
+<p>三种 API 关于「这个 id 是否被排除」的语义并不一致，混用前请仔细对照下表。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>API</th><th>方法</th><th>返回 <code>true</code> 表示…</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Bitset</code></td><td><code>Test(id)</code></td><td>该 id 被<strong>过滤掉</strong></td></tr>
+<tr><td><code>std::function</code></td><td><code>f(id)</code></td><td>该 id 被<strong>过滤掉</strong></td></tr>
+<tr><td><code>Filter::CheckValid</code></td><td><code>CheckValid(id)</code></td><td><strong>保留</strong>该 id</td></tr>
+</tbody>
+</table>
+</div>
+<p>位图与 <code>std::function</code> 两种重载在内部都会被包装为 <code>BlackListFilter</code>
+（见 <code>src/impl/filter/black_list_filter.cpp</code>）：位被置上、或回调返回 <code>true</code>，都表示该 id
+被排除。<code>Filter::CheckValid</code> 则相反——返回 <code>true</code> 表示<strong>保留</strong>。如果你已经维护了一份
+「删除 id 位图」，最自然的方式是位图过滤；如果是任意谓词逻辑、并且能提供有效占比等提示，
+<code>Filter</code> 对象会更合适。</p>
+<h2 id="位图过滤"><a class="header" href="#位图过滤">位图过滤</a></h2>
+<p><code>vsag::Bitset</code>（<code>include/vsag/bitset.h</code>）是按序号下标的可增长位数组。</p>
+<pre><code class="language-cpp">auto invalid = vsag::Bitset::Make();
+for (int64_t i = 0; i &lt; num_vectors; ++i) {
+    if (ids[i] % 2 == 0) {
+        invalid-&gt;Set(ids[i]);    // 偶数 id 被排除
+    }
+}
+
+auto search_params = R"({ "hnsw": { "ef_search": 100 } })";
+auto result = index-&gt;KnnSearch(query, /*topk=*/10, search_params, invalid).value();
+</code></pre>
+<p>位图按向量 id 索引，但查询时 id 会被掩码到低 32 位
+（<code>bit_index = id &amp; ROW_ID_MASK</code>，<code>ROW_ID_MASK = 0xFFFFFFFFLL</code>，见
+<code>src/impl/filter/black_list_filter.cpp</code>）。低 32 位相同的两个 id 会在位图中冲突，因此使用
+位图过滤时请把 id 控制在 <code>[0, 2^32)</code>，否则改用 <code>Filter</code> 对象。位图按 id 索引而非按插入
+顺序；如果应用层会复用 id，请自行处理一致性。</p>
+<h2 id="函数回调过滤"><a class="header" href="#函数回调过滤">函数回调过滤</a></h2>
+<p>直接使用 lambda 或 <code>std::function&lt;bool(int64_t)&gt;</code> 即可。回调返回 <code>true</code> 表示该 id 被
+<strong>排除</strong>（内部会被包装成 <code>BlackListFilter</code>）：</p>
+<pre><code class="language-cpp">// 排除偶数 id：返回 true 即被过滤掉。
+std::function&lt;bool(int64_t)&gt; drop_even = [](int64_t id) { return id % 2 == 0; };
+auto result = index-&gt;KnnSearch(query, 10, search_params, drop_even).value();
+</code></pre>
+<p>适合写少量自定义逻辑而不需要继承类的场景。如果你更习惯「返回 true 表示保留」的写法，
+请改用 <code>Filter</code> 对象。</p>
+<h2 id="filter-对象"><a class="header" href="#filter-对象"><code>Filter</code> 对象</a></h2>
+<p>最完整的 API 是 <code>vsag::Filter</code>（<code>include/vsag/filter.h</code>）。当算法可以利用谓词的额外提示
+（如有效占比）时，建议继承它：</p>
+<pre><code class="language-cpp">class MyFilter : public vsag::Filter {
+public:
+    bool CheckValid(int64_t id) const override {
+        return id % 2 == 1;
+    }
+
+    // 谓词通过率的近似估计；搜索算法据此调整候选缓冲区大小，
+    // 估计准确可同时改善延迟与召回率。
+    float ValidRatio() const override { return 0.5F; }
+
+    // 通过的 id 是否在向量空间中聚集。
+    // NONE 表示「无关」；如果谓词与向量位置相关（例如地理标签），用 RELATED_TO_VECTOR。
+    Distribution FilterDistribution() const override { return Distribution::NONE; }
+};
+
+auto filter = std::make_shared&lt;MyFilter&gt;();
+auto result = index-&gt;KnnSearch(query, 10, search_params, filter).value();
+</code></pre>
+<p>主要方法：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>方法</th><th>默认实现</th><th>用途</th></tr>
+</thead>
+<tbody>
+<tr><td><code>CheckValid(int64_t id)</code></td><td>纯虚</td><td>必填。返回 <code>true</code> 表示保留该 id。</td></tr>
+<tr><td><code>CheckValid(const char* data)</code></td><td>返回 <code>true</code></td><td>用于在图内基于 extra_info 字节负载过滤，参见 <a href="#extra-info附加信息">Extra Info</a>。</td></tr>
+<tr><td><code>ValidRatio()</code></td><td><code>1.0F</code></td><td><code>[0, 1]</code> 区间内的有效占比提示。</td></tr>
+<tr><td><code>FilterDistribution()</code></td><td><code>NONE</code></td><td><code>NONE</code> 或 <code>RELATED_TO_VECTOR</code>。</td></tr>
+<tr><td><code>GetValidIds(...)</code></td><td>空实现</td><td>极端选择性谓词下的可选白名单接口。</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>ValidRatio</code> 估计错误不会导致结果错误，但偏大会增大延迟、偏小会拉低召回率。</p>
+<h2 id="重载列表"><a class="header" href="#重载列表">重载列表</a></h2>
+<p><code>KnnSearch</code> 与 <code>RangeSearch</code> 都提供四种过滤形态（<code>include/vsag/index.h</code>）：</p>
+<pre><code class="language-cpp">// KnnSearch
+index-&gt;KnnSearch(query, topk, params);                                    // 不过滤
+index-&gt;KnnSearch(query, topk, params, BitsetPtr invalid);
+index-&gt;KnnSearch(query, topk, params, std::function&lt;bool(int64_t)&gt; f);
+index-&gt;KnnSearch(query, topk, params, FilterPtr filter);
+
+// RangeSearch
+index-&gt;RangeSearch(query, radius, params, limited_size);                  // 不过滤
+index-&gt;RangeSearch(query, radius, params, BitsetPtr invalid, limited_size);
+index-&gt;RangeSearch(query, radius, params, std::function&lt;bool(int64_t)&gt; f, limited_size);
+index-&gt;RangeSearch(query, radius, params, FilterPtr filter, limited_size);
+</code></pre>
+<p><code>limited_size</code> 是 <code>RangeSearch</code> 返回结果的最大数量：</p>
+<ul>
+<li><code>limited_size &lt; 0</code>：不限制（默认 <code>-1</code>）。</li>
+<li><code>limited_size == 0</code>：API 会显式拒绝（<code>CHECK_ARGUMENT(limited_size != 0, ...)</code>），
+「不限制」请传 <code>-1</code>。</li>
+<li><code>limited_size &gt; 0</code>：限定结果列表最多这么多条。</li>
+</ul>
+<p>也支持迭代式过滤搜索：</p>
+<pre><code class="language-cpp">vsag::IteratorContext* ctx = nullptr;
+index-&gt;KnnSearch(query, topk, params, filter, ctx, /*is_last_search=*/false);
+// 用同一个 ctx 反复调用；最后一次调用时把 is_last_search 置为 true 以释放上下文。
+</code></pre>
+<h2 id="索引支持矩阵"><a class="header" href="#索引支持矩阵">索引支持矩阵</a></h2>
+<p>所有索引类型都接受位图、函数与 <code>FilterPtr</code> 三种形式——内部会把位图与 lambda 自动包装成
+<code>FilterPtr</code>。下表中的列对应每个索引登记的<strong>能力标志</strong>（见
+<code>include/vsag/index_features.h</code>），运行时 <code>CheckFeature</code> 返回的也是这些。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引</th><th style="text-align: center"><code>_KNN_SEARCH_WITH_ID_FILTER</code></th><th style="text-align: center"><code>_RANGE_SEARCH_WITH_ID_FILTER</code></th><th style="text-align: center"><code>_KNN_ITERATOR_FILTER_SEARCH</code></th></tr>
+</thead>
+<tbody>
+<tr><td>HGraph</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
+<tr><td>HNSW</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
+<tr><td>IVF</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
+<tr><td>BruteForce</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
+<tr><td>DiskANN</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
+<tr><td>Pyramid</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
+<tr><td>SINDI / WARP</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
+</tbody>
+</table>
+</div>
+<p>基于 id 的过滤可在运行时通过
+<code>index-&gt;CheckFeature(vsag::SUPPORT_KNN_SEARCH_WITH_ID_FILTER)</code>、
+<code>SUPPORT_RANGE_SEARCH_WITH_ID_FILTER</code>、<code>SUPPORT_KNN_ITERATOR_FILTER_SEARCH</code> 查询。
+<code>SUPPORT_KNN_SEARCH_WITH_EX_FILTER</code> 与本文无关，它对应的是基于 extra_info 字节负载的
+过滤，详见 <a href="#extra-info附加信息">Extra Info</a>。</p>
+<h2 id="性能要点"><a class="header" href="#性能要点">性能要点</a></h2>
+<ul>
+<li>谓词越严格（<code>ValidRatio</code> 越小），搜索需要扩展的候选越多。对图索引而言，谓词非常严格时
+应同步增大 <code>ef_search</code>，否则当通过率低于约 1% 时召回率会显著下降。</li>
+<li>位图过滤最快，因为 <code>Test()</code> 只是一次位查询。<code>Filter</code> 对象内若有重逻辑，需注意它会被
+调用很多次。</li>
+<li><code>RangeSearch</code> 在过滤通过率较高、范围较宽时建议设定一个合理的 <code>limited_size</code>，避免结果
+集无界增长。</li>
+<li>与 <a href="#属性过滤混合搜索">属性过滤</a> 组合时，使用 <code>SearchRequest</code> 即可，所有启用的过滤项
+会按逻辑 AND 连接。</li>
+</ul>
+<h2 id="通过-searchrequest-组合过滤"><a class="header" href="#通过-searchrequest-组合过滤">通过 <code>SearchRequest</code> 组合过滤</a></h2>
+<p><code>SearchRequest</code>（<code>include/vsag/search_request.h</code>）是 <code>SearchWithRequest</code> 的统一入口，
+可同时携带位图、<code>Filter</code> 对象与属性表达式，所有启用的过滤项按 AND 连接：</p>
+<pre><code class="language-cpp">vsag::SearchRequest req;
+req.query_                = query;
+req.mode_                 = vsag::SearchMode::KNN_SEARCH;
+req.topk_                 = 10;
+req.params_str_           = R"({ "hgraph": { "ef_search": 200 } })";
+req.enable_filter_        = true;
+req.filter_               = std::make_shared&lt;MyFilter&gt;();
+req.enable_bitset_filter_ = true;
+req.bitset_filter_        = invalid;
+auto result = index-&gt;SearchWithRequest(req).value();
+</code></pre>
+<p><code>attribute_filter_str_</code> 字段的语法见 <a href="#属性过滤混合搜索">属性过滤</a>。</p>
+<h2 id="示例"><a class="header" href="#示例">示例</a></h2>
+<ul>
+<li>C++：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/301_feature_filter.cpp"><code>examples/cpp/301_feature_filter.cpp</code></a>
+——同时演示三种过滤方式（HNSW 上）。</li>
+<li>C++：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/320_feature_extra_info.cpp"><code>examples/cpp/320_feature_extra_info.cpp</code></a>
+——基于 <code>CheckValid(const char*)</code> 字节负载重载的图内过滤。</li>
+</ul>
+<h2 id="python-状态"><a class="header" href="#python-状态">Python 状态</a></h2>
+<p>过滤 API 暂未暴露到 Python；<code>examples/python/todo_examples/301_feature_filter.py</code>
+是一个空占位文件。当前请使用 C++ API 进行带过滤的搜索。</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="属性过滤混合搜索"><a class="header" href="#属性过滤混合搜索">属性过滤（混合搜索）</a></h1>
+<p>属性过滤（Attribute Filter），又称<strong>混合搜索</strong>（Hybrid Search）或<strong>带结构化谓词的近邻搜索</strong>，
+让 <code>KnnSearch</code> / <code>RangeSearch</code> 只返回结构化标签满足某个 SQL 风格表达式的向量。相比
+<a href="#带过滤的搜索">带过滤的搜索</a> 中基于 id 的过滤方式，它能直接表达类似下面的谓词：</p>
+<pre><code>category = "electronics" AND price &lt;= 1000 AND multi_in(tag, "promo|new", "|")
+</code></pre>
+<p>而无需写回调代码。VSAG 在向量索引旁额外构建一份属性倒排索引；表达式只解析一次，并在图遍历
+过程中完成判定，从而尽早剪除不可能满足条件的候选。</p>
+<blockquote>
+<p>本文中的“混合搜索”指的是<strong>向量 + 结构化属性</strong>的混合检索；DiskANN 的“<strong>内存 + 磁盘</strong>”
+存储混合请参见 <a href="#内存-磁盘混合索引diskann">内存-磁盘混合索引</a>。</p>
+</blockquote>
+<h2 id="何时选择哪种过滤-api"><a class="header" href="#何时选择哪种过滤-api">何时选择哪种过滤 API</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>需求</th><th>推荐</th></tr>
+</thead>
+<tbody>
+<tr><td>排除一组已知 id（例如墓碑）</td><td><a href="#带过滤的搜索">位图 / 函数过滤</a></td></tr>
+<tr><td>在 id 上跑用户自定义逻辑</td><td><a href="#带过滤的搜索"><code>Filter</code> 对象</a></td></tr>
+<tr><td>在图内基于每条向量的字节负载过滤</td><td><a href="#extra-info附加信息">Extra Info</a></td></tr>
+<tr><td>在<strong>命名、有类型的字段</strong>上做 AND/OR/IN 判定</td><td><strong>本文</strong></td></tr>
+</tbody>
+</table>
+</div>
+<p>三者可以同时放进同一个 <code>SearchRequest</code>，按 AND 组合。</p>
+<h2 id="索引支持情况"><a class="header" href="#索引支持情况">索引支持情况</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引</th><th style="text-align: center">构建时启用 <code>use_attribute_filter</code></th><th style="text-align: center"><code>SearchWithRequest</code> + 属性表达式</th><th style="text-align: center"><code>UpdateAttribute</code></th></tr>
+</thead>
+<tbody>
+<tr><td>HGraph</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
+<tr><td>IVF</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
+<tr><td>BruteForce</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
+<tr><td>WARP（稀疏）</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
+<tr><td>HNSW / DiskANN / SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">仅支持基于 id 的过滤，详见 <a href="#带过滤的搜索">带过滤的搜索</a></td><td style="text-align: center">—</td></tr>
+</tbody>
+</table>
+</div>
+<p>启用 <code>use_attribute_filter</code> 后，BruteForce 暂不支持 <code>Remove</code>（如需删除请重建索引）。</p>
+<h2 id="属性数据模型"><a class="header" href="#属性数据模型">属性数据模型</a></h2>
+<p>属性按向量定义，组织成 <code>AttributeSet</code>（<code>include/vsag/attribute.h</code>）。每个属性包含：</p>
+<ul>
+<li><strong>名称</strong>（字符串）；</li>
+<li><strong>值类型</strong>（<code>AttrValueType</code> 枚举）；</li>
+<li><strong>值列表</strong>——所有字段都是多值字段，因此 <code>IN</code> 风格的成员判定能自然适用于标签类字段。</li>
+</ul>
+<p>支持的值类型：</p>
+<pre><code class="language-cpp">enum AttrValueType {
+    INT8 = 5,  INT16 = 7,  INT32 = 1,  INT64  = 3,
+    UINT8 = 6, UINT16 = 8, UINT32 = 2, UINT64 = 4,
+    STRING = 9,
+};
+</code></pre>
+<p>字段的 (名称, 类型) 在首次构建/插入时被锁定；后续插入必须保持一致。</p>
+<h3 id="构造一个-attributeset"><a class="header" href="#构造一个-attributeset">构造一个 <code>AttributeSet</code></a></h3>
+<pre><code class="language-cpp">auto* category = new vsag::AttributeValue&lt;std::string&gt;();
+category-&gt;name_ = "category";
+category-&gt;GetValue() = { "electronics" };
+
+auto* tags = new vsag::AttributeValue&lt;std::string&gt;();
+tags-&gt;name_ = "tag";
+tags-&gt;GetValue() = { "promo", "new" };       // 多值字段
+
+auto* price = new vsag::AttributeValue&lt;int32_t&gt;();
+price-&gt;name_ = "price";
+price-&gt;GetValue() = { 899 };
+
+vsag::AttributeSet set;
+set.attrs_ = { category, tags, price };
+</code></pre>
+<p><code>Attribute*</code> 的生命周期取决于承载该 <code>AttributeSet</code> 的 <code>Dataset</code> 的 <code>Owner(...)</code> 标志：</p>
+<ul>
+<li><code>Owner(true)</code>（默认）：<code>DatasetImpl</code> 析构时会 <code>delete</code> 每个 <code>Attribute*</code> 并
+<code>delete[]</code> <code>AttributeSet</code> 数组，调用方<strong>不要</strong>再自行释放。</li>
+<li><code>Owner(false)</code>（下文示例所用）：调用方保留所有权，需在 <code>Build</code> / <code>Add</code> 返回后自行释放
+<code>Attribute*</code>（以及若为堆分配的 <code>AttributeSet</code> 数组）。</li>
+</ul>
+<p>同一个 dataset 请只选一种策略，避免双重释放或泄漏。</p>
+<h2 id="构建支持属性过滤的索引"><a class="header" href="#构建支持属性过滤的索引">构建支持属性过滤的索引</a></h2>
+<p>把 <code>index_param.use_attribute_filter</code> 设为 <code>true</code>，可选地在 <code>attr_params</code> 下调整属性
+倒排索引参数。</p>
+<pre><code class="language-cpp">std::string build_params = R"(
+{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "use_attribute_filter": true,
+        "attr_params": {
+            "has_buckets": false
+        }
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("hgraph", build_params).value();
+</code></pre>
+<p><code>has_buckets</code> 控制倒排索引中倒排链的存储布局，不同索引的默认值不同：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引</th><th style="text-align: center"><code>has_buckets</code> 默认</th></tr>
+</thead>
+<tbody>
+<tr><td>HGraph</td><td style="text-align: center"><code>false</code></td></tr>
+<tr><td>IVF</td><td style="text-align: center"><code>true</code></td></tr>
+<tr><td>BruteForce</td><td style="text-align: center"><code>true</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>如果没有性能数据明确指向需要修改，建议保留默认值。</p>
+<h2 id="在-build--add-时附加属性"><a class="header" href="#在-build--add-时附加属性">在 Build / Add 时附加属性</a></h2>
+<p><code>Dataset::AttributeSets</code> 接收一个长度等于向量数的 <code>AttributeSet</code> 数组
+（<code>include/vsag/dataset.h</code>）：</p>
+<pre><code class="language-cpp">std::vector&lt;vsag::AttributeSet&gt; sets(num_vectors);
+for (int64_t i = 0; i &lt; num_vectors; ++i) {
+    sets[i] = build_attrs_for_row(i);
+}
+
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)
+    -&gt;Dim(dim)
+    -&gt;Ids(ids)
+    -&gt;Float32Vectors(vectors)
+    -&gt;AttributeSets(sets.data())
+    -&gt;Owner(false);
+
+index-&gt;Build(base);     // 或 index-&gt;Add(base)
+</code></pre>
+<h2 id="通过-searchrequest-查询"><a class="header" href="#通过-searchrequest-查询">通过 <code>SearchRequest</code> 查询</a></h2>
+<p>属性过滤目前仅通过 <code>SearchWithRequest</code> 暴露
+（<code>include/vsag/search_request.h</code>）：</p>
+<pre><code class="language-cpp">vsag::SearchRequest req;
+req.query_                    = query;
+req.mode_                     = vsag::SearchMode::KNN_SEARCH;
+req.topk_                     = 10;
+req.params_str_               = R"({ "hgraph": { "ef_search": 200 } })";
+req.enable_attribute_filter_  = true;
+req.attribute_filter_str_     =
+    "category = \"electronics\" AND price &lt;= 1000 "
+    "AND multi_in(tag, \"promo|new\", \"|\")";
+
+auto result = index-&gt;SearchWithRequest(req).value();
+for (int64_t i = 0; i &lt; result-&gt;GetDim(); ++i) {
+    std::cout &lt;&lt; result-&gt;GetIds()[i] &lt;&lt; " " &lt;&lt; result-&gt;GetDistances()[i] &lt;&lt; "\n";
+}
+</code></pre>
+<p>可同时启用 <code>enable_filter_</code>（提供 <code>FilterPtr</code>）和 <code>enable_bitset_filter_</code>（提供 <code>BitsetPtr</code>），
+所有启用的过滤项按<strong>逻辑 AND</strong>组合。</p>
+<h2 id="过滤表达式语法"><a class="header" href="#过滤表达式语法">过滤表达式语法</a></h2>
+<p>文法定义见 <code>src/attr/grammar/FC.g4</code>。语法虽然紧凑，但已经能覆盖结构化过滤的常见需求。</p>
+<h3 id="逻辑运算符"><a class="header" href="#逻辑运算符">逻辑运算符</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>形式</th><th>别名</th></tr>
+</thead>
+<tbody>
+<tr><td>AND</td><td><code>AND</code>、<code>and</code>、<code>&amp;&amp;</code></td></tr>
+<tr><td>OR</td><td><code>OR</code>、<code>or</code>、<code>||</code></td></tr>
+<tr><td>NOT</td><td><code>!(expr)</code></td></tr>
+<tr><td>分组</td><td><code>(...)</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>NOT</code> 仅支持前缀写法 <code>!(...)</code>。</p>
+<h3 id="比较运算符"><a class="header" href="#比较运算符">比较运算符</a></h3>
+<p>数值字段：<code>=</code>、<code>!=</code>、<code>&gt;</code>、<code>&lt;</code>、<code>&gt;=</code>、<code>&lt;=</code>。
+字符串字段：仅 <code>=</code> 和 <code>!=</code>。</p>
+<p>数值比较的左侧可以包含算术运算（<code>+ - * /</code>）：</p>
+<pre><code>(price - discount) &lt;= 100
+</code></pre>
+<h3 id="列表成员判定"><a class="header" href="#列表成员判定">列表成员判定</a></h3>
+<p>提供两种写法。它们使用<strong>同一组关键字</strong>（<code>IN</code> 与 <code>NOT_IN</code>，含下方别名），但<strong>参数形态不同</strong>。</p>
+<p><strong>方括号中缀形式</strong>——配合字面量列表使用：</p>
+<pre><code>id IN [1, 2, 3, 4]
+category NOT_IN ["electronics", "clothing"]
+</code></pre>
+<p>列表元素必须是 <code>INTEGER</code> 字面量或<strong>双引号</strong>字符串；文法不接受单引号。</p>
+<p><strong>函数式竖线形式</strong>——上游已经把候选值拼接成字符串时使用。第二个参数必须是单个用 <code>|</code>
+分隔的字符串字面量，第三个（可选）参数是分隔符，必须为 <code>"|"</code>：</p>
+<pre><code>multi_in(category, "electronics|clothing", "|")
+multi_notin(uid, "1961|8669|9090", "|")
+</code></pre>
+<p>函数形式<strong>不接受</strong>方括号列表（<code>multi_in(field, [...])</code> 是文法错误）；中缀形式也<strong>不接受</strong>
+竖线分隔字符串。</p>
+<p>两种形式的别名：<code>IN</code> / <code>in</code> / <code>MULTI_IN</code> / <code>multi_in</code>，
+<code>NOT_IN</code> / <code>not_in</code> / <code>NOTIN</code> / <code>notin</code> / <code>MULTI_NOTIN</code> / <code>multi_notin</code>。</p>
+<p>对多值字段而言，只要其中<strong>任一个值</strong>出现在列表中，成员谓词即为真。</p>
+<h3 id="字面量"><a class="header" href="#字面量">字面量</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>类型</th><th>示例</th></tr>
+</thead>
+<tbody>
+<tr><td>整数</td><td><code>42</code>、<code>-7</code></td></tr>
+<tr><td>浮点</td><td><code>3.14</code>、<code>1.5e-3</code></td></tr>
+<tr><td>字符串</td><td><code>"electronics"</code>、<code>"new"</code>（始终双引号）</td></tr>
+<tr><td>引号包裹的整型字符串</td><td><code>"123"</code>（在 <code>multi_in</code> 中按字符串处理）</td></tr>
+</tbody>
+</table>
+</div>
+<p>标识符匹配 <code>[a-zA-Z_][a-zA-Z0-9_]*</code>，可以含 <code>.</code>（即 <code>namespace.field</code> 视为同一个标识符）。</p>
+<p>注释以 <code>#</code> 开头，到行尾。</p>
+<h3 id="示例-1"><a class="header" href="#示例-1">示例</a></h3>
+<pre><code class="language-sql"># 等值
+category = "electronics"
+
+# 数值范围 + 多值字段
+price &gt;= 100 AND price &lt;= 1000 AND tag IN ["promo", "new"]
+
+# 取反
+!(status = "archived") AND multi_notin(region, "us-east|us-west", "|")
+
+# 比较左侧的算术运算
+(end_ts - start_ts) &gt; 3600 AND charge_type = 5
+</code></pre>
+<h2 id="更新属性"><a class="header" href="#更新属性">更新属性</a></h2>
+<p>调用 <code>index-&gt;UpdateAttribute(id, new_attrs)</code>（或同时传入旧属性的重载，可让倒排索引更新更高效）：</p>
+<pre><code class="language-cpp">vsag::AttributeSet new_attrs = build_new_attrs();
+auto status = index-&gt;UpdateAttribute(/*id=*/123, new_attrs);
+</code></pre>
+<p>向量本身不会改变，只更新倒排索引，后续搜索立即可见新属性值。</p>
+<h2 id="性能要点-1"><a class="header" href="#性能要点-1">性能要点</a></h2>
+<ul>
+<li>属性倒排索引的内存占用大致与「字段平均值数量 × 向量数」成正比；字符串字段还要额外占用
+与「不同值数量」成正比的字典空间。</li>
+<li>谓词越严格，候选越早被剪除，搜索越快；不严格的谓词大致等于无过滤搜索的成本加一个常数开销。</li>
+<li>对图索引，谓词非常严格时应同步增大 <code>ef_search</code>，否则可能因存活候选不足而无法收敛。</li>
+<li>优先使用 <code>multi_in</code> / <code>IN</code>，避免冗长的 <code>OR</code> 链——倒排索引可以一次扫描完成成员判定。</li>
+</ul>
+<h2 id="测试用例参考"><a class="header" href="#测试用例参考">测试用例参考</a></h2>
+<p>最完整的使用示例在测试套件中：</p>
+<ul>
+<li><code>tests/test_index.cpp</code> 中的 <code>TestIndex::TestWithAttr</code>：构建属性、用 <code>SearchRequest</code> 查询，
+以及 <code>UpdateAttribute</code> 后再次查询。</li>
+<li><code>tests/fixtures/data/vector_generator.cpp</code> 中的 <code>generate_attributes</code>：演示如何按程序化方式
+构造混合类型的 <code>AttributeSet*</code> 数组。</li>
+<li><code>src/attr/expression_visitor_test.cpp</code>：穷举式的语法用例，可作为 DSL 的参考实现。</li>
+</ul>
+<h2 id="python-状态-1"><a class="header" href="#python-状态-1">Python 状态</a></h2>
+<p>属性 / 混合搜索 API 目前仅 C++ 可用，<code>pyvsag</code> 暂未提供绑定，
+<code>examples/python/todo_examples/301_feature_filter.py</code> 是一个空占位文件。</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="序列化格式"><a class="header" href="#序列化格式">序列化格式</a></h1>
 <p>VSAG 索引可通过多种方式序列化与反序列化，便于持久化、跨进程共享及分布式部署。</p>
 <h2 id="三种接口"><a class="header" href="#三种接口">三种接口</a></h2>
@@ -1713,7 +2149,7 @@ auto result = index-&gt;KnnSearch(query, k, search_param_json);
 <h2 id="工作原理-4"><a class="header" href="#工作原理-4">工作原理</a></h2>
 <p>共轭图由原图在训练数据上的“失败路径“反向构建而成，在搜索时作为补充的候选边参与贪心扩展。
 它相当于对主图的一层轻量索引补丁，典型体积 &lt; 主图 10%。</p>
-<h2 id="示例"><a class="header" href="#示例">示例</a></h2>
+<h2 id="示例-2"><a class="header" href="#示例-2">示例</a></h2>
 <p><code>examples/cpp/304_feature_enhance_graph.cpp</code> 给出了从构建、训练到对比召回率的完整流程。</p>
 <h2 id="适用场景"><a class="header" href="#适用场景">适用场景</a></h2>
 <ul>
@@ -1729,6 +2165,12 @@ auto result = index-&gt;KnnSearch(query, k, search_param_json);
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="内存-磁盘混合索引diskann"><a class="header" href="#内存-磁盘混合索引diskann">内存-磁盘混合索引（DiskANN）</a></h1>
+<blockquote>
+<p>本文中的“混合索引”特指<strong>内存 + 磁盘</strong>的存储结构。如果你想了解的是
+<strong>向量 + 结构化属性</strong>混合检索（即文献中的 hybrid search），请参见
+<a href="#属性过滤混合搜索">属性过滤（混合搜索）</a>；基于 id 的搜索过滤请参见
+<a href="#带过滤的搜索">带过滤的搜索</a>。</p>
+</blockquote>
 <p>在海量向量场景下，将整个图索引放入内存既昂贵又浪费。VSAG 提供的 <code>diskann</code> 索引将：</p>
 <ul>
 <li>**压缩后的向量（PQ）**保留在内存中，用于快速剪枝；</li>
@@ -1781,7 +2223,7 @@ index-&gt;Build(dataset);
 <li>在图遍历<strong>过程中</strong>就基于元数据过滤候选，而不是事后再过滤搜索结果。</li>
 </ul>
 <p>VSAG 把该负载视为原始字节流，其内存布局、序列化与解释完全由用户自行决定。</p>
-<h2 id="索引支持情况"><a class="header" href="#索引支持情况">索引支持情况</a></h2>
+<h2 id="索引支持情况-1"><a class="header" href="#索引支持情况-1">索引支持情况</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1915,7 +2357,7 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
 <li>请尽量保持负载紧凑——它会驻留内存，并在图内过滤时被反复读取。</li>
 <li>该特性目前仅提供 C++ 接口，未提供 Python 绑定。</li>
 </ul>
-<h2 id="示例-1"><a class="header" href="#示例-1">示例</a></h2>
+<h2 id="示例-3"><a class="header" href="#示例-3">示例</a></h2>
 <p>完整的可运行示例位于 <code>examples/cpp/320_feature_extra_info.cpp</code>，演示了在 HGraph 上启用
 <code>extra_info</code>、按 id 获取、图内过滤搜索以及原地更新等用法。</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -2010,7 +2452,7 @@ auto ret = index-&gt;Tune(tune_params);
 </tbody>
 </table>
 </div>
-<h2 id="示例-2"><a class="header" href="#示例-2">示例</a></h2>
+<h2 id="示例-4"><a class="header" href="#示例-4">示例</a></h2>
 <p><code>examples/cpp/318_feature_tune.cpp</code> 给出了端到端的调优流程：</p>
 <ol>
 <li>构造索引并 <code>Build</code>；</li>

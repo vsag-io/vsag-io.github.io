@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a108bc41.js";
+            window.path_to_searchindex_js = "searchindex-0acf8409.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-84d33ebd.js"></script>
+        <script src="toc-a7232b60.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1640,6 +1640,474 @@ unbounded memory usage.</li>
 between <code>RangeSearch</code> and <code>KnnSearch</code>.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="filtered-search"><a class="header" href="#filtered-search">Filtered Search</a></h1>
+<p>Filtered search restricts the result set of a <code>KnnSearch</code> or <code>RangeSearch</code> to vectors that
+satisfy an application-defined predicate. VSAG applies the predicate <strong>during</strong> index
+traversal whenever the underlying algorithm supports it, so you avoid the recall loss and
+extra latency of post-filtering top-<code>k</code> results.</p>
+<p>This page covers the three id-based filter APIs:</p>
+<ul>
+<li><strong>Bitset filter</strong> — a compact bit array indexed by vector id.</li>
+<li><strong>Function-callback filter</strong> — a <code>std::function&lt;bool(int64_t)&gt;</code>.</li>
+<li><strong><code>Filter</code> object</strong> — a <code>vsag::Filter</code> subclass that can also expose hints (valid ratio,
+distribution) to the search algorithm.</li>
+</ul>
+<p>For attribute / “hybrid” search where the predicate is an SQL-like expression over typed
+fields, see <a href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a>. For filtering against an
+opaque per-vector byte payload during graph traversal, see <a href="#extra-info">Extra Info</a>.</p>
+<blockquote>
+<p>Note: this page is unrelated to the <a href="#memory--disk-hybrid-index-diskann">Memory + Disk Hybrid Index</a>, which
+is about DiskANN’s storage layout, not search-time filtering.</p>
+</blockquote>
+<h2 id="truth-value-conventions"><a class="header" href="#truth-value-conventions">Truth-value Conventions</a></h2>
+<p>The three APIs disagree on how to spell “exclude this id”. Read this table carefully before
+mixing them.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>API</th><th>Method</th><th>Returning <code>true</code> means …</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Bitset</code></td><td><code>Test(id)</code></td><td>id is <strong>filtered out</strong></td></tr>
+<tr><td><code>std::function</code></td><td><code>f(id)</code></td><td>id is <strong>filtered out</strong></td></tr>
+<tr><td><code>Filter::CheckValid</code></td><td><code>CheckValid(id)</code></td><td>id is <strong>kept</strong></td></tr>
+</tbody>
+</table>
+</div>
+<p>The bitset and <code>std::function</code> overloads are wrapped internally as a <code>BlackListFilter</code>
+(<code>src/impl/filter/black_list_filter.cpp</code>): the bit being set, or the callback returning
+<code>true</code>, marks the id as excluded. The <code>Filter::CheckValid</code> API inverts that polarity — <code>true</code>
+keeps the id. If you maintain your own deletion bitmap, the bitset/function APIs are a
+natural fit. If you want predicate logic with hints, the <code>Filter</code> form is clearer.</p>
+<h2 id="bitset-filter"><a class="header" href="#bitset-filter">Bitset Filter</a></h2>
+<p><code>vsag::Bitset</code> (<code>include/vsag/bitset.h</code>) is a growable, ordinal-indexed bit array.</p>
+<pre><code class="language-cpp">auto invalid = vsag::Bitset::Make();
+for (int64_t i = 0; i &lt; num_vectors; ++i) {
+    if (ids[i] % 2 == 0) {
+        invalid-&gt;Set(ids[i]);    // even ids are excluded
+    }
+}
+
+auto search_params = R"({ "hnsw": { "ef_search": 100 } })";
+auto result = index-&gt;KnnSearch(query, /*topk=*/10, search_params, invalid).value();
+</code></pre>
+<p>The bitset is indexed by vector id, but ids are masked to their low 32 bits before lookup
+(<code>bit_index = id &amp; ROW_ID_MASK</code> in <code>src/impl/filter/black_list_filter.cpp</code>, where
+<code>ROW_ID_MASK = 0xFFFFFFFFLL</code>). Two ids that share the same low 32 bits will collide in the
+bitset, so keep ids within <code>[0, 2^32)</code> if you rely on this filter; otherwise switch to the
+<code>Filter</code> form. The bitset is indexed by id, not by insertion order, so reused/recycled ids
+must be handled by your application.</p>
+<h2 id="function-callback-filter"><a class="header" href="#function-callback-filter">Function-callback Filter</a></h2>
+<p>A plain lambda or <code>std::function&lt;bool(int64_t)&gt;</code> works directly. The callback must return
+<code>true</code> for ids that should be <strong>excluded</strong> (it is wrapped as a <code>BlackListFilter</code>):</p>
+<pre><code class="language-cpp">// Drop even ids: return true to exclude.
+std::function&lt;bool(int64_t)&gt; drop_even = [](int64_t id) { return id % 2 == 0; };
+auto result = index-&gt;KnnSearch(query, 10, search_params, drop_even).value();
+</code></pre>
+<p>This is the easiest way to drop in a small amount of custom logic without subclassing. If
+you prefer the “return true to keep” polarity, use the <code>Filter</code> object instead.</p>
+<h2 id="filter-object"><a class="header" href="#filter-object"><code>Filter</code> Object</a></h2>
+<p>The richest API is <code>vsag::Filter</code> (<code>include/vsag/filter.h</code>). Subclass it when the search
+algorithm can benefit from hints about the predicate:</p>
+<pre><code class="language-cpp">class MyFilter : public vsag::Filter {
+public:
+    bool CheckValid(int64_t id) const override {
+        return id % 2 == 1;
+    }
+
+    // Approximate fraction of ids that pass the predicate. The search uses this to
+    // size internal candidate buffers; an accurate estimate improves latency and recall.
+    float ValidRatio() const override { return 0.5F; }
+
+    // Hint whether passing ids cluster spatially. NONE means "no correlation"; use
+    // RELATED_TO_VECTOR if the predicate correlates with vector position (e.g. region tags).
+    Distribution FilterDistribution() const override { return Distribution::NONE; }
+};
+
+auto filter = std::make_shared&lt;MyFilter&gt;();
+auto result = index-&gt;KnnSearch(query, 10, search_params, filter).value();
+</code></pre>
+<p>Important methods:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Default</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>CheckValid(int64_t id)</code></td><td>pure virtual</td><td>Required. <code>true</code> keeps the id.</td></tr>
+<tr><td><code>CheckValid(const char* data)</code></td><td>returns <code>true</code></td><td>Used for in-graph filtering against the per-vector byte payload; see <a href="#extra-info">Extra Info</a>.</td></tr>
+<tr><td><code>ValidRatio()</code></td><td><code>1.0F</code></td><td>Hint, in <code>[0, 1]</code>, of the fraction of ids that pass.</td></tr>
+<tr><td><code>FilterDistribution()</code></td><td><code>NONE</code></td><td><code>NONE</code> or <code>RELATED_TO_VECTOR</code>.</td></tr>
+<tr><td><code>GetValidIds(...)</code></td><td>empty</td><td>Optional whitelist for very selective filters.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Passing the wrong <code>ValidRatio</code> is not a correctness bug, but a poor estimate may either
+inflate latency (overestimate) or hurt recall (underestimate).</p>
+<h2 id="available-overloads"><a class="header" href="#available-overloads">Available Overloads</a></h2>
+<p><code>KnnSearch</code> and <code>RangeSearch</code> both expose four filter shapes (<code>include/vsag/index.h</code>):</p>
+<pre><code class="language-cpp">// KnnSearch
+index-&gt;KnnSearch(query, topk, params);                                    // no filter
+index-&gt;KnnSearch(query, topk, params, BitsetPtr invalid);
+index-&gt;KnnSearch(query, topk, params, std::function&lt;bool(int64_t)&gt; f);
+index-&gt;KnnSearch(query, topk, params, FilterPtr filter);
+
+// RangeSearch
+index-&gt;RangeSearch(query, radius, params, limited_size);                  // no filter
+index-&gt;RangeSearch(query, radius, params, BitsetPtr invalid, limited_size);
+index-&gt;RangeSearch(query, radius, params, std::function&lt;bool(int64_t)&gt; f, limited_size);
+index-&gt;RangeSearch(query, radius, params, FilterPtr filter, limited_size);
+</code></pre>
+<p><code>limited_size</code> is the maximum number of results returned by <code>RangeSearch</code>:</p>
+<ul>
+<li><code>limited_size &lt; 0</code>: no limit (the default <code>-1</code>).</li>
+<li><code>limited_size == 0</code>: rejected explicitly by the API
+(<code>CHECK_ARGUMENT(limited_size != 0, ...)</code>); pass <code>-1</code> for “no limit”.</li>
+<li><code>limited_size &gt; 0</code>: cap the result list at this many entries.</li>
+</ul>
+<p>A filtered iterator-style search is also exposed:</p>
+<pre><code class="language-cpp">vsag::IteratorContext* ctx = nullptr;
+index-&gt;KnnSearch(query, topk, params, filter, ctx, /*is_last_search=*/false);
+// repeat with the same ctx; pass true on the final call to release resources
+</code></pre>
+<h2 id="index-support-matrix"><a class="header" href="#index-support-matrix">Index Support Matrix</a></h2>
+<p>All index types accept the bitset, function, and <code>FilterPtr</code> overloads — the inner
+implementation wraps bitsets and lambdas into a <code>FilterPtr</code> automatically. The columns below
+reflect the <strong>capability flags</strong> each index registers (see <code>include/vsag/index_features.h</code>),
+which is what runtime feature checks return.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index</th><th style="text-align: center"><code>_KNN_SEARCH_WITH_ID_FILTER</code></th><th style="text-align: center"><code>_RANGE_SEARCH_WITH_ID_FILTER</code></th><th style="text-align: center"><code>_KNN_ITERATOR_FILTER_SEARCH</code></th></tr>
+</thead>
+<tbody>
+<tr><td>HGraph</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
+<tr><td>HNSW</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
+<tr><td>IVF</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+<tr><td>BruteForce</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+<tr><td>DiskANN</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+<tr><td>Pyramid</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+<tr><td>SINDI / WARP</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+</tbody>
+</table>
+</div>
+<p>For id-based filtering, query support at runtime via
+<code>index-&gt;CheckFeature(vsag::SUPPORT_KNN_SEARCH_WITH_ID_FILTER)</code>,
+<code>SUPPORT_RANGE_SEARCH_WITH_ID_FILTER</code>, and <code>SUPPORT_KNN_ITERATOR_FILTER_SEARCH</code>. The flag
+<code>SUPPORT_KNN_SEARCH_WITH_EX_FILTER</code> is unrelated — it covers extra-info (byte-payload)
+filtering, see <a href="#extra-info">Extra Info</a>.</p>
+<h2 id="performance-notes"><a class="header" href="#performance-notes">Performance Notes</a></h2>
+<ul>
+<li>The more selective the filter (smaller <code>ValidRatio</code>), the more candidates the search has
+to expand. For graph indexes, increase <code>ef_search</code> proportionally when the filter is very
+selective; otherwise recall will drop sharply below ~1% selectivity.</li>
+<li>Bitset filters are fastest because <code>Test()</code> is a single bit lookup. A <code>Filter</code> object that
+performs heavy work in <code>CheckValid</code> will be called many times per query.</li>
+<li>For <code>RangeSearch</code>, set a finite <code>limited_size</code> when filters can let through millions of
+ids — otherwise the result set may grow unbounded.</li>
+<li>Filters compose cheaply with <a href="#attribute-filter-hybrid-search">Attribute Filter</a> when using
+<code>SearchRequest</code>: all enabled filters are combined with logical AND.</li>
+</ul>
+<h2 id="combining-filters-via-searchrequest"><a class="header" href="#combining-filters-via-searchrequest">Combining Filters via <code>SearchRequest</code></a></h2>
+<p><code>SearchRequest</code> (<code>include/vsag/search_request.h</code>) is the unified entry point used by
+<code>SearchWithRequest</code>. It can carry a bitset filter, a <code>Filter</code> object, and an attribute
+expression simultaneously; all are ANDed together.</p>
+<pre><code class="language-cpp">vsag::SearchRequest req;
+req.query_                = query;
+req.mode_                 = vsag::SearchMode::KNN_SEARCH;
+req.topk_                 = 10;
+req.params_str_           = R"({ "hgraph": { "ef_search": 200 } })";
+req.enable_filter_        = true;
+req.filter_               = std::make_shared&lt;MyFilter&gt;();
+req.enable_bitset_filter_ = true;
+req.bitset_filter_        = invalid;
+auto result = index-&gt;SearchWithRequest(req).value();
+</code></pre>
+<p>See <a href="#attribute-filter-hybrid-search">Attribute Filter</a> for the <code>attribute_filter_str_</code> field.</p>
+<h2 id="examples-1"><a class="header" href="#examples-1">Examples</a></h2>
+<ul>
+<li>C++: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/301_feature_filter.cpp"><code>examples/cpp/301_feature_filter.cpp</code></a>
+— bitset, function, and <code>Filter</code>-object styles on HNSW.</li>
+<li>C++: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/320_feature_extra_info.cpp"><code>examples/cpp/320_feature_extra_info.cpp</code></a>
+— in-graph filtering using the <code>CheckValid(const char*)</code> byte-buffer overload.</li>
+</ul>
+<h2 id="python-status"><a class="header" href="#python-status">Python Status</a></h2>
+<p>Python bindings for the filter APIs are not yet exposed; the placeholder at
+<code>examples/python/todo_examples/301_feature_filter.py</code> is intentionally empty. Use the C++
+API for filtered search today.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="attribute-filter-hybrid-search"><a class="header" href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a></h1>
+<p>Attribute filtering — sometimes called <em>hybrid search</em> or <em>filtered ANN with structured
+predicates</em> — restricts a <code>KnnSearch</code> / <code>RangeSearch</code> to vectors whose structured tags
+satisfy an SQL-like expression. Compared to the id-based filters in
+<a href="#filtered-search">Filtered Search</a>, it lets you express predicates like:</p>
+<pre><code>category = "electronics" AND price &lt;= 1000 AND multi_in(tag, "promo|new", "|")
+</code></pre>
+<p>without writing a callback. VSAG builds an attribute inverted index alongside the vector
+index; the predicate is parsed once and evaluated during graph traversal, so candidates that
+cannot satisfy the predicate are pruned early.</p>
+<blockquote>
+<p>“Hybrid search” on this page means <strong>vector + structured attributes</strong>. For DiskANN’s
+memory + disk <em>index</em> hybrid, see <a href="#memory--disk-hybrid-index-diskann">Memory + Disk Hybrid Index</a>.</p>
+</blockquote>
+<h2 id="when-to-use-each-filter-api"><a class="header" href="#when-to-use-each-filter-api">When to Use Each Filter API</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>You want to …</th><th>Use</th></tr>
+</thead>
+<tbody>
+<tr><td>Exclude a known set of ids (e.g. tombstones)</td><td><a href="#filtered-search">Bitset / function filter</a></td></tr>
+<tr><td>Run user-defined logic over an id</td><td><a href="#filtered-search"><code>Filter</code> object</a></td></tr>
+<tr><td>Filter on opaque per-vector bytes inside the graph</td><td><a href="#extra-info">Extra Info</a></td></tr>
+<tr><td>Filter on <strong>named, typed fields</strong> with AND/OR/IN</td><td><strong>This page</strong></td></tr>
+</tbody>
+</table>
+</div>
+<p>All three can be combined inside a single <code>SearchRequest</code>; they are ANDed together.</p>
+<h2 id="index-support"><a class="header" href="#index-support">Index Support</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index</th><th style="text-align: center">Build with <code>use_attribute_filter</code></th><th style="text-align: center"><code>SearchWithRequest</code> + attribute string</th><th style="text-align: center"><code>UpdateAttribute</code></th></tr>
+</thead>
+<tbody>
+<tr><td>HGraph</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
+<tr><td>IVF</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
+<tr><td>BruteForce</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
+<tr><td>WARP (sparse)</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
+<tr><td>HNSW / DiskANN / SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">id-based filters only (see <a href="#filtered-search">Filtered Search</a>)</td><td style="text-align: center">—</td></tr>
+</tbody>
+</table>
+</div>
+<p>When <code>use_attribute_filter</code> is enabled, BruteForce currently rejects <code>Remove</code> calls
+(re-add the index to delete entries).</p>
+<h2 id="attribute-data-model"><a class="header" href="#attribute-data-model">Attribute Data Model</a></h2>
+<p>Attributes are defined per vector and grouped into an <code>AttributeSet</code>
+(<code>include/vsag/attribute.h</code>). Each attribute has:</p>
+<ul>
+<li>a <strong>name</strong> (string),</li>
+<li>a <strong>value type</strong> (<code>AttrValueType</code> enum),</li>
+<li>a <strong>list of values</strong> — every field is multi-valued by design, so <code>IN</code>-style membership
+works naturally for tag-like fields.</li>
+</ul>
+<p>Supported value types:</p>
+<pre><code class="language-cpp">enum AttrValueType {
+    INT8 = 5,  INT16 = 7,  INT32 = 1,  INT64  = 3,
+    UINT8 = 6, UINT16 = 8, UINT32 = 2, UINT64 = 4,
+    STRING = 9,
+};
+</code></pre>
+<p>The schema is auto-discovered from the first build/add: the (name, type) pair seen for each
+field is locked. Subsequent inserts must match.</p>
+<h3 id="building-an-attributeset"><a class="header" href="#building-an-attributeset">Building an <code>AttributeSet</code></a></h3>
+<pre><code class="language-cpp">auto* category = new vsag::AttributeValue&lt;std::string&gt;();
+category-&gt;name_ = "category";
+category-&gt;GetValue() = { "electronics" };
+
+auto* tags = new vsag::AttributeValue&lt;std::string&gt;();
+tags-&gt;name_ = "tag";
+tags-&gt;GetValue() = { "promo", "new" };       // multi-valued
+
+auto* price = new vsag::AttributeValue&lt;int32_t&gt;();
+price-&gt;name_ = "price";
+price-&gt;GetValue() = { 899 };
+
+vsag::AttributeSet set;
+set.attrs_ = { category, tags, price };
+</code></pre>
+<p>Lifetime of the <code>Attribute*</code> entries depends on the <code>Dataset::Owner(...)</code> flag passed to the
+dataset that carries the <code>AttributeSet</code>:</p>
+<ul>
+<li><code>Owner(true)</code> (the default): <code>DatasetImpl</code>’s destructor will <code>delete</code> each <code>Attribute*</code> and
+<code>delete[]</code> the <code>AttributeSet</code> array; do <strong>not</strong> free them yourself.</li>
+<li><code>Owner(false)</code> (used in the example below): the caller retains ownership and must free the
+<code>Attribute*</code> entries (and the <code>AttributeSet</code> array, if heap-allocated) after <code>Build</code>/<code>Add</code>
+returns.</li>
+</ul>
+<p>Pick one and stick with it for a given dataset to avoid double-free or leaks.</p>
+<h2 id="building-an-index-with-attribute-support"><a class="header" href="#building-an-index-with-attribute-support">Building an Index with Attribute Support</a></h2>
+<p>Set <code>index_param.use_attribute_filter</code> to <code>true</code> and (optionally) tune the
+attribute-inverted-index parameters under <code>attr_params</code>.</p>
+<pre><code class="language-cpp">std::string build_params = R"(
+{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "use_attribute_filter": true,
+        "attr_params": {
+            "has_buckets": false
+        }
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("hgraph", build_params).value();
+</code></pre>
+<p><code>has_buckets</code> controls how the inverted index lays out posting lists. Defaults differ by
+index:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index</th><th style="text-align: center">Default <code>has_buckets</code></th></tr>
+</thead>
+<tbody>
+<tr><td>HGraph</td><td style="text-align: center"><code>false</code></td></tr>
+<tr><td>IVF</td><td style="text-align: center"><code>true</code></td></tr>
+<tr><td>BruteForce</td><td style="text-align: center"><code>true</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Leave the defaults unless profiling indicates otherwise.</p>
+<h2 id="attaching-attributes-during-build--add"><a class="header" href="#attaching-attributes-during-build--add">Attaching Attributes During Build / Add</a></h2>
+<p><code>Dataset::AttributeSets</code> accepts a contiguous array of <code>AttributeSet</code>, one per vector
+(<code>include/vsag/dataset.h</code>):</p>
+<pre><code class="language-cpp">std::vector&lt;vsag::AttributeSet&gt; sets(num_vectors);
+for (int64_t i = 0; i &lt; num_vectors; ++i) {
+    sets[i] = build_attrs_for_row(i);
+}
+
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)
+    -&gt;Dim(dim)
+    -&gt;Ids(ids)
+    -&gt;Float32Vectors(vectors)
+    -&gt;AttributeSets(sets.data())
+    -&gt;Owner(false);
+
+index-&gt;Build(base);     // or index-&gt;Add(base)
+</code></pre>
+<h2 id="querying-with-searchrequest"><a class="header" href="#querying-with-searchrequest">Querying with <code>SearchRequest</code></a></h2>
+<p>Attribute filtering is only exposed via <code>SearchWithRequest</code>
+(<code>include/vsag/search_request.h</code>):</p>
+<pre><code class="language-cpp">vsag::SearchRequest req;
+req.query_                    = query;
+req.mode_                     = vsag::SearchMode::KNN_SEARCH;
+req.topk_                     = 10;
+req.params_str_               = R"({ "hgraph": { "ef_search": 200 } })";
+req.enable_attribute_filter_  = true;
+req.attribute_filter_str_     =
+    "category = \"electronics\" AND price &lt;= 1000 "
+    "AND multi_in(tag, \"promo|new\", \"|\")";
+
+auto result = index-&gt;SearchWithRequest(req).value();
+for (int64_t i = 0; i &lt; result-&gt;GetDim(); ++i) {
+    std::cout &lt;&lt; result-&gt;GetIds()[i] &lt;&lt; " " &lt;&lt; result-&gt;GetDistances()[i] &lt;&lt; "\n";
+}
+</code></pre>
+<p>You can simultaneously enable <code>enable_filter_</code> (with a <code>FilterPtr</code>) and
+<code>enable_bitset_filter_</code> (with a <code>BitsetPtr</code>); all enabled filters are combined with
+<strong>AND</strong>.</p>
+<h2 id="filter-expression-language"><a class="header" href="#filter-expression-language">Filter Expression Language</a></h2>
+<p>The expression grammar is defined in <code>src/attr/grammar/FC.g4</code>. It is small but covers the
+common needs of structured filtering.</p>
+<h3 id="logical-operators"><a class="header" href="#logical-operators">Logical operators</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Form</th><th>Aliases</th></tr>
+</thead>
+<tbody>
+<tr><td>AND</td><td><code>AND</code>, <code>and</code>, <code>&amp;&amp;</code></td></tr>
+<tr><td>OR</td><td><code>OR</code>,  <code>or</code>,  <code>||</code></td></tr>
+<tr><td>NOT</td><td><code>!(expr)</code></td></tr>
+<tr><td>Grouping</td><td><code>(...)</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>NOT</code> is only available in the prefixed form <code>!(...)</code>.</p>
+<h3 id="comparison-operators"><a class="header" href="#comparison-operators">Comparison operators</a></h3>
+<p>For numeric fields: <code>=</code>, <code>!=</code>, <code>&gt;</code>, <code>&lt;</code>, <code>&gt;=</code>, <code>&lt;=</code>.
+For string fields: only <code>=</code> and <code>!=</code>.</p>
+<p>Numeric comparands may include arithmetic (<code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>):</p>
+<pre><code>(price - discount) &lt;= 100
+</code></pre>
+<h3 id="list-membership"><a class="header" href="#list-membership">List membership</a></h3>
+<p>Two forms are supported. They use the <strong>same set of keywords</strong> (<code>IN</code> and <code>NOT_IN</code>, with the
+aliases listed below) but <strong>different argument shapes</strong>.</p>
+<p><strong>Infix bracket form</strong> — use this with a literal list:</p>
+<pre><code>id IN [1, 2, 3, 4]
+category NOT_IN ["electronics", "clothing"]
+</code></pre>
+<p>The list members must be <code>INTEGER</code> literals or <strong>double-quoted</strong> strings. Single quotes are
+not accepted by the grammar.</p>
+<p><strong>Function pipe form</strong> — use this when the candidate values are produced by string
+concatenation upstream. The second argument must be a single pipe-delimited string literal,
+and the third (optional) argument is the separator and must be <code>"|"</code>:</p>
+<pre><code>multi_in(category, "electronics|clothing", "|")
+multi_notin(uid, "1961|8669|9090", "|")
+</code></pre>
+<p>Bracket lists are <strong>not</strong> accepted in the function form (<code>multi_in(field, [...])</code> is a
+syntax error). Pipe strings are <strong>not</strong> accepted in the infix form.</p>
+<p>Aliases for both forms: <code>IN</code> / <code>in</code> / <code>MULTI_IN</code> / <code>multi_in</code>,
+<code>NOT_IN</code> / <code>not_in</code> / <code>NOTIN</code> / <code>notin</code> / <code>MULTI_NOTIN</code> / <code>multi_notin</code>.</p>
+<p>A field with multiple values matches the membership predicate if <strong>any</strong> of its values is
+contained in the literal list.</p>
+<h3 id="literals"><a class="header" href="#literals">Literals</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Kind</th><th>Examples</th></tr>
+</thead>
+<tbody>
+<tr><td>Integer</td><td><code>42</code>, <code>-7</code></td></tr>
+<tr><td>Float</td><td><code>3.14</code>, <code>1.5e-3</code></td></tr>
+<tr><td>String</td><td><code>"electronics"</code>, <code>"new"</code> (always double-quoted)</td></tr>
+<tr><td>Quoted integer (string)</td><td><code>"123"</code> (treated as a string in <code>multi_in</code>)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Identifiers match <code>[a-zA-Z_][a-zA-Z0-9_]*</code> and may contain dots
+(<code>namespace.field</code> is one identifier).</p>
+<p>Comments start with <code>#</code> and run to end of line.</p>
+<h3 id="examples-2"><a class="header" href="#examples-2">Examples</a></h3>
+<pre><code class="language-sql"># simple equality
+category = "electronics"
+
+# numeric range, multi-valued field
+price &gt;= 100 AND price &lt;= 1000 AND tag IN ["promo", "new"]
+
+# negation
+!(status = "archived") AND multi_notin(region, "us-east|us-west", "|")
+
+# arithmetic on the left side of the comparison
+(end_ts - start_ts) &gt; 3600 AND charge_type = 5
+</code></pre>
+<h2 id="updating-attributes"><a class="header" href="#updating-attributes">Updating Attributes</a></h2>
+<p>Use <code>index-&gt;UpdateAttribute(id, new_attrs)</code> (or the overload that also takes the previous
+attribute set for cheaper inverted-index updates):</p>
+<pre><code class="language-cpp">vsag::AttributeSet new_attrs = build_new_attrs();
+auto status = index-&gt;UpdateAttribute(/*id=*/123, new_attrs);
+</code></pre>
+<p>The vector itself is unchanged; only the inverted index is updated. Subsequent searches see
+the new attribute values immediately.</p>
+<h2 id="performance-notes-1"><a class="header" href="#performance-notes-1">Performance Notes</a></h2>
+<ul>
+<li>The attribute inverted index adds memory roughly proportional to the average number of
+values per field times the number of vectors. For string fields, the dictionary cost is
+proportional to the number of distinct values.</li>
+<li>Highly selective predicates accelerate search (more candidates pruned early); very
+unselective predicates approach the cost of unfiltered search plus a constant overhead.</li>
+<li>For graph indexes, increase <code>ef_search</code> when predicates are very selective so the search
+has enough surviving candidates to converge.</li>
+<li>Use <code>multi_in</code> / <code>IN</code> instead of long <code>OR</code> chains; the inverted index can resolve list
+membership in a single pass.</li>
+</ul>
+<h2 id="tests-as-reference"><a class="header" href="#tests-as-reference">Tests as Reference</a></h2>
+<p>The most complete usage sample lives in the test suite:</p>
+<ul>
+<li><code>tests/test_index.cpp</code> — <code>TestIndex::TestWithAttr</code> (build attributes, search via
+<code>SearchRequest</code>, then <code>UpdateAttribute</code> and re-search).</li>
+<li><code>tests/fixtures/data/vector_generator.cpp</code> — <code>generate_attributes</code> shows how to construct
+<code>AttributeSet*</code> arrays of mixed types programmatically.</li>
+<li><code>src/attr/expression_visitor_test.cpp</code> — exhaustive grammar coverage; useful as a working
+reference for the DSL.</li>
+</ul>
+<h2 id="python-status-1"><a class="header" href="#python-status-1">Python Status</a></h2>
+<p>The attribute / hybrid-search API is currently C++-only. There is no <code>pyvsag</code> binding yet,
+and the placeholder example at <code>examples/python/todo_examples/301_feature_filter.py</code> is
+intentionally empty.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="serialization"><a class="header" href="#serialization">Serialization</a></h1>
 <p>VSAG indexes can be serialized and deserialized through several interfaces, supporting
 persistence, cross-process sharing, and distributed deployment.</p>
@@ -1785,6 +2253,12 @@ recall end-to-end.</p>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="memory--disk-hybrid-index-diskann"><a class="header" href="#memory--disk-hybrid-index-diskann">Memory + Disk Hybrid Index (DiskANN)</a></h1>
+<blockquote>
+<p>“Hybrid index” on this page refers to <strong>memory + disk storage</strong>. If you are looking for
+<strong>vector + structured-attribute</strong> hybrid search (sometimes called <em>hybrid search</em> in the
+literature), see <a href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a>. For id-based
+filtering during search, see <a href="#filtered-search">Filtered Search</a>.</p>
+</blockquote>
 <p>For billion-scale vector datasets, fitting the full graph index in memory is expensive and
 wasteful. VSAG’s <code>diskann</code> index splits storage:</p>
 <ul>
@@ -1845,7 +2319,7 @@ results.</li>
 </ul>
 <p>The library treats the payload as raw bytes — you fully own its layout, serialization, and
 interpretation.</p>
-<h2 id="index-support"><a class="header" href="#index-support">Index Support</a></h2>
+<h2 id="index-support-1"><a class="header" href="#index-support-1">Index Support</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
