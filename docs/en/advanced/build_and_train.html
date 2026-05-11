@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="zh" class="light sidebar-visible" dir="ltr">
+<html lang="en" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>HGraph - VSAG文档</title>
+        <title>Build and Train - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8db442b6.js";
+            window.path_to_searchindex_js = "../searchindex-2d4b58e4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-36846e35.js"></script>
+        <script src="../toc-3374a3d0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG文档</h1>
+                    <h1 class="menu-title">VSAG Documentation</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,215 +304,175 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h1>
-<p>HGraph 是 VSAG 的旗舰 <strong>图索引</strong>。它构建的是与 HNSW 思路类似的多层近邻图，但在此基础上
-提供了更丰富的量化方案、统一的构建参数 schema（<code>index_param</code>），并原生支持精排（reorder）、
-增量更新、删除、以及基于 ELP 的运行时自动调优。</p>
-<p>对于大多数稠密向量场景（文本 / 图像 / 多模态 embedding，维度 64–4096，规模从数千到数亿），
-HGraph 都是推荐的默认索引。</p>
-<ul>
-<li>源码：<code>src/algorithm/hgraph.{h,cpp}</code></li>
-<li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/103_index_hgraph.cpp"><code>examples/cpp/103_index_hgraph.cpp</code></a></li>
-</ul>
-<h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
+                        <h1 id="build-and-train"><a class="header" href="#build-and-train">Build and Train</a></h1>
+<p>VSAG separates index construction into three stages:</p>
 <ol>
-<li><strong>构图。</strong> 向量被组织成层级近邻图：上层作为导航入口，底层连接每个数据点到在
-<code>max_degree</code> 预算内的最近邻。构图算法可以是 NSW 风格插入（<code>graph_type: "nsw"</code>，默认）
-或 ODescent（<code>graph_type: "odescent"</code>）。</li>
-<li><strong>量化。</strong> 底层存储使用可配置的量化器进行压缩（<code>base_quantization_type</code> —
-<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>）。
-可选地再保留一份高精度副本（<code>use_reorder: true</code> 搭配 <code>precise_quantization_type</code>），
-用于对粗排结果进行重打分。</li>
-<li><strong>搜索。</strong> 自顶向下在图上做贪心 beam search，扩展候选集到 <code>ef_search</code> 个节点；如启用精排，
-最终结果会在高精度表示上重新打分。</li>
+<li><strong>Train</strong> — fit any internal quantizers / partitioners on a sample of the data.</li>
+<li><strong>Add</strong> — insert vectors into the index using those trained encoders.</li>
+<li><strong>Build</strong> — convenience wrapper that does <code>Train</code> then <code>Add</code> on the same dataset.</li>
 </ol>
-<h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
-<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+<p>Most users only call <code>Build</code>. Two situations are worth knowing about explicitly:</p>
+<ul>
+<li><strong><code>Train</code> + streaming <code>Add</code>.</strong> When the corpus is large or arrives incrementally, train on a
+representative sample first and then stream the rest via <code>Add</code> (no rebuild). See
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/311_feature_train.cpp"><code>examples/cpp/311_feature_train.cpp</code></a>.</li>
+<li><strong>ODescent.</strong> An alternative graph-construction algorithm for HGraph / Pyramid that builds the
+whole neighbor graph in batch instead of insertion-by-insertion. See
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/312_feature_odescent.cpp"><code>examples/cpp/312_feature_odescent.cpp</code></a>.</li>
+</ul>
+<h2 id="the-train-api"><a class="header" href="#the-train-api">The <code>Train</code> API</a></h2>
+<pre><code class="language-cpp">tl::expected&lt;void, Error&gt; Index::Train(const DatasetPtr&amp; data);
+</code></pre>
+<p>Declared in <code>include/vsag/index.h</code>. Trains the index on a (typically sampled) dataset
+without inserting it. Returns <code>tl::expected&lt;void, Error&gt;</code>; check <code>.has_value()</code>.</p>
+<p>Indexes that perform meaningful training: <strong>HGraph</strong>, <strong>IVF</strong>, <strong>BruteForce</strong>, <strong>WARP</strong>,
+<strong>Pyramid</strong>. For all of them, <code>Build(data)</code> first trains and then inserts the vectors —
+for the default NSW graph it calls the equivalent of <code>Train(data)</code> followed by <code>Add(data)</code>,
+while for HGraph/Pyramid configured with <code>graph_type: "odescent"</code> the insertion step is a
+batch ODescent graph build instead of <code>Add</code>
+(see <code>HGraph::build_by_odescent</code> / <code>Pyramid::Build</code> in <code>src/algorithm/</code>).</p>
+<h3 id="when-you-need-to-call-train-explicitly"><a class="header" href="#when-you-need-to-call-train-explicitly">When you need to call <code>Train</code> explicitly</a></h3>
+<ul>
+<li>The base quantizer requires training. The capability flag
+<a href="https://github.com/antgroup/vsag/blob/main/include/vsag/index_features.h"><code>IndexFeature::NEED_TRAIN</code></a>
+reflects this on HGraph and IVF: HGraph sets it whenever <code>base_quantization_type</code> is <strong>not</strong>
+one of <code>fp32</code>, <code>fp16</code>, <code>bf16</code> (<code>src/algorithm/hgraph.cpp:1803</code>); IVF always sets it
+(<code>src/algorithm/ivf.cpp:316</code>) because its centroids must be trained. Pyramid does <strong>not</strong>
+currently set <code>NEED_TRAIN</code> in <code>InitFeatures()</code> even when its underlying HGraph quantizer
+would need training, so do not rely on <code>HasFeature(NEED_TRAIN)</code> for Pyramid — call <code>Train</code>
+explicitly when you choose a trained <code>base_quantization_type</code>. fp32 / fp16 / bf16 do not
+require training (you can still call <code>Train</code> — it is a harmless no-op).</li>
+<li>You want to insert vectors in many small batches rather than in one <code>Build</code> call.</li>
+<li>You plan to export the trained model and reuse it on another index instance
+(via <code>ExportModel</code>).</li>
+</ul>
+<h3 id="pattern-train-once-add-in-a-stream"><a class="header" href="#pattern-train-once-add-in-a-stream">Pattern: train once, add in a stream</a></h3>
+<pre><code class="language-cpp">auto params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "max_degree": 32,
+        "ef_construction": 100,
+        "base_quantization_type": "sq8"
+    }
+})";
+auto index_result = vsag::Factory::CreateIndex("hgraph", params);
+if (!index_result.has_value()) {
+    std::cerr &lt;&lt; "Create index failed: " &lt;&lt; index_result.error().message &lt;&lt; std::endl;
+    return -1;
+}
+auto index = index_result.value();
 
-std::string params = R"({
+// Step 1 — train on the whole base (or a representative sample).
+auto train_result = index-&gt;Train(base);
+if (!train_result.has_value()) {
+    std::cerr &lt;&lt; "Train failed: " &lt;&lt; train_result.error().message &lt;&lt; std::endl;
+    return -1;
+}
+
+// Step 2 — stream vectors in one at a time (or in small batches).
+for (int64_t i = 0; i &lt; num_vectors; ++i) {
+    auto one = vsag::Dataset::Make();
+    one-&gt;NumElements(1)
+       -&gt;Dim(dim)
+       -&gt;Ids(ids + i)
+       -&gt;Float32Vectors(vectors + i * dim)
+       -&gt;Owner(false);
+    auto add_result = index-&gt;Add(one);
+    if (!add_result.has_value()) { /* handle */ }
+}
+</code></pre>
+<p>The complete program is
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/311_feature_train.cpp"><code>examples/cpp/311_feature_train.cpp</code></a>.</p>
+<h3 id="train-vs-build-vs-add"><a class="header" href="#train-vs-build-vs-add"><code>Train</code> vs <code>Build</code> vs <code>Add</code></a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Call</th><th>Trains quantizer?</th><th>Inserts vectors?</th><th>Use it when</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Build(data)</code></td><td>yes</td><td>yes (all of <code>data</code>)</td><td>Bulk-load: you have the whole dataset already.</td></tr>
+<tr><td><code>Train(data)</code></td><td>yes</td><td>no</td><td>You want to insert vectors later, possibly in batches.</td></tr>
+<tr><td><code>Add(data)</code></td><td>no (requires prior <code>Train</code> or <code>Build</code>)</td><td>yes</td><td>Incremental inserts after the index is trained.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="odescent-an-alternative-graph-builder"><a class="header" href="#odescent-an-alternative-graph-builder">ODescent: an alternative graph builder</a></h2>
+<p>By default, HGraph and Pyramid build their graphs <strong>NSW-style</strong> — every vector is inserted one
+at a time and connects to the neighbors found by a search-on-insert (<code>graph_type: "nsw"</code>).
+<strong>ODescent</strong> (“Optimized NN-Descent”) is an alternative: it seeds a random k-NN graph over the
+entire dataset and then iteratively refines edges using sampled candidate exchanges.</p>
+<p>ODescent typically produces graphs with comparable recall to NSW at lower build cost for large
+batches, because the refinement loop parallelizes cleanly over the data and avoids per-insert
+search.</p>
+<p>ODescent is implemented in <code>src/impl/odescent/odescent_graph_builder.{h,cpp}</code> and is currently
+used by <strong>HGraph</strong>, <strong>Pyramid</strong>, <strong>DiskANN</strong> (build path), and internally by HNSW’s <code>Merge</code>
+implementation.</p>
+<h3 id="enabling-odescent-on-hgraph"><a class="header" href="#enabling-odescent-on-hgraph">Enabling ODescent on HGraph</a></h3>
+<p>Add <code>graph_type: "odescent"</code> to the HGraph <code>index_param</code>:</p>
+<pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
     "dim": 128,
     "index_param": {
         "base_quantization_type": "sq8",
-        "max_degree": 32,
-        "ef_construction": 400
-    }
-})";
-auto index = vsag::Factory::CreateIndex("hgraph", params).value();
-
-// 构建索引。
-auto base = vsag::Dataset::Make();
-base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
-index-&gt;Build(base);
-
-// 执行检索。
-auto query = vsag::Dataset::Make();
-query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
-auto result = index-&gt;KnnSearch(
-    query, /*topk=*/10, R"({"hgraph": {"ef_search": 100}})").value();
-</code></pre>
-<h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
-<p>构建参数放在 <code>index_param</code> 下。下表列出最常用的配置项；完整列表请见
-<a href="../resources/index_parameters.html">索引参数</a> 以及仓库中的 <code>docs/hgraph.md</code>。</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
-</thead>
-<tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—（必填）</td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code></td></tr>
-<tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>图节点最大出度</td></tr>
-<tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>构建阶段的候选集大小（越大召回越高，构建越慢）</td></tr>
-<tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td>构图算法：<code>nsw</code> 或 <code>odescent</code></td></tr>
-<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否额外保留一份高精度副本用于精排</td></tr>
-<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型（仅在 <code>use_reorder: true</code> 时生效）</td></tr>
-<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
-<tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>构建阶段并发线程数</td></tr>
-<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否在插入时做重复 ID 检测</td></tr>
-<tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>是否支持 <code>Remove()</code></td></tr>
-<tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>除量化副本外再保留原始向量（<code>cosine</code> 场景有用）</td></tr>
-<tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>构建完成后自动调优检索参数</td></tr>
-<tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>mmap_io</code>）</td></tr>
-<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>磁盘后端时的文件路径（使用 <code>mmap_io</code> / <code>async_io</code> / <code>buffer_io</code> 时必填）</td></tr>
-<tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>初始容量提示（不会限制最终规模）</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="支持的输入数据类型"><a class="header" href="#支持的输入数据类型">支持的输入数据类型</a></h2>
-<p>顶层构建配置中的 <code>dtype</code> 字段决定 <code>Dataset</code> 如何解释原始向量字节。HGraph 支持四种输入类型，
-<code>dtype</code> 值、对应的 <code>Dataset</code> setter 与演示示例见下表。</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th><code>dtype</code></th><th>元素类型</th><th><code>Dataset</code> setter</th><th>示例</th></tr>
-</thead>
-<tbody>
-<tr><td><code>float32</code></td><td><code>float</code></td><td><code>Float32Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/103_index_hgraph.cpp"><code>103_index_hgraph.cpp</code></a></td></tr>
-<tr><td><code>int8</code></td><td><code>int8_t</code></td><td><code>Int8Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/316_index_int8_hgraph.cpp"><code>316_index_int8_hgraph.cpp</code></a></td></tr>
-<tr><td><code>float16</code></td><td><code>uint16_t</code>（按 IEEE 754 binary16 位模式打包）</td><td><code>Float16Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/321_index_fp16_hgraph.cpp"><code>321_index_fp16_hgraph.cpp</code></a></td></tr>
-<tr><td><code>bfloat16</code></td><td><code>uint16_t</code>（按 Brain Float 位模式打包）</td><td><code>Float16Vectors</code>（与 FP16 共用）</td><td>在 <code>321_index_fp16_hgraph.cpp</code> 基础上按下文调整</td></tr>
-</tbody>
-</table>
-</div>
-<p><code>dim</code> 始终表示逻辑维度（元素数量），与字节长度无关，因此四种数据类型下 <code>dim</code> 取值相同。</p>
-<h3 id="int8-输入"><a class="header" href="#int8-输入"><code>int8</code> 输入</a></h3>
-<p>量化好的 <code>int8</code> 向量直接通过 <code>Int8Vectors</code> 传入：</p>
-<pre><code class="language-cpp">std::vector&lt;int8_t&gt; data(num_vectors * dim);  // 填入 int8 元素
-auto base = vsag::Dataset::Make();
-base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
-    -&gt;Int8Vectors(data.data())-&gt;Owner(false);
-</code></pre>
-<p>对应构建配置（注意 <code>dtype: "int8"</code>）：</p>
-<pre><code class="language-json">{
-    "dtype": "int8",
-    "metric_type": "l2",
-    "dim": 128,
-    "index_param": {
-        "base_quantization_type": "pq",
         "max_degree": 26,
         "ef_construction": 100,
+        "graph_type": "odescent",
+        "graph_iter_turn": 10,
+        "neighbor_sample_rate": 0.3,
         "alpha": 1.2
     }
 }
 </code></pre>
-<p>查询时同样使用 <code>Int8Vectors</code> 和相同的 <code>dtype</code>。可运行示例：
-<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/316_index_int8_hgraph.cpp"><code>316_index_int8_hgraph.cpp</code></a>。</p>
-<h3 id="float16--bfloat16-输入"><a class="header" href="#float16--bfloat16-输入"><code>float16</code> / <code>bfloat16</code> 输入</a></h3>
-<p>FP16 与 BF16 都通过 <code>Float16Vectors</code> 传入，参数类型为 <code>const uint16_t*</code>，指向各元素的 16 位
-存储。从 <code>float</code> 到 16 位格式的转换由调用方负责。VSAG 源码树内提供了便捷辅助函数
-（<code>vsag::generic::FloatToFP16</code> 位于
-<a href="https://github.com/antgroup/vsag/blob/main/src/simd/fp16_simd.h"><code>src/simd/fp16_simd.h</code></a>，
-<code>vsag::generic::FloatToBF16</code> 位于
-<a href="https://github.com/antgroup/vsag/blob/main/src/simd/bf16_simd.h"><code>src/simd/bf16_simd.h</code></a>），
-但它们是<strong>内部头文件</strong>，并未通过 <code>include/vsag/</code> 对外安装。链接已安装版 VSAG 库的应用需要自行
-完成转换（例如复制这段小工具函数、使用 <code>_cvtss_sh</code> / F16C 内置指令，或调用任意 FP16 库）。下面
-的示例代码为了简洁直接使用了源码树内的辅助函数：</p>
-<pre><code class="language-cpp">// 下面的 fp16/bf16 辅助函数位于 src/simd/，并未随 VSAG 一并安装。
-// 链接已安装版 VSAG 时，请替换为自行实现的 float -&gt; uint16_t 转换。
-#include "simd/fp16_simd.h"  // FloatToFP16（BF16 场景改为 simd/bf16_simd.h / FloatToBF16）
-
-std::vector&lt;uint16_t&gt; data(num_vectors * dim);
-for (size_t i = 0; i &lt; data.size(); ++i) {
-    data[i] = vsag::generic::FloatToFP16(some_float_source());
-}
-auto base = vsag::Dataset::Make();
-base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
-    -&gt;Float16Vectors(data.data())-&gt;Owner(false);
-</code></pre>
-<p>构建配置：</p>
-<pre><code class="language-json">{
-    "dtype": "float16",
-    "metric_type": "l2",
-    "dim": 128,
-    "index_param": {
-        "base_quantization_type": "pq",
-        "max_degree": 26,
-        "ef_construction": 100,
-        "alpha": 1.2
-    }
-}
-</code></pre>
-<p>切换到 BF16 时，将 <code>dtype</code> 改为 <code>"bfloat16"</code>、把 <code>FloatToFP16</code> 替换为 <code>FloatToBF16</code> 即可；
-<code>Float16Vectors</code> setter 与构建/检索流程不变。可运行 FP16 示例：
-<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/321_index_fp16_hgraph.cpp"><code>321_index_fp16_hgraph.cpp</code></a>。</p>
-<blockquote>
-<p><strong>注意。</strong> <code>321_index_fp16_hgraph.cpp</code> 文件头注释提到 <code>BFloat16Vectors()</code>，但该 setter 并不
-存在 —— FP16 与 BF16 都通过 <code>Float16Vectors</code> 传入。无论 <code>dtype</code> 是 <code>"float16"</code> 还是
-<code>"bfloat16"</code>，都使用同一个 setter。</p>
-</blockquote>
-<h3 id="输入类型选择建议"><a class="header" href="#输入类型选择建议">输入类型选择建议</a></h3>
-<ul>
-<li>对精度要求最高、且内存预算充裕时，选 <code>float32</code>（默认）。</li>
-<li>想把输入存储减半，选 <code>float16</code> / <code>bfloat16</code>。FP16 指数范围更小，BF16 尾数位更少但指数范围
-与 FP32 一致，对 embedding 类向量通常更友好。</li>
-<li>数据本身已是整数量化结果（来自上游量化器或 int8 输出的模型）时，选 <code>int8</code>。此时通常仍配合
-<code>pq</code> / <code>sq8</code> 之类的索引内量化器使用。</li>
-</ul>
-<p><code>dtype</code> 仅约束<strong>输入</strong>表示；索引内的实际存储仍由 <code>base_quantization_type</code>（以及
-<code>use_reorder: true</code> 下的 <code>precise_quantization_type</code>）决定，因此
-<code>dtype: "float16"</code> + <code>base_quantization_type: "sq8"</code> 这样的组合是允许的。</p>
-<h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
-<p>检索参数放在 <code>hgraph</code> 子对象下：</p>
+<p>Then just call <code>Build(data)</code> — no other API change. The complete program is
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/312_feature_odescent.cpp"><code>examples/cpp/312_feature_odescent.cpp</code></a>.</p>
+<h3 id="odescent-build-parameters"><a class="header" href="#odescent-build-parameters">ODescent build parameters</a></h3>
+<p>These keys go under <code>index_param</code> alongside the usual HGraph keys:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>参数</th><th>类型</th><th>说明</th></tr>
+<tr><th>Parameter</th><th>Default (HGraph)</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ef_search</code></td><td>int</td><td>搜索前沿候选集的大小，越大召回越高、查询越慢</td></tr>
+<tr><td><code>graph_type</code></td><td><code>"nsw"</code></td><td>Set to <code>"odescent"</code> to switch on this builder.</td></tr>
+<tr><td><code>graph_iter_turn</code></td><td><code>30</code></td><td>Number of refinement iterations. Higher → better graph quality, longer build.</td></tr>
+<tr><td><code>neighbor_sample_rate</code></td><td><code>0.2</code></td><td>Fraction of each node’s neighbors sampled per iteration for candidate exchange.</td></tr>
+<tr><td><code>alpha</code></td><td><code>1.2</code></td><td>α factor used by the diversity-aware edge pruning step. Larger <code>alpha</code> → sparser, more diverse edges.</td></tr>
+<tr><td><code>min_in_degree</code></td><td><code>1</code></td><td>Minimum in-degree enforced when repairing the graph after pruning.</td></tr>
+<tr><td><code>build_block_size</code></td><td><code>10000</code></td><td>Parallelization granularity (vectors per worker block).</td></tr>
 </tbody>
 </table>
 </div>
-<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
-    query, topk, R"({"hgraph": {"ef_search": 200}})").value();
-</code></pre>
-<h2 id="何时选择-hgraph"><a class="header" href="#何时选择-hgraph">何时选择 HGraph</a></h2>
+<p><code>max_degree</code> is inherited from the HGraph top-level setting; you do not need to repeat it under
+ODescent. Upper graph layers automatically use half of <code>max_degree</code>.</p>
+<h3 id="when-to-use-odescent-vs-nsw"><a class="header" href="#when-to-use-odescent-vs-nsw">When to use ODescent vs NSW</a></h3>
 <ul>
-<li>维度大约在 64–4096 的稠密 float 向量。</li>
-<li>对延迟敏感且要求高召回的场景。</li>
-<li>需要增量插入（可选通过 <code>support_remove</code> 打开删除）的混合负载。</li>
-<li>内存受限环境，可用 <code>sq8</code> / <code>sq4_uniform</code> / <code>pq</code> 压缩，再配合 <code>use_reorder</code> 弥补召回。</li>
+<li><strong>Use ODescent</strong> when you have the full dataset up front and care about build throughput on a
+many-core machine. The batch refinement parallelizes better than insertion-by-insertion.</li>
+<li><strong>Use NSW</strong> (the default) when you build incrementally or care about strictly minimal memory
+during the build, or when you have not measured a build-time problem.</li>
 </ul>
-<p>如果你的业务偏向粗粒度分桶（每次查询只扫部分桶）或严重受 SSD I/O 制约，建议先对比
-<a href="ivf.html">IVF</a> 再决定是否选择 HGraph。</p>
-<h2 id="相关文档"><a class="header" href="#相关文档">相关文档</a></h2>
+<p>Both choices produce a graph that is searched the same way at query time, so search-side
+parameters (<code>ef_search</code>, <code>pq_rerank</code>, …) carry over unchanged.</p>
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
-<li><a href="../guide/create_index.html">创建索引</a></li>
-<li><a href="../advanced/enhance_graph.html">图索引增强</a></li>
-<li><a href="../advanced/optimizer.html">优化器</a></li>
-<li><a href="../advanced/serialization.html">序列化格式</a></li>
+<li><a href="../guide/create_index.html">Creating an Index</a></li>
+<li><a href="../indexes/hgraph.html">HGraph index parameters</a></li>
+<li><a href="../indexes/pyramid.html">Pyramid index parameters</a></li>
+<li><a href="../resources/index_parameters.html">Index Parameters reference</a></li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../resources/index_parameters.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../development/contributing.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../indexes/ivf.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/range_search.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -522,11 +482,11 @@ base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../resources/index_parameters.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../development/contributing.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../indexes/ivf.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/range_search.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

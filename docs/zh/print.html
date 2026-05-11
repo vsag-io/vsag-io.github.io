@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9c238acd.js";
+            window.path_to_searchindex_js = "searchindex-8db442b6.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-80102372.js"></script>
+        <script src="toc-36846e35.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1772,6 +1772,159 @@ Assisted-by: OpenCode:claude-opus-4.7
 <pre><code class="language-bash">make test
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="索引构建与训练"><a class="header" href="#索引构建与训练">索引构建与训练</a></h1>
+<p>VSAG 把索引构建拆成三个阶段：</p>
+<ol>
+<li><strong>Train</strong> —— 在样本数据上拟合内部量化器 / 分区器。</li>
+<li><strong>Add</strong> —— 用训练好的编码器把向量插入索引。</li>
+<li><strong>Build</strong> —— 一站式包装：在同一份数据上先 <code>Train</code> 再 <code>Add</code>。</li>
+</ol>
+<p>绝大多数用户只需要调用 <code>Build</code>。下面两种情况值得单独说明：</p>
+<ul>
+<li><strong><code>Train</code> + 增量 <code>Add</code>。</strong> 当语料规模大或者数据是分批到达时，可以先用代表性样本训练，再通过
+<code>Add</code> 流式追加（无需重建索引）。参考
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/311_feature_train.cpp"><code>examples/cpp/311_feature_train.cpp</code></a>。</li>
+<li><strong>ODescent。</strong> HGraph / Pyramid 的另一种构图算法，采用批量迭代精修而非逐条插入。参考
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/312_feature_odescent.cpp"><code>examples/cpp/312_feature_odescent.cpp</code></a>。</li>
+</ul>
+<h2 id="train-api"><a class="header" href="#train-api"><code>Train</code> API</a></h2>
+<pre><code class="language-cpp">tl::expected&lt;void, Error&gt; Index::Train(const DatasetPtr&amp; data);
+</code></pre>
+<p>声明位置 <code>include/vsag/index.h</code>。在（通常是抽样的）数据集上训练索引，但<strong>不</strong>写入这些
+向量。返回 <code>tl::expected&lt;void, Error&gt;</code>，使用 <code>.has_value()</code> 判断成功与否。</p>
+<p>具备实质训练逻辑的索引：<strong>HGraph</strong>、<strong>IVF</strong>、<strong>BruteForce</strong>、<strong>WARP</strong>、<strong>Pyramid</strong>。对它们
+来说，<code>Build(data)</code> 会先训练再写入向量 —— 默认 NSW 构图模式下相当于 <code>Train(data)</code> 之后再
+<code>Add(data)</code>，而当 HGraph / Pyramid 配置 <code>graph_type: "odescent"</code> 时，写入阶段会走 ODescent
+的批量构图路径，而不是逐条 <code>Add</code>（见 <code>src/algorithm/</code> 下的 <code>HGraph::build_by_odescent</code> /
+<code>Pyramid::Build</code>）。</p>
+<h3 id="何时需要单独调用-train"><a class="header" href="#何时需要单独调用-train">何时需要单独调用 <code>Train</code></a></h3>
+<ul>
+<li>基础量化器需要训练。能力标志
+<a href="https://github.com/antgroup/vsag/blob/main/include/vsag/index_features.h"><code>IndexFeature::NEED_TRAIN</code></a>
+在 HGraph 与 IVF 中可靠反映这一点：HGraph 当 <code>base_quantization_type</code> <strong>不是</strong> <code>fp32</code> /
+<code>fp16</code> / <code>bf16</code> 时设置（<code>src/algorithm/hgraph.cpp:1803</code>）；IVF 始终设置
+（<code>src/algorithm/ivf.cpp:316</code>），因为其聚类中心必须训练。Pyramid 目前在 <code>InitFeatures()</code>
+中<strong>不会</strong>设置 <code>NEED_TRAIN</code>，即使其内部 HGraph 量化器需要训练，因此请勿依赖
+<code>HasFeature(NEED_TRAIN)</code> 来判断 Pyramid —— 当你选用需要训练的 <code>base_quantization_type</code>
+时请显式调用 <code>Train</code>。fp32 / fp16 / bf16 不需要训练（即使调用了 <code>Train</code> 也是无副作用的
+空操作）。</li>
+<li>希望分多批次写入向量，而不是一次性通过 <code>Build</code> 写完。</li>
+<li>希望导出已训练的模型供其他索引实例复用（通过 <code>ExportModel</code>）。</li>
+</ul>
+<h3 id="用法训练一次流式追加"><a class="header" href="#用法训练一次流式追加">用法：训练一次，流式追加</a></h3>
+<pre><code class="language-cpp">auto params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "max_degree": 32,
+        "ef_construction": 100,
+        "base_quantization_type": "sq8"
+    }
+})";
+auto index_result = vsag::Factory::CreateIndex("hgraph", params);
+if (!index_result.has_value()) {
+    std::cerr &lt;&lt; "Create index failed: " &lt;&lt; index_result.error().message &lt;&lt; std::endl;
+    return -1;
+}
+auto index = index_result.value();
+
+// 第 1 步 —— 在全量（或代表性样本）上训练。
+auto train_result = index-&gt;Train(base);
+if (!train_result.has_value()) {
+    std::cerr &lt;&lt; "Train failed: " &lt;&lt; train_result.error().message &lt;&lt; std::endl;
+    return -1;
+}
+
+// 第 2 步 —— 逐条或小批量追加向量。
+for (int64_t i = 0; i &lt; num_vectors; ++i) {
+    auto one = vsag::Dataset::Make();
+    one-&gt;NumElements(1)
+       -&gt;Dim(dim)
+       -&gt;Ids(ids + i)
+       -&gt;Float32Vectors(vectors + i * dim)
+       -&gt;Owner(false);
+    auto add_result = index-&gt;Add(one);
+    if (!add_result.has_value()) { /* handle */ }
+}
+</code></pre>
+<p>完整示例见
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/311_feature_train.cpp"><code>examples/cpp/311_feature_train.cpp</code></a>。</p>
+<h3 id="train--build--add-三者对比"><a class="header" href="#train--build--add-三者对比"><code>Train</code> / <code>Build</code> / <code>Add</code> 三者对比</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>调用</th><th>是否训练量化器？</th><th>是否写入向量？</th><th>适用场景</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Build(data)</code></td><td>是</td><td>是（写入全部 <code>data</code>）</td><td>一次性批量加载：手头已经有完整数据集。</td></tr>
+<tr><td><code>Train(data)</code></td><td>是</td><td>否</td><td>之后需要分批写入向量。</td></tr>
+<tr><td><code>Add(data)</code></td><td>否（需先 <code>Train</code> 或 <code>Build</code>）</td><td>是</td><td>索引已训练后的增量写入。</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="odescent另一种构图算法"><a class="header" href="#odescent另一种构图算法">ODescent：另一种构图算法</a></h2>
+<p>HGraph 与 Pyramid 默认使用 <strong>NSW 风格</strong> 构图 —— 每条向量逐条插入，在插入时通过搜索找到邻居
+并建边（<code>graph_type: "nsw"</code>）。<strong>ODescent</strong>（“Optimized NN-Descent”）是另一种实现：先在
+完整数据集上初始化一张随机 k-NN 图，然后通过若干轮采样候选交换迭代精修边。</p>
+<p>在大批量构建场景下，ODescent 通常能在召回率相当的情况下显著降低构图开销，因为精修循环可以
+在数据维度上整齐并行，避免了逐条插入时的单点搜索。</p>
+<p>ODescent 的实现位于 <code>src/impl/odescent/odescent_graph_builder.{h,cpp}</code>，目前被
+<strong>HGraph</strong>、<strong>Pyramid</strong>、<strong>DiskANN</strong>（构图路径）使用，HNSW 的 <code>Merge</code> 内部也复用它。</p>
+<h3 id="在-hgraph-中启用-odescent"><a class="header" href="#在-hgraph-中启用-odescent">在 HGraph 中启用 ODescent</a></h3>
+<p>在 HGraph 的 <code>index_param</code> 中加入 <code>graph_type: "odescent"</code>：</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 26,
+        "ef_construction": 100,
+        "graph_type": "odescent",
+        "graph_iter_turn": 10,
+        "neighbor_sample_rate": 0.3,
+        "alpha": 1.2
+    }
+}
+</code></pre>
+<p>然后正常调用 <code>Build(data)</code> 即可，无需其他 API 调整。完整示例见
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/312_feature_odescent.cpp"><code>examples/cpp/312_feature_odescent.cpp</code></a>。</p>
+<h3 id="odescent-构图参数"><a class="header" href="#odescent-构图参数">ODescent 构图参数</a></h3>
+<p>下列键放在 <code>index_param</code> 中，与常规 HGraph 参数并列：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>默认值（HGraph 模板）</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>graph_type</code></td><td><code>"nsw"</code></td><td>设为 <code>"odescent"</code> 启用该构图算法。</td></tr>
+<tr><td><code>graph_iter_turn</code></td><td><code>30</code></td><td>精修迭代轮数。值越大图质量越高，但构图越慢。</td></tr>
+<tr><td><code>neighbor_sample_rate</code></td><td><code>0.2</code></td><td>每轮迭代中从每个节点邻居采样的比例（用于候选交换）。</td></tr>
+<tr><td><code>alpha</code></td><td><code>1.2</code></td><td>多样性剪枝阶段的 α 因子。值越大边越稀疏、多样性越强。</td></tr>
+<tr><td><code>min_in_degree</code></td><td><code>1</code></td><td>剪枝后修复阶段所保证的最小入度。</td></tr>
+<tr><td><code>build_block_size</code></td><td><code>10000</code></td><td>并行粒度（每个 worker 处理的向量数）。</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>max_degree</code> 沿用 HGraph 顶层配置，无需在 ODescent 这里重复指定；图的上层会自动使用
+<code>max_degree / 2</code>。</p>
+<h3 id="odescent-vs-nsw-如何选择"><a class="header" href="#odescent-vs-nsw-如何选择">ODescent vs NSW 如何选择</a></h3>
+<ul>
+<li><strong>选 ODescent</strong>：已经有完整数据集，并希望充分利用多核机器加速构图。批量精修比逐条插入的
+并行度更高。</li>
+<li><strong>选 NSW</strong>（默认）：需要增量构建索引，或希望构图阶段内存占用尽量小，又或者尚未观察到构图
+耗时的瓶颈。</li>
+</ul>
+<p>两种算法构出的图在查询期完全等价，所有搜索参数（<code>ef_search</code>、<code>pq_rerank</code> 等）保持不变。</p>
+<h2 id="参考-2"><a class="header" href="#参考-2">参考</a></h2>
+<ul>
+<li><a href="#创建索引">创建索引</a></li>
+<li><a href="#hgraph-1">HGraph 索引参数</a></li>
+<li><a href="#pyramid-1">Pyramid 索引参数</a></li>
+<li><a href="#索引参数">索引参数参考</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="范围搜索"><a class="header" href="#范围搜索">范围搜索</a></h1>
 <p>除了 k-近邻搜索（<code>KnnSearch</code>），VSAG 还支持<strong>范围搜索</strong>（<code>RangeSearch</code>）：返回所有与查询向量距离
 小于或等于指定半径的结果。该接口适用于阈值过滤、去重、近似召回等场景。</p>
@@ -3156,7 +3309,7 @@ eval_case1:
 <h2 id="数据集"><a class="header" href="#数据集">数据集</a></h2>
 <p>可使用 <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a> 提供的 HDF5 格式数据集
 （如 <code>sift-128-euclidean.hdf5</code>、<code>gist-960-euclidean.hdf5</code>）。</p>
-<h2 id="参考-2"><a class="header" href="#参考-2">参考</a></h2>
+<h2 id="参考-3"><a class="header" href="#参考-3">参考</a></h2>
 <ul>
 <li>源码：<code>tools/eval/</code></li>
 <li>详细说明：<code>tools/eval/README.md</code></li>
@@ -3305,7 +3458,7 @@ eval_case1:
 </ul>
 </li>
 </ol>
-<h2 id="参考-3"><a class="header" href="#参考-3">参考</a></h2>
+<h2 id="参考-4"><a class="header" href="#参考-4">参考</a></h2>
 <ul>
 <li>与该格式兼容的公开基准数据集可在
 <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a>
@@ -3438,7 +3591,7 @@ cmake --build build-release -j
 <li><strong>假设性实验</strong>：通过 <code>--build_parameter</code> 在加载时覆盖原始构建参数，对未在文件中嵌入参数的索引
 进行不同配置的评估。</li>
 </ul>
-<h2 id="参考-4"><a class="header" href="#参考-4">参考</a></h2>
+<h2 id="参考-5"><a class="header" href="#参考-5">参考</a></h2>
 <ul>
 <li>接口：<code>include/vsag/index.h</code> 中的 <code>Index::AnalyzeIndexBySearch</code></li>
 <li>实现：<code>src/analyzer/{analyzer,hgraph_analyzer,pyramid_analyzer}.h</code></li>

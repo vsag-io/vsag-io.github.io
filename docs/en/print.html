@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a82ee944.js";
+            window.path_to_searchindex_js = "searchindex-2d4b58e4.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-e882464b.js"></script>
+        <script src="toc-3374a3d0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1826,6 +1826,166 @@ installed.</p>
 <p>Run the full test suite and make sure it passes:</p>
 <pre><code class="language-bash">make test
 </code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="build-and-train"><a class="header" href="#build-and-train">Build and Train</a></h1>
+<p>VSAG separates index construction into three stages:</p>
+<ol>
+<li><strong>Train</strong> — fit any internal quantizers / partitioners on a sample of the data.</li>
+<li><strong>Add</strong> — insert vectors into the index using those trained encoders.</li>
+<li><strong>Build</strong> — convenience wrapper that does <code>Train</code> then <code>Add</code> on the same dataset.</li>
+</ol>
+<p>Most users only call <code>Build</code>. Two situations are worth knowing about explicitly:</p>
+<ul>
+<li><strong><code>Train</code> + streaming <code>Add</code>.</strong> When the corpus is large or arrives incrementally, train on a
+representative sample first and then stream the rest via <code>Add</code> (no rebuild). See
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/311_feature_train.cpp"><code>examples/cpp/311_feature_train.cpp</code></a>.</li>
+<li><strong>ODescent.</strong> An alternative graph-construction algorithm for HGraph / Pyramid that builds the
+whole neighbor graph in batch instead of insertion-by-insertion. See
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/312_feature_odescent.cpp"><code>examples/cpp/312_feature_odescent.cpp</code></a>.</li>
+</ul>
+<h2 id="the-train-api"><a class="header" href="#the-train-api">The <code>Train</code> API</a></h2>
+<pre><code class="language-cpp">tl::expected&lt;void, Error&gt; Index::Train(const DatasetPtr&amp; data);
+</code></pre>
+<p>Declared in <code>include/vsag/index.h</code>. Trains the index on a (typically sampled) dataset
+without inserting it. Returns <code>tl::expected&lt;void, Error&gt;</code>; check <code>.has_value()</code>.</p>
+<p>Indexes that perform meaningful training: <strong>HGraph</strong>, <strong>IVF</strong>, <strong>BruteForce</strong>, <strong>WARP</strong>,
+<strong>Pyramid</strong>. For all of them, <code>Build(data)</code> first trains and then inserts the vectors —
+for the default NSW graph it calls the equivalent of <code>Train(data)</code> followed by <code>Add(data)</code>,
+while for HGraph/Pyramid configured with <code>graph_type: "odescent"</code> the insertion step is a
+batch ODescent graph build instead of <code>Add</code>
+(see <code>HGraph::build_by_odescent</code> / <code>Pyramid::Build</code> in <code>src/algorithm/</code>).</p>
+<h3 id="when-you-need-to-call-train-explicitly"><a class="header" href="#when-you-need-to-call-train-explicitly">When you need to call <code>Train</code> explicitly</a></h3>
+<ul>
+<li>The base quantizer requires training. The capability flag
+<a href="https://github.com/antgroup/vsag/blob/main/include/vsag/index_features.h"><code>IndexFeature::NEED_TRAIN</code></a>
+reflects this on HGraph and IVF: HGraph sets it whenever <code>base_quantization_type</code> is <strong>not</strong>
+one of <code>fp32</code>, <code>fp16</code>, <code>bf16</code> (<code>src/algorithm/hgraph.cpp:1803</code>); IVF always sets it
+(<code>src/algorithm/ivf.cpp:316</code>) because its centroids must be trained. Pyramid does <strong>not</strong>
+currently set <code>NEED_TRAIN</code> in <code>InitFeatures()</code> even when its underlying HGraph quantizer
+would need training, so do not rely on <code>HasFeature(NEED_TRAIN)</code> for Pyramid — call <code>Train</code>
+explicitly when you choose a trained <code>base_quantization_type</code>. fp32 / fp16 / bf16 do not
+require training (you can still call <code>Train</code> — it is a harmless no-op).</li>
+<li>You want to insert vectors in many small batches rather than in one <code>Build</code> call.</li>
+<li>You plan to export the trained model and reuse it on another index instance
+(via <code>ExportModel</code>).</li>
+</ul>
+<h3 id="pattern-train-once-add-in-a-stream"><a class="header" href="#pattern-train-once-add-in-a-stream">Pattern: train once, add in a stream</a></h3>
+<pre><code class="language-cpp">auto params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "max_degree": 32,
+        "ef_construction": 100,
+        "base_quantization_type": "sq8"
+    }
+})";
+auto index_result = vsag::Factory::CreateIndex("hgraph", params);
+if (!index_result.has_value()) {
+    std::cerr &lt;&lt; "Create index failed: " &lt;&lt; index_result.error().message &lt;&lt; std::endl;
+    return -1;
+}
+auto index = index_result.value();
+
+// Step 1 — train on the whole base (or a representative sample).
+auto train_result = index-&gt;Train(base);
+if (!train_result.has_value()) {
+    std::cerr &lt;&lt; "Train failed: " &lt;&lt; train_result.error().message &lt;&lt; std::endl;
+    return -1;
+}
+
+// Step 2 — stream vectors in one at a time (or in small batches).
+for (int64_t i = 0; i &lt; num_vectors; ++i) {
+    auto one = vsag::Dataset::Make();
+    one-&gt;NumElements(1)
+       -&gt;Dim(dim)
+       -&gt;Ids(ids + i)
+       -&gt;Float32Vectors(vectors + i * dim)
+       -&gt;Owner(false);
+    auto add_result = index-&gt;Add(one);
+    if (!add_result.has_value()) { /* handle */ }
+}
+</code></pre>
+<p>The complete program is
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/311_feature_train.cpp"><code>examples/cpp/311_feature_train.cpp</code></a>.</p>
+<h3 id="train-vs-build-vs-add"><a class="header" href="#train-vs-build-vs-add"><code>Train</code> vs <code>Build</code> vs <code>Add</code></a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Call</th><th>Trains quantizer?</th><th>Inserts vectors?</th><th>Use it when</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Build(data)</code></td><td>yes</td><td>yes (all of <code>data</code>)</td><td>Bulk-load: you have the whole dataset already.</td></tr>
+<tr><td><code>Train(data)</code></td><td>yes</td><td>no</td><td>You want to insert vectors later, possibly in batches.</td></tr>
+<tr><td><code>Add(data)</code></td><td>no (requires prior <code>Train</code> or <code>Build</code>)</td><td>yes</td><td>Incremental inserts after the index is trained.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="odescent-an-alternative-graph-builder"><a class="header" href="#odescent-an-alternative-graph-builder">ODescent: an alternative graph builder</a></h2>
+<p>By default, HGraph and Pyramid build their graphs <strong>NSW-style</strong> — every vector is inserted one
+at a time and connects to the neighbors found by a search-on-insert (<code>graph_type: "nsw"</code>).
+<strong>ODescent</strong> (“Optimized NN-Descent”) is an alternative: it seeds a random k-NN graph over the
+entire dataset and then iteratively refines edges using sampled candidate exchanges.</p>
+<p>ODescent typically produces graphs with comparable recall to NSW at lower build cost for large
+batches, because the refinement loop parallelizes cleanly over the data and avoids per-insert
+search.</p>
+<p>ODescent is implemented in <code>src/impl/odescent/odescent_graph_builder.{h,cpp}</code> and is currently
+used by <strong>HGraph</strong>, <strong>Pyramid</strong>, <strong>DiskANN</strong> (build path), and internally by HNSW’s <code>Merge</code>
+implementation.</p>
+<h3 id="enabling-odescent-on-hgraph"><a class="header" href="#enabling-odescent-on-hgraph">Enabling ODescent on HGraph</a></h3>
+<p>Add <code>graph_type: "odescent"</code> to the HGraph <code>index_param</code>:</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 26,
+        "ef_construction": 100,
+        "graph_type": "odescent",
+        "graph_iter_turn": 10,
+        "neighbor_sample_rate": 0.3,
+        "alpha": 1.2
+    }
+}
+</code></pre>
+<p>Then just call <code>Build(data)</code> — no other API change. The complete program is
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/312_feature_odescent.cpp"><code>examples/cpp/312_feature_odescent.cpp</code></a>.</p>
+<h3 id="odescent-build-parameters"><a class="header" href="#odescent-build-parameters">ODescent build parameters</a></h3>
+<p>These keys go under <code>index_param</code> alongside the usual HGraph keys:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Default (HGraph)</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>graph_type</code></td><td><code>"nsw"</code></td><td>Set to <code>"odescent"</code> to switch on this builder.</td></tr>
+<tr><td><code>graph_iter_turn</code></td><td><code>30</code></td><td>Number of refinement iterations. Higher → better graph quality, longer build.</td></tr>
+<tr><td><code>neighbor_sample_rate</code></td><td><code>0.2</code></td><td>Fraction of each node’s neighbors sampled per iteration for candidate exchange.</td></tr>
+<tr><td><code>alpha</code></td><td><code>1.2</code></td><td>α factor used by the diversity-aware edge pruning step. Larger <code>alpha</code> → sparser, more diverse edges.</td></tr>
+<tr><td><code>min_in_degree</code></td><td><code>1</code></td><td>Minimum in-degree enforced when repairing the graph after pruning.</td></tr>
+<tr><td><code>build_block_size</code></td><td><code>10000</code></td><td>Parallelization granularity (vectors per worker block).</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>max_degree</code> is inherited from the HGraph top-level setting; you do not need to repeat it under
+ODescent. Upper graph layers automatically use half of <code>max_degree</code>.</p>
+<h3 id="when-to-use-odescent-vs-nsw"><a class="header" href="#when-to-use-odescent-vs-nsw">When to use ODescent vs NSW</a></h3>
+<ul>
+<li><strong>Use ODescent</strong> when you have the full dataset up front and care about build throughput on a
+many-core machine. The batch refinement parallelizes better than insertion-by-insertion.</li>
+<li><strong>Use NSW</strong> (the default) when you build incrementally or care about strictly minimal memory
+during the build, or when you have not measured a build-time problem.</li>
+</ul>
+<p>Both choices produce a graph that is searched the same way at query time, so search-side
+parameters (<code>ef_search</code>, <code>pq_rerank</code>, …) carry over unchanged.</p>
+<h2 id="see-also-5"><a class="header" href="#see-also-5">See also</a></h2>
+<ul>
+<li><a href="#creating-an-index">Creating an Index</a></li>
+<li><a href="#hgraph-1">HGraph index parameters</a></li>
+<li><a href="#pyramid-1">Pyramid index parameters</a></li>
+<li><a href="#index-parameters">Index Parameters reference</a></li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="range-search"><a class="header" href="#range-search">Range Search</a></h1>
 <p>Besides k-nearest-neighbor search (<code>KnnSearch</code>), VSAG also supports <strong>range search</strong>
