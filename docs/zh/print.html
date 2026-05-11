@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-958caaed.js";
+            window.path_to_searchindex_js = "searchindex-9c238acd.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-7af1a813.js"></script>
+        <script src="toc-80102372.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -847,6 +847,99 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
+<h2 id="支持的输入数据类型"><a class="header" href="#支持的输入数据类型">支持的输入数据类型</a></h2>
+<p>顶层构建配置中的 <code>dtype</code> 字段决定 <code>Dataset</code> 如何解释原始向量字节。HGraph 支持四种输入类型，
+<code>dtype</code> 值、对应的 <code>Dataset</code> setter 与演示示例见下表。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>dtype</code></th><th>元素类型</th><th><code>Dataset</code> setter</th><th>示例</th></tr>
+</thead>
+<tbody>
+<tr><td><code>float32</code></td><td><code>float</code></td><td><code>Float32Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/103_index_hgraph.cpp"><code>103_index_hgraph.cpp</code></a></td></tr>
+<tr><td><code>int8</code></td><td><code>int8_t</code></td><td><code>Int8Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/316_index_int8_hgraph.cpp"><code>316_index_int8_hgraph.cpp</code></a></td></tr>
+<tr><td><code>float16</code></td><td><code>uint16_t</code>（按 IEEE 754 binary16 位模式打包）</td><td><code>Float16Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/321_index_fp16_hgraph.cpp"><code>321_index_fp16_hgraph.cpp</code></a></td></tr>
+<tr><td><code>bfloat16</code></td><td><code>uint16_t</code>（按 Brain Float 位模式打包）</td><td><code>Float16Vectors</code>（与 FP16 共用）</td><td>在 <code>321_index_fp16_hgraph.cpp</code> 基础上按下文调整</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>dim</code> 始终表示逻辑维度（元素数量），与字节长度无关，因此四种数据类型下 <code>dim</code> 取值相同。</p>
+<h3 id="int8-输入"><a class="header" href="#int8-输入"><code>int8</code> 输入</a></h3>
+<p>量化好的 <code>int8</code> 向量直接通过 <code>Int8Vectors</code> 传入：</p>
+<pre><code class="language-cpp">std::vector&lt;int8_t&gt; data(num_vectors * dim);  // 填入 int8 元素
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
+    -&gt;Int8Vectors(data.data())-&gt;Owner(false);
+</code></pre>
+<p>对应构建配置（注意 <code>dtype: "int8"</code>）：</p>
+<pre><code class="language-json">{
+    "dtype": "int8",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pq",
+        "max_degree": 26,
+        "ef_construction": 100,
+        "alpha": 1.2
+    }
+}
+</code></pre>
+<p>查询时同样使用 <code>Int8Vectors</code> 和相同的 <code>dtype</code>。可运行示例：
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/316_index_int8_hgraph.cpp"><code>316_index_int8_hgraph.cpp</code></a>。</p>
+<h3 id="float16--bfloat16-输入"><a class="header" href="#float16--bfloat16-输入"><code>float16</code> / <code>bfloat16</code> 输入</a></h3>
+<p>FP16 与 BF16 都通过 <code>Float16Vectors</code> 传入，参数类型为 <code>const uint16_t*</code>，指向各元素的 16 位
+存储。从 <code>float</code> 到 16 位格式的转换由调用方负责。VSAG 源码树内提供了便捷辅助函数
+（<code>vsag::generic::FloatToFP16</code> 位于
+<a href="https://github.com/antgroup/vsag/blob/main/src/simd/fp16_simd.h"><code>src/simd/fp16_simd.h</code></a>，
+<code>vsag::generic::FloatToBF16</code> 位于
+<a href="https://github.com/antgroup/vsag/blob/main/src/simd/bf16_simd.h"><code>src/simd/bf16_simd.h</code></a>），
+但它们是<strong>内部头文件</strong>，并未通过 <code>include/vsag/</code> 对外安装。链接已安装版 VSAG 库的应用需要自行
+完成转换（例如复制这段小工具函数、使用 <code>_cvtss_sh</code> / F16C 内置指令，或调用任意 FP16 库）。下面
+的示例代码为了简洁直接使用了源码树内的辅助函数：</p>
+<pre><code class="language-cpp">// 下面的 fp16/bf16 辅助函数位于 src/simd/，并未随 VSAG 一并安装。
+// 链接已安装版 VSAG 时，请替换为自行实现的 float -&gt; uint16_t 转换。
+#include "simd/fp16_simd.h"  // FloatToFP16（BF16 场景改为 simd/bf16_simd.h / FloatToBF16）
+
+std::vector&lt;uint16_t&gt; data(num_vectors * dim);
+for (size_t i = 0; i &lt; data.size(); ++i) {
+    data[i] = vsag::generic::FloatToFP16(some_float_source());
+}
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
+    -&gt;Float16Vectors(data.data())-&gt;Owner(false);
+</code></pre>
+<p>构建配置：</p>
+<pre><code class="language-json">{
+    "dtype": "float16",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pq",
+        "max_degree": 26,
+        "ef_construction": 100,
+        "alpha": 1.2
+    }
+}
+</code></pre>
+<p>切换到 BF16 时，将 <code>dtype</code> 改为 <code>"bfloat16"</code>、把 <code>FloatToFP16</code> 替换为 <code>FloatToBF16</code> 即可；
+<code>Float16Vectors</code> setter 与构建/检索流程不变。可运行 FP16 示例：
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/321_index_fp16_hgraph.cpp"><code>321_index_fp16_hgraph.cpp</code></a>。</p>
+<blockquote>
+<p><strong>注意。</strong> <code>321_index_fp16_hgraph.cpp</code> 文件头注释提到 <code>BFloat16Vectors()</code>，但该 setter 并不
+存在 —— FP16 与 BF16 都通过 <code>Float16Vectors</code> 传入。无论 <code>dtype</code> 是 <code>"float16"</code> 还是
+<code>"bfloat16"</code>，都使用同一个 setter。</p>
+</blockquote>
+<h3 id="输入类型选择建议"><a class="header" href="#输入类型选择建议">输入类型选择建议</a></h3>
+<ul>
+<li>对精度要求最高、且内存预算充裕时，选 <code>float32</code>（默认）。</li>
+<li>想把输入存储减半，选 <code>float16</code> / <code>bfloat16</code>。FP16 指数范围更小，BF16 尾数位更少但指数范围
+与 FP32 一致，对 embedding 类向量通常更友好。</li>
+<li>数据本身已是整数量化结果（来自上游量化器或 int8 输出的模型）时，选 <code>int8</code>。此时通常仍配合
+<code>pq</code> / <code>sq8</code> 之类的索引内量化器使用。</li>
+</ul>
+<p><code>dtype</code> 仅约束<strong>输入</strong>表示；索引内的实际存储仍由 <code>base_quantization_type</code>（以及
+<code>use_reorder: true</code> 下的 <code>precise_quantization_type</code>）决定，因此
+<code>dtype: "float16"</code> + <code>base_quantization_type: "sq8"</code> 这样的组合是允许的。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>hgraph</code> 子对象下：</p>
 <div class="table-wrapper">
@@ -2255,10 +2348,48 @@ auto result = index-&gt;KnnSearch(query, k, search_param);
 </code></pre>
 <p>示例：<code>examples/cpp/313_feature_search_allocator.cpp</code>、<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>。</p>
 <h2 id="估算与查询内存占用"><a class="header" href="#估算与查询内存占用">估算与查询内存占用</a></h2>
+<h3 id="estimatememorydata_num"><a class="header" href="#estimatememorydata_num"><code>EstimateMemory(data_num)</code></a></h3>
+<p><code>Index::EstimateMemory(data_num)</code> 返回索引在插入 <code>data_num</code> 条向量后预期占用的字节数。它仅基于
+构建参数（dim、量化方式、<code>max_degree</code> 等）推算，不会分配任何向量存储，因此可以在空索引上安全
+调用，是入库前评估节点规格的推荐方式：</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_ESTIMATE_MEMORY)) {
+    uint64_t estimated = index-&gt;EstimateMemory(1'000'000);  // 字节
+}
+</code></pre>
+<p>完整示例：<code>examples/cpp/308_feature_estimate_memory.cpp</code>。</p>
+<h3 id="getmemoryusage"><a class="header" href="#getmemoryusage"><code>GetMemoryUsage()</code></a></h3>
+<p><code>Index::GetMemoryUsage()</code> 返回索引<strong>当前</strong>占用的字节数：</p>
+<pre><code class="language-cpp">int64_t bytes = index-&gt;GetMemoryUsage();
+</code></pre>
+<p>特性：</p>
 <ul>
-<li><code>Index::EstimateMemory(data_num)</code>：在构建前估算索引将占用的内存（示例：<code>examples/cpp/308_feature_estimate_memory.cpp</code>）。</li>
-<li><code>Index::GetMemoryUsage()</code>：查询当前实际占用的字节数（示例：<code>examples/cpp/319_feature_get_memory_usage.cpp</code>）。</li>
+<li>所有索引类型均实现了该方法，但只有通过 <code>CheckFeature</code> 公布 <code>vsag::SUPPORT_GET_MEMORY_USAGE</code>
+的索引才保证返回有意义的数值。HGraph、IVF、BruteForce、Pyramid、WARP 均声明了该能力
+（见 <code>src/algorithm/{hgraph,ivf,brute_force,pyramid,warp}.cpp</code>）；SINDI 出于
+接口纯虚函数的要求实现了该方法，但当前未设置该 feature flag，请仅把返回值视为参考信息。</li>
+<li>线程安全；可与搜索并发轮询。</li>
+<li>延迟在微秒量级 —— 适合生产环境的实时内存监控。</li>
+<li>统计的是索引自身占用的内存（向量、图、量化器状态）。该值通常小于操作系统层面观察到的 RSS：
+RSS 还包含 allocator 的开销、临时 scratch buffer、以及索引外部持有的数据（例如用户自有的输入
+向量缓冲）。SINDI 索引尤其建议在构建完成<strong>之后</strong>调用 <code>GetMemoryUsage()</code> 才能拿到具有代表性的
+数值。</li>
 </ul>
+<p>可运行示例：<code>examples/cpp/319_feature_get_memory_usage.cpp</code>，其中包含一个辅助函数将接口值与进程
+驻留内存进行对照。</p>
+<h3 id="能力标志"><a class="header" href="#能力标志">能力标志</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>标志</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vsag::SUPPORT_ESTIMATE_MEMORY</code></td><td>支持 <code>EstimateMemory(data_num)</code>。</td></tr>
+<tr><td><code>vsag::SUPPORT_GET_MEMORY_USAGE</code></td><td>支持 <code>GetMemoryUsage()</code>。</td></tr>
+</tbody>
+</table>
+</div>
+<p>两个标志均可通过 <code>index-&gt;CheckFeature(...)</code> 查询 —— 参见
+<a href="#索引自省">索引自省</a>。</p>
 <h2 id="线程池"><a class="header" href="#线程池">线程池</a></h2>
 <p><code>Resource</code> 也接受用户提供的 <code>ThreadPool</code>，与 Allocator 配合可完全托管并行度与资源归属。见
 <code>examples/cpp/203_custom_thread_pool.cpp</code>。</p>
@@ -2267,6 +2398,125 @@ auto result = index-&gt;KnnSearch(query, k, search_param);
 <li>自定义 Allocator 必须是线程安全的。</li>
 <li><code>Allocator</code> 生命周期必须覆盖所有引用它的索引与结果对象。</li>
 <li>若未显式指定，VSAG 会创建一个默认的基于 <code>malloc</code> 的 allocator。</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="索引自省"><a class="header" href="#索引自省">索引自省</a></h1>
+<p>VSAG 提供三类自省 API，让调用方可以发现某个索引的能力、对已有向量计算距离，以及读出关于已构建
+索引的结构化信息，而无需重新执行一次搜索：</p>
+<ul>
+<li><strong><code>CheckFeature(IndexFeature)</code></strong> —— 运行时能力探测。</li>
+<li><strong><code>CalDistanceById(...)</code></strong> —— 计算 query 到已存入向量 id 的距离。</li>
+<li><strong><code>GetIndexDetailInfos()</code> / <code>GetDetailDataByName(...)</code></strong> —— 读取索引各项结构化详情数据。</li>
+</ul>
+<p>这些 API 均为只读操作，可与搜索并发调用。</p>
+<h2 id="能力探测--checkfeature"><a class="header" href="#能力探测--checkfeature">能力探测 —— <code>CheckFeature</code></a></h2>
+<p>当底层索引实现公布了某项能力时，<code>index-&gt;CheckFeature(vsag::SUPPORT_*)</code> 返回 <code>true</code>。当代码路径
+持有一个具体类型未知的 <code>IndexPtr</code>（例如用户配置注入、多态存储）时，应使用此 API：</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_ESTIMATE_MEMORY)) {
+    uint64_t est = index-&gt;EstimateMemory(100'000);
+}
+
+if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
+    // 跳过 / 通过另一个索引以 remove + re-add 方式回退。
+}
+</code></pre>
+<p>能力标志几乎覆盖了库中所有可选接口：build / add / 序列化变体、各种并发组合、度量类型、属性
+过滤、extra-info 过滤、<code>Clone</code>、<code>ExportModel</code>、<code>Tune</code> 等。完整枚举见
+<code>include/vsag/index_features.h</code>。</p>
+<p>可运行示例：<code>examples/cpp/307_feature_check_features.cpp</code>。</p>
+<h2 id="到已有-id-的距离--caldistancebyid"><a class="header" href="#到已有-id-的距离--caldistancebyid">到已有 id 的距离 —— <code>CalDistanceById</code></a></h2>
+<p><code>CalDistanceById</code> 计算 query 与索引中<strong>已存在</strong>的一个或多个向量之间的距离，<strong>无需</strong>执行一次
+搜索。它适用于 re-rank、A/B 评估、ground-truth 校验，或对已知候选集合做成对距离计算。</p>
+<p>提供两个重载：</p>
+<pre><code class="language-cpp">// 稠密向量索引（HGraph、BruteForce、IVF、DiskANN、HNSW）
+auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
+
+// 稀疏向量索引（SINDI、SparseIndex）—— 用 Dataset 封装查询
+auto query_ds = vsag::Dataset::Make();
+query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
+auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
+</code></pre>
+<p>结果 <code>Dataset</code> 中 <code>GetDistances()</code> 持有 <code>count</code> 个距离。若某个 id 无效（不在索引中），对应位置
+返回 <code>-1.0F</code>。</p>
+<h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
+<p>末尾的 <code>bool</code> 参数在精度与延迟之间做取舍：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>取值</th><th>行为</th></tr>
+</thead>
+<tbody>
+<tr><td><code>true</code>（默认）</td><td>使用全精度向量表征。在内存-磁盘混合索引上可能引发磁盘 I/O。</td></tr>
+<tr><td><code>false</code></td><td>使用搜索路径缓存的量化 / 近似表征。更快、无 I/O。</td></tr>
+</tbody>
+</table>
+</div>
+<p>可运行示例：<code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code>。</p>
+<h2 id="详情数据--getindexdetailinfos--getdetaildatabyname"><a class="header" href="#详情数据--getindexdetailinfos--getdetaildatabyname">详情数据 —— <code>GetIndexDetailInfos</code> / <code>GetDetailDataByName</code></a></h2>
+<p><code>GetIndexDetailInfos()</code> 返回一组 <code>IndexDetailInfo</code> 记录，描述索引可对外暴露的每一项命名结构化
+数据。每条记录包含 <code>name</code>、<code>description</code> 和一个 <code>type</code> 枚举，后者用于选择 <code>DetailData</code> 上的
+合适访问器。</p>
+<p>是否支持取决于索引类型 —— 这两个 API 没有专门的 <code>SUPPORT_*</code> flag。<code>Index</code> 基类默认抛
+<code>std::runtime_error("Index doesn't support ...")</code>（<code>GetIndexDetailInfos</code> 与
+<code>GetDetailDataByName</code>，见 <code>include/vsag/index.h:658,674</code>）；HGraph / IVF / BruteForce /
+Pyramid / SINDI / WARP 通过 <code>InnerIndexInterface</code> 提供了实现，而 <code>HNSW</code> 仅 override 了
+<code>GetDetailDataByName</code>，DiskANN 两者都没有 override。调用时请始终处理 <code>tl::expected</code>
+的 error 分支。</p>
+<pre><code class="language-cpp">auto infos = index-&gt;GetIndexDetailInfos().value();
+for (const auto&amp; info : infos) {
+    std::cout &lt;&lt; info.name &lt;&lt; " : " &lt;&lt; info.description &lt;&lt; '\n';
+}
+</code></pre>
+<p>知道哪些项可用后，调用 <code>GetDetailDataByName(name, info)</code> 获取对应类型的数据：</p>
+<pre><code class="language-cpp">vsag::IndexDetailInfo info;
+auto detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_NUM_ELEMENTS, info).value();
+int64_t n = detail-&gt;GetDataScalarInt64();
+
+detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_LABEL_TABLE, info).value();
+auto table = detail-&gt;GetData2DArrayInt64();   // [row][col] int64 矩阵
+
+detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_DATA_TYPE, info).value();
+std::string dt = detail-&gt;GetDataScalarString();
+</code></pre>
+<h3 id="数据类型"><a class="header" href="#数据类型">数据类型</a></h3>
+<p><code>info.type</code> 决定 <code>DetailData</code> 上哪一个访问器有效：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>IndexDetailDataType</code></th><th>访问器</th></tr>
+</thead>
+<tbody>
+<tr><td><code>TYPE_SCALAR_INT64</code></td><td><code>GetDataScalarInt64()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_DOUBLE</code></td><td><code>GetDataScalarDouble()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_BOOL</code></td><td><code>GetDataScalarBool()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_STRING</code></td><td><code>GetDataScalarString()</code></td></tr>
+<tr><td><code>TYPE_1DArray_INT64</code></td><td><code>GetData1DArrayInt64()</code></td></tr>
+<tr><td><code>TYPE_2DArray_INT64</code></td><td><code>GetData2DArrayInt64()</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>include/vsag/index_detail_info.h</code> 中以常量形式给出的标准详情名：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>常量</th><th>典型类型</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>INDEX_DETAIL_NAME_NUM_ELEMENTS</code></td><td><code>TYPE_SCALAR_INT64</code></td><td>索引当前包含的向量数。</td></tr>
+<tr><td><code>INDEX_DETAIL_NAME_LABEL_TABLE</code></td><td><code>TYPE_2DArray_INT64</code></td><td>逐向量的 label 表（如内部 id ↔ 用户 id 映射）。</td></tr>
+<tr><td><code>INDEX_DETAIL_DATA_TYPE</code></td><td><code>TYPE_SCALAR_STRING</code></td><td>底层向量数据类型（如 <code>"float32"</code>）。</td></tr>
+</tbody>
+</table>
+</div>
+<p>具体索引可能额外暴露其他名称；运行期通过 <code>GetIndexDetailInfos()</code> 遍历即可发现。可运行示例：
+<code>examples/cpp/317_feature_get_detail_data.cpp</code>。</p>
+<h2 id="注意事项与限制"><a class="header" href="#注意事项与限制">注意事项与限制</a></h2>
+<ul>
+<li><code>CheckFeature</code> 是常数时间复杂度。相比对不支持的调用做 <code>try</code> / <code>catch</code>，应优先使用它。</li>
+<li><code>CalDistanceById</code> 要求底层索引保留足够信息以重新计算距离。对于纯量化索引（不保留原始向量），
+即使传入 <code>calculate_precise_distance = true</code>，也可能返回量化距离。</li>
+<li><code>GetIndexDetailInfos</code> 与 <code>GetDetailDataByName</code> 是只读快照。返回的数值反映调用瞬间的索引状态，
+并发修改可能使其失效。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="图索引增强"><a class="header" href="#图索引增强">图索引增强</a></h1>
@@ -2483,7 +2733,7 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
 <p><code>use_extra_info_filter</code> 为 <code>true</code> 时，HGraph 会调用 <code>CheckValid(const char*)</code> 而不是
 <code>CheckValid(int64_t)</code>。可使用
 <code>index-&gt;CheckFeature(vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER)</code> 进行能力检查。</p>
-<h2 id="能力标志"><a class="header" href="#能力标志">能力标志</a></h2>
+<h2 id="能力标志-1"><a class="header" href="#能力标志-1">能力标志</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -2496,7 +2746,7 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
 </tbody>
 </table>
 </div>
-<h2 id="注意事项与限制"><a class="header" href="#注意事项与限制">注意事项与限制</a></h2>
+<h2 id="注意事项与限制-1"><a class="header" href="#注意事项与限制-1">注意事项与限制</a></h2>
 <ul>
 <li>负载是不透明的字节流，序列化/反序列化由用户负责，库内部仅按偏移做 <code>memcpy</code>。</li>
 <li><code>extra_info_size</code> 在 Build 时即被固定，并写入序列化后的索引。</li>
@@ -2518,7 +2768,7 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
 <li><code>ExportModel</code> —— 将训练好的模型导出为空索引以复用。</li>
 </ul>
 <p>每个操作均为可选项，仅当底层索引通过 <code>index-&gt;CheckFeature(...)</code> 公布对应能力标志时才可用。</p>
-<h2 id="能力标志-1"><a class="header" href="#能力标志-1">能力标志</a></h2>
+<h2 id="能力标志-2"><a class="header" href="#能力标志-2">能力标志</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -2648,7 +2898,7 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
 <p>返回的索引行为上等同于一个通过 <code>Factory::CreateIndex(...)</code> 新建并在源数据上完成训练的索引 ——
 仅每条向量的存储为空。该模式对训练（中心点 k-means）开销占主导的 IVF 类索引尤其有用。</p>
 <p>可运行示例：<code>examples/cpp/310_feature_export_model.cpp</code>。</p>
-<h2 id="注意事项与限制-1"><a class="header" href="#注意事项与限制-1">注意事项与限制</a></h2>
+<h2 id="注意事项与限制-2"><a class="header" href="#注意事项与限制-2">注意事项与限制</a></h2>
 <ul>
 <li>当对应的 <code>*_CONCURRENT</code> 能力标志被置位时，HGraph 上的 <code>Remove</code>、<code>UpdateVector</code>、<code>UpdateId</code>
 是并发安全的。该标志组还约束与并发搜索、增加之间的安全组合（如

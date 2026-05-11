@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e2d1f11.js";
+            window.path_to_searchindex_js = "../searchindex-a82ee944.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7fa8b839.js"></script>
+        <script src="../toc-e882464b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -338,12 +338,53 @@ auto result = index-&gt;KnnSearch(query, k, search_param);
 <p>See <code>examples/cpp/313_feature_search_allocator.cpp</code> and
 <code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>.</p>
 <h2 id="estimating-and-querying-memory"><a class="header" href="#estimating-and-querying-memory">Estimating and Querying Memory</a></h2>
+<h3 id="estimatememorydata_num"><a class="header" href="#estimatememorydata_num"><code>EstimateMemory(data_num)</code></a></h3>
+<p><code>Index::EstimateMemory(data_num)</code> returns a byte-level estimate of the memory the index will
+occupy once <code>data_num</code> vectors have been inserted. It is computed from the build parameters
+(dimension, quantization, <code>max_degree</code>, etc.) without allocating any vector storage, so it is
+safe to call on an empty index and is the recommended way to size a node before ingest:</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_ESTIMATE_MEMORY)) {
+    uint64_t estimated = index-&gt;EstimateMemory(1'000'000);  // bytes
+}
+</code></pre>
+<p>See <code>examples/cpp/308_feature_estimate_memory.cpp</code> for a full run.</p>
+<h3 id="getmemoryusage"><a class="header" href="#getmemoryusage"><code>GetMemoryUsage()</code></a></h3>
+<p><code>Index::GetMemoryUsage()</code> returns the <strong>current</strong> memory footprint of an index in bytes:</p>
+<pre><code class="language-cpp">int64_t bytes = index-&gt;GetMemoryUsage();
+</code></pre>
+<p>Properties:</p>
 <ul>
-<li><code>Index::EstimateMemory(data_num)</code> — estimate memory usage before building
-(<code>examples/cpp/308_feature_estimate_memory.cpp</code>).</li>
-<li><code>Index::GetMemoryUsage()</code> — query the current memory footprint
-(<code>examples/cpp/319_feature_get_memory_usage.cpp</code>).</li>
+<li>Implemented by every index type, but only indexes that advertise
+<code>vsag::SUPPORT_GET_MEMORY_USAGE</code> via <code>CheckFeature</code> are formally guaranteed to return a
+meaningful value. HGraph, IVF, BruteForce, Pyramid and WARP set the flag
+(see <code>src/algorithm/{hgraph,ivf,brute_force,pyramid,warp}.cpp</code>); SINDI implements the call
+(since the method is pure-virtual on <code>Index</code>) but does not currently set the feature flag, so
+treat its value as informational only.</li>
+<li>Thread-safe; can be polled concurrently with searches.</li>
+<li>Latency is on the order of microseconds — suitable for production-grade real-time
+monitoring loops.</li>
+<li>Reports memory attributable to the index itself (vectors, graph, quantizer state). The number
+is typically smaller than the resident set size observed at the OS level, which also includes
+allocator overhead, scratch buffers, and any data held outside the index (e.g. user-owned input
+vectors). For SINDI in particular, call <code>GetMemoryUsage()</code> <strong>after</strong> the build completes to get
+a representative value.</li>
 </ul>
+<p>See <code>examples/cpp/319_feature_get_memory_usage.cpp</code> for a runnable example, including a helper
+that compares the interface value with the process resident size.</p>
+<h3 id="capability-flags"><a class="header" href="#capability-flags">Capability Flags</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vsag::SUPPORT_ESTIMATE_MEMORY</code></td><td><code>EstimateMemory(data_num)</code> is available.</td></tr>
+<tr><td><code>vsag::SUPPORT_GET_MEMORY_USAGE</code></td><td><code>GetMemoryUsage()</code> is available.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Both flags can be checked via <code>index-&gt;CheckFeature(...)</code> — see
+<a href="introspection.html">Index Introspection</a>.</p>
 <h2 id="thread-pool"><a class="header" href="#thread-pool">Thread Pool</a></h2>
 <p><code>Resource</code> also accepts a user-supplied <code>ThreadPool</code>, which combined with a custom allocator gives
 full control over parallelism and resource ownership. See
@@ -363,7 +404,7 @@ full control over parallelism and resource ownership. See
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../advanced/enhance_graph.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/introspection.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -377,7 +418,7 @@ full control over parallelism and resource ownership. See
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../advanced/enhance_graph.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/introspection.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

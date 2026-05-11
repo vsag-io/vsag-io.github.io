@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2e2d1f11.js";
+            window.path_to_searchindex_js = "searchindex-a82ee944.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-7fa8b839.js"></script>
+        <script src="toc-e882464b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -839,6 +839,106 @@ and <code>docs/hgraph.md</code> in the repository.</p>
 </tbody>
 </table>
 </div>
+<h2 id="supported-input-data-types"><a class="header" href="#supported-input-data-types">Supported input data types</a></h2>
+<p>The <code>dtype</code> field in the top-level build config selects how <code>Dataset</code> interprets the raw vector
+bytes. HGraph supports four input types; the <code>dtype</code> value, the corresponding <code>Dataset</code> setter,
+and the example demonstrating each combination are summarised below.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>dtype</code></th><th>Element type</th><th><code>Dataset</code> setter</th><th>Example</th></tr>
+</thead>
+<tbody>
+<tr><td><code>float32</code></td><td><code>float</code></td><td><code>Float32Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/103_index_hgraph.cpp"><code>103_index_hgraph.cpp</code></a></td></tr>
+<tr><td><code>int8</code></td><td><code>int8_t</code></td><td><code>Int8Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/316_index_int8_hgraph.cpp"><code>316_index_int8_hgraph.cpp</code></a></td></tr>
+<tr><td><code>float16</code></td><td><code>uint16_t</code> (IEEE 754 binary16, bit-pattern packed)</td><td><code>Float16Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/321_index_fp16_hgraph.cpp"><code>321_index_fp16_hgraph.cpp</code></a></td></tr>
+<tr><td><code>bfloat16</code></td><td><code>uint16_t</code> (Brain Float, bit-pattern packed)</td><td><code>Float16Vectors</code> (shared with FP16)</td><td>adapt <code>321_index_fp16_hgraph.cpp</code> per the notes below</td></tr>
+</tbody>
+</table>
+</div>
+<p>The <code>dim</code> value is the logical vector dimensionality (number of elements), not the byte length, so
+the same <code>dim</code> is reused across all four data types.</p>
+<h3 id="int8-input"><a class="header" href="#int8-input"><code>int8</code> input</a></h3>
+<p>Quantized <code>int8</code> vectors are passed directly via <code>Int8Vectors</code>:</p>
+<pre><code class="language-cpp">std::vector&lt;int8_t&gt; data(num_vectors * dim);  // populate with int8 elements
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
+    -&gt;Int8Vectors(data.data())-&gt;Owner(false);
+</code></pre>
+<p>Build config (note <code>dtype: "int8"</code>):</p>
+<pre><code class="language-json">{
+    "dtype": "int8",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pq",
+        "max_degree": 26,
+        "ef_construction": 100,
+        "alpha": 1.2
+    }
+}
+</code></pre>
+<p>Queries use the same <code>Int8Vectors</code> setter and the same <code>dtype</code>. A runnable example is
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/316_index_int8_hgraph.cpp"><code>316_index_int8_hgraph.cpp</code></a>.</p>
+<h3 id="float16--bfloat16-input"><a class="header" href="#float16--bfloat16-input"><code>float16</code> / <code>bfloat16</code> input</a></h3>
+<p>FP16 and BF16 vectors are both passed through <code>Float16Vectors</code>, which takes a <code>const uint16_t*</code>
+that points at the 16-bit storage of each element. Conversion from <code>float</code> is up to the caller;
+inside the VSAG source tree there are convenience helpers (<code>vsag::generic::FloatToFP16</code> in
+<a href="https://github.com/antgroup/vsag/blob/main/src/simd/fp16_simd.h"><code>src/simd/fp16_simd.h</code></a>
+and <code>vsag::generic::FloatToBF16</code> in
+<a href="https://github.com/antgroup/vsag/blob/main/src/simd/bf16_simd.h"><code>src/simd/bf16_simd.h</code></a>),
+but these are <strong>internal headers</strong> that are not installed under <code>include/vsag/</code>. Application code
+linking against an installed VSAG library should provide its own conversion (for example, copy
+the small helper, use <code>_cvtss_sh</code> / F16C intrinsics, or any FP16 library of choice). The snippet
+below uses the in-tree helper for brevity:</p>
+<pre><code class="language-cpp">// The fp16/bf16 helpers below live in src/simd/ and are not part of the public
+// installed headers. Replace with your own float -&gt; uint16_t conversion when
+// linking against an installed VSAG.
+#include "simd/fp16_simd.h"  // FloatToFP16 (for BF16, use simd/bf16_simd.h / FloatToBF16)
+
+std::vector&lt;uint16_t&gt; data(num_vectors * dim);
+for (size_t i = 0; i &lt; data.size(); ++i) {
+    data[i] = vsag::generic::FloatToFP16(some_float_source());
+}
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
+    -&gt;Float16Vectors(data.data())-&gt;Owner(false);
+</code></pre>
+<p>Build config:</p>
+<pre><code class="language-json">{
+    "dtype": "float16",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pq",
+        "max_degree": 26,
+        "ef_construction": 100,
+        "alpha": 1.2
+    }
+}
+</code></pre>
+<p>To switch the example to BF16, change <code>dtype</code> to <code>"bfloat16"</code> and replace <code>FloatToFP16</code> with
+<code>FloatToBF16</code>; the <code>Float16Vectors</code> setter and the rest of the build/search flow stay the same.
+A runnable FP16 example is
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/321_index_fp16_hgraph.cpp"><code>321_index_fp16_hgraph.cpp</code></a>.</p>
+<blockquote>
+<p><strong>Note.</strong> The header comment at the top of <code>321_index_fp16_hgraph.cpp</code> currently mentions a
+<code>BFloat16Vectors()</code> setter, but no such setter exists — <code>Float16Vectors</code> is the single entry
+point for both FP16 and BF16. Use it for both <code>dtype: "float16"</code> and <code>dtype: "bfloat16"</code>.</p>
+</blockquote>
+<h3 id="choosing-an-input-type"><a class="header" href="#choosing-an-input-type">Choosing an input type</a></h3>
+<ul>
+<li>Pick <code>float32</code> when accuracy matters most and memory budget allows; this is the default.</li>
+<li>Pick <code>float16</code> / <code>bfloat16</code> to halve the input storage. FP16 has a smaller exponent range; BF16
+has fewer mantissa bits but the same exponent range as FP32, which is often preferable for
+embedding-style vectors.</li>
+<li>Pick <code>int8</code> when your data is already integer-quantised (e.g. produced by an upstream quantiser
+or by a model with int8 outputs). With <code>int8</code> input you typically still combine a coarse
+quantizer such as <code>pq</code> / <code>sq8</code> for the in-index storage.</li>
+</ul>
+<p>The chosen <code>dtype</code> only constrains the <strong>input</strong> representation. The on-disk / in-memory storage is
+still controlled by <code>base_quantization_type</code> (and optionally <code>precise_quantization_type</code> when
+<code>use_reorder: true</code>), so e.g. <code>dtype: "float16"</code> + <code>base_quantization_type: "sq8"</code> is valid.</p>
 <h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>hgraph</code> sub-object:</p>
 <div class="table-wrapper">
@@ -2348,12 +2448,53 @@ auto result = index-&gt;KnnSearch(query, k, search_param);
 <p>See <code>examples/cpp/313_feature_search_allocator.cpp</code> and
 <code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>.</p>
 <h2 id="estimating-and-querying-memory"><a class="header" href="#estimating-and-querying-memory">Estimating and Querying Memory</a></h2>
+<h3 id="estimatememorydata_num"><a class="header" href="#estimatememorydata_num"><code>EstimateMemory(data_num)</code></a></h3>
+<p><code>Index::EstimateMemory(data_num)</code> returns a byte-level estimate of the memory the index will
+occupy once <code>data_num</code> vectors have been inserted. It is computed from the build parameters
+(dimension, quantization, <code>max_degree</code>, etc.) without allocating any vector storage, so it is
+safe to call on an empty index and is the recommended way to size a node before ingest:</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_ESTIMATE_MEMORY)) {
+    uint64_t estimated = index-&gt;EstimateMemory(1'000'000);  // bytes
+}
+</code></pre>
+<p>See <code>examples/cpp/308_feature_estimate_memory.cpp</code> for a full run.</p>
+<h3 id="getmemoryusage"><a class="header" href="#getmemoryusage"><code>GetMemoryUsage()</code></a></h3>
+<p><code>Index::GetMemoryUsage()</code> returns the <strong>current</strong> memory footprint of an index in bytes:</p>
+<pre><code class="language-cpp">int64_t bytes = index-&gt;GetMemoryUsage();
+</code></pre>
+<p>Properties:</p>
 <ul>
-<li><code>Index::EstimateMemory(data_num)</code> — estimate memory usage before building
-(<code>examples/cpp/308_feature_estimate_memory.cpp</code>).</li>
-<li><code>Index::GetMemoryUsage()</code> — query the current memory footprint
-(<code>examples/cpp/319_feature_get_memory_usage.cpp</code>).</li>
+<li>Implemented by every index type, but only indexes that advertise
+<code>vsag::SUPPORT_GET_MEMORY_USAGE</code> via <code>CheckFeature</code> are formally guaranteed to return a
+meaningful value. HGraph, IVF, BruteForce, Pyramid and WARP set the flag
+(see <code>src/algorithm/{hgraph,ivf,brute_force,pyramid,warp}.cpp</code>); SINDI implements the call
+(since the method is pure-virtual on <code>Index</code>) but does not currently set the feature flag, so
+treat its value as informational only.</li>
+<li>Thread-safe; can be polled concurrently with searches.</li>
+<li>Latency is on the order of microseconds — suitable for production-grade real-time
+monitoring loops.</li>
+<li>Reports memory attributable to the index itself (vectors, graph, quantizer state). The number
+is typically smaller than the resident set size observed at the OS level, which also includes
+allocator overhead, scratch buffers, and any data held outside the index (e.g. user-owned input
+vectors). For SINDI in particular, call <code>GetMemoryUsage()</code> <strong>after</strong> the build completes to get
+a representative value.</li>
 </ul>
+<p>See <code>examples/cpp/319_feature_get_memory_usage.cpp</code> for a runnable example, including a helper
+that compares the interface value with the process resident size.</p>
+<h3 id="capability-flags"><a class="header" href="#capability-flags">Capability Flags</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vsag::SUPPORT_ESTIMATE_MEMORY</code></td><td><code>EstimateMemory(data_num)</code> is available.</td></tr>
+<tr><td><code>vsag::SUPPORT_GET_MEMORY_USAGE</code></td><td><code>GetMemoryUsage()</code> is available.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Both flags can be checked via <code>index-&gt;CheckFeature(...)</code> — see
+<a href="#index-introspection">Index Introspection</a>.</p>
 <h2 id="thread-pool"><a class="header" href="#thread-pool">Thread Pool</a></h2>
 <p><code>Resource</code> also accepts a user-supplied <code>ThreadPool</code>, which combined with a custom allocator gives
 full control over parallelism and resource ownership. See
@@ -2363,6 +2504,130 @@ full control over parallelism and resource ownership. See
 <li>A custom allocator must be thread-safe.</li>
 <li>The allocator’s lifetime must outlive any index and result object referencing it.</li>
 <li>If nothing is configured, VSAG falls back to a default <code>malloc</code>-based allocator.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="index-introspection"><a class="header" href="#index-introspection">Index Introspection</a></h1>
+<p>VSAG indexes expose three families of introspection APIs that let callers discover what an index
+can do, compute distances against existing vectors, and read back structured information about
+the built index without re-running a search:</p>
+<ul>
+<li><strong><code>CheckFeature(IndexFeature)</code></strong> — runtime capability discovery.</li>
+<li><strong><code>CalDistanceById(...)</code></strong> — distance from a query to specific stored ids.</li>
+<li><strong><code>GetIndexDetailInfos()</code> / <code>GetDetailDataByName(...)</code></strong> — structured per-index detail data.</li>
+</ul>
+<p>These APIs are read-only and safe to call concurrently with search.</p>
+<h2 id="capability-discovery--checkfeature"><a class="header" href="#capability-discovery--checkfeature">Capability Discovery — <code>CheckFeature</code></a></h2>
+<p><code>index-&gt;CheckFeature(vsag::SUPPORT_*)</code> returns <code>true</code> when the underlying index implementation
+advertises the given feature. Use it whenever a code path takes an <code>IndexPtr</code> of unknown concrete
+type (e.g. user-supplied configuration, polymorphic store):</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_ESTIMATE_MEMORY)) {
+    uint64_t est = index-&gt;EstimateMemory(100'000);
+}
+
+if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
+    // Skip / fall back to remove + re-add via a different index.
+}
+</code></pre>
+<p>Feature flags cover almost every optional surface in the library: build / add /
+serialize variants, concurrent combinations, metric types, attribute and extra-info filters,
+<code>Clone</code>, <code>ExportModel</code>, <code>Tune</code>, and more. See <code>include/vsag/index_features.h</code> for the full
+enumeration.</p>
+<p>A runnable example is available at <code>examples/cpp/307_feature_check_features.cpp</code>.</p>
+<h2 id="distances-to-existing-ids--caldistancebyid"><a class="header" href="#distances-to-existing-ids--caldistancebyid">Distances to Existing Ids — <code>CalDistanceById</code></a></h2>
+<p><code>CalDistanceById</code> computes the distance between a query and one or more vectors that are
+<strong>already stored in the index</strong>, without running a search. This is useful for re-ranking, A/B
+evaluation, ground-truth checks, or computing pairwise distances to a known shortlist.</p>
+<p>Two overloads are provided:</p>
+<pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF, DiskANN, HNSW)
+auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
+
+// Sparse vector indexes (SINDI, SparseIndex) — wrap the query in a Dataset
+auto query_ds = vsag::Dataset::Make();
+query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
+auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
+</code></pre>
+<p>The result <code>Dataset</code> holds <code>count</code> distances in <code>GetDistances()</code>. A value of <code>-1.0F</code> means the
+corresponding id was invalid (not present in the index).</p>
+<h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
+<p>The trailing <code>bool</code> argument trades precision for latency:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Value</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td><code>true</code> (default)</td><td>Use the full-precision vector representation. May incur disk I/O on hybrid memory-disk indexes.</td></tr>
+<tr><td><code>false</code></td><td>Use the quantized / approximate representation cached for search. Faster, no I/O.</td></tr>
+</tbody>
+</table>
+</div>
+<p>A runnable example is available at <code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code>.</p>
+<h2 id="detail-data--getindexdetailinfos--getdetaildatabyname"><a class="header" href="#detail-data--getindexdetailinfos--getdetaildatabyname">Detail Data — <code>GetIndexDetailInfos</code> / <code>GetDetailDataByName</code></a></h2>
+<p><code>GetIndexDetailInfos()</code> returns a list of <code>IndexDetailInfo</code> records that describe every named
+piece of structured data the index can expose. Each record carries a <code>name</code>, a <code>description</code>, and
+a <code>type</code> enum that selects the right typed accessor on <code>DetailData</code>.</p>
+<p>Support is index-dependent — there is no dedicated <code>SUPPORT_*</code> flag for these two APIs. The
+<code>Index</code> base class throws <code>std::runtime_error("Index doesn't support ...")</code> by default
+(<code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> in <code>include/vsag/index.h:658,674</code>);
+HGraph / IVF / BruteForce / Pyramid / SINDI / WARP implement them through
+<code>InnerIndexInterface</code>, while <code>HNSW</code> only overrides <code>GetDetailDataByName</code> and DiskANN does not
+override either. Always handle the <code>tl::expected</code> error path when calling these APIs.</p>
+<pre><code class="language-cpp">auto infos = index-&gt;GetIndexDetailInfos().value();
+for (const auto&amp; info : infos) {
+    std::cout &lt;&lt; info.name &lt;&lt; " : " &lt;&lt; info.description &lt;&lt; '\n';
+}
+</code></pre>
+<p>Once you know which entries are available, call <code>GetDetailDataByName(name, info)</code> to retrieve the
+typed payload:</p>
+<pre><code class="language-cpp">vsag::IndexDetailInfo info;
+auto detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_NUM_ELEMENTS, info).value();
+int64_t n = detail-&gt;GetDataScalarInt64();
+
+detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_LABEL_TABLE, info).value();
+auto table = detail-&gt;GetData2DArrayInt64();   // [row][col] int64 matrix
+
+detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_DATA_TYPE, info).value();
+std::string dt = detail-&gt;GetDataScalarString();
+</code></pre>
+<h3 id="data-types"><a class="header" href="#data-types">Data Types</a></h3>
+<p><code>info.type</code> selects which accessor on <code>DetailData</code> is valid:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>IndexDetailDataType</code></th><th>Accessor</th></tr>
+</thead>
+<tbody>
+<tr><td><code>TYPE_SCALAR_INT64</code></td><td><code>GetDataScalarInt64()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_DOUBLE</code></td><td><code>GetDataScalarDouble()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_BOOL</code></td><td><code>GetDataScalarBool()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_STRING</code></td><td><code>GetDataScalarString()</code></td></tr>
+<tr><td><code>TYPE_1DArray_INT64</code></td><td><code>GetData1DArrayInt64()</code></td></tr>
+<tr><td><code>TYPE_2DArray_INT64</code></td><td><code>GetData2DArrayInt64()</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Standard detail names exposed as constants in <code>include/vsag/index_detail_info.h</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Constant</th><th>Typical type</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>INDEX_DETAIL_NAME_NUM_ELEMENTS</code></td><td><code>TYPE_SCALAR_INT64</code></td><td>Number of vectors currently in the index.</td></tr>
+<tr><td><code>INDEX_DETAIL_NAME_LABEL_TABLE</code></td><td><code>TYPE_2DArray_INT64</code></td><td>Per-vector label table (e.g. internal-to-user id mapping).</td></tr>
+<tr><td><code>INDEX_DETAIL_DATA_TYPE</code></td><td><code>TYPE_SCALAR_STRING</code></td><td>Underlying vector data type (e.g. <code>"float32"</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<p>Individual indexes may expose additional names; iterate <code>GetIndexDetailInfos()</code> to discover them
+at runtime. A runnable example is available at <code>examples/cpp/317_feature_get_detail_data.cpp</code>.</p>
+<h2 id="notes-and-limitations"><a class="header" href="#notes-and-limitations">Notes and Limitations</a></h2>
+<ul>
+<li><code>CheckFeature</code> is constant-time. Prefer it over <code>try</code> / <code>catch</code> around an unsupported call.</li>
+<li><code>CalDistanceById</code> requires the underlying index to retain enough information to recompute the
+distance. For purely quantized indexes (no raw vectors retained), <code>calculate_precise_distance = true</code> may return the quantized distance instead.</li>
+<li><code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> are read-only snapshots. The values returned
+reflect the index state at the moment of the call; concurrent mutations may invalidate them.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="graph-index-enhancement"><a class="header" href="#graph-index-enhancement">Graph Index Enhancement</a></h1>
@@ -2593,7 +2858,7 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
 <p>When <code>use_extra_info_filter</code> is true, HGraph dispatches to <code>CheckValid(const char*)</code> instead of
 <code>CheckValid(int64_t)</code>. You can guard with
 <code>index-&gt;CheckFeature(vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER)</code>.</p>
-<h2 id="capability-flags"><a class="header" href="#capability-flags">Capability Flags</a></h2>
+<h2 id="capability-flags-1"><a class="header" href="#capability-flags-1">Capability Flags</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -2606,7 +2871,7 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
 </tbody>
 </table>
 </div>
-<h2 id="notes-and-limitations"><a class="header" href="#notes-and-limitations">Notes and Limitations</a></h2>
+<h2 id="notes-and-limitations-1"><a class="header" href="#notes-and-limitations-1">Notes and Limitations</a></h2>
 <ul>
 <li>The payload is opaque bytes; you are responsible for serialization/deserialization. The library
 only <code>memcpy</code>s by offset.</li>
@@ -2631,7 +2896,7 @@ produce a new index derived from it. This page documents the full lifecycle surf
 </ul>
 <p>Each operation is optional and is exposed only when the underlying index advertises the matching
 capability flag via <code>index-&gt;CheckFeature(...)</code>.</p>
-<h2 id="capability-flags-1"><a class="header" href="#capability-flags-1">Capability Flags</a></h2>
+<h2 id="capability-flags-2"><a class="header" href="#capability-flags-2">Capability Flags</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -2772,7 +3037,7 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
 trained on the source data — only the per-vector storage is empty. This pattern is particularly
 useful for IVF-style indexes where training (k-means on centroids) is the dominant cost.</p>
 <p>A runnable example is available at <code>examples/cpp/310_feature_export_model.cpp</code>.</p>
-<h2 id="notes-and-limitations-1"><a class="header" href="#notes-and-limitations-1">Notes and Limitations</a></h2>
+<h2 id="notes-and-limitations-2"><a class="header" href="#notes-and-limitations-2">Notes and Limitations</a></h2>
 <ul>
 <li><code>Remove</code>, <code>UpdateVector</code>, and <code>UpdateId</code> are concurrent-safe on HGraph when the matching
 <code>*_CONCURRENT</code> capability flag is set. The flag set also gates safe combinations with

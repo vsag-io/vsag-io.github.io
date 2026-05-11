@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2e2d1f11.js";
+            window.path_to_searchindex_js = "../searchindex-a82ee944.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7fa8b839.js"></script>
+        <script src="../toc-e882464b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -386,6 +386,106 @@ and <code>docs/hgraph.md</code> in the repository.</p>
 </tbody>
 </table>
 </div>
+<h2 id="supported-input-data-types"><a class="header" href="#supported-input-data-types">Supported input data types</a></h2>
+<p>The <code>dtype</code> field in the top-level build config selects how <code>Dataset</code> interprets the raw vector
+bytes. HGraph supports four input types; the <code>dtype</code> value, the corresponding <code>Dataset</code> setter,
+and the example demonstrating each combination are summarised below.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>dtype</code></th><th>Element type</th><th><code>Dataset</code> setter</th><th>Example</th></tr>
+</thead>
+<tbody>
+<tr><td><code>float32</code></td><td><code>float</code></td><td><code>Float32Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/103_index_hgraph.cpp"><code>103_index_hgraph.cpp</code></a></td></tr>
+<tr><td><code>int8</code></td><td><code>int8_t</code></td><td><code>Int8Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/316_index_int8_hgraph.cpp"><code>316_index_int8_hgraph.cpp</code></a></td></tr>
+<tr><td><code>float16</code></td><td><code>uint16_t</code> (IEEE 754 binary16, bit-pattern packed)</td><td><code>Float16Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/321_index_fp16_hgraph.cpp"><code>321_index_fp16_hgraph.cpp</code></a></td></tr>
+<tr><td><code>bfloat16</code></td><td><code>uint16_t</code> (Brain Float, bit-pattern packed)</td><td><code>Float16Vectors</code> (shared with FP16)</td><td>adapt <code>321_index_fp16_hgraph.cpp</code> per the notes below</td></tr>
+</tbody>
+</table>
+</div>
+<p>The <code>dim</code> value is the logical vector dimensionality (number of elements), not the byte length, so
+the same <code>dim</code> is reused across all four data types.</p>
+<h3 id="int8-input"><a class="header" href="#int8-input"><code>int8</code> input</a></h3>
+<p>Quantized <code>int8</code> vectors are passed directly via <code>Int8Vectors</code>:</p>
+<pre><code class="language-cpp">std::vector&lt;int8_t&gt; data(num_vectors * dim);  // populate with int8 elements
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
+    -&gt;Int8Vectors(data.data())-&gt;Owner(false);
+</code></pre>
+<p>Build config (note <code>dtype: "int8"</code>):</p>
+<pre><code class="language-json">{
+    "dtype": "int8",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pq",
+        "max_degree": 26,
+        "ef_construction": 100,
+        "alpha": 1.2
+    }
+}
+</code></pre>
+<p>Queries use the same <code>Int8Vectors</code> setter and the same <code>dtype</code>. A runnable example is
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/316_index_int8_hgraph.cpp"><code>316_index_int8_hgraph.cpp</code></a>.</p>
+<h3 id="float16--bfloat16-input"><a class="header" href="#float16--bfloat16-input"><code>float16</code> / <code>bfloat16</code> input</a></h3>
+<p>FP16 and BF16 vectors are both passed through <code>Float16Vectors</code>, which takes a <code>const uint16_t*</code>
+that points at the 16-bit storage of each element. Conversion from <code>float</code> is up to the caller;
+inside the VSAG source tree there are convenience helpers (<code>vsag::generic::FloatToFP16</code> in
+<a href="https://github.com/antgroup/vsag/blob/main/src/simd/fp16_simd.h"><code>src/simd/fp16_simd.h</code></a>
+and <code>vsag::generic::FloatToBF16</code> in
+<a href="https://github.com/antgroup/vsag/blob/main/src/simd/bf16_simd.h"><code>src/simd/bf16_simd.h</code></a>),
+but these are <strong>internal headers</strong> that are not installed under <code>include/vsag/</code>. Application code
+linking against an installed VSAG library should provide its own conversion (for example, copy
+the small helper, use <code>_cvtss_sh</code> / F16C intrinsics, or any FP16 library of choice). The snippet
+below uses the in-tree helper for brevity:</p>
+<pre><code class="language-cpp">// The fp16/bf16 helpers below live in src/simd/ and are not part of the public
+// installed headers. Replace with your own float -&gt; uint16_t conversion when
+// linking against an installed VSAG.
+#include "simd/fp16_simd.h"  // FloatToFP16 (for BF16, use simd/bf16_simd.h / FloatToBF16)
+
+std::vector&lt;uint16_t&gt; data(num_vectors * dim);
+for (size_t i = 0; i &lt; data.size(); ++i) {
+    data[i] = vsag::generic::FloatToFP16(some_float_source());
+}
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
+    -&gt;Float16Vectors(data.data())-&gt;Owner(false);
+</code></pre>
+<p>Build config:</p>
+<pre><code class="language-json">{
+    "dtype": "float16",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pq",
+        "max_degree": 26,
+        "ef_construction": 100,
+        "alpha": 1.2
+    }
+}
+</code></pre>
+<p>To switch the example to BF16, change <code>dtype</code> to <code>"bfloat16"</code> and replace <code>FloatToFP16</code> with
+<code>FloatToBF16</code>; the <code>Float16Vectors</code> setter and the rest of the build/search flow stay the same.
+A runnable FP16 example is
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/321_index_fp16_hgraph.cpp"><code>321_index_fp16_hgraph.cpp</code></a>.</p>
+<blockquote>
+<p><strong>Note.</strong> The header comment at the top of <code>321_index_fp16_hgraph.cpp</code> currently mentions a
+<code>BFloat16Vectors()</code> setter, but no such setter exists — <code>Float16Vectors</code> is the single entry
+point for both FP16 and BF16. Use it for both <code>dtype: "float16"</code> and <code>dtype: "bfloat16"</code>.</p>
+</blockquote>
+<h3 id="choosing-an-input-type"><a class="header" href="#choosing-an-input-type">Choosing an input type</a></h3>
+<ul>
+<li>Pick <code>float32</code> when accuracy matters most and memory budget allows; this is the default.</li>
+<li>Pick <code>float16</code> / <code>bfloat16</code> to halve the input storage. FP16 has a smaller exponent range; BF16
+has fewer mantissa bits but the same exponent range as FP32, which is often preferable for
+embedding-style vectors.</li>
+<li>Pick <code>int8</code> when your data is already integer-quantised (e.g. produced by an upstream quantiser
+or by a model with int8 outputs). With <code>int8</code> input you typically still combine a coarse
+quantizer such as <code>pq</code> / <code>sq8</code> for the in-index storage.</li>
+</ul>
+<p>The chosen <code>dtype</code> only constrains the <strong>input</strong> representation. The on-disk / in-memory storage is
+still controlled by <code>base_quantization_type</code> (and optionally <code>precise_quantization_type</code> when
+<code>use_reorder: true</code>), so e.g. <code>dtype: "float16"</code> + <code>base_quantization_type: "sq8"</code> is valid.</p>
 <h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>hgraph</code> sub-object:</p>
 <div class="table-wrapper">

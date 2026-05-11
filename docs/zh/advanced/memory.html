@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-958caaed.js";
+            window.path_to_searchindex_js = "../searchindex-9c238acd.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7af1a813.js"></script>
+        <script src="../toc-80102372.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -337,10 +337,48 @@ auto result = index-&gt;KnnSearch(query, k, search_param);
 </code></pre>
 <p>示例：<code>examples/cpp/313_feature_search_allocator.cpp</code>、<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>。</p>
 <h2 id="估算与查询内存占用"><a class="header" href="#估算与查询内存占用">估算与查询内存占用</a></h2>
+<h3 id="estimatememorydata_num"><a class="header" href="#estimatememorydata_num"><code>EstimateMemory(data_num)</code></a></h3>
+<p><code>Index::EstimateMemory(data_num)</code> 返回索引在插入 <code>data_num</code> 条向量后预期占用的字节数。它仅基于
+构建参数（dim、量化方式、<code>max_degree</code> 等）推算，不会分配任何向量存储，因此可以在空索引上安全
+调用，是入库前评估节点规格的推荐方式：</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_ESTIMATE_MEMORY)) {
+    uint64_t estimated = index-&gt;EstimateMemory(1'000'000);  // 字节
+}
+</code></pre>
+<p>完整示例：<code>examples/cpp/308_feature_estimate_memory.cpp</code>。</p>
+<h3 id="getmemoryusage"><a class="header" href="#getmemoryusage"><code>GetMemoryUsage()</code></a></h3>
+<p><code>Index::GetMemoryUsage()</code> 返回索引<strong>当前</strong>占用的字节数：</p>
+<pre><code class="language-cpp">int64_t bytes = index-&gt;GetMemoryUsage();
+</code></pre>
+<p>特性：</p>
 <ul>
-<li><code>Index::EstimateMemory(data_num)</code>：在构建前估算索引将占用的内存（示例：<code>examples/cpp/308_feature_estimate_memory.cpp</code>）。</li>
-<li><code>Index::GetMemoryUsage()</code>：查询当前实际占用的字节数（示例：<code>examples/cpp/319_feature_get_memory_usage.cpp</code>）。</li>
+<li>所有索引类型均实现了该方法，但只有通过 <code>CheckFeature</code> 公布 <code>vsag::SUPPORT_GET_MEMORY_USAGE</code>
+的索引才保证返回有意义的数值。HGraph、IVF、BruteForce、Pyramid、WARP 均声明了该能力
+（见 <code>src/algorithm/{hgraph,ivf,brute_force,pyramid,warp}.cpp</code>）；SINDI 出于
+接口纯虚函数的要求实现了该方法，但当前未设置该 feature flag，请仅把返回值视为参考信息。</li>
+<li>线程安全；可与搜索并发轮询。</li>
+<li>延迟在微秒量级 —— 适合生产环境的实时内存监控。</li>
+<li>统计的是索引自身占用的内存（向量、图、量化器状态）。该值通常小于操作系统层面观察到的 RSS：
+RSS 还包含 allocator 的开销、临时 scratch buffer、以及索引外部持有的数据（例如用户自有的输入
+向量缓冲）。SINDI 索引尤其建议在构建完成<strong>之后</strong>调用 <code>GetMemoryUsage()</code> 才能拿到具有代表性的
+数值。</li>
 </ul>
+<p>可运行示例：<code>examples/cpp/319_feature_get_memory_usage.cpp</code>，其中包含一个辅助函数将接口值与进程
+驻留内存进行对照。</p>
+<h3 id="能力标志"><a class="header" href="#能力标志">能力标志</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>标志</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vsag::SUPPORT_ESTIMATE_MEMORY</code></td><td>支持 <code>EstimateMemory(data_num)</code>。</td></tr>
+<tr><td><code>vsag::SUPPORT_GET_MEMORY_USAGE</code></td><td>支持 <code>GetMemoryUsage()</code>。</td></tr>
+</tbody>
+</table>
+</div>
+<p>两个标志均可通过 <code>index-&gt;CheckFeature(...)</code> 查询 —— 参见
+<a href="introspection.html">索引自省</a>。</p>
 <h2 id="线程池"><a class="header" href="#线程池">线程池</a></h2>
 <p><code>Resource</code> 也接受用户提供的 <code>ThreadPool</code>，与 Allocator 配合可完全托管并行度与资源归属。见
 <code>examples/cpp/203_custom_thread_pool.cpp</code>。</p>
@@ -359,7 +397,7 @@ auto result = index-&gt;KnnSearch(query, k, search_param);
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../advanced/enhance_graph.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/introspection.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -373,7 +411,7 @@ auto result = index-&gt;KnnSearch(query, k, search_param);
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../advanced/enhance_graph.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/introspection.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

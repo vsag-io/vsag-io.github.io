@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-958caaed.js";
+            window.path_to_searchindex_js = "../searchindex-9c238acd.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7af1a813.js"></script>
+        <script src="../toc-80102372.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -379,6 +379,99 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
+<h2 id="支持的输入数据类型"><a class="header" href="#支持的输入数据类型">支持的输入数据类型</a></h2>
+<p>顶层构建配置中的 <code>dtype</code> 字段决定 <code>Dataset</code> 如何解释原始向量字节。HGraph 支持四种输入类型，
+<code>dtype</code> 值、对应的 <code>Dataset</code> setter 与演示示例见下表。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>dtype</code></th><th>元素类型</th><th><code>Dataset</code> setter</th><th>示例</th></tr>
+</thead>
+<tbody>
+<tr><td><code>float32</code></td><td><code>float</code></td><td><code>Float32Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/103_index_hgraph.cpp"><code>103_index_hgraph.cpp</code></a></td></tr>
+<tr><td><code>int8</code></td><td><code>int8_t</code></td><td><code>Int8Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/316_index_int8_hgraph.cpp"><code>316_index_int8_hgraph.cpp</code></a></td></tr>
+<tr><td><code>float16</code></td><td><code>uint16_t</code>（按 IEEE 754 binary16 位模式打包）</td><td><code>Float16Vectors</code></td><td><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/321_index_fp16_hgraph.cpp"><code>321_index_fp16_hgraph.cpp</code></a></td></tr>
+<tr><td><code>bfloat16</code></td><td><code>uint16_t</code>（按 Brain Float 位模式打包）</td><td><code>Float16Vectors</code>（与 FP16 共用）</td><td>在 <code>321_index_fp16_hgraph.cpp</code> 基础上按下文调整</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>dim</code> 始终表示逻辑维度（元素数量），与字节长度无关，因此四种数据类型下 <code>dim</code> 取值相同。</p>
+<h3 id="int8-输入"><a class="header" href="#int8-输入"><code>int8</code> 输入</a></h3>
+<p>量化好的 <code>int8</code> 向量直接通过 <code>Int8Vectors</code> 传入：</p>
+<pre><code class="language-cpp">std::vector&lt;int8_t&gt; data(num_vectors * dim);  // 填入 int8 元素
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
+    -&gt;Int8Vectors(data.data())-&gt;Owner(false);
+</code></pre>
+<p>对应构建配置（注意 <code>dtype: "int8"</code>）：</p>
+<pre><code class="language-json">{
+    "dtype": "int8",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pq",
+        "max_degree": 26,
+        "ef_construction": 100,
+        "alpha": 1.2
+    }
+}
+</code></pre>
+<p>查询时同样使用 <code>Int8Vectors</code> 和相同的 <code>dtype</code>。可运行示例：
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/316_index_int8_hgraph.cpp"><code>316_index_int8_hgraph.cpp</code></a>。</p>
+<h3 id="float16--bfloat16-输入"><a class="header" href="#float16--bfloat16-输入"><code>float16</code> / <code>bfloat16</code> 输入</a></h3>
+<p>FP16 与 BF16 都通过 <code>Float16Vectors</code> 传入，参数类型为 <code>const uint16_t*</code>，指向各元素的 16 位
+存储。从 <code>float</code> 到 16 位格式的转换由调用方负责。VSAG 源码树内提供了便捷辅助函数
+（<code>vsag::generic::FloatToFP16</code> 位于
+<a href="https://github.com/antgroup/vsag/blob/main/src/simd/fp16_simd.h"><code>src/simd/fp16_simd.h</code></a>，
+<code>vsag::generic::FloatToBF16</code> 位于
+<a href="https://github.com/antgroup/vsag/blob/main/src/simd/bf16_simd.h"><code>src/simd/bf16_simd.h</code></a>），
+但它们是<strong>内部头文件</strong>，并未通过 <code>include/vsag/</code> 对外安装。链接已安装版 VSAG 库的应用需要自行
+完成转换（例如复制这段小工具函数、使用 <code>_cvtss_sh</code> / F16C 内置指令，或调用任意 FP16 库）。下面
+的示例代码为了简洁直接使用了源码树内的辅助函数：</p>
+<pre><code class="language-cpp">// 下面的 fp16/bf16 辅助函数位于 src/simd/，并未随 VSAG 一并安装。
+// 链接已安装版 VSAG 时，请替换为自行实现的 float -&gt; uint16_t 转换。
+#include "simd/fp16_simd.h"  // FloatToFP16（BF16 场景改为 simd/bf16_simd.h / FloatToBF16）
+
+std::vector&lt;uint16_t&gt; data(num_vectors * dim);
+for (size_t i = 0; i &lt; data.size(); ++i) {
+    data[i] = vsag::generic::FloatToFP16(some_float_source());
+}
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
+    -&gt;Float16Vectors(data.data())-&gt;Owner(false);
+</code></pre>
+<p>构建配置：</p>
+<pre><code class="language-json">{
+    "dtype": "float16",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pq",
+        "max_degree": 26,
+        "ef_construction": 100,
+        "alpha": 1.2
+    }
+}
+</code></pre>
+<p>切换到 BF16 时，将 <code>dtype</code> 改为 <code>"bfloat16"</code>、把 <code>FloatToFP16</code> 替换为 <code>FloatToBF16</code> 即可；
+<code>Float16Vectors</code> setter 与构建/检索流程不变。可运行 FP16 示例：
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/321_index_fp16_hgraph.cpp"><code>321_index_fp16_hgraph.cpp</code></a>。</p>
+<blockquote>
+<p><strong>注意。</strong> <code>321_index_fp16_hgraph.cpp</code> 文件头注释提到 <code>BFloat16Vectors()</code>，但该 setter 并不
+存在 —— FP16 与 BF16 都通过 <code>Float16Vectors</code> 传入。无论 <code>dtype</code> 是 <code>"float16"</code> 还是
+<code>"bfloat16"</code>，都使用同一个 setter。</p>
+</blockquote>
+<h3 id="输入类型选择建议"><a class="header" href="#输入类型选择建议">输入类型选择建议</a></h3>
+<ul>
+<li>对精度要求最高、且内存预算充裕时，选 <code>float32</code>（默认）。</li>
+<li>想把输入存储减半，选 <code>float16</code> / <code>bfloat16</code>。FP16 指数范围更小，BF16 尾数位更少但指数范围
+与 FP32 一致，对 embedding 类向量通常更友好。</li>
+<li>数据本身已是整数量化结果（来自上游量化器或 int8 输出的模型）时，选 <code>int8</code>。此时通常仍配合
+<code>pq</code> / <code>sq8</code> 之类的索引内量化器使用。</li>
+</ul>
+<p><code>dtype</code> 仅约束<strong>输入</strong>表示；索引内的实际存储仍由 <code>base_quantization_type</code>（以及
+<code>use_reorder: true</code> 下的 <code>precise_quantization_type</code>）决定，因此
+<code>dtype: "float16"</code> + <code>base_quantization_type: "sq8"</code> 这样的组合是允许的。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>hgraph</code> 子对象下：</p>
 <div class="table-wrapper">

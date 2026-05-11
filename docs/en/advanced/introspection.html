@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="zh" class="light sidebar-visible" dir="ltr">
+<html lang="en" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>pyvsag - VSAG文档</title>
+        <title>Index Introspection - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9c238acd.js";
+            window.path_to_searchindex_js = "../searchindex-a82ee944.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-80102372.js"></script>
+        <script src="../toc-e882464b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG文档</h1>
+                    <h1 class="menu-title">VSAG Documentation</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,68 +304,139 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="pyvsag"><a class="header" href="#pyvsag">pyvsag</a></h1>
-<p><code>pyvsag</code> 是 VSAG 的 Python 绑定包，接口封装基于 <a href="https://github.com/pybind/pybind11">pybind11</a> 实现，源代码位于仓库 <a href="https://github.com/antgroup/vsag/tree/main/python_bindings"><code>python_bindings/</code></a> 目录，打包脚本位于 <a href="https://github.com/antgroup/vsag/tree/main/python"><code>python/</code></a>。</p>
-<h2 id="安装"><a class="header" href="#安装">安装</a></h2>
-<p>从 PyPI 安装最新发布版本：</p>
-<pre><code class="language-bash">pip install pyvsag
-</code></pre>
-<p>需要在 Linux 环境下使用（<code>manylinux2014</code> wheel）。如果希望构建本地 wheel，可以运行：</p>
-<pre><code class="language-bash"># 构建特定 Python 版本的 wheel
-make pyvsag PY_VERSION=3.11
-
-# 或一次构建所有受支持版本
-make pyvsag-all
-</code></pre>
-<h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
-<p><code>pyvsag</code> 暴露一个与 C++ <code>Index</code> 对象对应的 <code>Index</code> 类，构建与搜索参数使用 JSON 字符串传递：</p>
-<pre><code class="language-python">import json
-import numpy as np
-import pyvsag
-
-dim = 128
-num_elements = 1000
-
-ids = np.arange(num_elements, dtype=np.int64)
-data = np.float32(np.random.random((num_elements, dim)))
-
-index_params = json.dumps({
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": dim,
-    "hnsw": {"max_degree": 16, "ef_construction": 100},
-})
-
-index = pyvsag.Index("hnsw", index_params)
-index.build(vectors=data, ids=ids, num_elements=num_elements, dim=dim)
-
-query = np.float32(np.random.random(dim))
-search_params = json.dumps({"hnsw": {"ef_search": 100}})
-result_ids, result_dists = index.knn_search(
-    vector=query, k=10, parameters=search_params,
-)
-for rid, rdist in zip(result_ids, result_dists):
-    print(f"{rid}: {rdist}")
-</code></pre>
-<p>完整示例请查阅仓库中的 <a href="https://github.com/antgroup/vsag/tree/main/examples/python"><code>examples/python/</code></a> 目录，建议从 <code>example_hnsw.py</code> 开始。</p>
-<h2 id="与-c-库的关系"><a class="header" href="#与-c-库的关系">与 C++ 库的关系</a></h2>
-<p><code>pyvsag</code> 绑定的是同一份核心 C++ 实现，行为和性能特征与 C++ 版本保持一致。因此：</p>
+                        <h1 id="index-introspection"><a class="header" href="#index-introspection">Index Introspection</a></h1>
+<p>VSAG indexes expose three families of introspection APIs that let callers discover what an index
+can do, compute distances against existing vectors, and read back structured information about
+the built index without re-running a search:</p>
 <ul>
-<li>大多数 C++ 参数在 Python 中以相同的 JSON 字段传递；</li>
-<li>C++ 版本新增的索引类型、量化方式、距离度量会随 <code>pyvsag</code> 的下一个 release 一同发布；</li>
-<li>构建 wheel 时所使用的依赖项与发布版 C++ 库相同（OpenBLAS、libaio 等）。</li>
+<li><strong><code>CheckFeature(IndexFeature)</code></strong> — runtime capability discovery.</li>
+<li><strong><code>CalDistanceById(...)</code></strong> — distance from a query to specific stored ids.</li>
+<li><strong><code>GetIndexDetailInfos()</code> / <code>GetDetailDataByName(...)</code></strong> — structured per-index detail data.</li>
 </ul>
-<p>关于可用参数和索引类型，请参考 <a href="create_index.html">创建索引</a> 和 <a href="../resources/index_parameters.html">索引参数</a>。</p>
+<p>These APIs are read-only and safe to call concurrently with search.</p>
+<h2 id="capability-discovery--checkfeature"><a class="header" href="#capability-discovery--checkfeature">Capability Discovery — <code>CheckFeature</code></a></h2>
+<p><code>index-&gt;CheckFeature(vsag::SUPPORT_*)</code> returns <code>true</code> when the underlying index implementation
+advertises the given feature. Use it whenever a code path takes an <code>IndexPtr</code> of unknown concrete
+type (e.g. user-supplied configuration, polymorphic store):</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_ESTIMATE_MEMORY)) {
+    uint64_t est = index-&gt;EstimateMemory(100'000);
+}
+
+if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
+    // Skip / fall back to remove + re-add via a different index.
+}
+</code></pre>
+<p>Feature flags cover almost every optional surface in the library: build / add /
+serialize variants, concurrent combinations, metric types, attribute and extra-info filters,
+<code>Clone</code>, <code>ExportModel</code>, <code>Tune</code>, and more. See <code>include/vsag/index_features.h</code> for the full
+enumeration.</p>
+<p>A runnable example is available at <code>examples/cpp/307_feature_check_features.cpp</code>.</p>
+<h2 id="distances-to-existing-ids--caldistancebyid"><a class="header" href="#distances-to-existing-ids--caldistancebyid">Distances to Existing Ids — <code>CalDistanceById</code></a></h2>
+<p><code>CalDistanceById</code> computes the distance between a query and one or more vectors that are
+<strong>already stored in the index</strong>, without running a search. This is useful for re-ranking, A/B
+evaluation, ground-truth checks, or computing pairwise distances to a known shortlist.</p>
+<p>Two overloads are provided:</p>
+<pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF, DiskANN, HNSW)
+auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
+
+// Sparse vector indexes (SINDI, SparseIndex) — wrap the query in a Dataset
+auto query_ds = vsag::Dataset::Make();
+query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
+auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
+</code></pre>
+<p>The result <code>Dataset</code> holds <code>count</code> distances in <code>GetDistances()</code>. A value of <code>-1.0F</code> means the
+corresponding id was invalid (not present in the index).</p>
+<h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
+<p>The trailing <code>bool</code> argument trades precision for latency:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Value</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td><code>true</code> (default)</td><td>Use the full-precision vector representation. May incur disk I/O on hybrid memory-disk indexes.</td></tr>
+<tr><td><code>false</code></td><td>Use the quantized / approximate representation cached for search. Faster, no I/O.</td></tr>
+</tbody>
+</table>
+</div>
+<p>A runnable example is available at <code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code>.</p>
+<h2 id="detail-data--getindexdetailinfos--getdetaildatabyname"><a class="header" href="#detail-data--getindexdetailinfos--getdetaildatabyname">Detail Data — <code>GetIndexDetailInfos</code> / <code>GetDetailDataByName</code></a></h2>
+<p><code>GetIndexDetailInfos()</code> returns a list of <code>IndexDetailInfo</code> records that describe every named
+piece of structured data the index can expose. Each record carries a <code>name</code>, a <code>description</code>, and
+a <code>type</code> enum that selects the right typed accessor on <code>DetailData</code>.</p>
+<p>Support is index-dependent — there is no dedicated <code>SUPPORT_*</code> flag for these two APIs. The
+<code>Index</code> base class throws <code>std::runtime_error("Index doesn't support ...")</code> by default
+(<code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> in <code>include/vsag/index.h:658,674</code>);
+HGraph / IVF / BruteForce / Pyramid / SINDI / WARP implement them through
+<code>InnerIndexInterface</code>, while <code>HNSW</code> only overrides <code>GetDetailDataByName</code> and DiskANN does not
+override either. Always handle the <code>tl::expected</code> error path when calling these APIs.</p>
+<pre><code class="language-cpp">auto infos = index-&gt;GetIndexDetailInfos().value();
+for (const auto&amp; info : infos) {
+    std::cout &lt;&lt; info.name &lt;&lt; " : " &lt;&lt; info.description &lt;&lt; '\n';
+}
+</code></pre>
+<p>Once you know which entries are available, call <code>GetDetailDataByName(name, info)</code> to retrieve the
+typed payload:</p>
+<pre><code class="language-cpp">vsag::IndexDetailInfo info;
+auto detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_NUM_ELEMENTS, info).value();
+int64_t n = detail-&gt;GetDataScalarInt64();
+
+detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_LABEL_TABLE, info).value();
+auto table = detail-&gt;GetData2DArrayInt64();   // [row][col] int64 matrix
+
+detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_DATA_TYPE, info).value();
+std::string dt = detail-&gt;GetDataScalarString();
+</code></pre>
+<h3 id="data-types"><a class="header" href="#data-types">Data Types</a></h3>
+<p><code>info.type</code> selects which accessor on <code>DetailData</code> is valid:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>IndexDetailDataType</code></th><th>Accessor</th></tr>
+</thead>
+<tbody>
+<tr><td><code>TYPE_SCALAR_INT64</code></td><td><code>GetDataScalarInt64()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_DOUBLE</code></td><td><code>GetDataScalarDouble()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_BOOL</code></td><td><code>GetDataScalarBool()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_STRING</code></td><td><code>GetDataScalarString()</code></td></tr>
+<tr><td><code>TYPE_1DArray_INT64</code></td><td><code>GetData1DArrayInt64()</code></td></tr>
+<tr><td><code>TYPE_2DArray_INT64</code></td><td><code>GetData2DArrayInt64()</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Standard detail names exposed as constants in <code>include/vsag/index_detail_info.h</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Constant</th><th>Typical type</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>INDEX_DETAIL_NAME_NUM_ELEMENTS</code></td><td><code>TYPE_SCALAR_INT64</code></td><td>Number of vectors currently in the index.</td></tr>
+<tr><td><code>INDEX_DETAIL_NAME_LABEL_TABLE</code></td><td><code>TYPE_2DArray_INT64</code></td><td>Per-vector label table (e.g. internal-to-user id mapping).</td></tr>
+<tr><td><code>INDEX_DETAIL_DATA_TYPE</code></td><td><code>TYPE_SCALAR_STRING</code></td><td>Underlying vector data type (e.g. <code>"float32"</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<p>Individual indexes may expose additional names; iterate <code>GetIndexDetailInfos()</code> to discover them
+at runtime. A runnable example is available at <code>examples/cpp/317_feature_get_detail_data.cpp</code>.</p>
+<h2 id="notes-and-limitations"><a class="header" href="#notes-and-limitations">Notes and Limitations</a></h2>
+<ul>
+<li><code>CheckFeature</code> is constant-time. Prefer it over <code>try</code> / <code>catch</code> around an unsupported call.</li>
+<li><code>CalDistanceById</code> requires the underlying index to retain enough information to recompute the
+distance. For purely quantized indexes (no raw vectors retained), <code>calculate_precise_distance = true</code> may return the quantized distance instead.</li>
+<li><code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> are read-only snapshots. The values returned
+reflect the index state at the moment of the call; concurrent mutations may invalidate them.</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../guide/knn_search.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/memory.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../indexes/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/enhance_graph.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -375,11 +446,11 @@ for rid, rdist in zip(result_ids, result_dists):
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../guide/knn_search.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/memory.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../indexes/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/enhance_graph.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

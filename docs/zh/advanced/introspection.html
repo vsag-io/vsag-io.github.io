@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>pyvsag - VSAG文档</title>
+        <title>索引自省 - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -304,68 +304,134 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="pyvsag"><a class="header" href="#pyvsag">pyvsag</a></h1>
-<p><code>pyvsag</code> 是 VSAG 的 Python 绑定包，接口封装基于 <a href="https://github.com/pybind/pybind11">pybind11</a> 实现，源代码位于仓库 <a href="https://github.com/antgroup/vsag/tree/main/python_bindings"><code>python_bindings/</code></a> 目录，打包脚本位于 <a href="https://github.com/antgroup/vsag/tree/main/python"><code>python/</code></a>。</p>
-<h2 id="安装"><a class="header" href="#安装">安装</a></h2>
-<p>从 PyPI 安装最新发布版本：</p>
-<pre><code class="language-bash">pip install pyvsag
-</code></pre>
-<p>需要在 Linux 环境下使用（<code>manylinux2014</code> wheel）。如果希望构建本地 wheel，可以运行：</p>
-<pre><code class="language-bash"># 构建特定 Python 版本的 wheel
-make pyvsag PY_VERSION=3.11
-
-# 或一次构建所有受支持版本
-make pyvsag-all
-</code></pre>
-<h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
-<p><code>pyvsag</code> 暴露一个与 C++ <code>Index</code> 对象对应的 <code>Index</code> 类，构建与搜索参数使用 JSON 字符串传递：</p>
-<pre><code class="language-python">import json
-import numpy as np
-import pyvsag
-
-dim = 128
-num_elements = 1000
-
-ids = np.arange(num_elements, dtype=np.int64)
-data = np.float32(np.random.random((num_elements, dim)))
-
-index_params = json.dumps({
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": dim,
-    "hnsw": {"max_degree": 16, "ef_construction": 100},
-})
-
-index = pyvsag.Index("hnsw", index_params)
-index.build(vectors=data, ids=ids, num_elements=num_elements, dim=dim)
-
-query = np.float32(np.random.random(dim))
-search_params = json.dumps({"hnsw": {"ef_search": 100}})
-result_ids, result_dists = index.knn_search(
-    vector=query, k=10, parameters=search_params,
-)
-for rid, rdist in zip(result_ids, result_dists):
-    print(f"{rid}: {rdist}")
-</code></pre>
-<p>完整示例请查阅仓库中的 <a href="https://github.com/antgroup/vsag/tree/main/examples/python"><code>examples/python/</code></a> 目录，建议从 <code>example_hnsw.py</code> 开始。</p>
-<h2 id="与-c-库的关系"><a class="header" href="#与-c-库的关系">与 C++ 库的关系</a></h2>
-<p><code>pyvsag</code> 绑定的是同一份核心 C++ 实现，行为和性能特征与 C++ 版本保持一致。因此：</p>
+                        <h1 id="索引自省"><a class="header" href="#索引自省">索引自省</a></h1>
+<p>VSAG 提供三类自省 API，让调用方可以发现某个索引的能力、对已有向量计算距离，以及读出关于已构建
+索引的结构化信息，而无需重新执行一次搜索：</p>
 <ul>
-<li>大多数 C++ 参数在 Python 中以相同的 JSON 字段传递；</li>
-<li>C++ 版本新增的索引类型、量化方式、距离度量会随 <code>pyvsag</code> 的下一个 release 一同发布；</li>
-<li>构建 wheel 时所使用的依赖项与发布版 C++ 库相同（OpenBLAS、libaio 等）。</li>
+<li><strong><code>CheckFeature(IndexFeature)</code></strong> —— 运行时能力探测。</li>
+<li><strong><code>CalDistanceById(...)</code></strong> —— 计算 query 到已存入向量 id 的距离。</li>
+<li><strong><code>GetIndexDetailInfos()</code> / <code>GetDetailDataByName(...)</code></strong> —— 读取索引各项结构化详情数据。</li>
 </ul>
-<p>关于可用参数和索引类型，请参考 <a href="create_index.html">创建索引</a> 和 <a href="../resources/index_parameters.html">索引参数</a>。</p>
+<p>这些 API 均为只读操作，可与搜索并发调用。</p>
+<h2 id="能力探测--checkfeature"><a class="header" href="#能力探测--checkfeature">能力探测 —— <code>CheckFeature</code></a></h2>
+<p>当底层索引实现公布了某项能力时，<code>index-&gt;CheckFeature(vsag::SUPPORT_*)</code> 返回 <code>true</code>。当代码路径
+持有一个具体类型未知的 <code>IndexPtr</code>（例如用户配置注入、多态存储）时，应使用此 API：</p>
+<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_ESTIMATE_MEMORY)) {
+    uint64_t est = index-&gt;EstimateMemory(100'000);
+}
+
+if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
+    // 跳过 / 通过另一个索引以 remove + re-add 方式回退。
+}
+</code></pre>
+<p>能力标志几乎覆盖了库中所有可选接口：build / add / 序列化变体、各种并发组合、度量类型、属性
+过滤、extra-info 过滤、<code>Clone</code>、<code>ExportModel</code>、<code>Tune</code> 等。完整枚举见
+<code>include/vsag/index_features.h</code>。</p>
+<p>可运行示例：<code>examples/cpp/307_feature_check_features.cpp</code>。</p>
+<h2 id="到已有-id-的距离--caldistancebyid"><a class="header" href="#到已有-id-的距离--caldistancebyid">到已有 id 的距离 —— <code>CalDistanceById</code></a></h2>
+<p><code>CalDistanceById</code> 计算 query 与索引中<strong>已存在</strong>的一个或多个向量之间的距离，<strong>无需</strong>执行一次
+搜索。它适用于 re-rank、A/B 评估、ground-truth 校验，或对已知候选集合做成对距离计算。</p>
+<p>提供两个重载：</p>
+<pre><code class="language-cpp">// 稠密向量索引（HGraph、BruteForce、IVF、DiskANN、HNSW）
+auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
+
+// 稀疏向量索引（SINDI、SparseIndex）—— 用 Dataset 封装查询
+auto query_ds = vsag::Dataset::Make();
+query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
+auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
+</code></pre>
+<p>结果 <code>Dataset</code> 中 <code>GetDistances()</code> 持有 <code>count</code> 个距离。若某个 id 无效（不在索引中），对应位置
+返回 <code>-1.0F</code>。</p>
+<h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
+<p>末尾的 <code>bool</code> 参数在精度与延迟之间做取舍：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>取值</th><th>行为</th></tr>
+</thead>
+<tbody>
+<tr><td><code>true</code>（默认）</td><td>使用全精度向量表征。在内存-磁盘混合索引上可能引发磁盘 I/O。</td></tr>
+<tr><td><code>false</code></td><td>使用搜索路径缓存的量化 / 近似表征。更快、无 I/O。</td></tr>
+</tbody>
+</table>
+</div>
+<p>可运行示例：<code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code>。</p>
+<h2 id="详情数据--getindexdetailinfos--getdetaildatabyname"><a class="header" href="#详情数据--getindexdetailinfos--getdetaildatabyname">详情数据 —— <code>GetIndexDetailInfos</code> / <code>GetDetailDataByName</code></a></h2>
+<p><code>GetIndexDetailInfos()</code> 返回一组 <code>IndexDetailInfo</code> 记录，描述索引可对外暴露的每一项命名结构化
+数据。每条记录包含 <code>name</code>、<code>description</code> 和一个 <code>type</code> 枚举，后者用于选择 <code>DetailData</code> 上的
+合适访问器。</p>
+<p>是否支持取决于索引类型 —— 这两个 API 没有专门的 <code>SUPPORT_*</code> flag。<code>Index</code> 基类默认抛
+<code>std::runtime_error("Index doesn't support ...")</code>（<code>GetIndexDetailInfos</code> 与
+<code>GetDetailDataByName</code>，见 <code>include/vsag/index.h:658,674</code>）；HGraph / IVF / BruteForce /
+Pyramid / SINDI / WARP 通过 <code>InnerIndexInterface</code> 提供了实现，而 <code>HNSW</code> 仅 override 了
+<code>GetDetailDataByName</code>，DiskANN 两者都没有 override。调用时请始终处理 <code>tl::expected</code>
+的 error 分支。</p>
+<pre><code class="language-cpp">auto infos = index-&gt;GetIndexDetailInfos().value();
+for (const auto&amp; info : infos) {
+    std::cout &lt;&lt; info.name &lt;&lt; " : " &lt;&lt; info.description &lt;&lt; '\n';
+}
+</code></pre>
+<p>知道哪些项可用后，调用 <code>GetDetailDataByName(name, info)</code> 获取对应类型的数据：</p>
+<pre><code class="language-cpp">vsag::IndexDetailInfo info;
+auto detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_NUM_ELEMENTS, info).value();
+int64_t n = detail-&gt;GetDataScalarInt64();
+
+detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_LABEL_TABLE, info).value();
+auto table = detail-&gt;GetData2DArrayInt64();   // [row][col] int64 矩阵
+
+detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_DATA_TYPE, info).value();
+std::string dt = detail-&gt;GetDataScalarString();
+</code></pre>
+<h3 id="数据类型"><a class="header" href="#数据类型">数据类型</a></h3>
+<p><code>info.type</code> 决定 <code>DetailData</code> 上哪一个访问器有效：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>IndexDetailDataType</code></th><th>访问器</th></tr>
+</thead>
+<tbody>
+<tr><td><code>TYPE_SCALAR_INT64</code></td><td><code>GetDataScalarInt64()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_DOUBLE</code></td><td><code>GetDataScalarDouble()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_BOOL</code></td><td><code>GetDataScalarBool()</code></td></tr>
+<tr><td><code>TYPE_SCALAR_STRING</code></td><td><code>GetDataScalarString()</code></td></tr>
+<tr><td><code>TYPE_1DArray_INT64</code></td><td><code>GetData1DArrayInt64()</code></td></tr>
+<tr><td><code>TYPE_2DArray_INT64</code></td><td><code>GetData2DArrayInt64()</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>include/vsag/index_detail_info.h</code> 中以常量形式给出的标准详情名：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>常量</th><th>典型类型</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>INDEX_DETAIL_NAME_NUM_ELEMENTS</code></td><td><code>TYPE_SCALAR_INT64</code></td><td>索引当前包含的向量数。</td></tr>
+<tr><td><code>INDEX_DETAIL_NAME_LABEL_TABLE</code></td><td><code>TYPE_2DArray_INT64</code></td><td>逐向量的 label 表（如内部 id ↔ 用户 id 映射）。</td></tr>
+<tr><td><code>INDEX_DETAIL_DATA_TYPE</code></td><td><code>TYPE_SCALAR_STRING</code></td><td>底层向量数据类型（如 <code>"float32"</code>）。</td></tr>
+</tbody>
+</table>
+</div>
+<p>具体索引可能额外暴露其他名称；运行期通过 <code>GetIndexDetailInfos()</code> 遍历即可发现。可运行示例：
+<code>examples/cpp/317_feature_get_detail_data.cpp</code>。</p>
+<h2 id="注意事项与限制"><a class="header" href="#注意事项与限制">注意事项与限制</a></h2>
+<ul>
+<li><code>CheckFeature</code> 是常数时间复杂度。相比对不支持的调用做 <code>try</code> / <code>catch</code>，应优先使用它。</li>
+<li><code>CalDistanceById</code> 要求底层索引保留足够信息以重新计算距离。对于纯量化索引（不保留原始向量），
+即使传入 <code>calculate_precise_distance = true</code>，也可能返回量化距离。</li>
+<li><code>GetIndexDetailInfos</code> 与 <code>GetDetailDataByName</code> 是只读快照。返回的数值反映调用瞬间的索引状态，
+并发修改可能使其失效。</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../guide/knn_search.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/memory.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../indexes/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/enhance_graph.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -375,11 +441,11 @@ for rid, rdist in zip(result_ids, result_dists):
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../guide/knn_search.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/memory.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../indexes/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/enhance_graph.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
