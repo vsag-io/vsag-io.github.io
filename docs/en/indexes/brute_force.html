@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Index Analysis Tool - VSAG Documentation</title>
+        <title>BruteForce - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -304,157 +304,172 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="index-analysis-analyzeindexbysearch--analyze_index"><a class="header" href="#index-analysis-analyzeindexbysearch--analyze_index">Index Analysis (<code>AnalyzeIndexBySearch</code> &amp; <code>analyze_index</code>)</a></h1>
-<p>VSAG ships an introspection capability for inspecting an index that has already been built or
-loaded, so you can diagnose recall regressions, quantization quality, graph health and search
-performance <strong>without</strong> rebuilding the index. This capability is exposed in two ways:</p>
+                        <h1 id="bruteforce"><a class="header" href="#bruteforce">BruteForce</a></h1>
+<p>BruteForce is VSAG’s <strong>exact, flat</strong> index. At query time it scores the query against every
+vector in the corpus and returns the true top-k — no graph traversal, no inverted lists, no
+approximation. Its main role is to be the <strong>ground-truth baseline</strong> that approximate indexes
+(HGraph, IVF, …) are evaluated against, but it is also a reasonable production choice for small
+corpora or for workloads where 100% recall is mandatory.</p>
 <ul>
-<li>the C++ API <code>Index::AnalyzeIndexBySearch</code> (declared in <code>include/vsag/index.h</code>);</li>
-<li>the command-line diagnostic tool <code>analyze_index</code>, located under <code>tools/analyze_index/</code>.</li>
+<li>Source: <code>src/algorithm/brute_force.{h,cpp}</code></li>
+<li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a></li>
 </ul>
-<h2 id="the-analyzeindexbysearch-api"><a class="header" href="#the-analyzeindexbysearch-api">The <code>AnalyzeIndexBySearch</code> API</a></h2>
-<pre><code class="language-cpp">// include/vsag/index.h
-virtual std::string
-AnalyzeIndexBySearch(const SearchRequest&amp; request);
-</code></pre>
-<ul>
-<li><strong>Input</strong>: a <code>SearchRequest</code> (query dataset + <code>topk</code> + search parameter JSON).</li>
-<li><strong>Output</strong>: a JSON-formatted string containing dynamic, query-driven metrics.</li>
-<li><strong>Supported indexes</strong>: currently <code>HGraph</code> and <code>IVF</code>. <code>Pyramid</code> only supports static analysis
-through <code>GetStats()</code> — it does not yet override <code>AnalyzeIndexBySearch</code>. Indexes that do not
-implement this API will throw an exception when called.</li>
-</ul>
-<p>It is complementary to <code>Index::GetStats()</code>, which reports static structural properties of the
-index without needing query data. For graph-based indexes, additional graph-health details such
-as degree distribution, entry-point quality, sub-index recall and low-recall hot-spots are
-exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBySearch</code>.</p>
-<h3 id="static-metrics-from-getstats"><a class="header" href="#static-metrics-from-getstats">Static metrics from <code>GetStats()</code></a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Metric</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>total_count</code></td><td>Total number of vectors in the index</td></tr>
-<tr><td><code>deleted_count</code></td><td>Vectors marked for deletion</td></tr>
-<tr><td><code>connect_components</code></td><td>Connected components in the proximity graph</td></tr>
-<tr><td><code>duplicate_ratio</code></td><td>Proportion of duplicate vectors in the dataset</td></tr>
-<tr><td><code>avg_distance_base</code></td><td>Average pairwise distance on a sample of base vectors</td></tr>
-<tr><td><code>recall_base</code></td><td>Self-recall on a sample of base vectors (sanity check)</td></tr>
-<tr><td><code>proximity_recall_neighbor</code></td><td>Recall of neighbor lists vs. the true nearest neighbors</td></tr>
-<tr><td><code>quantization_bias_ratio</code></td><td>Bias introduced by quantized distance vs. exact distance</td></tr>
-<tr><td><code>quantization_inversion_count_rate</code></td><td>Rate of distance-order inversions caused by quantization</td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="dynamic-metrics-from-analyzeindexbysearch"><a class="header" href="#dynamic-metrics-from-analyzeindexbysearch">Dynamic metrics from <code>AnalyzeIndexBySearch</code></a></h3>
-<p>Common query-driven metrics produced by HGraph (IVF currently does <strong>not</strong> emit these recall /
-distance / latency fields — see below):</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Metric</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>recall_query</code></td><td>Recall on the supplied query set against true nearest neighbors</td></tr>
-<tr><td><code>avg_distance_query</code></td><td>Average distance between query vectors and retrieved neighbors</td></tr>
-<tr><td><code>time_cost_query</code></td><td>Average per-query latency (milliseconds)</td></tr>
-</tbody>
-</table>
-</div>
-<p>Quantization-related fields differ by index type — they are not unified across implementations:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Index</th><th>Field</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>HGraph</code></td><td><code>quantization_bias_ratio_query</code></td><td>Quantization bias observed during search</td></tr>
-<tr><td><code>HGraph</code></td><td><code>quantization_inversion_count_rate_query</code></td><td>Quantization-induced ordering errors during search</td></tr>
-<tr><td><code>IVF</code></td><td><code>quantization_bias_ratio</code></td><td>Quantization bias observed during search (only when <code>use_reorder_</code> is enabled)</td></tr>
-<tr><td><code>IVF</code></td><td><code>quantization_inversion_count_rate</code></td><td>Quantization-induced ordering errors during search (only when <code>use_reorder_</code> is enabled)</td></tr>
-</tbody>
-</table>
-</div>
-<p>If you also need degree distribution, entry-point analysis or sub-index quality breakdown, look
-in the <code>GetStats()</code> JSON instead — <code>AnalyzeIndexBySearch</code> focuses on dynamic, query-driven
-signals.</p>
-<h2 id="the-analyze_index-tool"><a class="header" href="#the-analyze_index-tool">The <code>analyze_index</code> Tool</a></h2>
-<p><code>analyze_index</code> is the user-facing wrapper around the analyzer APIs. It loads a serialized VSAG
-index from disk, prints its metadata and <code>GetStats()</code> output, and (optionally) runs
-<code>AnalyzeIndexBySearch</code> against a query file.</p>
-<h3 id="building"><a class="header" href="#building">Building</a></h3>
-<p>Tools are not built by default — enable them explicitly:</p>
-<pre><code class="language-bash"># via the project Makefile
-VSAG_ENABLE_TOOLS=ON make release
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
+<ol>
+<li><strong>Build.</strong> Vectors are stored in a single flat data cell encoded by <code>base_quantization_type</code>
+(default <code>fp32</code> — i.e. raw). No graph, no clustering, no training is performed for the
+uncompressed quantizers; PQ/SQ-style quantizers that require training will still run their
+training pass when used.</li>
+<li><strong>Add.</strong> New vectors are appended to the flat store. There is no rebalancing or rebuild cost.</li>
+<li><strong>Search.</strong> For each query the distance is computed against every stored vector under the
+configured <code>metric_type</code> (<code>l2</code>, <code>ip</code>, or <code>cosine</code>), then a top-k heap returns the closest
+ids. Search uses SIMD kernels and supports <strong>intra-query parallelism</strong> — a single query can
+be split across multiple threads via the <code>parallelism</code> search parameter (see
+<code>BruteForce::SearchWithRequest</code> in <code>src/algorithm/brute_force.cpp</code>).</li>
+</ol>
+<p>Because the index keeps every vector verbatim (modulo the chosen quantizer), the result is
+<strong>exact</strong> when <code>base_quantization_type</code> is <code>fp32</code> and is the standard reference used to compute
+ground truth in the <code>eval_performance</code> tool.</p>
+<h2 id="quick-start"><a class="header" href="#quick-start">Quick start</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
-# or directly through CMake
-cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_TOOLS=ON
-cmake --build build-release -j
-# Output: ./build-release/tools/analyze_index/analyze_index
+std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128
+})";
+auto index = vsag::Factory::CreateIndex("brute_force", params).value();
+
+// Build.
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
+index-&gt;Build(base);
+
+// Search — no index-specific knobs; pass an empty JSON object (or set `parallelism`).
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 </code></pre>
-<h3 id="command-line-arguments"><a class="header" href="#command-line-arguments">Command-line arguments</a></h3>
+<p>A full runnable program is at
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>.</p>
+<h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
+<p>The minimal config consists of the three top-level fields (<code>dtype</code>, <code>metric_type</code>, <code>dim</code>).
+For most uses no <code>index_param</code> is needed — that is the form shown in
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp">example 105</a>.
+Advanced users can pass an <code>index_param</code> object to enable quantization or storage tweaks:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Argument</th><th>Alias</th><th>Required</th><th>Description</th></tr>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>--index_path</code></td><td><code>-i</code></td><td><strong>Yes</strong></td><td>Path to the serialized VSAG index file.</td></tr>
-<tr><td><code>--build_parameter</code></td><td><code>-bp</code></td><td>No</td><td>Build parameters (JSON) used when reloading the index. Defaults to the parameters embedded in the index file.</td></tr>
-<tr><td><code>--query_path</code></td><td><code>-qp</code></td><td>No</td><td>Binary query dataset path. If omitted, only static analysis is performed.</td></tr>
-<tr><td><code>--search_parameter</code></td><td><code>-sp</code></td><td>No</td><td>Search parameters (JSON) used during dynamic analysis.</td></tr>
-<tr><td><code>--topk</code></td><td><code>-k</code></td><td>No</td><td>Top-K for dynamic analysis (default <code>100</code>).</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code></td></tr>
+<tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Enable attribute-based filtering (see <a href="../advanced/attribute_filter.html">Attribute Filter</a>)</td></tr>
 </tbody>
 </table>
 </div>
-<p>The query file format is the simple binary <code>(uint32 rows, uint32 cols, float32 data...)</code> layout
-consumed by <code>load_query()</code> in <code>tools/analyze_index/analyze_index.cpp</code>.</p>
-<h3 id="two-analysis-modes"><a class="header" href="#two-analysis-modes">Two analysis modes</a></h3>
-<p><strong>1. Static analysis (no query file)</strong></p>
-<pre><code class="language-bash">./build-release/tools/analyze_index/analyze_index \
-    --index_path /path/to/my_index.hgraph
+<blockquote>
+<p><strong>Note on <code>store_raw_vector</code>.</strong> The <code>store_raw_vector</code> flag is parsed by the shared
+<code>InnerIndexParameter</code> but BruteForce does <strong>not</strong> consult it when deciding whether
+<code>GetRawVectorByIds</code> is available. On BruteForce, raw-vector retrieval is enabled strictly
+when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the
+quantizer is configured to hold the per-vector norms (<code>hold_molds</code>). Setting
+<code>store_raw_vector: true</code> on BruteForce currently has no observable effect on the
+capability flags — use HGraph or IVF if you need a quantized index that still answers
+<code>GetRawVectorByIds</code>.</p>
+</blockquote>
+<p>Example with <code>sq8</code> quantization for memory savings while keeping linear scan semantics:</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "ip",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8"
+    }
+}
 </code></pre>
-<p>Reports the index name, dimension, data type, metric, build parameters, and <code>GetStats()</code> JSON.</p>
-<p><strong>2. Static + dynamic analysis</strong></p>
-<pre><code class="language-bash">./build-release/tools/analyze_index/analyze_index \
-    --index_path /path/to/my_index.ivf \
-    --query_path /path/to/queries.bin \
-    --search_parameter '{"ivf":{"scan_buckets_count":16}}' \
-    --topk 50
+<p>When <code>base_quantization_type</code> is set to a quantizer that requires training (<code>sq8</code>,
+<code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>), <code>Build</code> will run the training pass on
+the supplied dataset before adding vectors; the resulting recall is no longer 100%. Only
+<code>fp32</code>, <code>fp16</code>, and <code>bf16</code> skip training and preserve exact distances (modulo numeric
+precision).</p>
+<h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
+<p>BruteForce does not expose any index-specific search knobs (no <code>ef</code>, <code>nprobe</code>, etc.), but the
+generic <code>IndexSearchParameter</code> fields are honored:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Split the linear scan of a single query across this many threads in the index’s internal thread pool. Larger values cut single-query latency on large corpora at the cost of using more cores. Values <code>&lt;= 0</code> are clamped to <code>1</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">// Single-threaded scan (default).
+auto r1 = index-&gt;KnnSearch(query, topk, "{}").value();
+
+// Use 8 threads to scan a single query in parallel.
+auto r2 = index-&gt;KnnSearch(query, topk, R"({"parallelism": 8})").value();
 </code></pre>
-<p>In addition to the static section, prints a <code>Search Analyze: { ... }</code> JSON block produced by
-<code>AnalyzeIndexBySearch</code>.</p>
-<h2 id="typical-use-cases"><a class="header" href="#typical-use-cases">Typical Use Cases</a></h2>
+<p>For range search, see <a href="../advanced/range_search.html">Range Search</a>. <code>RangeSearch</code> on BruteForce
+always runs single-threaded regardless of <code>parallelism</code>.</p>
+<h2 id="capabilities"><a class="header" href="#capabilities">Capabilities</a></h2>
+<p>BruteForce advertises the following capability flags (see <code>BruteForce::InitFeatures</code> in
+<code>src/algorithm/brute_force.cpp</code>):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Capability</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>SUPPORT_BUILD</code> / <code>SUPPORT_ADD_AFTER_BUILD</code> / <code>SUPPORT_ADD_CONCURRENT</code></td><td>Build once, append later, concurrent inserts.</td></tr>
+<tr><td><code>SUPPORT_ADD_FROM_EMPTY</code></td><td>Available with non-training quantizers (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>).</td></tr>
+<tr><td><code>SUPPORT_KNN_SEARCH</code> / <code>SUPPORT_KNN_SEARCH_WITH_ID_FILTER</code> / <code>SUPPORT_SEARCH_CONCURRENT</code></td><td>Standard top-k API and id-list filters, with concurrent search.</td></tr>
+<tr><td><code>SUPPORT_RANGE_SEARCH</code> / <code>SUPPORT_RANGE_SEARCH_WITH_ID_FILTER</code></td><td>Available with non-training quantizers (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>).</td></tr>
+<tr><td><code>SUPPORT_DELETE_BY_ID</code> / <code>SUPPORT_DELETE_CONCURRENT</code></td><td><code>Remove</code> by id is supported and concurrency-safe.</td></tr>
+<tr><td><code>SUPPORT_CAL_DISTANCE_BY_ID</code></td><td>Distance lookup against stored vectors (non-training quantizers only).</td></tr>
+<tr><td><code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code></td><td>Available only when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the underlying quantizer holds molds (<code>hold_molds</code>). Quantized BruteForce indexes do <strong>not</strong> advertise this flag.</td></tr>
+<tr><td><code>SUPPORT_CHECK_ID_EXIST</code> / <code>SUPPORT_CLONE</code> / <code>SUPPORT_ESTIMATE_MEMORY</code> / <code>SUPPORT_GET_MEMORY_USAGE</code></td><td>Standard introspection and lifecycle.</td></tr>
+<tr><td><code>SUPPORT_SERIALIZE_BINARY_SET</code> / <code>SUPPORT_SERIALIZE_FILE</code> / <code>SUPPORT_SERIALIZE_WRITE_FUNC</code></td><td>Full save surface.</td></tr>
+<tr><td><code>SUPPORT_DESERIALIZE_BINARY_SET</code> / <code>SUPPORT_DESERIALIZE_FILE</code> / <code>SUPPORT_DESERIALIZE_READER_SET</code></td><td>Full load surface. (There is no <code>DESERIALIZE_WRITE_FUNC</code> counterpart — read paths use <code>READER_SET</code> instead.)</td></tr>
+<tr><td><code>NEED_TRAIN</code></td><td>Set when <code>base_quantization_type</code> is one of <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Notably <strong>not</strong> supported by BruteForce: <code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code>,
+<code>SUPPORT_UPDATE_ID_CONCURRENT</code>, and <code>SUPPORT_EXPORT_MODEL</code>.</p>
+<h2 id="when-to-use-bruteforce"><a class="header" href="#when-to-use-bruteforce">When to use BruteForce</a></h2>
 <ul>
-<li><strong>Recall regression triage</strong>: confirm whether a drop is caused by quantization
-(<code>quantization_*</code> metrics), graph structure (<code>connect_components</code>,
-<code>proximity_recall_neighbor</code>), or query-side parameters (<code>recall_query</code> vs. <code>recall_base</code>).</li>
-<li><strong>Capacity / health checks</strong>: detect duplicated data (<code>duplicate_ratio</code>), disconnected
-components, or excessive deletions.</li>
-<li><strong>Parameter tuning</strong>: re-run <code>AnalyzeIndexBySearch</code> with different <code>search_parameter</code> values to
-pick an operating point that balances <code>recall_query</code> and <code>time_cost_query</code> — without rebuilding
-the index.</li>
-<li><strong>What-if experiments</strong>: override <code>--build_parameter</code> on load to evaluate alternative settings
-for indexes whose parameters are not embedded in the file.</li>
+<li><strong>Recall baseline.</strong> Compute the ground truth that approximate indexes are scored against
+(this is what the <code>eval_performance</code> tool does).</li>
+<li><strong>Tiny corpora.</strong> A few hundred to a few hundred thousand vectors, where the cost of a full
+scan is acceptable and you want to skip tuning altogether.</li>
+<li><strong>Strict-recall requirements.</strong> Use cases that cannot tolerate any approximation error.</li>
+<li><strong>Quantization experiments at small scale.</strong> Reuse the same scan pipeline but compare
+different <code>base_quantization_type</code> settings without the confounding effect of a graph or
+inverted-list structure.</li>
 </ul>
-<h2 id="references"><a class="header" href="#references">References</a></h2>
+<p>For anything larger, prefer <a href="hgraph.html">HGraph</a> (latency-sensitive, high recall) or
+<a href="ivf.html">IVF</a> (throughput-oriented, memory-friendly).</p>
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
-<li>API: <code>Index::AnalyzeIndexBySearch</code> in <code>include/vsag/index.h</code></li>
-<li>Implementations: <code>src/analyzer/{analyzer,hgraph_analyzer,pyramid_analyzer}.h</code></li>
-<li>Tool source: <code>tools/analyze_index/</code></li>
-<li>Tool README: <code>tools/analyze_index/README.md</code></li>
+<li><a href="../guide/create_index.html">Creating an Index</a></li>
+<li><a href="../guide/knn_search.html">k-Nearest Neighbor Search</a></li>
+<li><a href="../advanced/range_search.html">Range Search</a></li>
+<li><a href="../advanced/attribute_filter.html">Attribute Filter (Hybrid Search)</a></li>
+<li><a href="../resources/eval.html">Evaluation Tool</a></li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../resources/dataset_format.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../indexes/pyramid.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../resources/release_notes.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../development/code_structure.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -464,11 +479,11 @@ for indexes whose parameters are not embedded in the file.</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../resources/dataset_format.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../indexes/pyramid.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../resources/release_notes.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../development/code_structure.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

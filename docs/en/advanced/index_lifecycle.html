@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Index Analysis Tool - VSAG Documentation</title>
+        <title>Index Lifecycle Management - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -304,157 +304,180 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="index-analysis-analyzeindexbysearch--analyze_index"><a class="header" href="#index-analysis-analyzeindexbysearch--analyze_index">Index Analysis (<code>AnalyzeIndexBySearch</code> &amp; <code>analyze_index</code>)</a></h1>
-<p>VSAG ships an introspection capability for inspecting an index that has already been built or
-loaded, so you can diagnose recall regressions, quantization quality, graph health and search
-performance <strong>without</strong> rebuilding the index. This capability is exposed in two ways:</p>
+                        <h1 id="index-lifecycle-management"><a class="header" href="#index-lifecycle-management">Index Lifecycle Management</a></h1>
+<p>After an index is built, VSAG provides several operations that mutate the index in place or
+produce a new index derived from it. This page documents the full lifecycle surface:</p>
 <ul>
-<li>the C++ API <code>Index::AnalyzeIndexBySearch</code> (declared in <code>include/vsag/index.h</code>);</li>
-<li>the command-line diagnostic tool <code>analyze_index</code>, located under <code>tools/analyze_index/</code>.</li>
+<li><code>Remove</code> — delete vectors by id.</li>
+<li><code>UpdateVector</code> / <code>UpdateId</code> — modify an existing vector or rename its id.</li>
+<li><code>Clone</code> — produce a deep copy of an existing index.</li>
+<li><code>ExportModel</code> — extract the trained model as an empty index for reuse.</li>
 </ul>
-<h2 id="the-analyzeindexbysearch-api"><a class="header" href="#the-analyzeindexbysearch-api">The <code>AnalyzeIndexBySearch</code> API</a></h2>
-<pre><code class="language-cpp">// include/vsag/index.h
-virtual std::string
-AnalyzeIndexBySearch(const SearchRequest&amp; request);
+<p>Each operation is optional and is exposed only when the underlying index advertises the matching
+capability flag via <code>index-&gt;CheckFeature(...)</code>.</p>
+<h2 id="capability-flags"><a class="header" href="#capability-flags">Capability Flags</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Operation</th><th>Capability Flag</th><th style="text-align: center">HGraph</th><th style="text-align: center">IVF</th><th style="text-align: center">SINDI</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Remove</code></td><td><em>(no dedicated flag — see below)</em></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
+<tr><td><code>UpdateVector</code></td><td><code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td></tr>
+<tr><td><code>UpdateId</code></td><td><code>SUPPORT_UPDATE_ID_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td></tr>
+<tr><td><code>Clone</code></td><td><code>SUPPORT_CLONE</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+<tr><td><code>ExportModel</code></td><td><code>SUPPORT_EXPORT_MODEL</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+</tbody>
+</table>
+</div>
+<p>For the flag-gated operations, check at runtime with <code>index-&gt;CheckFeature(vsag::SUPPORT_*)</code> before
+calling; unsupported indexes return <code>UNSUPPORTED_INDEX_OPERATION</code>. <code>Remove</code> does not currently
+have a dedicated capability flag — see the next section for how to determine whether your index
+supports it and which mode it supports.</p>
+<h2 id="removing-vectors"><a class="header" href="#removing-vectors">Removing Vectors</a></h2>
+<p><code>Remove</code> deletes vectors by id. HGraph supports two deletion modes with different requirements:</p>
+<ul>
+<li><code>RemoveMode::MARK_REMOVE</code> (the default) only writes a tombstone via the label table and works
+regardless of <code>support_remove</code>. The id is filtered out of subsequent searches, but the underlying
+graph node and vector storage are kept.</li>
+<li><code>RemoveMode::FORCE_REMOVE</code> physically rewrites the graph and reclaims the slot. This mode is
+only available when the index was built with <code>support_remove: true</code> in <code>index_param</code> (which
+causes the graph data cell to allocate the delete-tracking metadata). Calling <code>FORCE_REMOVE</code> on
+an index built without <code>support_remove: true</code> will fail.</li>
+</ul>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 16,
+        "ef_construction": 100,
+        "support_remove": true
+    }
+}
 </code></pre>
-<ul>
-<li><strong>Input</strong>: a <code>SearchRequest</code> (query dataset + <code>topk</code> + search parameter JSON).</li>
-<li><strong>Output</strong>: a JSON-formatted string containing dynamic, query-driven metrics.</li>
-<li><strong>Supported indexes</strong>: currently <code>HGraph</code> and <code>IVF</code>. <code>Pyramid</code> only supports static analysis
-through <code>GetStats()</code> — it does not yet override <code>AnalyzeIndexBySearch</code>. Indexes that do not
-implement this API will throw an exception when called.</li>
-</ul>
-<p>It is complementary to <code>Index::GetStats()</code>, which reports static structural properties of the
-index without needing query data. For graph-based indexes, additional graph-health details such
-as degree distribution, entry-point quality, sub-index recall and low-recall hot-spots are
-exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBySearch</code>.</p>
-<h3 id="static-metrics-from-getstats"><a class="header" href="#static-metrics-from-getstats">Static metrics from <code>GetStats()</code></a></h3>
+<p>The JSON snippet above is only required if you intend to use <code>FORCE_REMOVE</code>. For <code>MARK_REMOVE</code>
+alone you can omit the <code>support_remove</code> flag.</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 16,
+        "ef_construction": 100,
+        "support_remove": true
+    }
+}
+</code></pre>
+<pre><code class="language-cpp">// Single-id and batch overloads are available.
+index-&gt;Remove(id);
+index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2, id3});
+</code></pre>
+<h3 id="remove-modes"><a class="header" href="#remove-modes">Remove Modes</a></h3>
+<p>The optional <code>RemoveMode</code> argument selects the deletion strategy:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Metric</th><th>Meaning</th></tr>
+<tr><th>Mode</th><th>Behavior</th></tr>
 </thead>
 <tbody>
-<tr><td><code>total_count</code></td><td>Total number of vectors in the index</td></tr>
-<tr><td><code>deleted_count</code></td><td>Vectors marked for deletion</td></tr>
-<tr><td><code>connect_components</code></td><td>Connected components in the proximity graph</td></tr>
-<tr><td><code>duplicate_ratio</code></td><td>Proportion of duplicate vectors in the dataset</td></tr>
-<tr><td><code>avg_distance_base</code></td><td>Average pairwise distance on a sample of base vectors</td></tr>
-<tr><td><code>recall_base</code></td><td>Self-recall on a sample of base vectors (sanity check)</td></tr>
-<tr><td><code>proximity_recall_neighbor</code></td><td>Recall of neighbor lists vs. the true nearest neighbors</td></tr>
-<tr><td><code>quantization_bias_ratio</code></td><td>Bias introduced by quantized distance vs. exact distance</td></tr>
-<tr><td><code>quantization_inversion_count_rate</code></td><td>Rate of distance-order inversions caused by quantization</td></tr>
+<tr><td><code>RemoveMode::MARK_REMOVE</code> (default)</td><td>Tombstones the id; fast, no shrink or graph repair. Subsequent searches skip the id. Does not require <code>support_remove: true</code>.</td></tr>
+<tr><td><code>RemoveMode::FORCE_REMOVE</code></td><td>Physically removes the vector and repairs the graph. Heavier. Requires the index to be built with <code>support_remove: true</code>.</td></tr>
 </tbody>
 </table>
 </div>
-<h3 id="dynamic-metrics-from-analyzeindexbysearch"><a class="header" href="#dynamic-metrics-from-analyzeindexbysearch">Dynamic metrics from <code>AnalyzeIndexBySearch</code></a></h3>
-<p>Common query-driven metrics produced by HGraph (IVF currently does <strong>not</strong> emit these recall /
-distance / latency fields — see below):</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Metric</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>recall_query</code></td><td>Recall on the supplied query set against true nearest neighbors</td></tr>
-<tr><td><code>avg_distance_query</code></td><td>Average distance between query vectors and retrieved neighbors</td></tr>
-<tr><td><code>time_cost_query</code></td><td>Average per-query latency (milliseconds)</td></tr>
-</tbody>
-</table>
-</div>
-<p>Quantization-related fields differ by index type — they are not unified across implementations:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Index</th><th>Field</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>HGraph</code></td><td><code>quantization_bias_ratio_query</code></td><td>Quantization bias observed during search</td></tr>
-<tr><td><code>HGraph</code></td><td><code>quantization_inversion_count_rate_query</code></td><td>Quantization-induced ordering errors during search</td></tr>
-<tr><td><code>IVF</code></td><td><code>quantization_bias_ratio</code></td><td>Quantization bias observed during search (only when <code>use_reorder_</code> is enabled)</td></tr>
-<tr><td><code>IVF</code></td><td><code>quantization_inversion_count_rate</code></td><td>Quantization-induced ordering errors during search (only when <code>use_reorder_</code> is enabled)</td></tr>
-</tbody>
-</table>
-</div>
-<p>If you also need degree distribution, entry-point analysis or sub-index quality breakdown, look
-in the <code>GetStats()</code> JSON instead — <code>AnalyzeIndexBySearch</code> focuses on dynamic, query-driven
-signals.</p>
-<h2 id="the-analyze_index-tool"><a class="header" href="#the-analyze_index-tool">The <code>analyze_index</code> Tool</a></h2>
-<p><code>analyze_index</code> is the user-facing wrapper around the analyzer APIs. It loads a serialized VSAG
-index from disk, prints its metadata and <code>GetStats()</code> output, and (optionally) runs
-<code>AnalyzeIndexBySearch</code> against a query file.</p>
-<h3 id="building"><a class="header" href="#building">Building</a></h3>
-<p>Tools are not built by default — enable them explicitly:</p>
-<pre><code class="language-bash"># via the project Makefile
-VSAG_ENABLE_TOOLS=ON make release
+<p><code>Remove</code> returns the number of ids that were successfully removed. Ids that did not exist are
+silently skipped and not counted.</p>
+<p>A runnable example is available at <code>examples/cpp/303_feature_remove.cpp</code>.</p>
+<h2 id="updating-vectors-and-ids"><a class="header" href="#updating-vectors-and-ids">Updating Vectors and Ids</a></h2>
+<h3 id="updatevector"><a class="header" href="#updatevector"><code>UpdateVector</code></a></h3>
+<p><code>UpdateVector(id, new_base, force_update = false)</code> replaces the vector data of an existing id in
+place. The default <code>force_update = false</code> mode performs a connectivity check: if the new vector
+is far from the original (which would degrade graph quality), the update is <strong>rejected</strong> and the
+caller is expected to fall back to <code>Remove</code> + <code>Add</code>.</p>
+<pre><code class="language-cpp">std::vector&lt;float&gt; new_vec(dim);  // populate with the replacement vector
+auto upd = vsag::Dataset::Make();
+upd-&gt;NumElements(1)-&gt;Dim(dim)-&gt;Ids(&amp;id)-&gt;Float32Vectors(new_vec.data())-&gt;Owner(false);
 
-# or directly through CMake
-cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_TOOLS=ON
-cmake --build build-release -j
-# Output: ./build-release/tools/analyze_index/analyze_index
+auto status = index-&gt;UpdateVector(id, upd, /*force_update=*/false);
+if (status.has_value() &amp;&amp; *status) {
+    // updated in place
+} else if (status.has_value() &amp;&amp; not *status) {
+    // rejected: new vector is too far from the old one — fall back to remove + add
+    index-&gt;Remove(id);
+    index-&gt;Add(upd);
+}
 </code></pre>
-<h3 id="command-line-arguments"><a class="header" href="#command-line-arguments">Command-line arguments</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Argument</th><th>Alias</th><th>Required</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>--index_path</code></td><td><code>-i</code></td><td><strong>Yes</strong></td><td>Path to the serialized VSAG index file.</td></tr>
-<tr><td><code>--build_parameter</code></td><td><code>-bp</code></td><td>No</td><td>Build parameters (JSON) used when reloading the index. Defaults to the parameters embedded in the index file.</td></tr>
-<tr><td><code>--query_path</code></td><td><code>-qp</code></td><td>No</td><td>Binary query dataset path. If omitted, only static analysis is performed.</td></tr>
-<tr><td><code>--search_parameter</code></td><td><code>-sp</code></td><td>No</td><td>Search parameters (JSON) used during dynamic analysis.</td></tr>
-<tr><td><code>--topk</code></td><td><code>-k</code></td><td>No</td><td>Top-K for dynamic analysis (default <code>100</code>).</td></tr>
-</tbody>
-</table>
-</div>
-<p>The query file format is the simple binary <code>(uint32 rows, uint32 cols, float32 data...)</code> layout
-consumed by <code>load_query()</code> in <code>tools/analyze_index/analyze_index.cpp</code>.</p>
-<h3 id="two-analysis-modes"><a class="header" href="#two-analysis-modes">Two analysis modes</a></h3>
-<p><strong>1. Static analysis (no query file)</strong></p>
-<pre><code class="language-bash">./build-release/tools/analyze_index/analyze_index \
-    --index_path /path/to/my_index.hgraph
+<p>Setting <code>force_update = true</code> skips the check and always applies the update; use with caution as
+it may degrade recall.</p>
+<h3 id="updateid"><a class="header" href="#updateid"><code>UpdateId</code></a></h3>
+<p><code>UpdateId(old_id, new_id)</code> renames an existing id without touching the underlying vector.
+Returns <code>true</code> on success, <code>false</code> if <code>old_id</code> was not found or <code>new_id</code> already exists.</p>
+<pre><code class="language-cpp">index-&gt;UpdateId(123, 456);
 </code></pre>
-<p>Reports the index name, dimension, data type, metric, build parameters, and <code>GetStats()</code> JSON.</p>
-<p><strong>2. Static + dynamic analysis</strong></p>
-<pre><code class="language-bash">./build-release/tools/analyze_index/analyze_index \
-    --index_path /path/to/my_index.ivf \
-    --query_path /path/to/queries.bin \
-    --search_parameter '{"ivf":{"scan_buckets_count":16}}' \
-    --topk 50
+<p>A runnable example combining <code>UpdateVector</code>, <code>Remove</code>, and <code>Add</code> is available at
+<code>examples/cpp/305_feature_update.cpp</code>.</p>
+<h2 id="cloning-an-index"><a class="header" href="#cloning-an-index">Cloning an Index</a></h2>
+<p><code>Clone()</code> produces a deep copy of the entire index — vectors, graph, quantizer state, and
+metadata — as an independent <code>IndexPtr</code>. The clone can be searched, mutated, or serialized
+independently of the source.</p>
+<pre><code class="language-cpp">auto cloned = index-&gt;Clone().value();
+
+// Both indexes return identical search results immediately after cloning.
+auto r1 = index-&gt;KnnSearch(query, k, params).value();
+auto r2 = cloned-&gt;KnnSearch(query, k, params).value();
 </code></pre>
-<p>In addition to the static section, prints a <code>Search Analyze: { ... }</code> JSON block produced by
-<code>AnalyzeIndexBySearch</code>.</p>
-<h2 id="typical-use-cases"><a class="header" href="#typical-use-cases">Typical Use Cases</a></h2>
+<p><code>Clone</code> optionally accepts a custom <code>Allocator</code> so that the cloned index uses a different memory
+region than the source — useful for handing an index off to a thread or component that owns its
+own allocator. See <a href="memory.html">Memory Management</a> for allocator details.</p>
+<p>A runnable example is available at <code>examples/cpp/309_feature_clone.cpp</code>.</p>
+<h2 id="exporting-the-trained-model"><a class="header" href="#exporting-the-trained-model">Exporting the Trained Model</a></h2>
+<p><code>ExportModel()</code> returns an empty index that retains all trained state (quantization codebooks,
+centroids, hyperparameters) of the source but contains no vectors. It is the canonical way to
+share a pre-trained model across shards, processes, or hosts without re-running training.</p>
+<pre><code class="language-cpp">auto exported = index-&gt;ExportModel();
+if (not exported.has_value()) {
+    // index does not support ExportModel — handle the error
+    return;
+}
+auto model = *exported;
+
+// Populate the empty model with a new (potentially different) vector set.
+for (int64_t i = 0; i &lt; num_vectors; ++i) {
+    auto one = vsag::Dataset::Make();
+    one-&gt;NumElements(1)-&gt;Dim(dim)-&gt;Ids(ids + i)
+       -&gt;Float32Vectors(vectors + i * dim)-&gt;Owner(false);
+    model-&gt;Add(one);
+}
+</code></pre>
+<p>The returned index behaves identically to one freshly created via <code>Factory::CreateIndex(...)</code> and
+trained on the source data — only the per-vector storage is empty. This pattern is particularly
+useful for IVF-style indexes where training (k-means on centroids) is the dominant cost.</p>
+<p>A runnable example is available at <code>examples/cpp/310_feature_export_model.cpp</code>.</p>
+<h2 id="notes-and-limitations"><a class="header" href="#notes-and-limitations">Notes and Limitations</a></h2>
 <ul>
-<li><strong>Recall regression triage</strong>: confirm whether a drop is caused by quantization
-(<code>quantization_*</code> metrics), graph structure (<code>connect_components</code>,
-<code>proximity_recall_neighbor</code>), or query-side parameters (<code>recall_query</code> vs. <code>recall_base</code>).</li>
-<li><strong>Capacity / health checks</strong>: detect duplicated data (<code>duplicate_ratio</code>), disconnected
-components, or excessive deletions.</li>
-<li><strong>Parameter tuning</strong>: re-run <code>AnalyzeIndexBySearch</code> with different <code>search_parameter</code> values to
-pick an operating point that balances <code>recall_query</code> and <code>time_cost_query</code> — without rebuilding
-the index.</li>
-<li><strong>What-if experiments</strong>: override <code>--build_parameter</code> on load to evaluate alternative settings
-for indexes whose parameters are not embedded in the file.</li>
-</ul>
-<h2 id="references"><a class="header" href="#references">References</a></h2>
-<ul>
-<li>API: <code>Index::AnalyzeIndexBySearch</code> in <code>include/vsag/index.h</code></li>
-<li>Implementations: <code>src/analyzer/{analyzer,hgraph_analyzer,pyramid_analyzer}.h</code></li>
-<li>Tool source: <code>tools/analyze_index/</code></li>
-<li>Tool README: <code>tools/analyze_index/README.md</code></li>
+<li><code>Remove</code>, <code>UpdateVector</code>, and <code>UpdateId</code> are concurrent-safe on HGraph when the matching
+<code>*_CONCURRENT</code> capability flag is set. The flag set also gates safe combinations with
+concurrent search and add (e.g. <code>SUPPORT_ADD_SEARCH_DELETE_CONCURRENT</code>).</li>
+<li><code>MARK_REMOVE</code> does not free memory; use <code>FORCE_REMOVE</code> or rebuild periodically if you need to
+reclaim space.</li>
+<li><code>Clone</code> cost scales linearly with index size. For large indexes prefer serialization +
+deserialization with a dedicated reader if you only need a snapshot on disk.</li>
+<li><code>ExportModel</code> preserves training but <strong>not</strong> any inserted vectors. The exported model can be
+freely serialized and shipped before any vectors are added.</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../resources/dataset_format.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/extra_info.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../resources/release_notes.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../resources/best_practices.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -464,11 +487,11 @@ for indexes whose parameters are not embedded in the file.</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../resources/dataset_format.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/extra_info.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../resources/release_notes.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../resources/best_practices.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

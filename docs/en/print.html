@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-766a7a22.js";
+            window.path_to_searchindex_js = "searchindex-2e2d1f11.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-90633220.js"></script>
+        <script src="toc-7fa8b839.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1277,6 +1277,163 @@ faster.</p>
 <li><a href="#hgraph-1">HGraph</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="bruteforce"><a class="header" href="#bruteforce">BruteForce</a></h1>
+<p>BruteForce is VSAG’s <strong>exact, flat</strong> index. At query time it scores the query against every
+vector in the corpus and returns the true top-k — no graph traversal, no inverted lists, no
+approximation. Its main role is to be the <strong>ground-truth baseline</strong> that approximate indexes
+(HGraph, IVF, …) are evaluated against, but it is also a reasonable production choice for small
+corpora or for workloads where 100% recall is mandatory.</p>
+<ul>
+<li>Source: <code>src/algorithm/brute_force.{h,cpp}</code></li>
+<li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a></li>
+</ul>
+<h2 id="how-it-works-4"><a class="header" href="#how-it-works-4">How it works</a></h2>
+<ol>
+<li><strong>Build.</strong> Vectors are stored in a single flat data cell encoded by <code>base_quantization_type</code>
+(default <code>fp32</code> — i.e. raw). No graph, no clustering, no training is performed for the
+uncompressed quantizers; PQ/SQ-style quantizers that require training will still run their
+training pass when used.</li>
+<li><strong>Add.</strong> New vectors are appended to the flat store. There is no rebalancing or rebuild cost.</li>
+<li><strong>Search.</strong> For each query the distance is computed against every stored vector under the
+configured <code>metric_type</code> (<code>l2</code>, <code>ip</code>, or <code>cosine</code>), then a top-k heap returns the closest
+ids. Search uses SIMD kernels and supports <strong>intra-query parallelism</strong> — a single query can
+be split across multiple threads via the <code>parallelism</code> search parameter (see
+<code>BruteForce::SearchWithRequest</code> in <code>src/algorithm/brute_force.cpp</code>).</li>
+</ol>
+<p>Because the index keeps every vector verbatim (modulo the chosen quantizer), the result is
+<strong>exact</strong> when <code>base_quantization_type</code> is <code>fp32</code> and is the standard reference used to compute
+ground truth in the <code>eval_performance</code> tool.</p>
+<h2 id="quick-start-5"><a class="header" href="#quick-start-5">Quick start</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128
+})";
+auto index = vsag::Factory::CreateIndex("brute_force", params).value();
+
+// Build.
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
+index-&gt;Build(base);
+
+// Search — no index-specific knobs; pass an empty JSON object (or set `parallelism`).
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
+</code></pre>
+<p>A full runnable program is at
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>.</p>
+<h2 id="build-parameters-4"><a class="header" href="#build-parameters-4">Build parameters</a></h2>
+<p>The minimal config consists of the three top-level fields (<code>dtype</code>, <code>metric_type</code>, <code>dim</code>).
+For most uses no <code>index_param</code> is needed — that is the form shown in
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp">example 105</a>.
+Advanced users can pass an <code>index_param</code> object to enable quantization or storage tweaks:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code></td></tr>
+<tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Enable attribute-based filtering (see <a href="#attribute-filter-hybrid-search">Attribute Filter</a>)</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p><strong>Note on <code>store_raw_vector</code>.</strong> The <code>store_raw_vector</code> flag is parsed by the shared
+<code>InnerIndexParameter</code> but BruteForce does <strong>not</strong> consult it when deciding whether
+<code>GetRawVectorByIds</code> is available. On BruteForce, raw-vector retrieval is enabled strictly
+when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the
+quantizer is configured to hold the per-vector norms (<code>hold_molds</code>). Setting
+<code>store_raw_vector: true</code> on BruteForce currently has no observable effect on the
+capability flags — use HGraph or IVF if you need a quantized index that still answers
+<code>GetRawVectorByIds</code>.</p>
+</blockquote>
+<p>Example with <code>sq8</code> quantization for memory savings while keeping linear scan semantics:</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "ip",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8"
+    }
+}
+</code></pre>
+<p>When <code>base_quantization_type</code> is set to a quantizer that requires training (<code>sq8</code>,
+<code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>), <code>Build</code> will run the training pass on
+the supplied dataset before adding vectors; the resulting recall is no longer 100%. Only
+<code>fp32</code>, <code>fp16</code>, and <code>bf16</code> skip training and preserve exact distances (modulo numeric
+precision).</p>
+<h2 id="search-parameters-4"><a class="header" href="#search-parameters-4">Search parameters</a></h2>
+<p>BruteForce does not expose any index-specific search knobs (no <code>ef</code>, <code>nprobe</code>, etc.), but the
+generic <code>IndexSearchParameter</code> fields are honored:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Split the linear scan of a single query across this many threads in the index’s internal thread pool. Larger values cut single-query latency on large corpora at the cost of using more cores. Values <code>&lt;= 0</code> are clamped to <code>1</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">// Single-threaded scan (default).
+auto r1 = index-&gt;KnnSearch(query, topk, "{}").value();
+
+// Use 8 threads to scan a single query in parallel.
+auto r2 = index-&gt;KnnSearch(query, topk, R"({"parallelism": 8})").value();
+</code></pre>
+<p>For range search, see <a href="#range-search">Range Search</a>. <code>RangeSearch</code> on BruteForce
+always runs single-threaded regardless of <code>parallelism</code>.</p>
+<h2 id="capabilities"><a class="header" href="#capabilities">Capabilities</a></h2>
+<p>BruteForce advertises the following capability flags (see <code>BruteForce::InitFeatures</code> in
+<code>src/algorithm/brute_force.cpp</code>):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Capability</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>SUPPORT_BUILD</code> / <code>SUPPORT_ADD_AFTER_BUILD</code> / <code>SUPPORT_ADD_CONCURRENT</code></td><td>Build once, append later, concurrent inserts.</td></tr>
+<tr><td><code>SUPPORT_ADD_FROM_EMPTY</code></td><td>Available with non-training quantizers (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>).</td></tr>
+<tr><td><code>SUPPORT_KNN_SEARCH</code> / <code>SUPPORT_KNN_SEARCH_WITH_ID_FILTER</code> / <code>SUPPORT_SEARCH_CONCURRENT</code></td><td>Standard top-k API and id-list filters, with concurrent search.</td></tr>
+<tr><td><code>SUPPORT_RANGE_SEARCH</code> / <code>SUPPORT_RANGE_SEARCH_WITH_ID_FILTER</code></td><td>Available with non-training quantizers (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>).</td></tr>
+<tr><td><code>SUPPORT_DELETE_BY_ID</code> / <code>SUPPORT_DELETE_CONCURRENT</code></td><td><code>Remove</code> by id is supported and concurrency-safe.</td></tr>
+<tr><td><code>SUPPORT_CAL_DISTANCE_BY_ID</code></td><td>Distance lookup against stored vectors (non-training quantizers only).</td></tr>
+<tr><td><code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code></td><td>Available only when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the underlying quantizer holds molds (<code>hold_molds</code>). Quantized BruteForce indexes do <strong>not</strong> advertise this flag.</td></tr>
+<tr><td><code>SUPPORT_CHECK_ID_EXIST</code> / <code>SUPPORT_CLONE</code> / <code>SUPPORT_ESTIMATE_MEMORY</code> / <code>SUPPORT_GET_MEMORY_USAGE</code></td><td>Standard introspection and lifecycle.</td></tr>
+<tr><td><code>SUPPORT_SERIALIZE_BINARY_SET</code> / <code>SUPPORT_SERIALIZE_FILE</code> / <code>SUPPORT_SERIALIZE_WRITE_FUNC</code></td><td>Full save surface.</td></tr>
+<tr><td><code>SUPPORT_DESERIALIZE_BINARY_SET</code> / <code>SUPPORT_DESERIALIZE_FILE</code> / <code>SUPPORT_DESERIALIZE_READER_SET</code></td><td>Full load surface. (There is no <code>DESERIALIZE_WRITE_FUNC</code> counterpart — read paths use <code>READER_SET</code> instead.)</td></tr>
+<tr><td><code>NEED_TRAIN</code></td><td>Set when <code>base_quantization_type</code> is one of <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Notably <strong>not</strong> supported by BruteForce: <code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code>,
+<code>SUPPORT_UPDATE_ID_CONCURRENT</code>, and <code>SUPPORT_EXPORT_MODEL</code>.</p>
+<h2 id="when-to-use-bruteforce"><a class="header" href="#when-to-use-bruteforce">When to use BruteForce</a></h2>
+<ul>
+<li><strong>Recall baseline.</strong> Compute the ground truth that approximate indexes are scored against
+(this is what the <code>eval_performance</code> tool does).</li>
+<li><strong>Tiny corpora.</strong> A few hundred to a few hundred thousand vectors, where the cost of a full
+scan is acceptable and you want to skip tuning altogether.</li>
+<li><strong>Strict-recall requirements.</strong> Use cases that cannot tolerate any approximation error.</li>
+<li><strong>Quantization experiments at small scale.</strong> Reuse the same scan pipeline but compare
+different <code>base_quantization_type</code> settings without the confounding effect of a graph or
+inverted-list structure.</li>
+</ul>
+<p>For anything larger, prefer <a href="#hgraph-1">HGraph</a> (latency-sensitive, high recall) or
+<a href="#ivf-1">IVF</a> (throughput-oriented, memory-friendly).</p>
+<h2 id="see-also-4"><a class="header" href="#see-also-4">See also</a></h2>
+<ul>
+<li><a href="#creating-an-index">Creating an Index</a></li>
+<li><a href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a></li>
+<li><a href="#range-search">Range Search</a></li>
+<li><a href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a></li>
+<li><a href="#performance-evaluation-tool-eval_performance">Evaluation Tool</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="code-structure"><a class="header" href="#code-structure">Code Structure</a></h1>
 <p>This page gives a quick tour of the VSAG repository layout.</p>
 <h2 id="top-level-directories"><a class="header" href="#top-level-directories">Top-Level Directories</a></h2>
@@ -2232,7 +2389,7 @@ using a <strong>conjugate graph</strong>, noticeably improving tail recall at al
 })";
 auto result = index-&gt;KnnSearch(query, k, search_param_json);
 </code></pre>
-<h2 id="how-it-works-4"><a class="header" href="#how-it-works-4">How It Works</a></h2>
+<h2 id="how-it-works-5"><a class="header" href="#how-it-works-5">How It Works</a></h2>
 <p>The conjugate graph is built by inverting “failure paths” over the training data on the original
 graph and then used as additional candidate edges during greedy expansion at search time. It is a
 lightweight patch on the main graph, typically below 10% of the main graph’s size.</p>
@@ -2462,6 +2619,171 @@ only <code>memcpy</code>s by offset.</li>
 <p>A complete, runnable example is available at
 <code>examples/cpp/320_feature_extra_info.cpp</code>. It demonstrates building an HGraph index with
 <code>extra_info</code>, retrieval by id, in-graph filtering, and in-place updates.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="index-lifecycle-management"><a class="header" href="#index-lifecycle-management">Index Lifecycle Management</a></h1>
+<p>After an index is built, VSAG provides several operations that mutate the index in place or
+produce a new index derived from it. This page documents the full lifecycle surface:</p>
+<ul>
+<li><code>Remove</code> — delete vectors by id.</li>
+<li><code>UpdateVector</code> / <code>UpdateId</code> — modify an existing vector or rename its id.</li>
+<li><code>Clone</code> — produce a deep copy of an existing index.</li>
+<li><code>ExportModel</code> — extract the trained model as an empty index for reuse.</li>
+</ul>
+<p>Each operation is optional and is exposed only when the underlying index advertises the matching
+capability flag via <code>index-&gt;CheckFeature(...)</code>.</p>
+<h2 id="capability-flags-1"><a class="header" href="#capability-flags-1">Capability Flags</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Operation</th><th>Capability Flag</th><th style="text-align: center">HGraph</th><th style="text-align: center">IVF</th><th style="text-align: center">SINDI</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Remove</code></td><td><em>(no dedicated flag — see below)</em></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
+<tr><td><code>UpdateVector</code></td><td><code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td></tr>
+<tr><td><code>UpdateId</code></td><td><code>SUPPORT_UPDATE_ID_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td></tr>
+<tr><td><code>Clone</code></td><td><code>SUPPORT_CLONE</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+<tr><td><code>ExportModel</code></td><td><code>SUPPORT_EXPORT_MODEL</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+</tbody>
+</table>
+</div>
+<p>For the flag-gated operations, check at runtime with <code>index-&gt;CheckFeature(vsag::SUPPORT_*)</code> before
+calling; unsupported indexes return <code>UNSUPPORTED_INDEX_OPERATION</code>. <code>Remove</code> does not currently
+have a dedicated capability flag — see the next section for how to determine whether your index
+supports it and which mode it supports.</p>
+<h2 id="removing-vectors"><a class="header" href="#removing-vectors">Removing Vectors</a></h2>
+<p><code>Remove</code> deletes vectors by id. HGraph supports two deletion modes with different requirements:</p>
+<ul>
+<li><code>RemoveMode::MARK_REMOVE</code> (the default) only writes a tombstone via the label table and works
+regardless of <code>support_remove</code>. The id is filtered out of subsequent searches, but the underlying
+graph node and vector storage are kept.</li>
+<li><code>RemoveMode::FORCE_REMOVE</code> physically rewrites the graph and reclaims the slot. This mode is
+only available when the index was built with <code>support_remove: true</code> in <code>index_param</code> (which
+causes the graph data cell to allocate the delete-tracking metadata). Calling <code>FORCE_REMOVE</code> on
+an index built without <code>support_remove: true</code> will fail.</li>
+</ul>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 16,
+        "ef_construction": 100,
+        "support_remove": true
+    }
+}
+</code></pre>
+<p>The JSON snippet above is only required if you intend to use <code>FORCE_REMOVE</code>. For <code>MARK_REMOVE</code>
+alone you can omit the <code>support_remove</code> flag.</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 16,
+        "ef_construction": 100,
+        "support_remove": true
+    }
+}
+</code></pre>
+<pre><code class="language-cpp">// Single-id and batch overloads are available.
+index-&gt;Remove(id);
+index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2, id3});
+</code></pre>
+<h3 id="remove-modes"><a class="header" href="#remove-modes">Remove Modes</a></h3>
+<p>The optional <code>RemoveMode</code> argument selects the deletion strategy:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Mode</th><th>Behavior</th></tr>
+</thead>
+<tbody>
+<tr><td><code>RemoveMode::MARK_REMOVE</code> (default)</td><td>Tombstones the id; fast, no shrink or graph repair. Subsequent searches skip the id. Does not require <code>support_remove: true</code>.</td></tr>
+<tr><td><code>RemoveMode::FORCE_REMOVE</code></td><td>Physically removes the vector and repairs the graph. Heavier. Requires the index to be built with <code>support_remove: true</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>Remove</code> returns the number of ids that were successfully removed. Ids that did not exist are
+silently skipped and not counted.</p>
+<p>A runnable example is available at <code>examples/cpp/303_feature_remove.cpp</code>.</p>
+<h2 id="updating-vectors-and-ids"><a class="header" href="#updating-vectors-and-ids">Updating Vectors and Ids</a></h2>
+<h3 id="updatevector"><a class="header" href="#updatevector"><code>UpdateVector</code></a></h3>
+<p><code>UpdateVector(id, new_base, force_update = false)</code> replaces the vector data of an existing id in
+place. The default <code>force_update = false</code> mode performs a connectivity check: if the new vector
+is far from the original (which would degrade graph quality), the update is <strong>rejected</strong> and the
+caller is expected to fall back to <code>Remove</code> + <code>Add</code>.</p>
+<pre><code class="language-cpp">std::vector&lt;float&gt; new_vec(dim);  // populate with the replacement vector
+auto upd = vsag::Dataset::Make();
+upd-&gt;NumElements(1)-&gt;Dim(dim)-&gt;Ids(&amp;id)-&gt;Float32Vectors(new_vec.data())-&gt;Owner(false);
+
+auto status = index-&gt;UpdateVector(id, upd, /*force_update=*/false);
+if (status.has_value() &amp;&amp; *status) {
+    // updated in place
+} else if (status.has_value() &amp;&amp; not *status) {
+    // rejected: new vector is too far from the old one — fall back to remove + add
+    index-&gt;Remove(id);
+    index-&gt;Add(upd);
+}
+</code></pre>
+<p>Setting <code>force_update = true</code> skips the check and always applies the update; use with caution as
+it may degrade recall.</p>
+<h3 id="updateid"><a class="header" href="#updateid"><code>UpdateId</code></a></h3>
+<p><code>UpdateId(old_id, new_id)</code> renames an existing id without touching the underlying vector.
+Returns <code>true</code> on success, <code>false</code> if <code>old_id</code> was not found or <code>new_id</code> already exists.</p>
+<pre><code class="language-cpp">index-&gt;UpdateId(123, 456);
+</code></pre>
+<p>A runnable example combining <code>UpdateVector</code>, <code>Remove</code>, and <code>Add</code> is available at
+<code>examples/cpp/305_feature_update.cpp</code>.</p>
+<h2 id="cloning-an-index"><a class="header" href="#cloning-an-index">Cloning an Index</a></h2>
+<p><code>Clone()</code> produces a deep copy of the entire index — vectors, graph, quantizer state, and
+metadata — as an independent <code>IndexPtr</code>. The clone can be searched, mutated, or serialized
+independently of the source.</p>
+<pre><code class="language-cpp">auto cloned = index-&gt;Clone().value();
+
+// Both indexes return identical search results immediately after cloning.
+auto r1 = index-&gt;KnnSearch(query, k, params).value();
+auto r2 = cloned-&gt;KnnSearch(query, k, params).value();
+</code></pre>
+<p><code>Clone</code> optionally accepts a custom <code>Allocator</code> so that the cloned index uses a different memory
+region than the source — useful for handing an index off to a thread or component that owns its
+own allocator. See <a href="#memory-management">Memory Management</a> for allocator details.</p>
+<p>A runnable example is available at <code>examples/cpp/309_feature_clone.cpp</code>.</p>
+<h2 id="exporting-the-trained-model"><a class="header" href="#exporting-the-trained-model">Exporting the Trained Model</a></h2>
+<p><code>ExportModel()</code> returns an empty index that retains all trained state (quantization codebooks,
+centroids, hyperparameters) of the source but contains no vectors. It is the canonical way to
+share a pre-trained model across shards, processes, or hosts without re-running training.</p>
+<pre><code class="language-cpp">auto exported = index-&gt;ExportModel();
+if (not exported.has_value()) {
+    // index does not support ExportModel — handle the error
+    return;
+}
+auto model = *exported;
+
+// Populate the empty model with a new (potentially different) vector set.
+for (int64_t i = 0; i &lt; num_vectors; ++i) {
+    auto one = vsag::Dataset::Make();
+    one-&gt;NumElements(1)-&gt;Dim(dim)-&gt;Ids(ids + i)
+       -&gt;Float32Vectors(vectors + i * dim)-&gt;Owner(false);
+    model-&gt;Add(one);
+}
+</code></pre>
+<p>The returned index behaves identically to one freshly created via <code>Factory::CreateIndex(...)</code> and
+trained on the source data — only the per-vector storage is empty. This pattern is particularly
+useful for IVF-style indexes where training (k-means on centroids) is the dominant cost.</p>
+<p>A runnable example is available at <code>examples/cpp/310_feature_export_model.cpp</code>.</p>
+<h2 id="notes-and-limitations-1"><a class="header" href="#notes-and-limitations-1">Notes and Limitations</a></h2>
+<ul>
+<li><code>Remove</code>, <code>UpdateVector</code>, and <code>UpdateId</code> are concurrent-safe on HGraph when the matching
+<code>*_CONCURRENT</code> capability flag is set. The flag set also gates safe combinations with
+concurrent search and add (e.g. <code>SUPPORT_ADD_SEARCH_DELETE_CONCURRENT</code>).</li>
+<li><code>MARK_REMOVE</code> does not free memory; use <code>FORCE_REMOVE</code> or rebuild periodically if you need to
+reclaim space.</li>
+<li><code>Clone</code> cost scales linearly with index size. For large indexes prefer serialization +
+deserialization with a dedicated reader if you only need a snapshot on disk.</li>
+<li><code>ExportModel</code> preserves training but <strong>not</strong> any inserted vectors. The exported model can be
+freely serialized and shipped before any vectors are added.</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h1>
 <p>This page gathers practical advice for running VSAG in production, as a companion to the
