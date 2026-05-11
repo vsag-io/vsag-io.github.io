@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-0acf8409.js";
+            window.path_to_searchindex_js = "searchindex-766a7a22.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-a7232b60.js"></script>
+        <script src="toc-90633220.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -2740,6 +2740,161 @@ helpful for long-running evaluations.</p>
 <li>Reference numbers on standard hardware: <a href="#reference-performance">Reference Performance</a>.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hdf5-dataset-format"><a class="header" href="#hdf5-dataset-format">HDF5 Dataset Format</a></h1>
+<p>VSAG’s evaluation and benchmark tooling (most notably
+<a href="#performance-evaluation-tool-eval_performance"><code>eval_performance</code></a>) consumes datasets in the HDF5 format used by
+<a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a>. This page
+documents the exact layout VSAG expects so you can prepare custom datasets or
+debug failing evaluations.</p>
+<p>The dataset layout described below is the <strong>dense</strong> layout (selected by the global
+attribute <code>type="dense"</code>, or by omitting the attribute). For <strong>sparse</strong> datasets
+(<code>type="sparse"</code>), <code>/train</code> and <code>/test</code> are 1-D <code>INT8</code> byte streams produced by VSAG’s
+sparse-vector serialization (decoded by <code>parse_sparse_vectors</code> in
+<code>tools/eval/eval_dataset.cpp</code>); all other datasets and attributes below still apply.</p>
+<h2 id="mandatory-datasets"><a class="header" href="#mandatory-datasets">Mandatory Datasets</a></h2>
+<h3 id="train-base-vectors"><a class="header" href="#train-base-vectors"><code>/train</code> (base vectors)</a></h3>
+<ul>
+<li><strong>Type</strong>: <code>INT8</code> or <code>FLOAT32</code></li>
+<li><strong>Shape</strong>: <code>(N, D)</code>
+<ul>
+<li><code>N</code> — number of base vectors (<code>number_of_base</code>)</li>
+<li><code>D</code> — feature dimensionality (<code>dim</code>)</li>
+</ul>
+</li>
+<li><strong>Notes</strong>: the element type is inferred from HDF5:
+<ul>
+<li><code>H5T_INTEGER</code> (1-byte) → <code>INT8</code></li>
+<li><code>H5T_FLOAT</code> (4-byte) → <code>FLOAT32</code></li>
+</ul>
+</li>
+</ul>
+<h3 id="test-query-vectors"><a class="header" href="#test-query-vectors"><code>/test</code> (query vectors)</a></h3>
+<ul>
+<li><strong>Type</strong>: must match <code>/train</code></li>
+<li><strong>Shape</strong>: <code>(Q, D)</code>
+<ul>
+<li><code>Q</code> — number of query vectors (<code>number_of_query</code>)</li>
+<li><code>D</code> — must equal <code>/train</code>’s <code>D</code></li>
+</ul>
+</li>
+</ul>
+<h3 id="neighbors-ground-truth-indices"><a class="header" href="#neighbors-ground-truth-indices"><code>/neighbors</code> (ground-truth indices)</a></h3>
+<ul>
+<li><strong>Type</strong>: <code>INT64</code></li>
+<li><strong>Shape</strong>: <code>(Q, K)</code>
+<ul>
+<li><code>K</code> — number of ground-truth neighbors per query</li>
+</ul>
+</li>
+<li><strong>Content</strong>: precomputed top-<code>K</code> indices into <code>/train</code>.</li>
+</ul>
+<h3 id="distances-ground-truth-distances"><a class="header" href="#distances-ground-truth-distances"><code>/distances</code> (ground-truth distances)</a></h3>
+<ul>
+<li><strong>Type</strong>: <code>FLOAT32</code></li>
+<li><strong>Shape</strong>: <code>(Q, K)</code> (identical to <code>/neighbors</code>)</li>
+<li><strong>Note</strong>: each entry must align with the same position in <code>/neighbors</code>.</li>
+</ul>
+<h2 id="global-attributes"><a class="header" href="#global-attributes">Global Attributes</a></h2>
+<h3 id="type-vector-type"><a class="header" href="#type-vector-type"><code>type</code> (vector type)</a></h3>
+<ul>
+<li><strong>Type</strong>: ASCII string</li>
+<li><strong>Required</strong>: no (defaults to <code>"dense"</code> if the attribute is missing)</li>
+<li><strong>Allowed values</strong>:
+<ul>
+<li><code>"dense"</code> — dense vectors stored as standard matrices in <code>/train</code> and <code>/test</code></li>
+<li><code>"sparse"</code> — sparse vectors stored in the serialized format produced by VSAG’s
+sparse-vector helpers</li>
+</ul>
+</li>
+</ul>
+<h3 id="distance-metric-definition"><a class="header" href="#distance-metric-definition"><code>distance</code> (metric definition)</a></h3>
+<p>The evaluation tool treats <code>distance</code> values as <strong>distances</strong> (smaller is better) when
+comparing against the ground truth in <code>/distances</code>. Prepare ground-truth distances using the
+formulas below.</p>
+<ul>
+<li><strong>Type</strong>: ASCII string</li>
+<li><strong>Required</strong>: yes</li>
+<li><strong>Allowed values for dense vectors</strong>:
+<ul>
+<li><code>"euclidean"</code> — L2 distance, computed as <code>sqrt(L2Sqr)</code></li>
+<li><code>"ip"</code> — inner-product distance (<code>1 - inner_product</code>); data type auto-detected</li>
+<li><code>"angular"</code> — cosine distance (<code>1 - cosine_similarity</code>)</li>
+</ul>
+</li>
+<li><strong>Allowed values for sparse vectors</strong>:
+<ul>
+<li><code>"ip"</code> — sparse inner-product distance (<code>1 - sparse_inner_product</code>); other metrics
+are not supported for sparse vectors</li>
+</ul>
+</li>
+</ul>
+<h2 id="optional-datasets"><a class="header" href="#optional-datasets">Optional Datasets</a></h2>
+<h3 id="train_labels-and-test_labels"><a class="header" href="#train_labels-and-test_labels"><code>/train_labels</code> and <code>/test_labels</code></a></h3>
+<ul>
+<li><strong>Type</strong>: <code>INT64</code></li>
+<li><strong>Shapes</strong>:
+<ul>
+<li><code>/train_labels</code>: <code>(N,)</code></li>
+<li><code>/test_labels</code>: <code>(Q,)</code></li>
+</ul>
+</li>
+<li><strong>Requirement</strong>: if labels are present, both datasets must exist.</li>
+</ul>
+<h3 id="valid_ratios"><a class="header" href="#valid_ratios"><code>/valid_ratios</code></a></h3>
+<ul>
+<li><strong>Type</strong>: <code>FLOAT32</code></li>
+<li><strong>Shape</strong>: <code>(L,)</code></li>
+<li><strong>Usage</strong>: stores per-class validation ratios. The evaluation tool indexes this array
+with the <strong>raw label value</strong> (<code>valid_ratio_[label]</code>, see
+<code>tools/eval/eval_dataset.h:71</code>), so labels must be non-negative integers and <code>L</code> must
+be strictly greater than the maximum label value (typically <code>L &gt; max(label)</code> with valid
+indices <code>0..L-1</code>). It is the dataset author’s responsibility to keep the array large
+enough to cover every label that appears in <code>/train_labels</code> and <code>/test_labels</code>.</li>
+</ul>
+<h2 id="structural-requirements"><a class="header" href="#structural-requirements">Structural Requirements</a></h2>
+<ol>
+<li>
+<p><strong>Dimensional compatibility</strong></p>
+<ul>
+<li><code>train_shape[1] == test_shape[1]</code> (same <code>D</code>)</li>
+<li><code>neighbors.shape == distances.shape</code></li>
+</ul>
+</li>
+<li>
+<p><strong>Type mapping</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>HDF5 Specification</th><th>Internal Type</th><th>Size</th><th>Used In</th></tr>
+</thead>
+<tbody>
+<tr><td><code>H5T_INTEGER</code> (size=1)</td><td><code>INT8</code></td><td>1 byte</td><td><code>/train</code>, <code>/test</code></td></tr>
+<tr><td><code>H5T_FLOAT</code> (size=4)</td><td><code>FLOAT32</code></td><td>4 bytes</td><td><code>/train</code>, <code>/test</code>, <code>/distances</code>, <code>/valid_ratios</code></td></tr>
+<tr><td><code>H5T_INTEGER</code> (size=8)</td><td><code>INT64</code></td><td>8 bytes</td><td><code>/neighbors</code>, <code>/train_labels</code>, <code>/test_labels</code></td></tr>
+</tbody>
+</table>
+</div>
+</li>
+<li>
+<p><strong>Memory organization</strong></p>
+<ul>
+<li>Row-major storage for all matrices.</li>
+<li>Feature vectors stored contiguously:
+<ul>
+<li><code>/train</code> total size = <code>N × D × element_size</code> (1 or 4 bytes per element).</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<h2 id="references-2"><a class="header" href="#references-2">References</a></h2>
+<ul>
+<li>Public benchmark datasets compatible with this layout are available from
+<a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a>
+(e.g. <code>sift-128-euclidean.hdf5</code>, <code>gist-960-euclidean.hdf5</code>).</li>
+<li>See <a href="#performance-evaluation-tool-eval_performance">Evaluation Tool</a> for how datasets in this format are consumed.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="index-analysis-analyzeindexbysearch--analyze_index"><a class="header" href="#index-analysis-analyzeindexbysearch--analyze_index">Index Analysis (<code>AnalyzeIndexBySearch</code> &amp; <code>analyze_index</code>)</a></h1>
 <p>VSAG ships an introspection capability for inspecting an index that has already been built or
 loaded, so you can diagnose recall regressions, quantization quality, graph health and search
@@ -2874,7 +3029,7 @@ the index.</li>
 <li><strong>What-if experiments</strong>: override <code>--build_parameter</code> on load to evaluate alternative settings
 for indexes whose parameters are not embedded in the file.</li>
 </ul>
-<h2 id="references-2"><a class="header" href="#references-2">References</a></h2>
+<h2 id="references-3"><a class="header" href="#references-3">References</a></h2>
 <ul>
 <li>API: <code>Index::AnalyzeIndexBySearch</code> in <code>include/vsag/index.h</code></li>
 <li>Implementations: <code>src/analyzer/{analyzer,hgraph_analyzer,pyramid_analyzer}.h</code></li>

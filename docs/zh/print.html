@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-58fb5d19.js";
+            window.path_to_searchindex_js = "searchindex-f28cc08c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-caa7eb82.js"></script>
+        <script src="toc-f9706324.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -2614,6 +2614,156 @@ eval_case1:
 <li>标准机型的基准结果见 <a href="#标准环境性能参考">标准环境性能参考</a>。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hdf5-数据集格式"><a class="header" href="#hdf5-数据集格式">HDF5 数据集格式</a></h1>
+<p>VSAG 的评测与基准工具（尤其是 <a href="#性能评估工具eval_performance"><code>eval_performance</code></a>）使用与
+<a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a> 一致的 HDF5
+数据集格式。本页说明 VSAG 期望的具体布局，便于你准备自定义数据集或排查评测
+失败的问题。</p>
+<p>下文描述的是 <strong>dense（稠密）</strong> 布局（对应全局属性 <code>type="dense"</code>，或省略该属性）。
+对于 <strong>sparse（稀疏）</strong> 数据集（<code>type="sparse"</code>），<code>/train</code> 与 <code>/test</code> 是 1 维
+<code>INT8</code> 字节流，由 VSAG 的稀疏向量序列化接口生成（由
+<code>tools/eval/eval_dataset.cpp</code> 中的 <code>parse_sparse_vectors</code> 解析）；其余数据集与
+全局属性的约束仍然适用。</p>
+<h2 id="必选数据集"><a class="header" href="#必选数据集">必选数据集</a></h2>
+<h3 id="train底库向量"><a class="header" href="#train底库向量"><code>/train</code>（底库向量）</a></h3>
+<ul>
+<li><strong>类型</strong>：<code>INT8</code> 或 <code>FLOAT32</code></li>
+<li><strong>形状</strong>：<code>(N, D)</code>
+<ul>
+<li><code>N</code> —— 底库向量数量（<code>number_of_base</code>）</li>
+<li><code>D</code> —— 向量维度（<code>dim</code>）</li>
+</ul>
+</li>
+<li><strong>说明</strong>：元素类型由 HDF5 自动推断：
+<ul>
+<li><code>H5T_INTEGER</code>（1 字节）→ <code>INT8</code></li>
+<li><code>H5T_FLOAT</code>（4 字节）→ <code>FLOAT32</code></li>
+</ul>
+</li>
+</ul>
+<h3 id="test查询向量"><a class="header" href="#test查询向量"><code>/test</code>（查询向量）</a></h3>
+<ul>
+<li><strong>类型</strong>：必须与 <code>/train</code> 一致</li>
+<li><strong>形状</strong>：<code>(Q, D)</code>
+<ul>
+<li><code>Q</code> —— 查询向量数量（<code>number_of_query</code>）</li>
+<li><code>D</code> —— 必须等于 <code>/train</code> 的 <code>D</code></li>
+</ul>
+</li>
+</ul>
+<h3 id="neighbors真实近邻索引"><a class="header" href="#neighbors真实近邻索引"><code>/neighbors</code>（真实近邻索引）</a></h3>
+<ul>
+<li><strong>类型</strong>：<code>INT64</code></li>
+<li><strong>形状</strong>：<code>(Q, K)</code>
+<ul>
+<li><code>K</code> —— 每个查询的真实近邻个数</li>
+</ul>
+</li>
+<li><strong>内容</strong>：预先计算好的 Top-<code>K</code> 索引，指向 <code>/train</code> 中的向量。</li>
+</ul>
+<h3 id="distances真实近邻距离"><a class="header" href="#distances真实近邻距离"><code>/distances</code>（真实近邻距离）</a></h3>
+<ul>
+<li><strong>类型</strong>：<code>FLOAT32</code></li>
+<li><strong>形状</strong>：<code>(Q, K)</code>，与 <code>/neighbors</code> 相同</li>
+<li><strong>要求</strong>：与 <code>/neighbors</code> 中对应位置的近邻一一对齐。</li>
+</ul>
+<h2 id="全局属性"><a class="header" href="#全局属性">全局属性</a></h2>
+<h3 id="type向量类型"><a class="header" href="#type向量类型"><code>type</code>（向量类型）</a></h3>
+<ul>
+<li><strong>类型</strong>：ASCII 字符串</li>
+<li><strong>必填</strong>：否（缺失时默认为 <code>"dense"</code>）</li>
+<li><strong>可选值</strong>：
+<ul>
+<li><code>"dense"</code> —— 稠密向量，按标准矩阵布局存放在 <code>/train</code> 与 <code>/test</code></li>
+<li><code>"sparse"</code> —— 稀疏向量，使用 VSAG 稀疏向量辅助接口的序列化格式</li>
+</ul>
+</li>
+</ul>
+<h3 id="distance距离度量"><a class="header" href="#distance距离度量"><code>distance</code>（距离度量）</a></h3>
+<p>评测工具会将 <code>distance</code> 视为<strong>距离</strong>（数值越小越好），并与 <code>/distances</code> 中的真值进行
+对比。请按下方公式准备真值距离。</p>
+<ul>
+<li><strong>类型</strong>：ASCII 字符串</li>
+<li><strong>必填</strong>：是</li>
+<li><strong>稠密向量可选值</strong>：
+<ul>
+<li><code>"euclidean"</code> —— L2 距离，以 <code>sqrt(L2Sqr)</code> 计算</li>
+<li><code>"ip"</code> —— 内积距离（<code>1 - 内积</code>），自动识别数据类型</li>
+<li><code>"angular"</code> —— 余弦距离（<code>1 - 余弦相似度</code>）</li>
+</ul>
+</li>
+<li><strong>稀疏向量可选值</strong>：
+<ul>
+<li><code>"ip"</code> —— 稀疏内积距离（<code>1 - 稀疏内积</code>），稀疏向量暂不支持其他度量</li>
+</ul>
+</li>
+</ul>
+<h2 id="可选数据集"><a class="header" href="#可选数据集">可选数据集</a></h2>
+<h3 id="train_labels-与-test_labels"><a class="header" href="#train_labels-与-test_labels"><code>/train_labels</code> 与 <code>/test_labels</code></a></h3>
+<ul>
+<li><strong>类型</strong>：<code>INT64</code></li>
+<li><strong>形状</strong>：
+<ul>
+<li><code>/train_labels</code>：<code>(N,)</code></li>
+<li><code>/test_labels</code>：<code>(Q,)</code></li>
+</ul>
+</li>
+<li><strong>要求</strong>：若使用标签，两个数据集必须同时存在。</li>
+</ul>
+<h3 id="valid_ratios"><a class="header" href="#valid_ratios"><code>/valid_ratios</code></a></h3>
+<ul>
+<li><strong>类型</strong>：<code>FLOAT32</code></li>
+<li><strong>形状</strong>：<code>(L,)</code></li>
+<li><strong>用途</strong>：保存每个类别的验证比例。评测工具会以<strong>原始 label 值</strong>作为下标
+（<code>valid_ratio_[label]</code>，见 <code>tools/eval/eval_dataset.h:71</code>），因此 label 必须为
+非负整数，且 <code>L</code> 必须严格大于最大 label 值（通常为 <code>L &gt; max(label)</code>，下标范围
+<code>0..L-1</code>）。数据集作者需自行保证该数组足够大，能覆盖 <code>/train_labels</code> 与
+<code>/test_labels</code> 中出现的所有 label。</li>
+</ul>
+<h2 id="结构性要求"><a class="header" href="#结构性要求">结构性要求</a></h2>
+<ol>
+<li>
+<p><strong>维度一致性</strong></p>
+<ul>
+<li><code>train_shape[1] == test_shape[1]</code>（<code>D</code> 相同）</li>
+<li><code>neighbors.shape == distances.shape</code></li>
+</ul>
+</li>
+<li>
+<p><strong>类型映射</strong></p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>HDF5 规格</th><th>内部类型</th><th>大小</th><th>出现于</th></tr>
+</thead>
+<tbody>
+<tr><td><code>H5T_INTEGER</code>（size=1）</td><td><code>INT8</code></td><td>1 字节</td><td><code>/train</code>、<code>/test</code></td></tr>
+<tr><td><code>H5T_FLOAT</code>（size=4）</td><td><code>FLOAT32</code></td><td>4 字节</td><td><code>/train</code>、<code>/test</code>、<code>/distances</code>、<code>/valid_ratios</code></td></tr>
+<tr><td><code>H5T_INTEGER</code>（size=8）</td><td><code>INT64</code></td><td>8 字节</td><td><code>/neighbors</code>、<code>/train_labels</code>、<code>/test_labels</code></td></tr>
+</tbody>
+</table>
+</div>
+</li>
+<li>
+<p><strong>内存布局</strong></p>
+<ul>
+<li>所有矩阵按行优先（row-major）存储。</li>
+<li>向量元素连续存放：
+<ul>
+<li><code>/train</code> 总大小 = <code>N × D × element_size</code>（每元素 1 或 4 字节）。</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<h2 id="参考-2"><a class="header" href="#参考-2">参考</a></h2>
+<ul>
+<li>与该格式兼容的公开基准数据集可在
+<a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a>
+获取（如 <code>sift-128-euclidean.hdf5</code>、<code>gist-960-euclidean.hdf5</code>）。</li>
+<li>关于该格式如何被消费，参见 <a href="#性能评估工具eval_performance">性能评估工具</a>。</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="索引分析analyzeindexbysearch-与-analyze_index"><a class="header" href="#索引分析analyzeindexbysearch-与-analyze_index">索引分析（<code>AnalyzeIndexBySearch</code> 与 <code>analyze_index</code>）</a></h1>
 <p>VSAG 提供了对<strong>已构建或已加载索引</strong>进行内省诊断的能力，可以在不重建索引的情况下排查召回率回归、
 量化质量、图结构健康度以及查询性能问题。该能力通过两种方式对外暴露：</p>
@@ -2739,7 +2889,7 @@ cmake --build build-release -j
 <li><strong>假设性实验</strong>：通过 <code>--build_parameter</code> 在加载时覆盖原始构建参数，对未在文件中嵌入参数的索引
 进行不同配置的评估。</li>
 </ul>
-<h2 id="参考-2"><a class="header" href="#参考-2">参考</a></h2>
+<h2 id="参考-3"><a class="header" href="#参考-3">参考</a></h2>
 <ul>
 <li>接口：<code>include/vsag/index.h</code> 中的 <code>Index::AnalyzeIndexBySearch</code></li>
 <li>实现：<code>src/analyzer/{analyzer,hgraph_analyzer,pyramid_analyzer}.h</code></li>
