@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Code Structure - VSAG Documentation</title>
+        <title>Quantization Transform - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -304,63 +304,215 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="code-structure"><a class="header" href="#code-structure">Code Structure</a></h1>
-<p>This page gives a quick tour of the VSAG repository layout.</p>
-<h2 id="top-level-directories"><a class="header" href="#top-level-directories">Top-Level Directories</a></h2>
+                        <h1 id="quantization-transform"><a class="header" href="#quantization-transform">Quantization Transform</a></h1>
+<p>The <strong>Transform Quantizer</strong> (<code>base_quantization_type: "tq"</code>) chains one or more vector
+transformations in front of a final quantizer. Transformations reshape vectors so a downstream
+quantizer can encode them more accurately or compactly — for example, rotate vectors so their
+energy is spread across dimensions (RaBitQ / SQ benefit greatly), or reduce dimensionality with
+PCA before storing them.</p>
+<blockquote>
+<p>Runnable example: <code>examples/cpp/501_quantization_transform.cpp</code>.</p>
+</blockquote>
+<h2 id="why-a-transform-layer"><a class="header" href="#why-a-transform-layer">Why a transform layer</a></h2>
+<p>A pure quantizer compresses vectors directly. With low-bit quantizers (e.g. <code>sq4</code>,
+<code>sq*_uniform</code>, <code>rabitq</code>) accuracy depends heavily on the <strong>distribution</strong> of vector
+coordinates: heavy-tailed or anisotropic dimensions waste code bits. A transform layer
+mitigates this:</p>
+<ul>
+<li><strong>Random rotations</strong> (<code>rom</code>, <code>fht</code>) decorrelate coordinates so a uniform/scalar quantizer
+works better on each axis.</li>
+<li><strong>PCA</strong> (<code>pca</code>) reduces dimensions while keeping most of the variance — code size shrinks
+proportionally.</li>
+<li><strong>MRLE</strong> (<code>mrle</code>) is a metric-recoverable low-rank encoding tailored to L2/IP search.</li>
+</ul>
+<p>The transform output then feeds a standard quantizer (<code>fp32</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>rabitq</code>,
+…), which actually stores the codes. The whole chain is referred to as <strong><code>tq</code> (Transform
+Quantizer)</strong>.</p>
+<h2 id="quick-start"><a class="header" href="#quick-start">Quick start</a></h2>
+<p><code>tq</code> is currently exposed as a <strong>public, externally configurable</strong> quantization type only by
+<strong>HGraph</strong>. HGraph maps the top-level keys <code>tq_chain</code> and <code>rabitq_pca_dim</code> into the nested
+<code>base_codes.quantization_params</code> JSON via its external-parameter mapping
+(<code>src/algorithm/hgraph.cpp:370-385</code>). IVF, BruteForce, Pyramid and WARP all internally render
+a <code>tq_chain</code> field into their inner JSON template, but none of them expose <code>tq_chain</code> (or any
+other TQ parameter) in their external mapping today. <code>CheckAndMappingExternalParam</code> rejects
+unknown external keys with <code>invalid config param</code>
+(<code>src/utils/util_functions.cpp:50-53</code>), so passing <code>tq_chain</code> in the <code>index_param</code> JSON of
+those indexes will fail at index construction. Configuring TQ on non-HGraph indexes
+therefore requires code-side changes to add the external mapping.</p>
+<pre><code class="language-cpp">std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "tq",
+        "tq_chain": "pca, rom, sq8_uniform",
+        "rabitq_pca_dim": 64,
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+})";
+
+vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
+vsag::Engine engine(&amp;resource);
+auto index = engine.CreateIndex("hgraph", params).value();
+index-&gt;Build(base);
+auto result = index-&gt;KnnSearch(query, topk, search_params).value();
+</code></pre>
+<p>In the example above, base vectors are first projected from 128 to 64 dimensions (<code>pca</code>),
+randomly rotated (<code>rom</code>), then quantized with <code>sq8_uniform</code>. Reordering is enabled, so HGraph
+keeps an <code>fp32</code> precise copy and re-ranks the top candidates returned by the graph search
+(<code>include/vsag/index.h</code>; see <a href="memory.html">Memory Management</a> for the storage implications).</p>
+<h2 id="tq_chain-syntax"><a class="header" href="#tq_chain-syntax"><code>tq_chain</code> syntax</a></h2>
+<p><code>tq_chain</code> is a <strong>comma-separated string</strong>: one or more transformer names followed by exactly
+one final quantizer name. Whitespace around tokens is trimmed
+(<code>src/quantization/transform_quantization/transform_quantizer_parameter.cpp:53-74</code>).</p>
+<pre><code>"&lt;transform1&gt;, &lt;transform2&gt;, ..., &lt;quantizer&gt;"
+</code></pre>
+<p>Examples:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Path</th><th>Contents</th></tr>
+<tr><th>Chain</th><th>Effect</th></tr>
 </thead>
 <tbody>
-<tr><td><code>include/vsag/</code></td><td>Public C++ headers (<code>index.h</code>, <code>engine.h</code>, <code>resource.h</code>, <code>constants.h</code>, …)</td></tr>
-<tr><td><code>src/</code></td><td>Core implementation and unit tests</td></tr>
-<tr><td><code>tests/</code></td><td>Functional tests (Catch2)</td></tr>
-<tr><td><code>examples/cpp/</code></td><td>C++ end-to-end examples</td></tr>
-<tr><td><code>examples/python/</code></td><td>Python examples</td></tr>
-<tr><td><code>python/</code></td><td><code>pyvsag</code> packaging</td></tr>
-<tr><td><code>python_bindings/</code></td><td>pybind11 bindings</td></tr>
-<tr><td><code>typescript/</code></td><td>Node.js / TypeScript bindings (npm package <code>vsag</code>)</td></tr>
-<tr><td><code>tools/</code></td><td>Utilities such as <code>eval_performance</code>, <code>analyze_index</code>, <code>check_compatibility</code></td></tr>
-<tr><td><code>extern/</code></td><td>Third-party dependencies (do not modify unless necessary)</td></tr>
-<tr><td><code>docs/</code></td><td>Documentation (this site) and blog posts</td></tr>
-<tr><td><code>cmake/</code></td><td>CMake modules</td></tr>
+<tr><td><code>"rom, fp32"</code></td><td>Random rotation, then store as fp32 (used for tests / sanity baselines).</td></tr>
+<tr><td><code>"fht, sq8_uniform"</code></td><td>Fast Hadamard rotation, then 8-bit uniform scalar quantization.</td></tr>
+<tr><td><code>"pca, rom, sq8_uniform"</code></td><td>PCA reduction, random rotation, then 8-bit uniform — the example chain.</td></tr>
+<tr><td><code>"pca, rom, rabitq"</code></td><td>PCA + rotation feeding the RaBitQ binary quantizer.</td></tr>
+<tr><td><code>"mrle, fp32"</code></td><td>MRLE projection then store as fp32 (MRLE must be first).</td></tr>
 </tbody>
 </table>
 </div>
-<h2 id="core-subsystems-inside-src"><a class="header" href="#core-subsystems-inside-src">Core Subsystems (inside <code>src/</code>)</a></h2>
+<p>Constraints (<code>transform_quantizer_parameter.cpp:33-45</code>):</p>
 <ul>
-<li><strong>index</strong>: concrete index implementations (HNSW, HGraph, DiskANN, IVF, Pyramid, SINDI, …).</li>
-<li><strong>quantization</strong>: FP32 / FP16 / BF16 / SQ4 / SQ8 / PQ quantizers with SIMD dispatch.</li>
-<li><strong>graph</strong>: shared graph data structures used by HNSW/HGraph/DiskANN.</li>
-<li><strong>storage</strong>: binary/reader sets, streaming serialization.</li>
-<li><strong>allocator / thread pool</strong>: user-pluggable resource management.</li>
-<li><strong>simd</strong>: cascaded SIMD dispatch for x86_64 and AArch64.</li>
+<li>The chain must contain <strong>at least one transformer + one quantizer</strong> (length ≥ 2). An empty
+or single-token chain raises <code>INVALID_ARGUMENT</code>.</li>
+<li>The <strong>last token must be a quantizer that the TQ flatten path can dispatch</strong>: one of
+<code>fp32</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4</code>, <code>sq4_uniform</code>, <code>bf16</code>, <code>fp16</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>
+(<code>src/datacell/flatten_interface.cpp:126-164</code>). <code>TransformQuantizerParameter</code> parses a
+slightly wider set of names (it also accepts <code>sparse</code>, <code>int8</code>, <code>tq</code>), but the flatten
+factory does not have a dispatch branch for <code>int8</code>/<code>tq</code> and explicitly rejects <code>sparse</code>
+when <code>is_transform_quantizer</code> is true (<code>src/datacell/flatten_interface.cpp:166</code>), so using
+any of those three as the terminal quantizer fails at index construction with an
+“unsupported quantization type” error.</li>
+<li>Any unrecognized transformer name raises <code>INVALID_ARGUMENT: invalid transformer name</code>
+(<code>transform_quantizer.h:225-227</code>).</li>
 </ul>
-<h2 id="naming-conventions"><a class="header" href="#naming-conventions">Naming Conventions</a></h2>
+<h2 id="supported-transformers"><a class="header" href="#supported-transformers">Supported transformers</a></h2>
+<p>The factory at <code>src/quantization/transform_quantization/transform_quantizer.h:192-227</code>
+recognizes four transformer names today:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Name</th><th>Output dim</th><th>Description</th><th>Implementation</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pca</code></td><td><code>pca_dim</code> if set, else input dim</td><td>Principal-Component-Analysis projection; reduces dim while keeping variance.</td><td><code>src/impl/transform/pca_transformer.h</code></td></tr>
+<tr><td><code>rom</code></td><td>input dim</td><td>Random Orthogonal Matrix; rotates vectors to decorrelate dimensions.</td><td><code>src/impl/transform/random_orthogonal_transformer.h</code></td></tr>
+<tr><td><code>fht</code></td><td>input dim</td><td>Fast Hadamard / KAC random rotation; cheaper variant of <code>rom</code>.</td><td><code>src/impl/transform/fht_kac_rotate_transformer.h</code></td></tr>
+<tr><td><code>mrle</code></td><td><code>mrle_dim</code> (≤ input dim)</td><td>Metric-Recoverable Low-rank Encoding; <strong>must be the first transformer in the chain</strong>.</td><td><code>src/impl/transform/mrle_transformer.h</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Notes:</p>
 <ul>
-<li>Public API: <code>vsag</code> namespace, in <code>include/vsag/</code>.</li>
-<li>Implementation: <code>src/</code>, same namespace unless the file explicitly needs otherwise.</li>
-<li>File extension: <code>.cpp</code> (not <code>.cc</code>).</li>
+<li><code>mrle</code> placement is enforced at <code>transform_quantizer.h:155-159</code> and <code>mrle_dim ≤ input_dim</code>
+at <code>transform_quantizer.h:217-220</code>.</li>
+<li>Other strings declared in headers (<code>residual</code>, <code>normalize</code>) are <strong>not</strong> wired into the
+factory and will be rejected.</li>
 </ul>
-<h2 id="build-artifacts"><a class="header" href="#build-artifacts">Build Artifacts</a></h2>
-<p><code>make debug</code> / <code>make release</code> / <code>make dev</code> produce build trees:</p>
+<h2 id="transformer-parameters"><a class="header" href="#transformer-parameters">Transformer parameters</a></h2>
+<p>The transformer JSON is read by <code>VectorTransformerParameter::FromJson</code>
+(<code>src/impl/transform/vector_transformer_parameter.cpp:22-35</code>):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pca_dim</code></td><td>int</td><td><code>0</code> (= input dim)</td><td>Output dim of the <code>pca</code> transformer.</td></tr>
+<tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code> (= input dim)</td><td>Output dim of the <code>mrle</code> transformer.</td></tr>
+<tr><td><code>input_dim</code></td><td>int</td><td>auto</td><td>Auto-populated by the chain — do not set manually.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="hgraph-external-mapping"><a class="header" href="#hgraph-external-mapping">HGraph external mapping</a></h3>
+<p>When using HGraph, two top-level shortcuts are mapped into the nested quantizer params
+(<code>src/algorithm/hgraph.cpp:370-385</code>):</p>
 <ul>
-<li><code>build-debug/</code></li>
-<li><code>build-release/</code></li>
-<li><code>build-dev/</code></li>
+<li><code>tq_chain</code> → <code>base_codes.quantization_params.tq_chain</code></li>
+<li><code>rabitq_pca_dim</code> → <code>base_codes.quantization_params.pca_dim</code></li>
 </ul>
-<p>Each contains the test binaries, example executables, and libraries.</p>
+<p>The name <code>rabitq_pca_dim</code> predates Transform Quantizer; when the chain includes <code>pca</code>, it
+drives the <strong><code>pca</code> transformer’s output dim</strong> (it is not RaBitQ-specific). When the chain
+ends in <code>rabitq</code> without <code>pca</code>, the same key configures RaBitQ’s own PCA preprocessing
+(<code>src/quantization/rabitq_quantization/rabitq_quantizer_parameter.cpp:30</code>).</p>
+<h2 id="reordering-and-the-precise-codes-store"><a class="header" href="#reordering-and-the-precise-codes-store">Reordering and the precise codes store</a></h2>
+<p>Transform chains lose some information by design (rotation is lossless, but <code>pca</code> /
+<code>sq*_uniform</code> / <code>rabitq</code> are not). Combining <code>tq</code> with <strong>reorder</strong> — keep a precise (typically
+<code>fp32</code>) copy of every vector and re-rank the top candidates — restores accuracy with a
+modest memory cost:</p>
+<ul>
+<li><code>use_reorder: true</code> makes HGraph keep a second flatten store, the <strong>precise codes store</strong>
+(<code>src/algorithm/hgraph.cpp:76-79</code>).</li>
+<li><code>precise_quantization_type</code> selects its quantizer (<code>fp32</code> default; can be <code>fp16</code> / <code>bf16</code> /
+<code>sq8</code> if you want to trade memory for accuracy).</li>
+<li>At search time the graph walk uses the cheap <code>tq</code> base codes, then the top-K are re-scored
+against the precise codes (<code>hgraph.cpp:978-981</code> and surrounding sites).</li>
+</ul>
+<p><code>use_reorder</code> and <code>precise_quantization_type</code> are not specific to <code>tq</code> — they also apply when
+<code>base_quantization_type</code> is <code>sq8</code>, <code>pq</code>, <code>rabitq</code>, etc. See the table in
+<a href="../indexes/hgraph.html">HGraph index</a> for the full per-index parameter list.</p>
+<h2 id="choosing-a-chain"><a class="header" href="#choosing-a-chain">Choosing a chain</a></h2>
+<p>A pragmatic rule of thumb:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Goal</th><th>Suggested chain</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td>Memory-aggressive, accuracy-restored</td><td><code>"pca, rom, sq8_uniform"</code> + <code>use_reorder: true</code>, <code>precise_quantization_type: "fp32"</code></td><td>Example 501 baseline.</td></tr>
+<tr><td>Maximum compression</td><td><code>"pca, rom, rabitq"</code> + reorder</td><td>1-bit quantization with rotation cleanup; expect noticeable accuracy loss without reorder.</td></tr>
+<tr><td>Anisotropic data, no dim reduction</td><td><code>"rom, sq8_uniform"</code> or <code>"fht, sq8_uniform"</code></td><td>Use <code>fht</code> for lower build cost on high dim.</td></tr>
+<tr><td>Distance-preserving low-rank</td><td><code>"mrle, fp32"</code></td><td>Metric-aware reduction, no further quantization.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Always benchmark on your own data — the right tradeoff between <code>tq</code> aggressiveness and
+<code>use_reorder</code> depends on dataset distribution, target recall, and memory budget.</p>
+<h2 id="compatibility-and-merge"><a class="header" href="#compatibility-and-merge">Compatibility and merge</a></h2>
+<p>Two <code>tq</code> configurations are considered compatible only when the chain length, every
+transformer name, and the final quantizer all match
+(<code>src/quantization/transform_quantization/transform_quantizer_parameter.cpp:99-117</code>). This
+matters for serialization round-trips and for any future merge / clone operations across
+indexes — keep the chain string stable across builds you intend to combine.</p>
+<blockquote>
+<p><strong>Chain string equality is necessary but not sufficient.</strong> The <code>tq_chain</code> token list does
+not encode transformer parameters such as <code>pca_dim</code> / <code>mrle_dim</code> (read as separate sibling
+JSON keys at <code>src/quantization/transform_quantization/transform_quantizer.h:200-216</code>) or the
+internal parameters of the terminal quantizer (e.g. <code>pq</code> subspace count, <code>rabitq</code> rotation
+seed). These parameters change the effective code dimension and layout, so for two builds
+to be practically merge-/clone-compatible you must keep the <strong>entire</strong> transform + quantizer
+parameter set consistent, not just the chain string.</p>
+</blockquote>
+<h2 id="related-pages"><a class="header" href="#related-pages">Related pages</a></h2>
+<ul>
+<li><a href="../indexes/hgraph.html">HGraph index</a> — parameter reference for <code>base_quantization_type</code>,
+<code>use_reorder</code>, <code>precise_quantization_type</code>.</li>
+<li><a href="memory.html">Memory Management</a> — memory cost of base + precise stores.</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../indexes/brute_force.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/index_lifecycle.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/building.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../resources/best_practices.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -370,11 +522,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../indexes/brute_force.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/index_lifecycle.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/building.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../resources/best_practices.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
