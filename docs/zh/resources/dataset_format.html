@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4f6d4754.js";
+            window.path_to_searchindex_js = "../searchindex-3628691f.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-a5e90d82.js"></script>
@@ -446,6 +446,64 @@
 </ul>
 </li>
 </ol>
+<h2 id="sparse-布局"><a class="header" href="#sparse-布局">Sparse 布局</a></h2>
+<p>当全局属性 <code>type</code> 取值为 <code>"sparse"</code> 时，<code>/train</code> 与 <code>/test</code> <strong>不再</strong>遵循 <code>(N, D)</code> 的
+稠密矩阵布局，而是以 1 维 <code>INT8</code>（<code>H5T_INTEGER</code>，size 1）数据集存储原始字节流。
+此处的 <code>int8</code> 仅是传输形式，<strong>字节本身并不是 int8 向量元素</strong>。</p>
+<h3 id="traintest稀疏字节流"><a class="header" href="#traintest稀疏字节流"><code>/train</code>、<code>/test</code>（稀疏字节流）</a></h3>
+<ul>
+<li>
+<p><strong>HDF5 类型</strong>：<code>H5T_INTEGER</code>，size 1（<code>INT8</code>）</p>
+</li>
+<li>
+<p><strong>HDF5 形状</strong>：1 维；总长度等于所有向量记录大小之和</p>
+</li>
+<li>
+<p><strong>字节序</strong>：小端（little-endian）</p>
+</li>
+<li>
+<p><strong>内容</strong>：按向量顺序首尾相接的记录序列，每条记录包含以下字段，紧密拼接，
+无填充、无分隔符：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>大小</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>len</code></td><td><code>uint32</code></td><td>4 字节</td><td>该向量的非零项个数</td></tr>
+<tr><td><code>ids[len]</code></td><td><code>uint32[]</code></td><td><code>4 * len</code> 字节</td><td>非零项的特征下标（column ids）</td></tr>
+<tr><td><code>vals[len]</code></td><td><code>float32[]</code></td><td><code>4 * len</code> 字节</td><td>与 <code>ids</code> 对应的取值</td></tr>
+</tbody>
+</table>
+</div>
+<p>允许 <code>len == 0</code> 的记录，此时仅占 4 字节的长度字段。</p>
+</li>
+<li>
+<p><strong>键的顺序</strong>：eval 工具在读取时会对每条向量按 <code>ids</code> 升序排序（<code>vals</code> 同步重排）。
+写入侧可以输出无序键，但读取侧不应假设无序。</p>
+</li>
+</ul>
+<h3 id="真值与距离"><a class="header" href="#真值与距离">真值与距离</a></h3>
+<p><code>/neighbors</code> 与 <code>/distances</code> 的形状与类型规则与上文稠密布局相同。<code>distance</code> 属性
+对稀疏向量仅支持 <code>"ip"</code>（稀疏内积距离，<code>1 - 稀疏内积</code>）。</p>
+<h3 id="python-辅助函数"><a class="header" href="#python-辅助函数">Python 辅助函数</a></h3>
+<p>Python 包 <code>pyvsag</code> 在 <a href="https://github.com/antgroup/vsag/blob/main/python/pyvsag/sparse.py"><code>pyvsag.sparse</code></a>
+中提供解码工具：</p>
+<pre><code class="language-python">from pyvsag.sparse import load_sparse_hdf5
+
+data = load_sparse_hdf5("sparse.hdf5")
+# data["type"]      -&gt; "sparse"
+# data["distance"]  -&gt; "ip"
+# data["train"]     -&gt; list[dict[int, float]]   每条稀疏向量一个字典，键升序
+# data["test"]      -&gt; list[dict[int, float]]
+# data["neighbors"] -&gt; numpy.ndarray  shape (Q, K) int64
+# data["distances"] -&gt; numpy.ndarray  shape (Q, K) float32
+</code></pre>
+<p>如果已经拿到原始字节流，可以直接调用 <code>pyvsag.sparse.decode_sparse_bytes(buffer)</code>。</p>
+<h3 id="参考实现"><a class="header" href="#参考实现">参考实现</a></h3>
+<p>字节流的编码/解码逻辑位于
+<a href="https://github.com/antgroup/vsag/blob/main/tools/eval/eval_dataset.cpp"><code>tools/eval/eval_dataset.cpp</code></a>
+（参见 <code>parse_sparse_vectors</code> 与 <code>serialize_sparse_vectors</code>）。</p>
 <h2 id="参考"><a class="header" href="#参考">参考</a></h2>
 <ul>
 <li>与该格式兼容的公开基准数据集可在

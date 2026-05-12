@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-755060e9.js";
+            window.path_to_searchindex_js = "../searchindex-fc5cf5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-347430b4.js"></script>
@@ -451,6 +451,68 @@ enough to cover every label that appears in <code>/train_labels</code> and <code
 </ul>
 </li>
 </ol>
+<h2 id="sparse-layout"><a class="header" href="#sparse-layout">Sparse layout</a></h2>
+<p>When the global attribute <code>type</code> equals <code>"sparse"</code>, <code>/train</code> and <code>/test</code> do <strong>not</strong> follow
+the <code>(N, D)</code> dense matrix layout. They are instead stored as one-dimensional <code>INT8</code>
+(<code>H5T_INTEGER</code>, size 1) datasets whose payload is a raw byte stream of packed sparse
+vectors. The <code>int8</code> storage class is a transport detail only; the bytes are not int8
+vector elements.</p>
+<h3 id="train-test-sparse-byte-stream"><a class="header" href="#train-test-sparse-byte-stream"><code>/train</code>, <code>/test</code> (sparse byte stream)</a></h3>
+<ul>
+<li>
+<p><strong>HDF5 type</strong>: <code>H5T_INTEGER</code>, size 1 (<code>INT8</code>)</p>
+</li>
+<li>
+<p><strong>HDF5 shape</strong>: 1-D; total length equals the sum of per-vector record sizes</p>
+</li>
+<li>
+<p><strong>Endianness</strong>: little-endian</p>
+</li>
+<li>
+<p><strong>Content</strong>: a contiguous sequence of records, one per sparse vector, in order. Each
+record has the following fields, concatenated with no padding or separators:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Size</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>len</code></td><td><code>uint32</code></td><td>4 bytes</td><td>Number of non-zero entries in the vector</td></tr>
+<tr><td><code>ids[len]</code></td><td><code>uint32[]</code></td><td><code>4 * len</code> bytes</td><td>Feature indices (column ids)</td></tr>
+<tr><td><code>vals[len]</code></td><td><code>float32[]</code></td><td><code>4 * len</code> bytes</td><td>Values associated with <code>ids</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>A <code>len == 0</code> record is allowed and occupies only the 4-byte length field.</p>
+</li>
+<li>
+<p><strong>Key ordering</strong>: on load, the eval tool sorts each vector’s <code>ids</code> in ascending order
+(and reorders <code>vals</code> accordingly). Writers may emit unordered keys, but readers should
+not rely on that.</p>
+</li>
+</ul>
+<h3 id="ground-truth-and-metric"><a class="header" href="#ground-truth-and-metric">Ground truth and metric</a></h3>
+<p><code>/neighbors</code> and <code>/distances</code> follow the same shape and type rules as in the dense
+layout above. Only <code>"ip"</code> (sparse inner-product distance, <code>1 - sparse_inner_product</code>)
+is supported via the <code>distance</code> attribute.</p>
+<h3 id="python-helper"><a class="header" href="#python-helper">Python helper</a></h3>
+<p>The Python package <code>pyvsag</code> ships a decoder in <a href="https://github.com/antgroup/vsag/blob/main/python/pyvsag/sparse.py"><code>pyvsag.sparse</code></a>:</p>
+<pre><code class="language-python">from pyvsag.sparse import load_sparse_hdf5
+
+data = load_sparse_hdf5("sparse.hdf5")
+# data["type"]      -&gt; "sparse"
+# data["distance"]  -&gt; "ip"
+# data["train"]     -&gt; list[dict[int, float]]   one dict per sparse vector, keys ascending
+# data["test"]      -&gt; list[dict[int, float]]
+# data["neighbors"] -&gt; numpy.ndarray  shape (Q, K) int64
+# data["distances"] -&gt; numpy.ndarray  shape (Q, K) float32
+</code></pre>
+<p><code>pyvsag.sparse.decode_sparse_bytes(buffer)</code> is also exposed for callers that already
+hold the raw byte stream.</p>
+<h3 id="reference-implementation"><a class="header" href="#reference-implementation">Reference implementation</a></h3>
+<p>The byte-stream encoder/decoder lives at
+<a href="https://github.com/antgroup/vsag/blob/main/tools/eval/eval_dataset.cpp"><code>tools/eval/eval_dataset.cpp</code></a>
+(see <code>parse_sparse_vectors</code> and <code>serialize_sparse_vectors</code>).</p>
 <h2 id="references"><a class="header" href="#references">References</a></h2>
 <ul>
 <li>Public benchmark datasets compatible with this layout are available from
