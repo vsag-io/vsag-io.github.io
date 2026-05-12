@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Running Tests - VSAG Documentation</title>
+        <title>Extensibility - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -304,61 +304,149 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h1>
-<p>VSAG uses <a href="https://github.com/catchorg/Catch2">Catch2</a> for testing, organized in two layers:</p>
+                        <h1 id="extensibility"><a class="header" href="#extensibility">Extensibility</a></h1>
+<p>VSAG exposes a small set of stable C++ extension points so applications can plug
+in their own infrastructure without forking the library. This page summarizes
+<strong>what is extensible</strong> and <strong>what is not</strong>, and links to runnable examples.</p>
+<h2 id="public-extension-points"><a class="header" href="#public-extension-points">Public extension points</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Extension point</th><th>Header</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vsag::Allocator</code></td><td><code>vsag/allocator.h</code></td><td>Custom memory allocation strategy.</td></tr>
+<tr><td><code>vsag::Logger</code></td><td><code>vsag/logger.h</code></td><td>Redirect VSAG logs to your logging stack.</td></tr>
+<tr><td><code>vsag::ThreadPool</code></td><td><code>vsag/thread_pool.h</code></td><td>Reuse an external worker pool for builds and IO.</td></tr>
+<tr><td><code>vsag::Filter</code></td><td><code>vsag/filter.h</code></td><td>Custom pre-filter for <code>KnnSearch</code> / <code>RangeSearch</code>.</td></tr>
+<tr><td><code>vsag::Reader</code> (+ <code>ReaderSet</code>)</td><td><code>vsag/readerset.h</code></td><td>Custom IO backend for deserialization.</td></tr>
+</tbody>
+</table>
+</div>
+<p>All five are abstract base classes. Each declares at least one pure-virtual method that you
+must implement; some also declare non-pure-virtual methods with sensible defaults (for example,
+<code>Filter::CheckValid(const char*)</code>, <code>Filter::ValidRatio()</code>, <code>Filter::FilterDistribution()</code>,
+<code>Filter::GetValidIds()</code>, and <code>Reader::MultiRead()</code>) that you can override only when you need
+custom behaviour. Implement the required methods, wrap your instance in a <code>std::shared_ptr</code>
+(or pass a raw pointer where the API requires it), and hand it to VSAG.</p>
+<h2 id="wiring-extensions-into-an-index"><a class="header" href="#wiring-extensions-into-an-index">Wiring extensions into an index</a></h2>
+<p>There are two main entry points.</p>
+<h3 id="1-per-index-resources-via-engine"><a class="header" href="#1-per-index-resources-via-engine">1. Per-index resources via <code>Engine</code></a></h3>
+<p><code>vsag::Engine</code> (<code>vsag/engine.h</code>) is the recommended way to bind a custom
+<code>Allocator</code> and <code>ThreadPool</code> to every index it creates:</p>
+<pre><code class="language-cpp">auto allocator   = std::make_shared&lt;MyAllocator&gt;();
+auto thread_pool = std::make_shared&lt;MyThreadPool&gt;();
+vsag::Resource resource(allocator, thread_pool);
+vsag::Engine engine(&amp;resource);
+
+auto index = engine.CreateIndex("hgraph", parameters).value();
+// ... use index ...
+engine.Shutdown();
+</code></pre>
+<p><code>Engine(Resource*)</code> takes a non-owning pointer — the caller is responsible for
+keeping the <code>Resource</code> alive for at least as long as the engine and every index
+it produced (until <code>Shutdown()</code> returns / those indexes are destroyed). The
+<code>Resource</code> itself owns the <code>Allocator</code> / <code>ThreadPool</code> shared pointers. See
+<a href="memory.html">Memory Management</a> for the full ownership model, and
+<a href="search_allocator.html">Per-Search Allocator</a> for scoping an allocator to a
+single search call.</p>
+<p>For quick prototypes, <code>Engine::CreateDefaultAllocator()</code> and
+<code>Engine::CreateThreadPool(num_threads)</code> return ready-to-use implementations.</p>
+<h3 id="2-factorycreateindex-with-a-raw-allocator"><a class="header" href="#2-factorycreateindex-with-a-raw-allocator">2. <code>Factory::CreateIndex</code> with a raw allocator</a></h3>
+<p><code>vsag::Factory::CreateIndex(name, params, allocator)</code>
+(<code>vsag/factory.h</code>) accepts an optional <code>Allocator*</code>. This path does not take a
+thread pool; new code should prefer <code>Engine</code>.</p>
+<h2 id="filter"><a class="header" href="#filter">Filter</a></h2>
+<p>Implement <code>vsag::Filter</code> and pass a <code>FilterPtr</code> through <code>SearchRequest::filter_</code>
+<strong>and</strong> set <code>SearchRequest::enable_filter_ = true</code> (the filter is ignored when
+the flag is off). The legacy <code>SearchParam::filter</code> path remains supported.
+Only <code>CheckValid(int64_t id)</code> is required; the other hooks are optional
+optimizations:</p>
 <ul>
-<li><strong>Unit tests</strong> live next to source files under <code>src/</code>.</li>
-<li><strong>Functional tests</strong> live under <code>tests/</code> and cover cross-module, end-to-end behavior. Typical
-files include <code>test_hnsw.cpp</code>, <code>test_hgraph.cpp</code>, <code>test_diskann.cpp</code>, <code>test_ivf.cpp</code>,
-<code>test_pyramid.cpp</code>, <code>test_sindi.cpp</code>, <code>test_brute_force.cpp</code>, <code>test_multi_thread.cpp</code>,
-<code>test_memleak.cpp</code>.</li>
+<li><code>CheckValid(const char* data)</code> — filter on per-vector extra info.</li>
+<li><code>ValidRatio()</code> — hint the planner about selectivity.</li>
+<li><code>FilterDistribution()</code> — hint about the spatial distribution of the valid
+ids: <code>NONE</code> (default) means no hint, <code>RELATED_TO_VECTOR</code> means the valid ids
+are correlated with vector position. See <code>vsag/filter.h</code>.</li>
+<li><code>GetValidIds(...)</code> — expose a precomputed valid-id list for very selective
+filters.</li>
 </ul>
-<h2 id="run-the-full-suite"><a class="header" href="#run-the-full-suite">Run the Full Suite</a></h2>
-<p><code>make test</code> configures a Debug build with tests enabled and runs the full unit + functional
-suite:</p>
-<pre><code class="language-bash">make test
+<p>Runnable example: <code>examples/cpp/301_feature_filter.cpp</code>. The
+<a href="filtered_search.html">Filtered Search</a> page describes filter integration in
+detail.</p>
+<h2 id="reader--readerset"><a class="header" href="#reader--readerset">Reader / ReaderSet</a></h2>
+<p><code>Index::Deserialize(const ReaderSet&amp;)</code> lets you stream an index from any storage
+backend (local file, object storage, remote FS, …) by providing a <code>Reader</code> per
+named binary stream. Implement <code>Read</code>, <code>AsyncRead</code>, and <code>Size</code> at minimum;
+<code>MultiRead</code> is optional and improves throughput when the backend supports
+batched IO. <code>vsag::Factory::CreateLocalFileReader</code> is a reference
+implementation for local files.</p>
+<p>Runnable example: <code>examples/cpp/102_index_diskann.cpp</code> (DiskANN deserialization
+uses <code>ReaderSet</code>). See <a href="serialization.html">Serialization</a> for the full
+serialize / deserialize matrix.</p>
+<h2 id="logger"><a class="header" href="#logger">Logger</a></h2>
+<p>VSAG uses a single global logger configured through the <code>Options</code> singleton:</p>
+<pre><code class="language-cpp">class MyLogger : public vsag::Logger { /* implement Trace/Debug/Info/... */ };
+static MyLogger my_logger;
+vsag::Options::Instance().set_logger(&amp;my_logger);
 </code></pre>
-<p>Note: <code>make test</code> does not enable coverage instrumentation. To produce a coverage report, use
-<code>make cov</code> — it configures the build with <code>ENABLE_COVERAGE=ON</code>; run the test binaries afterwards
-to collect and aggregate coverage data:</p>
-<pre><code class="language-bash">make cov
-# then run the test binaries, e.g.:
-./build-debug/tests/functional_tests
-# open build-debug/coverage/index.html
-</code></pre>
-<h2 id="run-a-single-binary"><a class="header" href="#run-a-single-binary">Run a Single Binary</a></h2>
-<pre><code class="language-bash">./build-debug/tests/functional_tests "[hgraph]"
-./build-debug/tests/functional_tests "[hnsw][concurrent]"
-</code></pre>
-<p>Catch2 supports filtering by name, tag, and wildcards — see <code>--help</code>.</p>
-<h2 id="coverage-expectations"><a class="header" href="#coverage-expectations">Coverage Expectations</a></h2>
-<p>Contributions are expected to keep the C++ line coverage over <code>src/</code> and <code>include/</code> at <strong>90%</strong> or
-higher, as measured by the <code>make cov</code> flow and the CI coverage job.</p>
-<h2 id="memory--concurrency"><a class="header" href="#memory--concurrency">Memory &amp; Concurrency</a></h2>
+<p>The logger pointer is <strong>not</strong> owned by VSAG — keep it alive for the duration of
+any VSAG call. Pass <code>nullptr</code> to fall back to the built-in logger.</p>
+<p>Runnable example: <code>examples/cpp/202_custom_logger.cpp</code>.</p>
+<h2 id="global-tuning-via-options"><a class="header" href="#global-tuning-via-options">Global tuning via <code>Options</code></a></h2>
+<p><code>vsag::Options::Instance()</code> (<code>vsag/options.h</code>) is a process-wide singleton for
+settings that do not belong to a specific index:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Setter</th><th>Default</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>set_num_threads_io(n)</code></td><td><code>8</code></td><td>Threads used for disk-index IO during search. Must be in <code>[1, 200]</code>.</td></tr>
+<tr><td><code>set_num_threads_building(n)</code></td><td><code>4</code></td><td>Threads used while building disk indexes.</td></tr>
+<tr><td><code>set_block_size_limit(bytes)</code></td><td><code>128 MiB</code></td><td>Maximum size of a single allocation block. Must be <code>≥ 256 KiB</code> (<code>src/options.cpp:53-57</code>).</td></tr>
+<tr><td><code>set_direct_IO_object_align_bit(bits)</code></td><td><code>9</code></td><td>Direct-IO alignment, in bits. Must be <code>≤ 21</code> (alignment size up to 2 MiB; <code>src/options.cpp:40-46</code>).</td></tr>
+<tr><td><code>set_logger(Logger*)</code></td><td>built-in</td><td>See <a href="#logger">Logger</a>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>These options affect every index in the process; set them once at startup. They
+do <strong>not</strong> override per-index parameters such as HGraph’s <code>build_thread_count</code>.</p>
+<h2 id="what-is-not-publicly-extensible"><a class="header" href="#what-is-not-publicly-extensible">What is <em>not</em> publicly extensible</a></h2>
+<p>VSAG does not currently provide stable public interfaces for the following:</p>
 <ul>
-<li><code>test_memleak.cpp</code>: run under AddressSanitizer / LeakSanitizer to verify construction and
-destruction paths.</li>
-<li><code>test_multi_thread.cpp</code>: concurrent <code>Build</code> / <code>KnnSearch</code> / <code>RangeSearch</code> correctness.</li>
+<li><strong>Quantizers.</strong> Concrete quantizer types (SQ8, PQ, RaBitQ, …) are selected
+via index parameters; subclassing them from user code is not supported.</li>
+<li><strong>Distance computers / metric types.</strong> Distance metrics are fixed to
+<code>l2</code>, <code>ip</code>, and <code>cosine</code> per index.</li>
+<li><strong>DataCell / IO / storage backends inside an index.</strong> These are
+implementation details. Use the <code>Reader</code> interface for custom IO at the
+deserialization boundary.</li>
 </ul>
-<h2 id="python-tests"><a class="header" href="#python-tests">Python Tests</a></h2>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
-cd tests/python &amp;&amp; pytest -q
-</code></pre>
-<h2 id="references"><a class="header" href="#references">References</a></h2>
+<p>If you need one of these, please open an issue describing the use case.</p>
+<h2 id="a-note-on-vsagext"><a class="header" href="#a-note-on-vsagext">A note on <code>vsag::ext</code></a></h2>
+<p>The <code>vsag/vsag_ext.h</code> header defines a thin handle-based API (<code>IndexHandler</code>,
+<code>DatasetHandler</code>, <code>BitsetHandler</code>, …) intended for <strong>language bindings and FFI</strong>. It is not a
+user-facing extension surface; prefer the standard <code>vsag::Index</code> API for C++
+applications.</p>
+<h2 id="related-examples"><a class="header" href="#related-examples">Related examples</a></h2>
 <ul>
-<li><code>tests/</code> directory</li>
-<li>Makefile entries: <code>test</code>, <code>cov</code>, <code>asan</code></li>
+<li><code>examples/cpp/201_custom_allocator.cpp</code></li>
+<li><code>examples/cpp/202_custom_logger.cpp</code></li>
+<li><code>examples/cpp/203_custom_thread_pool.cpp</code></li>
+<li><code>examples/cpp/301_feature_filter.cpp</code></li>
+<li><code>examples/cpp/102_index_diskann.cpp</code></li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../development/building.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/introspection.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/contributing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/enhance_graph.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -368,11 +456,11 @@ cd tests/python &amp;&amp; pytest -q
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../development/building.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/introspection.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/contributing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/enhance_graph.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

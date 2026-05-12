@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2d4b58e4.js";
+            window.path_to_searchindex_js = "searchindex-45e0c915.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-3374a3d0.js"></script>
+        <script src="toc-d6c9bab9.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -2666,6 +2666,148 @@ full control over parallelism and resource ownership. See
 <li>If nothing is configured, VSAG falls back to a default <code>malloc</code>-based allocator.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="per-search-allocator"><a class="header" href="#per-search-allocator">Per-Search Allocator</a></h1>
+<p>VSAG exposes a <strong>per-call</strong> <code>Allocator</code> hook that is separate from the index’s own allocator,
+intended for use cases such as:</p>
+<ul>
+<li>isolating per-query memory from the index’s long-lived heap;</li>
+<li>backing high-concurrency online traffic with a thread-local arena that has no atomic
+contention with neighbours;</li>
+<li>accounting or capping each query’s footprint independently of the index.</li>
+</ul>
+<p>The hook is exposed through two surfaces — <code>SearchRequest::search_allocator_</code> (recommended) and
+the legacy <code>SearchParam::allocator</code> — but <strong>how much of a search actually consumes that
+allocator depends on the index and the entry point</strong>. As of today, only <code>HGraph::SearchWithRequest</code>
+plumbs <code>search_allocator_</code> end-to-end (scratch buffers <strong>and</strong> the result <code>Dataset</code>); the other
+<code>SearchWithRequest</code> implementations (IVF / BruteForce / WARP) use it for some scratch
+state but still allocate the result <code>Dataset</code> from the index’s own allocator. See
+<a href="#relationship-to-the-indexs-allocator">Relationship to the Index’s Allocator</a> below for the
+per-surface breakdown.</p>
+<blockquote>
+<p><strong>Scope.</strong> The allocator hook is currently exposed through <code>KnnSearch</code> (<code>SearchParam</code> overload)
+and <code>SearchWithRequest</code>. <code>RangeSearch</code> does not have an allocator-bearing overload at this
+time, and <code>SearchRequest::search_allocator_</code> is not consulted by the range-search path.</p>
+</blockquote>
+<h2 id="recommended-api--searchrequestsearch_allocator_"><a class="header" href="#recommended-api--searchrequestsearch_allocator_">Recommended API — <code>SearchRequest::search_allocator_</code></a></h2>
+<pre><code class="language-cpp">#include "vsag/search_request.h"
+
+vsag::SearchRequest req;
+req.query_ = query;
+req.mode_ = vsag::SearchMode::KNN_SEARCH;
+req.topk_ = 10;
+req.params_str_ = R"({"hgraph":{"ef_search":100}})";
+req.search_allocator_ = thread_local_allocator.get();  // optional, may stay nullptr
+
+auto result = index-&gt;SearchWithRequest(req).value();
+</code></pre>
+<p><code>SearchRequest</code> (<code>include/vsag/search_request.h</code>) is the recommended, non-deprecated way to drive
+a single search call. The <code>search_allocator_</code> field is optional — when left at <code>nullptr</code>, the
+index falls back to the allocator that was attached to its owning <code>Resource</code>.</p>
+<blockquote>
+<p><strong>Availability.</strong> <code>Index::SearchWithRequest</code> has a default implementation that returns an
+<em>unsupported</em> error. Only HGraph, IVF, BruteForce and WARP implement it today
+(<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>). For indexes that do not yet override
+<code>SearchWithRequest</code> (HNSW, DiskANN, SINDI, Pyramid, SparseIndex), use the legacy <code>SearchParam</code>
+path described below.</p>
+</blockquote>
+<h2 id="legacy-api--searchparamallocator-deprecated"><a class="header" href="#legacy-api--searchparamallocator-deprecated">Legacy API — <code>SearchParam::allocator</code> <em>(deprecated)</em></a></h2>
+<pre><code class="language-cpp">#include "vsag/search_param.h"
+
+nlohmann::json search_params = {{"hgraph", {{"ef_search", 100}}}};
+std::string param_str = search_params.dump();
+
+vsag::SearchParam search_param(/*iter_filter=*/false,
+                               param_str,
+                               /*filter=*/nullptr,
+                               /*allocator=*/thread_local_allocator.get());
+auto result = index-&gt;KnnSearch(query, /*k=*/10, search_param).value();
+</code></pre>
+<p><code>SearchParam</code> is documented as deprecated in <code>include/vsag/search_param.h</code> (“Use SearchRequest
+instead”) and remains only for source compatibility. The wording is currently a doc comment —
+the struct itself does not carry the C++ <code>[[deprecated]]</code> attribute, so the compiler will not
+emit deprecation warnings, but new code should still target <code>SearchRequest</code> /
+<code>SearchWithRequest</code> on indexes that support it. The example
+<code>examples/cpp/313_feature_search_allocator.cpp</code> (HNSW) and
+<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> (HGraph) demonstrate the legacy form.</p>
+<h2 id="result-ownership"><a class="header" href="#result-ownership">Result Ownership</a></h2>
+<p>The result-<code>Dataset</code> ownership contract depends on which index implements <code>SearchWithRequest</code>:</p>
+<ul>
+<li><strong>HGraph</strong> is the only index that currently plumbs <code>request.search_allocator_</code> into
+<code>create_fast_dataset</code> (see <code>src/algorithm/hgraph.cpp</code> — <code>ctx.alloc = request.search_allocator_</code>).
+The resulting <code>Dataset</code> is marked <code>Owner(true, allocator)</code> and its destructor will call
+<code>allocator-&gt;Deallocate(...)</code> on <code>ids</code> / <code>distances</code> automatically.</li>
+<li><strong>IVF / BruteForce / WARP</strong> currently construct the result <code>Dataset</code> via
+<code>create_fast_dataset(..., allocator_)</code> — i.e. the index’s own allocator
+(<code>src/algorithm/ivf.cpp</code>, <code>src/algorithm/brute_force.cpp</code>, <code>src/algorithm/warp.cpp</code>).
+<code>request.search_allocator_</code> is only consulted for scratch state on those paths today; the
+result buffers are owned by the index’s allocator. Treat the result <code>Dataset</code>’s lifetime as
+tied to the index’s allocator on these indexes.</li>
+</ul>
+<p>What this means in practice:</p>
+<ul>
+<li><strong>Do not manually <code>Deallocate</code> the result buffers.</strong> Letting the <code>Dataset</code> go out of scope is
+enough; double-freeing through both manual <code>Deallocate(...)</code> and the destructor is undefined
+behaviour.</li>
+<li><strong>Whichever allocator owns the result must outlive that result <code>Dataset</code>.</strong> For HGraph that is
+the per-search allocator; for IVF / BruteForce / WARP that is the index allocator (always
+alive while the index is alive).</li>
+<li><strong><code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> currently makes the deallocation
+explicit.</strong> That pattern is left over from earlier API iterations; new code that targets the
+current owner-tracking behaviour should rely on the <code>Dataset</code> destructor instead.</li>
+</ul>
+<p>The simplest safe pattern is “one allocator per thread, reset between batches”:</p>
+<pre><code class="language-cpp">ArenaAllocator arena;       // thread-local, big enough for one batch
+
+for (const auto&amp; q : batch) {
+    vsag::SearchRequest req;
+    req.query_ = q;
+    req.topk_ = topk;
+    req.params_str_ = params;
+    req.search_allocator_ = &amp;arena;
+    auto result = index-&gt;SearchWithRequest(req).value();
+    consume(result);
+    // result Dataset destroyed here; arena frees ids/distances via its Deallocate.
+}
+arena.reset();              // drops every per-query buffer at once
+</code></pre>
+<h2 id="relationship-to-the-indexs-allocator"><a class="header" href="#relationship-to-the-indexs-allocator">Relationship to the Index’s Allocator</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Surface</th><th>Allocator used</th></tr>
+</thead>
+<tbody>
+<tr><td>Index build, insert, persistent state</td><td><code>Resource</code>’s allocator (or default if none was passed).</td></tr>
+<tr><td><code>HGraph::SearchWithRequest</code> scratch + result <code>Dataset</code></td><td><code>search_allocator_</code> if set, otherwise the <code>Resource</code>’s allocator. HGraph is the only index that plumbs <code>search_allocator_</code> into the result.</td></tr>
+<tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> result <code>Dataset</code></td><td>Always the index’s own allocator (<code>allocator_</code>). <code>search_allocator_</code> is <em>not</em> consulted for result buffers today.</td></tr>
+<tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> scratch state</td><td>Uses <code>search_allocator_</code> for some intermediate buffers when set; otherwise the index’s allocator.</td></tr>
+<tr><td><code>KnnSearch(query, k, SearchParam)</code> (legacy)</td><td>Uses <code>SearchParam::allocator</code> if set, on indexes whose <code>KnnSearch</code> honors it (e.g. HNSW, HGraph examples). Otherwise the <code>Resource</code> allocator.</td></tr>
+<tr><td><code>KnnSearch(query, k, parameters_str)</code></td><td>No per-search allocator hook — uses the <code>Resource</code> allocator.</td></tr>
+<tr><td><code>RangeSearch(...)</code> (all forms)</td><td>Uses the <code>Resource</code> allocator; no per-search allocator hook.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Setting a per-search allocator never affects the index’s permanent data structures. It only
+narrows the lifetime of memory touched by one specific search call, and only to the extent that
+the index/entry point actually consumes it (see the per-row notes above).</p>
+<h2 id="requirements-1"><a class="header" href="#requirements-1">Requirements</a></h2>
+<ul>
+<li>The allocator must be thread-safe <strong>only if</strong> it is shared across threads. A thread-local
+arena does not need internal synchronization.</li>
+<li>The allocator’s lifetime must outlive every result <code>Dataset</code> it produced.</li>
+<li><code>Reallocate(nullptr, size)</code> must behave like <code>Allocate(size)</code>. VSAG relies on this contract for
+its internal containers.</li>
+</ul>
+<h2 id="runnable-examples"><a class="header" href="#runnable-examples">Runnable Examples</a></h2>
+<ul>
+<li><code>examples/cpp/313_feature_search_allocator.cpp</code> — HNSW + custom allocator (legacy
+<code>SearchParam</code>).</li>
+<li><code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> — HGraph (<code>sq8</code>) + custom allocator.</li>
+</ul>
+<p>See also <a href="#memory-management">Memory Management</a> for the index-level <code>Allocator</code> / <code>Resource</code> setup, and
+<a href="#filtered-search">Filtered Search</a> for combining a per-search allocator with custom filtering
+in a <code>SearchRequest</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="index-introspection"><a class="header" href="#index-introspection">Index Introspection</a></h1>
 <p>VSAG indexes expose three families of introspection APIs that let callers discover what an index
 can do, compute distances against existing vectors, and read back structured information about
@@ -2788,6 +2930,140 @@ at runtime. A runnable example is available at <code>examples/cpp/317_feature_ge
 distance. For purely quantized indexes (no raw vectors retained), <code>calculate_precise_distance = true</code> may return the quantized distance instead.</li>
 <li><code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> are read-only snapshots. The values returned
 reflect the index state at the moment of the call; concurrent mutations may invalidate them.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="extensibility"><a class="header" href="#extensibility">Extensibility</a></h1>
+<p>VSAG exposes a small set of stable C++ extension points so applications can plug
+in their own infrastructure without forking the library. This page summarizes
+<strong>what is extensible</strong> and <strong>what is not</strong>, and links to runnable examples.</p>
+<h2 id="public-extension-points"><a class="header" href="#public-extension-points">Public extension points</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Extension point</th><th>Header</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vsag::Allocator</code></td><td><code>vsag/allocator.h</code></td><td>Custom memory allocation strategy.</td></tr>
+<tr><td><code>vsag::Logger</code></td><td><code>vsag/logger.h</code></td><td>Redirect VSAG logs to your logging stack.</td></tr>
+<tr><td><code>vsag::ThreadPool</code></td><td><code>vsag/thread_pool.h</code></td><td>Reuse an external worker pool for builds and IO.</td></tr>
+<tr><td><code>vsag::Filter</code></td><td><code>vsag/filter.h</code></td><td>Custom pre-filter for <code>KnnSearch</code> / <code>RangeSearch</code>.</td></tr>
+<tr><td><code>vsag::Reader</code> (+ <code>ReaderSet</code>)</td><td><code>vsag/readerset.h</code></td><td>Custom IO backend for deserialization.</td></tr>
+</tbody>
+</table>
+</div>
+<p>All five are abstract base classes. Each declares at least one pure-virtual method that you
+must implement; some also declare non-pure-virtual methods with sensible defaults (for example,
+<code>Filter::CheckValid(const char*)</code>, <code>Filter::ValidRatio()</code>, <code>Filter::FilterDistribution()</code>,
+<code>Filter::GetValidIds()</code>, and <code>Reader::MultiRead()</code>) that you can override only when you need
+custom behaviour. Implement the required methods, wrap your instance in a <code>std::shared_ptr</code>
+(or pass a raw pointer where the API requires it), and hand it to VSAG.</p>
+<h2 id="wiring-extensions-into-an-index"><a class="header" href="#wiring-extensions-into-an-index">Wiring extensions into an index</a></h2>
+<p>There are two main entry points.</p>
+<h3 id="1-per-index-resources-via-engine"><a class="header" href="#1-per-index-resources-via-engine">1. Per-index resources via <code>Engine</code></a></h3>
+<p><code>vsag::Engine</code> (<code>vsag/engine.h</code>) is the recommended way to bind a custom
+<code>Allocator</code> and <code>ThreadPool</code> to every index it creates:</p>
+<pre><code class="language-cpp">auto allocator   = std::make_shared&lt;MyAllocator&gt;();
+auto thread_pool = std::make_shared&lt;MyThreadPool&gt;();
+vsag::Resource resource(allocator, thread_pool);
+vsag::Engine engine(&amp;resource);
+
+auto index = engine.CreateIndex("hgraph", parameters).value();
+// ... use index ...
+engine.Shutdown();
+</code></pre>
+<p><code>Engine(Resource*)</code> takes a non-owning pointer — the caller is responsible for
+keeping the <code>Resource</code> alive for at least as long as the engine and every index
+it produced (until <code>Shutdown()</code> returns / those indexes are destroyed). The
+<code>Resource</code> itself owns the <code>Allocator</code> / <code>ThreadPool</code> shared pointers. See
+<a href="#memory-management">Memory Management</a> for the full ownership model, and
+<a href="#per-search-allocator">Per-Search Allocator</a> for scoping an allocator to a
+single search call.</p>
+<p>For quick prototypes, <code>Engine::CreateDefaultAllocator()</code> and
+<code>Engine::CreateThreadPool(num_threads)</code> return ready-to-use implementations.</p>
+<h3 id="2-factorycreateindex-with-a-raw-allocator"><a class="header" href="#2-factorycreateindex-with-a-raw-allocator">2. <code>Factory::CreateIndex</code> with a raw allocator</a></h3>
+<p><code>vsag::Factory::CreateIndex(name, params, allocator)</code>
+(<code>vsag/factory.h</code>) accepts an optional <code>Allocator*</code>. This path does not take a
+thread pool; new code should prefer <code>Engine</code>.</p>
+<h2 id="filter"><a class="header" href="#filter">Filter</a></h2>
+<p>Implement <code>vsag::Filter</code> and pass a <code>FilterPtr</code> through <code>SearchRequest::filter_</code>
+<strong>and</strong> set <code>SearchRequest::enable_filter_ = true</code> (the filter is ignored when
+the flag is off). The legacy <code>SearchParam::filter</code> path remains supported.
+Only <code>CheckValid(int64_t id)</code> is required; the other hooks are optional
+optimizations:</p>
+<ul>
+<li><code>CheckValid(const char* data)</code> — filter on per-vector extra info.</li>
+<li><code>ValidRatio()</code> — hint the planner about selectivity.</li>
+<li><code>FilterDistribution()</code> — hint about the spatial distribution of the valid
+ids: <code>NONE</code> (default) means no hint, <code>RELATED_TO_VECTOR</code> means the valid ids
+are correlated with vector position. See <code>vsag/filter.h</code>.</li>
+<li><code>GetValidIds(...)</code> — expose a precomputed valid-id list for very selective
+filters.</li>
+</ul>
+<p>Runnable example: <code>examples/cpp/301_feature_filter.cpp</code>. The
+<a href="#filtered-search">Filtered Search</a> page describes filter integration in
+detail.</p>
+<h2 id="reader--readerset"><a class="header" href="#reader--readerset">Reader / ReaderSet</a></h2>
+<p><code>Index::Deserialize(const ReaderSet&amp;)</code> lets you stream an index from any storage
+backend (local file, object storage, remote FS, …) by providing a <code>Reader</code> per
+named binary stream. Implement <code>Read</code>, <code>AsyncRead</code>, and <code>Size</code> at minimum;
+<code>MultiRead</code> is optional and improves throughput when the backend supports
+batched IO. <code>vsag::Factory::CreateLocalFileReader</code> is a reference
+implementation for local files.</p>
+<p>Runnable example: <code>examples/cpp/102_index_diskann.cpp</code> (DiskANN deserialization
+uses <code>ReaderSet</code>). See <a href="#serialization">Serialization</a> for the full
+serialize / deserialize matrix.</p>
+<h2 id="logger"><a class="header" href="#logger">Logger</a></h2>
+<p>VSAG uses a single global logger configured through the <code>Options</code> singleton:</p>
+<pre><code class="language-cpp">class MyLogger : public vsag::Logger { /* implement Trace/Debug/Info/... */ };
+static MyLogger my_logger;
+vsag::Options::Instance().set_logger(&amp;my_logger);
+</code></pre>
+<p>The logger pointer is <strong>not</strong> owned by VSAG — keep it alive for the duration of
+any VSAG call. Pass <code>nullptr</code> to fall back to the built-in logger.</p>
+<p>Runnable example: <code>examples/cpp/202_custom_logger.cpp</code>.</p>
+<h2 id="global-tuning-via-options"><a class="header" href="#global-tuning-via-options">Global tuning via <code>Options</code></a></h2>
+<p><code>vsag::Options::Instance()</code> (<code>vsag/options.h</code>) is a process-wide singleton for
+settings that do not belong to a specific index:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Setter</th><th>Default</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>set_num_threads_io(n)</code></td><td><code>8</code></td><td>Threads used for disk-index IO during search. Must be in <code>[1, 200]</code>.</td></tr>
+<tr><td><code>set_num_threads_building(n)</code></td><td><code>4</code></td><td>Threads used while building disk indexes.</td></tr>
+<tr><td><code>set_block_size_limit(bytes)</code></td><td><code>128 MiB</code></td><td>Maximum size of a single allocation block. Must be <code>≥ 256 KiB</code> (<code>src/options.cpp:53-57</code>).</td></tr>
+<tr><td><code>set_direct_IO_object_align_bit(bits)</code></td><td><code>9</code></td><td>Direct-IO alignment, in bits. Must be <code>≤ 21</code> (alignment size up to 2 MiB; <code>src/options.cpp:40-46</code>).</td></tr>
+<tr><td><code>set_logger(Logger*)</code></td><td>built-in</td><td>See <a href="#logger">Logger</a>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>These options affect every index in the process; set them once at startup. They
+do <strong>not</strong> override per-index parameters such as HGraph’s <code>build_thread_count</code>.</p>
+<h2 id="what-is-not-publicly-extensible"><a class="header" href="#what-is-not-publicly-extensible">What is <em>not</em> publicly extensible</a></h2>
+<p>VSAG does not currently provide stable public interfaces for the following:</p>
+<ul>
+<li><strong>Quantizers.</strong> Concrete quantizer types (SQ8, PQ, RaBitQ, …) are selected
+via index parameters; subclassing them from user code is not supported.</li>
+<li><strong>Distance computers / metric types.</strong> Distance metrics are fixed to
+<code>l2</code>, <code>ip</code>, and <code>cosine</code> per index.</li>
+<li><strong>DataCell / IO / storage backends inside an index.</strong> These are
+implementation details. Use the <code>Reader</code> interface for custom IO at the
+deserialization boundary.</li>
+</ul>
+<p>If you need one of these, please open an issue describing the use case.</p>
+<h2 id="a-note-on-vsagext"><a class="header" href="#a-note-on-vsagext">A note on <code>vsag::ext</code></a></h2>
+<p>The <code>vsag/vsag_ext.h</code> header defines a thin handle-based API (<code>IndexHandler</code>,
+<code>DatasetHandler</code>, <code>BitsetHandler</code>, …) intended for <strong>language bindings and FFI</strong>. It is not a
+user-facing extension surface; prefer the standard <code>vsag::Index</code> API for C++
+applications.</p>
+<h2 id="related-examples"><a class="header" href="#related-examples">Related examples</a></h2>
+<ul>
+<li><code>examples/cpp/201_custom_allocator.cpp</code></li>
+<li><code>examples/cpp/202_custom_logger.cpp</code></li>
+<li><code>examples/cpp/203_custom_thread_pool.cpp</code></li>
+<li><code>examples/cpp/301_feature_filter.cpp</code></li>
+<li><code>examples/cpp/102_index_diskann.cpp</code></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="graph-index-enhancement"><a class="header" href="#graph-index-enhancement">Graph Index Enhancement</a></h1>

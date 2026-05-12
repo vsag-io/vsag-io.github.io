@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="light sidebar-visible" dir="ltr">
+<html lang="zh" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Running Tests - VSAG Documentation</title>
+        <title>搜索路径 Allocator - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-45e0c915.js";
+            window.path_to_searchindex_js = "../searchindex-c6a3763b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-d6c9bab9.js"></script>
+        <script src="../toc-89aa8de8.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG Documentation</h1>
+                    <h1 class="menu-title">VSAG文档</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,61 +304,142 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h1>
-<p>VSAG uses <a href="https://github.com/catchorg/Catch2">Catch2</a> for testing, organized in two layers:</p>
+                        <h1 id="搜索路径-allocator"><a class="header" href="#搜索路径-allocator">搜索路径 Allocator</a></h1>
+<p>VSAG 提供一个与索引自身 allocator 解耦的 <strong>per-call</strong> <code>Allocator</code> 注入点，适合：</p>
 <ul>
-<li><strong>Unit tests</strong> live next to source files under <code>src/</code>.</li>
-<li><strong>Functional tests</strong> live under <code>tests/</code> and cover cross-module, end-to-end behavior. Typical
-files include <code>test_hnsw.cpp</code>, <code>test_hgraph.cpp</code>, <code>test_diskann.cpp</code>, <code>test_ivf.cpp</code>,
-<code>test_pyramid.cpp</code>, <code>test_sindi.cpp</code>, <code>test_brute_force.cpp</code>, <code>test_multi_thread.cpp</code>,
-<code>test_memleak.cpp</code>.</li>
+<li>把单次查询的内存与索引长期持有的堆隔离开；</li>
+<li>在高并发在线场景下，每个线程绑一个 thread-local arena，彼此之间没有原子争用；</li>
+<li>独立于索引地核算或限制每次查询的内存占用。</li>
 </ul>
-<h2 id="run-the-full-suite"><a class="header" href="#run-the-full-suite">Run the Full Suite</a></h2>
-<p><code>make test</code> configures a Debug build with tests enabled and runs the full unit + functional
-suite:</p>
-<pre><code class="language-bash">make test
+<p>这个 Allocator 通过两个入口暴露：<code>SearchRequest::search_allocator_</code>（推荐）和旧版
+<code>SearchParam::allocator</code>。<strong>但具体有多少搜索路径真正消费这个 allocator，取决于索引与入口的实现。</strong>
+目前只有 <code>HGraph::SearchWithRequest</code> 把 <code>search_allocator_</code> 端到端贯通了（既用于临时缓冲，也用
+于结果 <code>Dataset</code>）；其它 <code>SearchWithRequest</code> 实现（IVF / BruteForce / WARP）只在部分临时
+状态上使用 <code>search_allocator_</code>，结果 <code>Dataset</code> 仍由索引自身的 allocator 分配。详见下文
+<a href="#与索引-allocator-的关系">与索引 Allocator 的关系</a>。</p>
+<blockquote>
+<p><strong>适用范围。</strong> Allocator 注入目前只通过 <code>KnnSearch</code>（<code>SearchParam</code> 重载）和
+<code>SearchWithRequest</code> 暴露。<code>RangeSearch</code> 没有携带 Allocator 的重载；
+<code>SearchRequest::search_allocator_</code> 也不会被 range-search 路径读取。</p>
+</blockquote>
+<h2 id="推荐-api--searchrequestsearch_allocator_"><a class="header" href="#推荐-api--searchrequestsearch_allocator_">推荐 API —— <code>SearchRequest::search_allocator_</code></a></h2>
+<pre><code class="language-cpp">#include "vsag/search_request.h"
+
+vsag::SearchRequest req;
+req.query_ = query;
+req.mode_ = vsag::SearchMode::KNN_SEARCH;
+req.topk_ = 10;
+req.params_str_ = R"({"hgraph":{"ef_search":100}})";
+req.search_allocator_ = thread_local_allocator.get();  // 可选，可为 nullptr
+
+auto result = index-&gt;SearchWithRequest(req).value();
 </code></pre>
-<p>Note: <code>make test</code> does not enable coverage instrumentation. To produce a coverage report, use
-<code>make cov</code> — it configures the build with <code>ENABLE_COVERAGE=ON</code>; run the test binaries afterwards
-to collect and aggregate coverage data:</p>
-<pre><code class="language-bash">make cov
-# then run the test binaries, e.g.:
-./build-debug/tests/functional_tests
-# open build-debug/coverage/index.html
+<p><code>SearchRequest</code>（<code>include/vsag/search_request.h</code>）是当前未废弃、推荐用来驱动单次搜索的入口。
+<code>search_allocator_</code> 字段是可选的，留空时索引会回退到它所属 <code>Resource</code> 上的 allocator。</p>
+<blockquote>
+<p><strong>可用性。</strong> <code>Index::SearchWithRequest</code> 默认实现会返回 <em>不支持</em> 错误。目前只有 HGraph、
+IVF、BruteForce、WARP 实现了它（<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>）。对于
+尚未 override 的索引（HNSW、DiskANN、SINDI、Pyramid、SparseIndex），请使用下文的旧版
+<code>SearchParam</code> 路径。</p>
+</blockquote>
+<h2 id="旧版-api--searchparamallocator已弃用"><a class="header" href="#旧版-api--searchparamallocator已弃用">旧版 API —— <code>SearchParam::allocator</code>（已弃用）</a></h2>
+<pre><code class="language-cpp">#include "vsag/search_param.h"
+
+nlohmann::json search_params = {{"hgraph", {{"ef_search", 100}}}};
+std::string param_str = search_params.dump();
+
+vsag::SearchParam search_param(/*iter_filter=*/false,
+                               param_str,
+                               /*filter=*/nullptr,
+                               /*allocator=*/thread_local_allocator.get());
+auto result = index-&gt;KnnSearch(query, /*k=*/10, search_param).value();
 </code></pre>
-<h2 id="run-a-single-binary"><a class="header" href="#run-a-single-binary">Run a Single Binary</a></h2>
-<pre><code class="language-bash">./build-debug/tests/functional_tests "[hgraph]"
-./build-debug/tests/functional_tests "[hnsw][concurrent]"
-</code></pre>
-<p>Catch2 supports filtering by name, tag, and wildcards — see <code>--help</code>.</p>
-<h2 id="coverage-expectations"><a class="header" href="#coverage-expectations">Coverage Expectations</a></h2>
-<p>Contributions are expected to keep the C++ line coverage over <code>src/</code> and <code>include/</code> at <strong>90%</strong> or
-higher, as measured by the <code>make cov</code> flow and the CI coverage job.</p>
-<h2 id="memory--concurrency"><a class="header" href="#memory--concurrency">Memory &amp; Concurrency</a></h2>
+<p><code>SearchParam</code> 在 <code>include/vsag/search_param.h</code> 中以文档注释的形式标注为已弃用
+（“Use SearchRequest instead”），仅为源码兼容保留。注意当前只是注释层面的弃用 —— struct
+本身并没有 C++ <code>[[deprecated]]</code> 属性，编译器不会发出弃用告警；但新代码如果所用索引已支持
+<code>SearchRequest</code>/<code>SearchWithRequest</code>，仍应优先使用该路径。
+<code>examples/cpp/313_feature_search_allocator.cpp</code>（HNSW）与
+<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>（HGraph）展示了旧版形式。</p>
+<h2 id="结果所有权"><a class="header" href="#结果所有权">结果所有权</a></h2>
+<p>结果 <code>Dataset</code> 的所有权契约取决于具体实现 <code>SearchWithRequest</code> 的索引：</p>
 <ul>
-<li><code>test_memleak.cpp</code>: run under AddressSanitizer / LeakSanitizer to verify construction and
-destruction paths.</li>
-<li><code>test_multi_thread.cpp</code>: concurrent <code>Build</code> / <code>KnnSearch</code> / <code>RangeSearch</code> correctness.</li>
+<li><strong>HGraph</strong> 是目前唯一把 <code>request.search_allocator_</code> 贯通到 <code>create_fast_dataset</code> 的索引
+（见 <code>src/algorithm/hgraph.cpp</code> 中 <code>ctx.alloc = request.search_allocator_</code>）。其结果 <code>Dataset</code>
+被标记为 <code>Owner(true, allocator)</code>，析构时会自动用该 allocator 释放 <code>ids</code> / <code>distances</code>。</li>
+<li><strong>IVF / BruteForce / WARP</strong> 当前用 <code>create_fast_dataset(..., allocator_)</code> 构造结果，即索引
+自身的 allocator（<code>src/algorithm/ivf.cpp</code>、<code>src/algorithm/brute_force.cpp</code>、
+<code>src/algorithm/warp.cpp</code>）。这些路径上 <code>request.search_allocator_</code> 只会被部分临时缓冲读取，
+结果缓冲仍由索引 allocator 持有。在这些索引上请把结果 <code>Dataset</code> 的生命周期视为绑定到索引
+allocator。</li>
 </ul>
-<h2 id="python-tests"><a class="header" href="#python-tests">Python Tests</a></h2>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
-cd tests/python &amp;&amp; pytest -q
-</code></pre>
-<h2 id="references"><a class="header" href="#references">References</a></h2>
+<p>实际意义：</p>
 <ul>
-<li><code>tests/</code> directory</li>
-<li>Makefile entries: <code>test</code>, <code>cov</code>, <code>asan</code></li>
+<li><strong>不要手动 <code>Deallocate</code> 结果缓冲。</strong> 让 <code>Dataset</code> 离开作用域即可；同时手动 <code>Deallocate(...)</code>
+与析构器释放会触发双重释放，属于未定义行为。</li>
+<li><strong>持有结果的那个 allocator 必须比结果 <code>Dataset</code> 活得更久。</strong> HGraph 上是 per-search
+allocator；IVF / BruteForce / WARP 上是索引 allocator（索引活着它就活着）。</li>
+<li><strong><code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> 目前显式地 Deallocate。</strong> 这是早期
+API 迭代遗留的写法；针对当前 owner-tracking 行为的新代码应改为依赖 <code>Dataset</code> 析构器。</li>
 </ul>
+<p>最简单的安全模式是「一线程一 allocator，批与批之间 reset」：</p>
+<pre><code class="language-cpp">ArenaAllocator arena;       // thread-local，足以容纳一批
+
+for (const auto&amp; q : batch) {
+    vsag::SearchRequest req;
+    req.query_ = q;
+    req.topk_ = topk;
+    req.params_str_ = params;
+    req.search_allocator_ = &amp;arena;
+    auto result = index-&gt;SearchWithRequest(req).value();
+    consume(result);
+    // result Dataset 在这里析构；arena 通过自己的 Deallocate 释放 ids/distances。
+}
+arena.reset();              // 一次性回收本批所有 per-query 缓冲
+</code></pre>
+<h2 id="与索引-allocator-的关系"><a class="header" href="#与索引-allocator-的关系">与索引 Allocator 的关系</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>场景</th><th>使用的 allocator</th></tr>
+</thead>
+<tbody>
+<tr><td>索引构建、插入、持久状态</td><td><code>Resource</code> 的 allocator（未传入则使用默认 allocator）。</td></tr>
+<tr><td><code>HGraph::SearchWithRequest</code> 的临时缓冲与结果 <code>Dataset</code></td><td>已设置 <code>search_allocator_</code> 时使用它，否则使用 <code>Resource</code> 的 allocator。HGraph 是目前唯一把 <code>search_allocator_</code> 贯通到结果的索引。</td></tr>
+<tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> 的结果 <code>Dataset</code></td><td>始终使用索引自身的 allocator（<code>allocator_</code>）。目前<strong>不</strong>消费 <code>search_allocator_</code>。</td></tr>
+<tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> 的部分临时状态</td><td>设置 <code>search_allocator_</code> 时会用它分配部分临时缓冲，否则使用索引 allocator。</td></tr>
+<tr><td><code>KnnSearch(query, k, SearchParam)</code>（旧版）</td><td>在认 <code>SearchParam::allocator</code> 的索引上（如 HNSW、HGraph 示例）使用该 allocator，否则使用 <code>Resource</code> allocator。</td></tr>
+<tr><td><code>KnnSearch(query, k, parameters_str)</code></td><td>无 per-search Allocator 入口，统一使用 <code>Resource</code> 的 allocator。</td></tr>
+<tr><td><code>RangeSearch(...)</code>（所有形态）</td><td>使用 <code>Resource</code> 的 allocator；没有 per-search Allocator 入口。</td></tr>
+</tbody>
+</table>
+</div>
+<p>设置 per-search Allocator 不会影响索引的永久数据结构。它只是收窄了某一次搜索调用所触碰内存的
+生命周期 —— 且仅限于索引/入口实际消费它的那部分（详见各行说明）。</p>
+<h2 id="约束"><a class="header" href="#约束">约束</a></h2>
+<ul>
+<li>allocator 只有在跨线程共享时才必须线程安全；thread-local arena 不需要内部同步。</li>
+<li>allocator 的生命周期必须超过它产生的每一个结果 <code>Dataset</code>。</li>
+<li><code>Reallocate(nullptr, size)</code> 必须等价于 <code>Allocate(size)</code>。VSAG 的内部容器依赖该契约。</li>
+</ul>
+<h2 id="可运行示例"><a class="header" href="#可运行示例">可运行示例</a></h2>
+<ul>
+<li><code>examples/cpp/313_feature_search_allocator.cpp</code> —— HNSW + 自定义 allocator（旧版
+<code>SearchParam</code>）。</li>
+<li><code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> —— HGraph（<code>sq8</code>）+ 自定义 allocator。</li>
+</ul>
+<p>参见 <a href="memory.html">内存管理</a> 了解索引级 <code>Allocator</code> / <code>Resource</code> 的设置，以及
+<a href="filtered_search.html">过滤搜索</a> 了解如何在 <code>SearchRequest</code> 中同时使用 per-search Allocator 与
+自定义过滤器。</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../development/building.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/memory.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/contributing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/introspection.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -368,11 +449,11 @@ cd tests/python &amp;&amp; pytest -q
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../development/building.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/memory.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/contributing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/introspection.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

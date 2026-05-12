@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="light sidebar-visible" dir="ltr">
+<html lang="zh" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Running Tests - VSAG Documentation</title>
+        <title>可扩展性 - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-45e0c915.js";
+            window.path_to_searchindex_js = "../searchindex-c6a3763b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-d6c9bab9.js"></script>
+        <script src="../toc-89aa8de8.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG Documentation</h1>
+                    <h1 class="menu-title">VSAG文档</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,61 +304,141 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h1>
-<p>VSAG uses <a href="https://github.com/catchorg/Catch2">Catch2</a> for testing, organized in two layers:</p>
+                        <h1 id="可扩展性"><a class="header" href="#可扩展性">可扩展性</a></h1>
+<p>VSAG 暴露了一组稳定的 C++ 扩展点，方便应用接入自有基础设施而无需 fork 库本身。
+本页梳理 <strong>哪些可以扩展</strong>、<strong>哪些不可以</strong>，并给出可运行示例的链接。</p>
+<h2 id="公开扩展点"><a class="header" href="#公开扩展点">公开扩展点</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>扩展点</th><th>头文件</th><th>用途</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vsag::Allocator</code></td><td><code>vsag/allocator.h</code></td><td>自定义内存分配策略。</td></tr>
+<tr><td><code>vsag::Logger</code></td><td><code>vsag/logger.h</code></td><td>把 VSAG 日志重定向到你的日志体系。</td></tr>
+<tr><td><code>vsag::ThreadPool</code></td><td><code>vsag/thread_pool.h</code></td><td>复用外部线程池执行 build 和 IO。</td></tr>
+<tr><td><code>vsag::Filter</code></td><td><code>vsag/filter.h</code></td><td>为 <code>KnnSearch</code> / <code>RangeSearch</code> 提供自定义预过滤器。</td></tr>
+<tr><td><code>vsag::Reader</code>（含 <code>ReaderSet</code>）</td><td><code>vsag/readerset.h</code></td><td>自定义反序列化的 IO 后端。</td></tr>
+</tbody>
+</table>
+</div>
+<p>这五个都是抽象基类。每个至少声明一个必须实现的纯虚方法；部分还声明了带默认实现的非纯虚方法
+（例如 <code>Filter::CheckValid(const char*)</code>、<code>Filter::ValidRatio()</code>、
+<code>Filter::FilterDistribution()</code>、<code>Filter::GetValidIds()</code>，以及 <code>Reader::MultiRead()</code>），只在需
+要自定义行为时才需要 override。实现必须的方法、用 <code>std::shared_ptr</code> 包装（或在 API 要求时
+直接传裸指针），然后交给 VSAG 即可。</p>
+<h2 id="把扩展接入索引"><a class="header" href="#把扩展接入索引">把扩展接入索引</a></h2>
+<p>主要有两条接入路径。</p>
+<h3 id="1-通过-engine-注入按索引生效的资源"><a class="header" href="#1-通过-engine-注入按索引生效的资源">1. 通过 <code>Engine</code> 注入按索引生效的资源</a></h3>
+<p><code>vsag::Engine</code>（<code>vsag/engine.h</code>）是绑定自定义 <code>Allocator</code> 与 <code>ThreadPool</code> 的
+推荐方式，绑定后由它创建的每个索引都会共享这些资源：</p>
+<pre><code class="language-cpp">auto allocator   = std::make_shared&lt;MyAllocator&gt;();
+auto thread_pool = std::make_shared&lt;MyThreadPool&gt;();
+vsag::Resource resource(allocator, thread_pool);
+vsag::Engine engine(&amp;resource);
+
+auto index = engine.CreateIndex("hgraph", parameters).value();
+// ... 使用索引 ...
+engine.Shutdown();
+</code></pre>
+<p><code>Engine(Resource*)</code> 接收的是 <strong>non-owning</strong> 裸指针（见
+<code>include/vsag/engine.h:38-42</code>）：调用者必须保证 <code>Resource</code>（连同它持有的
+allocator 与 thread pool）的生命周期长于 engine 以及 engine 创建的所有索引。
+<code>Engine::Shutdown()</code> 释放 engine 内部资源，但不会销毁外部的 <code>Resource</code>。
+<code>Resource</code> 提供两个构造器（<code>include/vsag/resource.h:45,59-60</code>）：既可以传裸
+<code>Allocator*</code> / <code>ThreadPool*</code>（生命周期由调用者管理），也可以传 <code>shared_ptr</code>
+重载，让 <code>Resource</code> 共享所有权。完整的所有权模型见 <a href="memory.html">内存管理</a>，
+把 allocator 收敛到单次搜索调用的用法见 <a href="search_allocator.html">搜索路径 Allocator</a>。</p>
+<p>如果只是想快速跑通，<code>Engine::CreateDefaultAllocator()</code> 与
+<code>Engine::CreateThreadPool(num_threads)</code> 会返回开箱即用的实现。</p>
+<h3 id="2-通过-factorycreateindex-传裸-allocator"><a class="header" href="#2-通过-factorycreateindex-传裸-allocator">2. 通过 <code>Factory::CreateIndex</code> 传裸 allocator</a></h3>
+<p><code>vsag::Factory::CreateIndex(name, params, allocator)</code>（<code>vsag/factory.h</code>）接受
+一个可选的 <code>Allocator*</code>。这条路径不接受线程池，新代码建议改用 <code>Engine</code>。</p>
+<h2 id="filter"><a class="header" href="#filter">Filter</a></h2>
+<p>实现 <code>vsag::Filter</code>，通过 <code>SearchRequest::filter_</code>（或已弃用的
+<code>SearchParam::filter</code>）传入 <code>FilterPtr</code> 即可。使用 <code>SearchRequest</code> 时，必须
+同时把 <code>enable_filter_</code> 设为 <code>true</code>，filter 才会真正生效
+（见 <code>include/vsag/search_request.h:113,123</code>）。只有 <code>CheckValid(int64_t id)</code>
+是必须实现的，其他都是可选的优化钩子：</p>
 <ul>
-<li><strong>Unit tests</strong> live next to source files under <code>src/</code>.</li>
-<li><strong>Functional tests</strong> live under <code>tests/</code> and cover cross-module, end-to-end behavior. Typical
-files include <code>test_hnsw.cpp</code>, <code>test_hgraph.cpp</code>, <code>test_diskann.cpp</code>, <code>test_ivf.cpp</code>,
-<code>test_pyramid.cpp</code>, <code>test_sindi.cpp</code>, <code>test_brute_force.cpp</code>, <code>test_multi_thread.cpp</code>,
-<code>test_memleak.cpp</code>.</li>
+<li><code>CheckValid(const char* data)</code>：基于向量 extra info 过滤。</li>
+<li><code>ValidRatio()</code>：向规划器提示选择度。</li>
+<li><code>FilterDistribution()</code>：返回 <code>NONE</code>（默认）或 <code>RELATED_TO_VECTOR</code>，声明有效
+id 的分布是否与向量在底层存储中的位置相关
+（见 <code>include/vsag/filter.h:27-30</code>）。</li>
+<li><code>GetValidIds(...)</code>：对于选择度极低的过滤器，提供预先计算好的有效 id 列表。</li>
 </ul>
-<h2 id="run-the-full-suite"><a class="header" href="#run-the-full-suite">Run the Full Suite</a></h2>
-<p><code>make test</code> configures a Debug build with tests enabled and runs the full unit + functional
-suite:</p>
-<pre><code class="language-bash">make test
+<p>可运行示例：<code>examples/cpp/301_feature_filter.cpp</code>。过滤接入的细节见
+<a href="filtered_search.html">过滤搜索</a>。</p>
+<h2 id="reader--readerset"><a class="header" href="#reader--readerset">Reader / ReaderSet</a></h2>
+<p><code>Index::Deserialize(const ReaderSet&amp;)</code>（<code>include/vsag/index.h:810</code>）允许通过
+per-stream 的 <code>Reader</code> 从任意存储后端（本地文件、对象存储、远程文件系统…）
+反序列化索引。至少实现 <code>Read</code>、<code>AsyncRead</code>、<code>Size</code> 三个方法；<code>MultiRead</code> 是
+可选的，当底层支持批量 IO 时能显著提升吞吐。<code>vsag::Factory::CreateLocalFileReader</code>
+是本地文件的参考实现。</p>
+<p>可运行示例：<code>examples/cpp/102_index_diskann.cpp</code>（DiskANN 的反序列化基于
+<code>ReaderSet</code>）。完整的序列化/反序列化矩阵见 <a href="serialization.html">序列化</a>。</p>
+<h2 id="logger"><a class="header" href="#logger">Logger</a></h2>
+<p>VSAG 使用全局唯一的 logger，通过 <code>Options</code> 单例配置：</p>
+<pre><code class="language-cpp">class MyLogger : public vsag::Logger { /* 实现 Trace/Debug/Info/... */ };
+static MyLogger my_logger;
+vsag::Options::Instance().set_logger(&amp;my_logger);
 </code></pre>
-<p>Note: <code>make test</code> does not enable coverage instrumentation. To produce a coverage report, use
-<code>make cov</code> — it configures the build with <code>ENABLE_COVERAGE=ON</code>; run the test binaries afterwards
-to collect and aggregate coverage data:</p>
-<pre><code class="language-bash">make cov
-# then run the test binaries, e.g.:
-./build-debug/tests/functional_tests
-# open build-debug/coverage/index.html
-</code></pre>
-<h2 id="run-a-single-binary"><a class="header" href="#run-a-single-binary">Run a Single Binary</a></h2>
-<pre><code class="language-bash">./build-debug/tests/functional_tests "[hgraph]"
-./build-debug/tests/functional_tests "[hnsw][concurrent]"
-</code></pre>
-<p>Catch2 supports filtering by name, tag, and wildcards — see <code>--help</code>.</p>
-<h2 id="coverage-expectations"><a class="header" href="#coverage-expectations">Coverage Expectations</a></h2>
-<p>Contributions are expected to keep the C++ line coverage over <code>src/</code> and <code>include/</code> at <strong>90%</strong> or
-higher, as measured by the <code>make cov</code> flow and the CI coverage job.</p>
-<h2 id="memory--concurrency"><a class="header" href="#memory--concurrency">Memory &amp; Concurrency</a></h2>
+<p>logger 指针的所有权 <strong>不</strong> 归 VSAG —— 必须在所有 VSAG 调用期间保持其存活。
+传入 <code>nullptr</code> 则回退到内置 logger。</p>
+<p>可运行示例：<code>examples/cpp/202_custom_logger.cpp</code>。</p>
+<h2 id="通过-options-进行全局调参"><a class="header" href="#通过-options-进行全局调参">通过 <code>Options</code> 进行全局调参</a></h2>
+<p><code>vsag::Options::Instance()</code>（<code>vsag/options.h</code>）是进程级单例，承载与具体索引
+无关的设置：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>接口</th><th>默认值</th><th>备注</th></tr>
+</thead>
+<tbody>
+<tr><td><code>set_num_threads_io(n)</code></td><td><code>8</code></td><td>搜索时磁盘索引的 IO 线程数，取值范围 <code>[1, 200]</code>。</td></tr>
+<tr><td><code>set_num_threads_building(n)</code></td><td><code>4</code></td><td>构建磁盘索引使用的线程数。</td></tr>
+<tr><td><code>set_block_size_limit(bytes)</code></td><td><code>128 MiB</code></td><td>单次分配 block 的最大值，必须 ≥ 256 KiB（见 <code>src/options.cpp:53-57</code>）。</td></tr>
+<tr><td><code>set_direct_IO_object_align_bit(bits)</code></td><td><code>9</code></td><td>Direct-IO 对齐位数，必须 ≤ 21（见 <code>src/options.cpp:40-46</code>）。</td></tr>
+<tr><td><code>set_logger(Logger*)</code></td><td>内置</td><td>见上文 <a href="#logger">Logger</a>。</td></tr>
+</tbody>
+</table>
+</div>
+<p>这些 option 对进程内所有索引生效，建议启动时设置一次。它们 <strong>不会</strong> 覆盖
+HGraph 的 <code>build_thread_count</code> 等具体索引参数。</p>
+<h2 id="哪些-不-提供公开扩展接口"><a class="header" href="#哪些-不-提供公开扩展接口">哪些 <em>不</em> 提供公开扩展接口</a></h2>
+<p>以下能力目前 <strong>没有</strong> 稳定的公开扩展接口：</p>
 <ul>
-<li><code>test_memleak.cpp</code>: run under AddressSanitizer / LeakSanitizer to verify construction and
-destruction paths.</li>
-<li><code>test_multi_thread.cpp</code>: concurrent <code>Build</code> / <code>KnnSearch</code> / <code>RangeSearch</code> correctness.</li>
+<li><strong>量化器（Quantizer）。</strong> 具体量化类型（SQ8、PQ、RaBitQ…）通过索引参数选择，
+不支持用户代码继承扩展。</li>
+<li><strong>距离计算器 / 距离类型。</strong> 每个索引的可选 metric 固定为 <code>l2</code>、<code>ip</code>、
+<code>cosine</code>。</li>
+<li><strong>索引内部的 DataCell / IO / 存储后端。</strong> 这些都是实现细节。若需要自定义
+IO，请在反序列化边界使用 <code>Reader</code> 接口。</li>
 </ul>
-<h2 id="python-tests"><a class="header" href="#python-tests">Python Tests</a></h2>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
-cd tests/python &amp;&amp; pytest -q
-</code></pre>
-<h2 id="references"><a class="header" href="#references">References</a></h2>
+<p>如果你的场景需要上述任一能力，请提 issue 描述使用场景。</p>
+<h2 id="关于-vsagext"><a class="header" href="#关于-vsagext">关于 <code>vsag::ext</code></a></h2>
+<p><code>vsag/vsag_ext.h</code> 提供了一组基于 handle 的精简 API（<code>IndexHandler</code>、
+<code>DatasetHandler</code>、<code>BitsetHandler</code> ……），用于 <strong>语言绑定 / FFI</strong>，并不是面向最终用户的扩展层。
+C++ 应用应直接使用标准的 <code>vsag::Index</code> API。</p>
+<h2 id="相关示例"><a class="header" href="#相关示例">相关示例</a></h2>
 <ul>
-<li><code>tests/</code> directory</li>
-<li>Makefile entries: <code>test</code>, <code>cov</code>, <code>asan</code></li>
+<li><code>examples/cpp/201_custom_allocator.cpp</code></li>
+<li><code>examples/cpp/202_custom_logger.cpp</code></li>
+<li><code>examples/cpp/203_custom_thread_pool.cpp</code></li>
+<li><code>examples/cpp/301_feature_filter.cpp</code></li>
+<li><code>examples/cpp/102_index_diskann.cpp</code></li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../development/building.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/introspection.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/contributing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/enhance_graph.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -368,11 +448,11 @@ cd tests/python &amp;&amp; pytest -q
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../development/building.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/introspection.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/contributing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/enhance_graph.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

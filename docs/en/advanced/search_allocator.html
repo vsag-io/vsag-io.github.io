@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Running Tests - VSAG Documentation</title>
+        <title>Per-Search Allocator - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -304,61 +304,157 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h1>
-<p>VSAG uses <a href="https://github.com/catchorg/Catch2">Catch2</a> for testing, organized in two layers:</p>
+                        <h1 id="per-search-allocator"><a class="header" href="#per-search-allocator">Per-Search Allocator</a></h1>
+<p>VSAG exposes a <strong>per-call</strong> <code>Allocator</code> hook that is separate from the index’s own allocator,
+intended for use cases such as:</p>
 <ul>
-<li><strong>Unit tests</strong> live next to source files under <code>src/</code>.</li>
-<li><strong>Functional tests</strong> live under <code>tests/</code> and cover cross-module, end-to-end behavior. Typical
-files include <code>test_hnsw.cpp</code>, <code>test_hgraph.cpp</code>, <code>test_diskann.cpp</code>, <code>test_ivf.cpp</code>,
-<code>test_pyramid.cpp</code>, <code>test_sindi.cpp</code>, <code>test_brute_force.cpp</code>, <code>test_multi_thread.cpp</code>,
-<code>test_memleak.cpp</code>.</li>
+<li>isolating per-query memory from the index’s long-lived heap;</li>
+<li>backing high-concurrency online traffic with a thread-local arena that has no atomic
+contention with neighbours;</li>
+<li>accounting or capping each query’s footprint independently of the index.</li>
 </ul>
-<h2 id="run-the-full-suite"><a class="header" href="#run-the-full-suite">Run the Full Suite</a></h2>
-<p><code>make test</code> configures a Debug build with tests enabled and runs the full unit + functional
-suite:</p>
-<pre><code class="language-bash">make test
+<p>The hook is exposed through two surfaces — <code>SearchRequest::search_allocator_</code> (recommended) and
+the legacy <code>SearchParam::allocator</code> — but <strong>how much of a search actually consumes that
+allocator depends on the index and the entry point</strong>. As of today, only <code>HGraph::SearchWithRequest</code>
+plumbs <code>search_allocator_</code> end-to-end (scratch buffers <strong>and</strong> the result <code>Dataset</code>); the other
+<code>SearchWithRequest</code> implementations (IVF / BruteForce / WARP) use it for some scratch
+state but still allocate the result <code>Dataset</code> from the index’s own allocator. See
+<a href="#relationship-to-the-indexs-allocator">Relationship to the Index’s Allocator</a> below for the
+per-surface breakdown.</p>
+<blockquote>
+<p><strong>Scope.</strong> The allocator hook is currently exposed through <code>KnnSearch</code> (<code>SearchParam</code> overload)
+and <code>SearchWithRequest</code>. <code>RangeSearch</code> does not have an allocator-bearing overload at this
+time, and <code>SearchRequest::search_allocator_</code> is not consulted by the range-search path.</p>
+</blockquote>
+<h2 id="recommended-api--searchrequestsearch_allocator_"><a class="header" href="#recommended-api--searchrequestsearch_allocator_">Recommended API — <code>SearchRequest::search_allocator_</code></a></h2>
+<pre><code class="language-cpp">#include "vsag/search_request.h"
+
+vsag::SearchRequest req;
+req.query_ = query;
+req.mode_ = vsag::SearchMode::KNN_SEARCH;
+req.topk_ = 10;
+req.params_str_ = R"({"hgraph":{"ef_search":100}})";
+req.search_allocator_ = thread_local_allocator.get();  // optional, may stay nullptr
+
+auto result = index-&gt;SearchWithRequest(req).value();
 </code></pre>
-<p>Note: <code>make test</code> does not enable coverage instrumentation. To produce a coverage report, use
-<code>make cov</code> — it configures the build with <code>ENABLE_COVERAGE=ON</code>; run the test binaries afterwards
-to collect and aggregate coverage data:</p>
-<pre><code class="language-bash">make cov
-# then run the test binaries, e.g.:
-./build-debug/tests/functional_tests
-# open build-debug/coverage/index.html
+<p><code>SearchRequest</code> (<code>include/vsag/search_request.h</code>) is the recommended, non-deprecated way to drive
+a single search call. The <code>search_allocator_</code> field is optional — when left at <code>nullptr</code>, the
+index falls back to the allocator that was attached to its owning <code>Resource</code>.</p>
+<blockquote>
+<p><strong>Availability.</strong> <code>Index::SearchWithRequest</code> has a default implementation that returns an
+<em>unsupported</em> error. Only HGraph, IVF, BruteForce and WARP implement it today
+(<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>). For indexes that do not yet override
+<code>SearchWithRequest</code> (HNSW, DiskANN, SINDI, Pyramid, SparseIndex), use the legacy <code>SearchParam</code>
+path described below.</p>
+</blockquote>
+<h2 id="legacy-api--searchparamallocator-deprecated"><a class="header" href="#legacy-api--searchparamallocator-deprecated">Legacy API — <code>SearchParam::allocator</code> <em>(deprecated)</em></a></h2>
+<pre><code class="language-cpp">#include "vsag/search_param.h"
+
+nlohmann::json search_params = {{"hgraph", {{"ef_search", 100}}}};
+std::string param_str = search_params.dump();
+
+vsag::SearchParam search_param(/*iter_filter=*/false,
+                               param_str,
+                               /*filter=*/nullptr,
+                               /*allocator=*/thread_local_allocator.get());
+auto result = index-&gt;KnnSearch(query, /*k=*/10, search_param).value();
 </code></pre>
-<h2 id="run-a-single-binary"><a class="header" href="#run-a-single-binary">Run a Single Binary</a></h2>
-<pre><code class="language-bash">./build-debug/tests/functional_tests "[hgraph]"
-./build-debug/tests/functional_tests "[hnsw][concurrent]"
-</code></pre>
-<p>Catch2 supports filtering by name, tag, and wildcards — see <code>--help</code>.</p>
-<h2 id="coverage-expectations"><a class="header" href="#coverage-expectations">Coverage Expectations</a></h2>
-<p>Contributions are expected to keep the C++ line coverage over <code>src/</code> and <code>include/</code> at <strong>90%</strong> or
-higher, as measured by the <code>make cov</code> flow and the CI coverage job.</p>
-<h2 id="memory--concurrency"><a class="header" href="#memory--concurrency">Memory &amp; Concurrency</a></h2>
+<p><code>SearchParam</code> is documented as deprecated in <code>include/vsag/search_param.h</code> (“Use SearchRequest
+instead”) and remains only for source compatibility. The wording is currently a doc comment —
+the struct itself does not carry the C++ <code>[[deprecated]]</code> attribute, so the compiler will not
+emit deprecation warnings, but new code should still target <code>SearchRequest</code> /
+<code>SearchWithRequest</code> on indexes that support it. The example
+<code>examples/cpp/313_feature_search_allocator.cpp</code> (HNSW) and
+<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> (HGraph) demonstrate the legacy form.</p>
+<h2 id="result-ownership"><a class="header" href="#result-ownership">Result Ownership</a></h2>
+<p>The result-<code>Dataset</code> ownership contract depends on which index implements <code>SearchWithRequest</code>:</p>
 <ul>
-<li><code>test_memleak.cpp</code>: run under AddressSanitizer / LeakSanitizer to verify construction and
-destruction paths.</li>
-<li><code>test_multi_thread.cpp</code>: concurrent <code>Build</code> / <code>KnnSearch</code> / <code>RangeSearch</code> correctness.</li>
+<li><strong>HGraph</strong> is the only index that currently plumbs <code>request.search_allocator_</code> into
+<code>create_fast_dataset</code> (see <code>src/algorithm/hgraph.cpp</code> — <code>ctx.alloc = request.search_allocator_</code>).
+The resulting <code>Dataset</code> is marked <code>Owner(true, allocator)</code> and its destructor will call
+<code>allocator-&gt;Deallocate(...)</code> on <code>ids</code> / <code>distances</code> automatically.</li>
+<li><strong>IVF / BruteForce / WARP</strong> currently construct the result <code>Dataset</code> via
+<code>create_fast_dataset(..., allocator_)</code> — i.e. the index’s own allocator
+(<code>src/algorithm/ivf.cpp</code>, <code>src/algorithm/brute_force.cpp</code>, <code>src/algorithm/warp.cpp</code>).
+<code>request.search_allocator_</code> is only consulted for scratch state on those paths today; the
+result buffers are owned by the index’s allocator. Treat the result <code>Dataset</code>’s lifetime as
+tied to the index’s allocator on these indexes.</li>
 </ul>
-<h2 id="python-tests"><a class="header" href="#python-tests">Python Tests</a></h2>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
-cd tests/python &amp;&amp; pytest -q
-</code></pre>
-<h2 id="references"><a class="header" href="#references">References</a></h2>
+<p>What this means in practice:</p>
 <ul>
-<li><code>tests/</code> directory</li>
-<li>Makefile entries: <code>test</code>, <code>cov</code>, <code>asan</code></li>
+<li><strong>Do not manually <code>Deallocate</code> the result buffers.</strong> Letting the <code>Dataset</code> go out of scope is
+enough; double-freeing through both manual <code>Deallocate(...)</code> and the destructor is undefined
+behaviour.</li>
+<li><strong>Whichever allocator owns the result must outlive that result <code>Dataset</code>.</strong> For HGraph that is
+the per-search allocator; for IVF / BruteForce / WARP that is the index allocator (always
+alive while the index is alive).</li>
+<li><strong><code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> currently makes the deallocation
+explicit.</strong> That pattern is left over from earlier API iterations; new code that targets the
+current owner-tracking behaviour should rely on the <code>Dataset</code> destructor instead.</li>
 </ul>
+<p>The simplest safe pattern is “one allocator per thread, reset between batches”:</p>
+<pre><code class="language-cpp">ArenaAllocator arena;       // thread-local, big enough for one batch
+
+for (const auto&amp; q : batch) {
+    vsag::SearchRequest req;
+    req.query_ = q;
+    req.topk_ = topk;
+    req.params_str_ = params;
+    req.search_allocator_ = &amp;arena;
+    auto result = index-&gt;SearchWithRequest(req).value();
+    consume(result);
+    // result Dataset destroyed here; arena frees ids/distances via its Deallocate.
+}
+arena.reset();              // drops every per-query buffer at once
+</code></pre>
+<h2 id="relationship-to-the-indexs-allocator"><a class="header" href="#relationship-to-the-indexs-allocator">Relationship to the Index’s Allocator</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Surface</th><th>Allocator used</th></tr>
+</thead>
+<tbody>
+<tr><td>Index build, insert, persistent state</td><td><code>Resource</code>’s allocator (or default if none was passed).</td></tr>
+<tr><td><code>HGraph::SearchWithRequest</code> scratch + result <code>Dataset</code></td><td><code>search_allocator_</code> if set, otherwise the <code>Resource</code>’s allocator. HGraph is the only index that plumbs <code>search_allocator_</code> into the result.</td></tr>
+<tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> result <code>Dataset</code></td><td>Always the index’s own allocator (<code>allocator_</code>). <code>search_allocator_</code> is <em>not</em> consulted for result buffers today.</td></tr>
+<tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> scratch state</td><td>Uses <code>search_allocator_</code> for some intermediate buffers when set; otherwise the index’s allocator.</td></tr>
+<tr><td><code>KnnSearch(query, k, SearchParam)</code> (legacy)</td><td>Uses <code>SearchParam::allocator</code> if set, on indexes whose <code>KnnSearch</code> honors it (e.g. HNSW, HGraph examples). Otherwise the <code>Resource</code> allocator.</td></tr>
+<tr><td><code>KnnSearch(query, k, parameters_str)</code></td><td>No per-search allocator hook — uses the <code>Resource</code> allocator.</td></tr>
+<tr><td><code>RangeSearch(...)</code> (all forms)</td><td>Uses the <code>Resource</code> allocator; no per-search allocator hook.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Setting a per-search allocator never affects the index’s permanent data structures. It only
+narrows the lifetime of memory touched by one specific search call, and only to the extent that
+the index/entry point actually consumes it (see the per-row notes above).</p>
+<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
+<ul>
+<li>The allocator must be thread-safe <strong>only if</strong> it is shared across threads. A thread-local
+arena does not need internal synchronization.</li>
+<li>The allocator’s lifetime must outlive every result <code>Dataset</code> it produced.</li>
+<li><code>Reallocate(nullptr, size)</code> must behave like <code>Allocate(size)</code>. VSAG relies on this contract for
+its internal containers.</li>
+</ul>
+<h2 id="runnable-examples"><a class="header" href="#runnable-examples">Runnable Examples</a></h2>
+<ul>
+<li><code>examples/cpp/313_feature_search_allocator.cpp</code> — HNSW + custom allocator (legacy
+<code>SearchParam</code>).</li>
+<li><code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> — HGraph (<code>sq8</code>) + custom allocator.</li>
+</ul>
+<p>See also <a href="memory.html">Memory Management</a> for the index-level <code>Allocator</code> / <code>Resource</code> setup, and
+<a href="filtered_search.html">Filtered Search</a> for combining a per-search allocator with custom filtering
+in a <code>SearchRequest</code>.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../development/building.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/memory.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../development/contributing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/introspection.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -368,11 +464,11 @@ cd tests/python &amp;&amp; pytest -q
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../development/building.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/memory.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../development/contributing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/introspection.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
