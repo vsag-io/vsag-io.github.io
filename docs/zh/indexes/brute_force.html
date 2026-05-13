@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-e8b68718.js";
+            window.path_to_searchindex_js = "../searchindex-c6698104.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-a5e90d82.js"></script>
@@ -395,7 +395,7 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>把单条查询的线性扫描拆分到索引内部线程池中的若干线程上。该值越大，大语料下的单查询延迟越低，代价是占用更多 CPU 核。<code>&lt;= 0</code> 的取值会被钳制到 <code>1</code>。</td></tr>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>把单条查询的线性扫描拆分到索引内部线程池中的若干线程上。该参数同时作用于 <code>KnnSearch</code> 和 <code>RangeSearch</code>。该值越大，大语料下的单查询延迟越低，代价是占用更多 CPU 核。<code>&lt;= 0</code> 的取值会被钳制到 <code>1</code>。</td></tr>
 </tbody>
 </table>
 </div>
@@ -404,9 +404,11 @@ auto r1 = index-&gt;KnnSearch(query, topk, "{}").value();
 
 // 用 8 个线程并行扫描同一条查询。
 auto r2 = index-&gt;KnnSearch(query, topk, R"({"parallelism": 8})").value();
+
+// RangeSearch 使用同一个 parallelism 参数。
+auto r3 = index-&gt;RangeSearch(query, radius, R"({"parallelism": 8})").value();
 </code></pre>
-<p>范围查询参见 <a href="../advanced/range_search.html">范围搜索</a>。BruteForce 的 <code>RangeSearch</code> 不论
-<code>parallelism</code> 设置如何，始终单线程执行。</p>
+<p>范围查询语义参见 <a href="../advanced/range_search.html">范围搜索</a>。</p>
 <h2 id="索引能力"><a class="header" href="#索引能力">索引能力</a></h2>
 <p>BruteForce 声明的能力标志如下（参见 <code>BruteForce::InitFeatures</code>，
 <code>src/algorithm/brute_force.cpp</code>）：</p>
