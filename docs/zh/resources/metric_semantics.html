@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="light sidebar-visible" dir="ltr">
+<html lang="zh" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Index Parameters - VSAG Documentation</title>
+        <title>度量语义 - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1f847927.js";
+            window.path_to_searchindex_js = "../searchindex-ad88aa0a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a6b687a9.js"></script>
+        <script src="../toc-76ea9b6f.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG Documentation</h1>
+                    <h1 class="menu-title">VSAG文档</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,142 +304,65 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="index-parameters"><a class="header" href="#index-parameters">Index Parameters</a></h1>
-<p>This page summarises the commonly used parameters for every VSAG index type. For the full
-enumeration, consult the source:</p>
+                        <h1 id="vsag-中的度量语义"><a class="header" href="#vsag-中的度量语义">VSAG 中的度量语义</a></h1>
+<p>本页说明 VSAG 对 <code>l2</code>、<code>ip</code> 和 <code>cosine</code> 的实际处理方式。</p>
+<blockquote>
+<p>警告：VSAG 的内部度量实现是为了性能和一致性做过优化的，
+其行为可能与教科书上的数学定义不完全一致。做结果对比或准备
+真值时，请以本页描述的语义为准。</p>
+</blockquote>
+<p>VSAG 的搜索接口统一采用“越小越好”的距离模型。为保证性能和跨索引行为一致，
+内部实现常会复用平方距离、归一化向量或模长缓存。</p>
+<h2 id="l2"><a class="header" href="#l2"><code>l2</code></a></h2>
 <ul>
-<li>Build parameter keys: <code>src/constants.cpp</code></li>
-<li>Public constants: <code>include/vsag/constants.h</code></li>
-<li>Per-index examples: <code>examples/cpp/101_index_hnsw.cpp</code> and friends.</li>
+<li>距离计算公式为 <code>L2Sqr</code>（L2 平方距离）。</li>
+<li>内部很多内核会直接使用 <code>L2Sqr</code> 来加速计算。</li>
+<li>平方形式是为了性能考虑，排序结果仍与 L2 距离一致。返回的距离值和
+范围搜索阈值都是平方后的值。</li>
 </ul>
-<h2 id="common-fields"><a class="header" href="#common-fields">Common Fields</a></h2>
-<p>Every index requires these top-level fields at build time:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Values</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>dim</code></td><td>positive integer</td><td>Vector dimensionality; cannot change after build</td></tr>
-<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code></td><td>Vector data type; determines internal representation</td></tr>
-<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Distance metric</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h2>
-<p>HNSW uses the <code>hnsw</code> sub-object for build parameters. It does not accept HGraph-only keys
-such as <code>base_quantization_type</code>.</p>
-<pre><code class="language-json">{
-    "dim": 128,
-    "dtype": "float32",
-    "metric_type": "l2",
-    "hnsw": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "use_conjugate_graph": false
-    }
-}
-</code></pre>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Typical</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
-<tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
-<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td>Build the <a href="../advanced/enhance_graph.html">conjugate graph</a></td></tr>
-</tbody>
-</table>
-</div>
-<p>At search time:</p>
-<pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
-</code></pre>
-<h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
-<p>HGraph places its build parameters under the generic <code>index_param</code> key (see
-<code>examples/cpp/103_index_hgraph.cpp</code>); the <code>hgraph</code> key is reserved for search-time parameters.</p>
-<pre><code class="language-json">{
-    "dim": 128,
-    "dtype": "float32",
-    "metric_type": "l2",
-    "index_param": {
-        "base_quantization_type": "fp32",
-        "max_degree": 32,
-        "ef_construction": 400
-    }
-}
-</code></pre>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Typical</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
-<tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage</td></tr>
-</tbody>
-</table>
-</div>
-<p>At search time:</p>
-<pre><code class="language-json">{"hgraph": {"ef_search": 100}}
-</code></pre>
-<h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
-<pre><code class="language-json">{
-    "diskann": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "pq_sample_rate": 0.1,
-        "pq_dims": 32,
-        "use_async_io": true
-    }
-}
-</code></pre>
-<h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
-<pre><code class="language-json">{
-    "ivf": {
-        "nlist": 4096,
-        "base_quantization_type": "sq8",
-        "nprobe": 32
-    }
-}
-</code></pre>
-<h2 id="brute-force"><a class="header" href="#brute-force">Brute Force</a></h2>
-<pre><code class="language-json">{"brute_force": {}}
-</code></pre>
-<p>No extra parameters.</p>
-<h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
-<p>Pyramid supports organising multiple subgraphs by tag:</p>
-<pre><code class="language-json">{
-    "pyramid": {
-        "tag_dim": 1,
-        "max_degree": 24,
-        "ef_construction": 300
-    }
-}
-</code></pre>
-<h2 id="sindi-sparse-vectors"><a class="header" href="#sindi-sparse-vectors">SINDI (sparse vectors)</a></h2>
-<pre><code class="language-json">{
-    "sindi": {
-        "top_k": 32,
-        "doc_prune_ratio": 0.1
-    }
-}
-</code></pre>
-<h2 id="runtime-parameters"><a class="header" href="#runtime-parameters">Runtime Parameters</a></h2>
-<p>Beyond build-time parameters, <code>Index::Tune</code> and <code>SearchParam</code> tweak runtime settings such as
-<code>ef_search</code> and <code>nprobe</code>. See <a href="../advanced/optimizer.html">Optimizer</a> and the
-<code>examples/cpp/3xx_feature_*.cpp</code> examples.</p>
+<h2 id="ip"><a class="header" href="#ip"><code>ip</code></a></h2>
+<ul>
+<li>距离计算公式为 <code>1 - inner_product</code>。</li>
+<li>内积越大，距离越小。</li>
+</ul>
+<h2 id="cosine"><a class="header" href="#cosine"><code>cosine</code></a></h2>
+<ul>
+<li>距离计算公式为 <code>1 - cosine_similarity</code>。</li>
+<li>为了性能，某些实现会先归一化向量，或保存额外的模长信息，
+以复用面向 IP 的计算内核。</li>
+</ul>
+<p>cosine 搜索通常假定内部计算路径使用归一化向量。由于实现可能会
+执行归一化或缓存模长，返回值的语义目标仍是“距离”，但浮点误差
+可能使结果略微偏离理论值域。</p>
+<h2 id="返回值范围"><a class="header" href="#返回值范围">返回值范围</a></h2>
+<ul>
+<li><code>l2</code>：<code>0</code> 到 <code>+infinity</code></li>
+<li><code>ip</code>：无上界；当 <code>inner_product &gt; 1</code> 时，值可能为负</li>
+<li><code>cosine</code>：理论上在 cosine similarity 落在 <code>[-1, 1]</code> 时为 <code>0</code> 到 <code>2</code>，
+但浮点误差下可能略微越界</li>
+</ul>
+<h2 id="为什么要说明这一点"><a class="header" href="#为什么要说明这一点">为什么要说明这一点</a></h2>
+<ul>
+<li>数据集真值、查询语义和索引内部实现必须使用同一套度量约定。</li>
+<li>索引构建后，<code>l2</code>、<code>ip</code>、<code>cosine</code> 不能互相切换。</li>
+<li>跨工具对比结果时，要先确认对方使用的是“距离”还是“相似度”语义。</li>
+</ul>
+<h2 id="相关页面"><a class="header" href="#相关页面">相关页面</a></h2>
+<ul>
+<li><a href="../guide/create_index.html">创建索引</a></li>
+<li><a href="index_parameters.html">索引参数</a></li>
+<li><a href="dataset_format.html">HDF5 数据集格式</a></li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../indexes/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../resources/best_practices.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../indexes/hgraph.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/optimizer.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -449,11 +372,11 @@ such as <code>base_quantization_type</code>.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../indexes/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../resources/best_practices.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../indexes/hgraph.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/optimizer.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

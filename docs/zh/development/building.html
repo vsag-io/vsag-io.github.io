@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c6698104.js";
+            window.path_to_searchindex_js = "../searchindex-ad88aa0a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a5e90d82.js"></script>
+        <script src="../toc-76ea9b6f.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -400,6 +400,18 @@ install:                 ## Build and install the release version of vsag.
 <li><code>VSAG_ENABLE_INTEL_MKL</code>：是否启用 Intel MKL 作为 BLAS 后端，默认 <code>OFF</code>；关闭时使用 OpenBLAS；</li>
 <li><code>VSAG_ENABLE_LIBAIO</code>：是否启用 <code>libaio</code>，默认 <code>ON</code>。</li>
 </ul>
+<h2 id="发布流程"><a class="header" href="#发布流程">发布流程</a></h2>
+<p>如果要在 GitHub 上手动发布 Release，请到 GitHub Actions 页面运行 <code>Build and Publish Release</code> 工作流，并填写以下参数：</p>
+<ul>
+<li><code>branch</code>：要发布的分支、tag 或 commit SHA</li>
+<li><code>tag_name</code>：新的发布标签，例如 <code>v1.0.0</code></li>
+<li><code>prerelease</code>：是否标记为预发布版本</li>
+</ul>
+<p>如果你想在本地手动执行同样的打包流程，可以运行：</p>
+<pre><code class="language-bash">COMPILE_JOBS=6 bash ./scripts/release/dist.sh
+</code></pre>
+<p>如果机器内存足够，可以适当调大 <code>COMPILE_JOBS</code>；默认值会比较保守，以避免 CI 里再次触发
+内存不足。</p>
 
                     </main>
 

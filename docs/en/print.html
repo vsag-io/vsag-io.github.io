@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-40398068.js";
+            window.path_to_searchindex_js = "searchindex-1f847927.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-347430b4.js"></script>
+        <script src="toc-a6b687a9.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -830,6 +830,7 @@ and <code>docs/hgraph.md</code> in the repository.</p>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>Threads used to parallelise build</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Enable duplicate-ID detection on insert</td></tr>
+<tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Duplicate-detection distance threshold. When greater than <code>0</code>, deduplicate by the nearest candidate distance; when <code>0</code>, fall back to the current code <code>memcmp</code> check</td></tr>
 <tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>Remove()</code> on the built index</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Keep the raw vector in addition to the quantized copy (useful for <code>cosine</code>)</td></tr>
 <tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>Auto-tune search parameters after build</td></tr>
@@ -1662,6 +1663,19 @@ make dist-cxx11-abi       # _GLIBCXX_USE_CXX11_ABI=1
 make dist-libcxx          # libc++ (Clang)
 </code></pre>
 <p>The produced tarballs contain headers, static/shared libraries, and version metadata.</p>
+<h2 id="release-publishing"><a class="header" href="#release-publishing">Release Publishing</a></h2>
+<p>To publish a new GitHub Release, use the <code>Build and Publish Release</code> workflow in the GitHub
+Actions tab and run it manually with:</p>
+<ul>
+<li><code>branch</code>: the branch, tag, or commit SHA to release from</li>
+<li><code>tag_name</code>: the new release tag, such as <code>v1.0.0</code></li>
+<li><code>prerelease</code>: whether to mark the release as a prerelease</li>
+</ul>
+<p>For a local dry run of the same packaging script, run:</p>
+<pre><code class="language-bash">COMPILE_JOBS=6 bash ./scripts/release/dist.sh
+</code></pre>
+<p>You can increase <code>COMPILE_JOBS</code> if your machine has enough memory, but the default is conservative
+to avoid out-of-memory failures in CI runners.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h1>
 <p>VSAG uses <a href="https://github.com/catchorg/Catch2">Catch2</a> for testing, organized in two layers:</p>
@@ -3753,6 +3767,63 @@ allocator; see <a href="#memory-management">Memory Management</a>.</li>
 <li><code>eval_performance</code> can write its metrics directly to InfluxDB for long-term monitoring.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="metric-semantics-in-vsag"><a class="header" href="#metric-semantics-in-vsag">Metric Semantics in VSAG</a></h1>
+<p>This page explains how VSAG treats <code>l2</code>, <code>ip</code>, and <code>cosine</code> in practice.</p>
+<blockquote>
+<p>Warning: VSAG’s internal metric implementations are optimized for performance
+and consistency. Their behavior may differ from the textbook mathematical
+definitions, so use the semantics described here when comparing results or
+preparing ground truth.</p>
+</blockquote>
+<p>VSAG keeps all search APIs in a “smaller is better” distance model. For that
+reason, several internal implementations reuse squared distances, normalized
+vectors, or cached norms to keep behavior fast and consistent across index
+types.</p>
+<h2 id="l2"><a class="header" href="#l2"><code>l2</code></a></h2>
+<ul>
+<li>The distance is <code>L2Sqr</code> (squared L2 distance).</li>
+<li>Internally, many kernels work with <code>L2Sqr</code> for speed.</li>
+<li>The squared form is used for performance; ranking remains consistent with
+L2 distance. Returned distance values and range-search thresholds are
+squared.</li>
+</ul>
+<h2 id="ip"><a class="header" href="#ip"><code>ip</code></a></h2>
+<ul>
+<li>The distance is <code>1 - inner_product</code>.</li>
+<li>Larger inner product means smaller distance.</li>
+</ul>
+<h2 id="cosine"><a class="header" href="#cosine"><code>cosine</code></a></h2>
+<ul>
+<li>The distance is <code>1 - cosine_similarity</code>.</li>
+<li>For performance, implementations may normalize vectors or store extra norm
+information so cosine can reuse IP-oriented kernels.</li>
+</ul>
+<p>Cosine search generally assumes normalized vectors on the internal compute path.
+Because the implementation may normalize or cache norms, the returned value is
+intended to behave like a distance, but floating-point error can still push it
+slightly outside the ideal mathematical range.</p>
+<h2 id="return-value-range"><a class="header" href="#return-value-range">Return Value Range</a></h2>
+<ul>
+<li><code>l2</code>: <code>0</code> to <code>+infinity</code></li>
+<li><code>ip</code>: unbounded; values may be negative when <code>inner_product &gt; 1</code></li>
+<li><code>cosine</code>: ideally <code>0</code> to <code>2</code> when cosine similarity is in <code>[-1, 1]</code>, but
+small floating-point deviations are possible</li>
+</ul>
+<h2 id="why-this-matters"><a class="header" href="#why-this-matters">Why this matters</a></h2>
+<ul>
+<li>Dataset ground truth, query semantics, and index internals need to agree on
+the same metric family.</li>
+<li><code>l2</code>, <code>ip</code>, and <code>cosine</code> are not interchangeable after an index is built.</li>
+<li>When comparing results across tools, check whether the tool uses a distance
+or a similarity convention.</li>
+</ul>
+<h2 id="related-pages-1"><a class="header" href="#related-pages-1">Related Pages</a></h2>
+<ul>
+<li><a href="#creating-an-index">Creating an Index</a></li>
+<li><a href="#index-parameters">Index Parameters</a></li>
+<li><a href="#hdf5-dataset-format">HDF5 Dataset Format</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="optimizer-tune"><a class="header" href="#optimizer-tune">Optimizer (Tune)</a></h1>
 <p>For graph-based indexes (HNSW, HGraph), VSAG exposes the <code>Tune</code> interface, which automatically
 adjusts runtime parameters based on a representative query set to get a better trade-off between
@@ -4052,6 +4123,12 @@ formulas below.</p>
 are not supported for sparse vectors</li>
 </ul>
 </li>
+<li><strong>Allowed values for multi-vector</strong>:
+<ul>
+<li>Same as dense vectors (<code>"euclidean"</code>, <code>"ip"</code>, <code>"angular"</code>); multi-vector uses the
+same per-sub-vector distance function as dense vectors</li>
+</ul>
+</li>
 </ul>
 <h2 id="optional-datasets"><a class="header" href="#optional-datasets">Optional Datasets</a></h2>
 <h3 id="train_labels-and-test_labels"><a class="header" href="#train_labels-and-test_labels"><code>/train_labels</code> and <code>/test_labels</code></a></h3>
@@ -4076,6 +4153,47 @@ be strictly greater than the maximum label value (typically <code>L &gt; max(lab
 indices <code>0..L-1</code>). It is the dataset author’s responsibility to keep the array large
 enough to cover every label that appears in <code>/train_labels</code> and <code>/test_labels</code>.</li>
 </ul>
+<h2 id="multi-vector-datasets"><a class="header" href="#multi-vector-datasets">Multi-Vector Datasets</a></h2>
+<p>When <code>type="multi_vector"</code>, the file uses a flat-expanded layout where each document’s
+sub-vectors are concatenated into a single 2D matrix, and a companion <code>vector_counts</code>
+array records how many sub-vectors belong to each document.</p>
+<h3 id="additional-global-attribute"><a class="header" href="#additional-global-attribute">Additional Global Attribute</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Attribute</th><th>Type</th><th>Required</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>multi_vector_dim</code></td><td><code>INT64</code></td><td>yes</td><td>Sub-vector dimensionality (number of floats per sub-vector)</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="additional-datasets"><a class="header" href="#additional-datasets">Additional Datasets</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Dataset</th><th>Shape</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>/train_multi_vectors</code></td><td><code>(sum_counts_train, D)</code></td><td><code>FLOAT32</code></td><td>All training sub-vectors, flat-concatenated row by row</td></tr>
+<tr><td><code>/test_multi_vectors</code></td><td><code>(sum_counts_test, D)</code></td><td><code>FLOAT32</code></td><td>All query sub-vectors, flat-concatenated row by row</td></tr>
+<tr><td><code>/train_vector_counts</code></td><td><code>(N,)</code></td><td><code>UINT32</code></td><td>Number of sub-vectors per training document</td></tr>
+<tr><td><code>/test_vector_counts</code></td><td><code>(Q,)</code></td><td><code>UINT32</code></td><td>Number of sub-vectors per query document</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p><code>D</code> equals <code>multi_vector_dim</code>. <code>sum_counts_train</code> is the sum of all values in
+<code>/train_vector_counts</code>, and <code>sum_counts_test</code> is the sum of all values in
+<code>/test_vector_counts</code>.</p>
+</blockquote>
+<p>When <code>type="multi_vector"</code>, the standard <code>/train</code> and <code>/test</code> datasets are <strong>not
+required</strong> — the document count (<code>N</code>, <code>Q</code>) is derived from <code>/train_vector_counts</code>
+and <code>/test_vector_counts</code> instead. All other datasets (<code>/neighbors</code>, <code>/distances</code>,
+optional labels) remain mandatory.</p>
+<p>The evaluation tool reconstructs one <code>vsag::MultiVector</code> per document from the
+flat array plus the counts, then passes the full array to
+<code>vsag::Dataset::MultiVectors()</code>, <code>VectorCounts()</code>, and <code>MultiVectorDim()</code>.</p>
 <h2 id="structural-requirements"><a class="header" href="#structural-requirements">Structural Requirements</a></h2>
 <ol>
 <li>

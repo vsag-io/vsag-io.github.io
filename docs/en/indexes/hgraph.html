@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-40398068.js";
+            window.path_to_searchindex_js = "../searchindex-1f847927.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-347430b4.js"></script>
+        <script src="../toc-a6b687a9.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -377,6 +377,7 @@ and <code>docs/hgraph.md</code> in the repository.</p>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>Threads used to parallelise build</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Enable duplicate-ID detection on insert</td></tr>
+<tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Duplicate-detection distance threshold. When greater than <code>0</code>, deduplicate by the nearest candidate distance; when <code>0</code>, fall back to the current code <code>memcmp</code> check</td></tr>
 <tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>Remove()</code> on the built index</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Keep the raw vector in addition to the quantized copy (useful for <code>cosine</code>)</td></tr>
 <tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>Auto-tune search parameters after build</td></tr>

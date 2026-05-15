@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-40398068.js";
+            window.path_to_searchindex_js = "../searchindex-1f847927.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-347430b4.js"></script>
+        <script src="../toc-a6b687a9.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -391,6 +391,12 @@ formulas below.</p>
 are not supported for sparse vectors</li>
 </ul>
 </li>
+<li><strong>Allowed values for multi-vector</strong>:
+<ul>
+<li>Same as dense vectors (<code>"euclidean"</code>, <code>"ip"</code>, <code>"angular"</code>); multi-vector uses the
+same per-sub-vector distance function as dense vectors</li>
+</ul>
+</li>
 </ul>
 <h2 id="optional-datasets"><a class="header" href="#optional-datasets">Optional Datasets</a></h2>
 <h3 id="train_labels-and-test_labels"><a class="header" href="#train_labels-and-test_labels"><code>/train_labels</code> and <code>/test_labels</code></a></h3>
@@ -415,6 +421,47 @@ be strictly greater than the maximum label value (typically <code>L &gt; max(lab
 indices <code>0..L-1</code>). It is the dataset author’s responsibility to keep the array large
 enough to cover every label that appears in <code>/train_labels</code> and <code>/test_labels</code>.</li>
 </ul>
+<h2 id="multi-vector-datasets"><a class="header" href="#multi-vector-datasets">Multi-Vector Datasets</a></h2>
+<p>When <code>type="multi_vector"</code>, the file uses a flat-expanded layout where each document’s
+sub-vectors are concatenated into a single 2D matrix, and a companion <code>vector_counts</code>
+array records how many sub-vectors belong to each document.</p>
+<h3 id="additional-global-attribute"><a class="header" href="#additional-global-attribute">Additional Global Attribute</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Attribute</th><th>Type</th><th>Required</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>multi_vector_dim</code></td><td><code>INT64</code></td><td>yes</td><td>Sub-vector dimensionality (number of floats per sub-vector)</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="additional-datasets"><a class="header" href="#additional-datasets">Additional Datasets</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Dataset</th><th>Shape</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>/train_multi_vectors</code></td><td><code>(sum_counts_train, D)</code></td><td><code>FLOAT32</code></td><td>All training sub-vectors, flat-concatenated row by row</td></tr>
+<tr><td><code>/test_multi_vectors</code></td><td><code>(sum_counts_test, D)</code></td><td><code>FLOAT32</code></td><td>All query sub-vectors, flat-concatenated row by row</td></tr>
+<tr><td><code>/train_vector_counts</code></td><td><code>(N,)</code></td><td><code>UINT32</code></td><td>Number of sub-vectors per training document</td></tr>
+<tr><td><code>/test_vector_counts</code></td><td><code>(Q,)</code></td><td><code>UINT32</code></td><td>Number of sub-vectors per query document</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p><code>D</code> equals <code>multi_vector_dim</code>. <code>sum_counts_train</code> is the sum of all values in
+<code>/train_vector_counts</code>, and <code>sum_counts_test</code> is the sum of all values in
+<code>/test_vector_counts</code>.</p>
+</blockquote>
+<p>When <code>type="multi_vector"</code>, the standard <code>/train</code> and <code>/test</code> datasets are <strong>not
+required</strong> — the document count (<code>N</code>, <code>Q</code>) is derived from <code>/train_vector_counts</code>
+and <code>/test_vector_counts</code> instead. All other datasets (<code>/neighbors</code>, <code>/distances</code>,
+optional labels) remain mandatory.</p>
+<p>The evaluation tool reconstructs one <code>vsag::MultiVector</code> per document from the
+flat array plus the counts, then passes the full array to
+<code>vsag::Dataset::MultiVectors()</code>, <code>VectorCounts()</code>, and <code>MultiVectorDim()</code>.</p>
 <h2 id="structural-requirements"><a class="header" href="#structural-requirements">Structural Requirements</a></h2>
 <ol>
 <li>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c6698104.js";
+            window.path_to_searchindex_js = "../searchindex-ad88aa0a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a5e90d82.js"></script>
+        <script src="../toc-76ea9b6f.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -387,6 +387,12 @@
 <li><code>"ip"</code> —— 稀疏内积距离（<code>1 - 稀疏内积</code>），稀疏向量暂不支持其他度量</li>
 </ul>
 </li>
+<li><strong>多向量可选值</strong>：
+<ul>
+<li>与稠密向量相同（<code>"euclidean"</code>、<code>"ip"</code>、<code>"angular"</code>）；多向量使用与稠密
+向量相同的逐子向量距离函数</li>
+</ul>
+</li>
 </ul>
 <h2 id="可选数据集"><a class="header" href="#可选数据集">可选数据集</a></h2>
 <h3 id="train_labels-与-test_labels"><a class="header" href="#train_labels-与-test_labels"><code>/train_labels</code> 与 <code>/test_labels</code></a></h3>
@@ -410,6 +416,43 @@
 <code>0..L-1</code>）。数据集作者需自行保证该数组足够大，能覆盖 <code>/train_labels</code> 与
 <code>/test_labels</code> 中出现的所有 label。</li>
 </ul>
+<h2 id="多向量数据集"><a class="header" href="#多向量数据集">多向量数据集</a></h2>
+<p>当 <code>type="multi_vector"</code> 时，文件采用平坦展开布局：将每个文档的子向量拼接为一个
+二维矩阵，并辅以 <code>vector_counts</code> 数组记录每个文档包含多少子向量。</p>
+<h3 id="额外全局属性"><a class="header" href="#额外全局属性">额外全局属性</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>属性</th><th>类型</th><th>必填</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>multi_vector_dim</code></td><td><code>INT64</code></td><td>是</td><td>子向量维度（每个子向量的 float 个数）</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="额外数据集"><a class="header" href="#额外数据集">额外数据集</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>数据集</th><th>形状</th><th>类型</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>/train_multi_vectors</code></td><td><code>(sum_counts_train, D)</code></td><td><code>FLOAT32</code></td><td>所有训练子向量，按行平坦拼接</td></tr>
+<tr><td><code>/test_multi_vectors</code></td><td><code>(sum_counts_test, D)</code></td><td><code>FLOAT32</code></td><td>所有查询子向量，按行平坦拼接</td></tr>
+<tr><td><code>/train_vector_counts</code></td><td><code>(N,)</code></td><td><code>UINT32</code></td><td>每个训练文档的子向量数</td></tr>
+<tr><td><code>/test_vector_counts</code></td><td><code>(Q,)</code></td><td><code>UINT32</code></td><td>每个查询文档的子向量数</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p><code>D</code> 等于 <code>multi_vector_dim</code>。<code>sum_counts_train</code> 是 <code>/train_vector_counts</code> 所有值
+之和，<code>sum_counts_test</code> 是 <code>/test_vector_counts</code> 所有值之和。</p>
+</blockquote>
+<p>当 <code>type="multi_vector"</code> 时，标准的 <code>/train</code> 和 <code>/test</code> 数据集<strong>不是必需的</strong>，
+文档数量（<code>N</code>、<code>Q</code>）分别从 <code>/train_vector_counts</code> 和 <code>/test_vector_counts</code> 推导。
+其余数据集（<code>/neighbors</code>、<code>/distances</code>、可选标签）仍然是必填的。</p>
+<p>评测工具会从平坦数组和 counts 重建每个文档的 <code>vsag::MultiVector</code>，然后将完整数组
+传递给 <code>vsag::Dataset::MultiVectors()</code>、<code>VectorCounts()</code> 和 <code>MultiVectorDim()</code>。</p>
 <h2 id="结构性要求"><a class="header" href="#结构性要求">结构性要求</a></h2>
 <ol>
 <li>

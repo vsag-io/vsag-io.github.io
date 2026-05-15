@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c6698104.js";
+            window.path_to_searchindex_js = "../searchindex-ad88aa0a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-a5e90d82.js"></script>
+        <script src="../toc-76ea9b6f.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -370,6 +370,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>构建阶段并发线程数</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否在插入时做重复 ID 检测</td></tr>
+<tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>重复判定距离阈值。大于 <code>0</code> 时按最近候选的距离判重；等于 <code>0</code> 时退化为当前编码 <code>memcmp</code> 判重</td></tr>
 <tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>是否支持 <code>Remove()</code></td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>除量化副本外再保留原始向量（<code>cosine</code> 场景有用）</td></tr>
 <tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>构建完成后自动调优检索参数</td></tr>
