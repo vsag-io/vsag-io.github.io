@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="light sidebar-visible" dir="ltr">
+<html lang="zh" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Release Notes - VSAG Documentation</title>
+        <title>按 ID 计算距离 - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8789391d.js";
+            window.path_to_searchindex_js = "../searchindex-d03566ae.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-06c56812.js"></script>
+        <script src="../toc-fb803ab4.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG Documentation</h1>
+                    <h1 class="menu-title">VSAG文档</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,57 +304,139 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="release-notes"><a class="header" href="#release-notes">Release Notes</a></h1>
-<p>VSAG’s official release history and change notes are maintained on GitHub Releases:</p>
+                        <h1 id="按-id-计算距离"><a class="header" href="#按-id-计算距离">按 ID 计算距离</a></h1>
+<p>除了 <code>KnnSearch</code> 和 <code>RangeSearch</code>，VSAG 还提供了在<strong>已建好索引的向量上按 ID 计算距离</strong>的
+接口，可用于对外部候选集进行重排、召回核验，或在 VSAG 之上构建自定义检索流水线。</p>
+<p>接口分为两种形式：</p>
 <ul>
-<li><a href="https://github.com/antgroup/vsag/releases">Releases on GitHub</a></li>
+<li><code>CalcDistanceById</code>  — 单个 ID，返回单个距离值。</li>
+<li><code>CalDistanceById</code>   — 一批 ID，返回一个包含距离数组的 <code>DatasetPtr</code>。</li>
 </ul>
-<p>Each release includes:</p>
+<p>每种形式都有两个重载：一个接收 <code>const float*</code>（稠密向量），另一个接收 <code>DatasetPtr</code>
+（稠密或稀疏均可）。</p>
+<blockquote>
+<p><strong>关于命名的说明。</strong> 批量接口目前拼作 <code>CalDistanceById</code>（<code>Calc</code> 少了一个 <code>c</code>）。
+这是批量重载最初加入时遗留的拼写笔误，两个名字<strong>并不表示语义差异</strong>，区别仅在于
+<em>单个 vs. 批量</em>。出于向后兼容当前仍保留这一拼写，预计未来某个版本会将其
+<strong>标记为弃用（deprecated）</strong>，并改用拼写正确的新名（建议为
+<code>CalcDistancesById</code>）。建议新代码通过一层薄封装来调用，方便后续迁移。跟踪请见
+<a href="https://github.com/antgroup/vsag/issues/2068">issue #2068</a>。</p>
+</blockquote>
+<h2 id="接口概览"><a class="header" href="#接口概览">接口概览</a></h2>
+<pre><code class="language-cpp">// 单个 ID，稠密浮点指针
+tl::expected&lt;float, Error&gt;
+CalcDistanceById(const float* vector,
+                 int64_t id,
+                 bool calculate_precise_distance = true) const;
+
+// 单个 ID，DatasetPtr（稠密或稀疏）
+tl::expected&lt;float, Error&gt;
+CalcDistanceById(const DatasetPtr&amp; vector,
+                 int64_t id,
+                 bool calculate_precise_distance = true) const;
+
+// 批量 ID，稠密浮点指针
+tl::expected&lt;DatasetPtr, Error&gt;
+CalDistanceById(const float* query,
+                const int64_t* ids,
+                int64_t count,
+                bool calculate_precise_distance = true) const;
+
+// 批量 ID，DatasetPtr（稠密或稀疏）
+tl::expected&lt;DatasetPtr, Error&gt;
+CalDistanceById(const DatasetPtr&amp; query,
+                const int64_t* ids,
+                int64_t count,
+                bool calculate_precise_distance = true) const;
+</code></pre>
+<p>声明位于
+<a href="https://github.com/antgroup/vsag/blob/main/include/vsag/index.h"><code>include/vsag/index.h</code></a>。</p>
+<h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
 <ul>
-<li><strong>Features</strong> — new functionality</li>
-<li><strong>Improvements</strong></li>
-<li><strong>Bug Fixes</strong></li>
-<li><strong>Breaking Changes</strong> (when applicable)</li>
-<li><strong>Contributor credits</strong></li>
+<li><code>true</code>（默认）：尽量使用<strong>高精度</strong>向量表示（如完整 float32）来计算距离。对 DiskANN 而言
+可能需要从磁盘读取原始向量，会带来 I/O 开销。</li>
+<li><code>false</code>：可以使用索引内存中已有的<strong>量化 / 近似</strong>表示，速度更快但距离是近似值。</li>
 </ul>
-<h2 id="versioning"><a class="header" href="#versioning">Versioning</a></h2>
-<p>VSAG follows <a href="https://semver.org/">Semantic Versioning 2.0</a>:</p>
+<h3 id="返回值含义"><a class="header" href="#返回值含义">返回值含义</a></h3>
 <ul>
-<li><code>MAJOR.MINOR.PATCH</code></li>
-<li><code>MAJOR</code> generally comes with incompatible API or serialization changes.</li>
-<li><code>MINOR</code> adds functionality while remaining backward compatible.</li>
-<li><code>PATCH</code> contains only bug fixes and performance improvements.</li>
+<li>单 ID 重载返回 <code>float</code> 距离值。</li>
+<li>批量重载返回 <code>DatasetPtr</code>，其 <code>GetDistances()</code> 数组长度为 <code>count</code>，与输入 <code>ids</code> 一一
+对应。值为 <strong><code>-1</code></strong> 表示对应的 ID <strong>无效</strong>（如该 ID 不在索引中）。</li>
+<li>距离的语义由建索引时设置的 <code>metric_type</code>（IP / L2 / cosine）决定，参见
+<a href="../resources/metric_semantics.html">度量语义</a>。</li>
 </ul>
-<h2 id="getting-a-specific-version"><a class="header" href="#getting-a-specific-version">Getting a Specific Version</a></h2>
-<h3 id="c--source"><a class="header" href="#c--source">C++ / source</a></h3>
-<pre><code class="language-bash">git checkout vX.Y.Z
-make release
+<h2 id="基本用法"><a class="header" href="#基本用法">基本用法</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+// 1. 构建 HGraph 索引
+auto index = engine.CreateIndex("hgraph", hgraph_build_parameters).value();
+index-&gt;Build(base);
+
+// 2. 单 ID 距离
+auto d = index-&gt;CalcDistanceById(query_vector.data(), /*id=*/42);
+if (d.has_value()) {
+    std::cout &lt;&lt; "distance to id 42 = " &lt;&lt; d.value() &lt;&lt; std::endl;
+}
+
+// 3. 批量 ID 距离
+std::vector&lt;int64_t&gt; ids = { 1, 2, 3, 4, 5 };
+auto result = index-&gt;CalDistanceById(query_vector.data(), ids.data(), ids.size());
+if (result.has_value()) {
+    const float* dists = result.value()-&gt;GetDistances();
+    for (size_t i = 0; i &lt; ids.size(); ++i) {
+        if (dists[i] == -1.0f) {
+            std::cout &lt;&lt; ids[i] &lt;&lt; " -&gt; 无效 ID" &lt;&lt; std::endl;
+        } else {
+            std::cout &lt;&lt; ids[i] &lt;&lt; " -&gt; " &lt;&lt; dists[i] &lt;&lt; std::endl;
+        }
+    }
+}
 </code></pre>
-<h3 id="python"><a class="header" href="#python">Python</a></h3>
-<pre><code class="language-bash">pip install pyvsag==X.Y.Z
+<p>可运行的完整示例见
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/306_feature_calculate_distance_by_id.cpp"><code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code></a>。</p>
+<h2 id="稀疏向量"><a class="header" href="#稀疏向量">稀疏向量</a></h2>
+<p>对于稀疏向量索引（SINDI、SparseIndex），<code>const float*</code> 重载不适用。需要通过
+<code>SparseVectors(...)</code> 把查询封装为 <code>DatasetPtr</code>，并调用 <code>DatasetPtr</code> 重载：</p>
+<pre><code class="language-cpp">auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;SparseVectors(&amp;sparse_query)-&gt;Owner(false);
+
+auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 </code></pre>
-<h3 id="nodejs--typescript"><a class="header" href="#nodejs--typescript">Node.js / TypeScript</a></h3>
-<pre><code class="language-bash">npm install vsag@X.Y.Z
-</code></pre>
-<h2 id="upgrade-guidance"><a class="header" href="#upgrade-guidance">Upgrade Guidance</a></h2>
+<h2 id="支持矩阵"><a class="header" href="#支持矩阵">支持矩阵</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引类型</th><th>稠密重载（<code>const float*</code>）</th><th>DatasetPtr 重载</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td>hgraph</td><td>支持</td><td>支持</td><td>遵循 <code>calculate_precise_distance</code>。</td></tr>
+<tr><td>hnsw</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
+<tr><td>ivf</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
+<tr><td>brute_force</td><td>支持</td><td>支持（默认循环）</td><td>总是精确（无量化）。</td></tr>
+<tr><td>diskann</td><td>支持</td><td>支持（默认循环）</td><td><code>calculate_precise_distance=true</code> 可能触发磁盘 I/O。</td></tr>
+<tr><td>pyramid</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
+<tr><td>sindi</td><td>不支持</td><td>支持</td><td>仅稀疏向量。</td></tr>
+<tr><td>sparse_index</td><td>不支持</td><td>支持</td><td>仅稀疏向量。</td></tr>
+</tbody>
+</table>
+</div>
+<p>对于未实现某重载的索引，调用会返回 <code>UNSUPPORTED_INDEX_OPERATION</code> 错误。</p>
+<h2 id="注意事项"><a class="header" href="#注意事项">注意事项</a></h2>
 <ul>
-<li>Read the <strong>Breaking Changes</strong> section of the corresponding release before upgrading across major
-versions.</li>
-<li>When the serialization format changes, validate deserialization compatibility in a staging
-environment first.</li>
-<li>Roll out gradually in production and use the
-<a href="eval.html">performance evaluation tool</a> to compare recall and latency.</li>
+<li>稠密重载中，查询向量的维度必须与索引维度一致。</li>
+<li>批量重载存在默认实现：循环调用单 ID 接口；部分索引会重写以做批量优化。</li>
+<li>与 VSAG 其他只读接口一样，这些方法可以与 <code>KnnSearch</code> 等只读操作并发调用。</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../resources/analyze_index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/range_search.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../resources/roadmap_2025.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/filtered_search.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -364,11 +446,11 @@ environment first.</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../resources/analyze_index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/range_search.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../resources/roadmap_2025.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/filtered_search.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

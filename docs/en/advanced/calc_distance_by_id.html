@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Release Notes - VSAG Documentation</title>
+        <title>Calculate Distance by ID - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -304,57 +304,151 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="release-notes"><a class="header" href="#release-notes">Release Notes</a></h1>
-<p>VSAG’s official release history and change notes are maintained on GitHub Releases:</p>
+                        <h1 id="calculate-distance-by-id"><a class="header" href="#calculate-distance-by-id">Calculate Distance by ID</a></h1>
+<p>Besides <code>KnnSearch</code> and <code>RangeSearch</code>, VSAG exposes APIs that compute the distance between a
+query vector and <strong>already-indexed vectors referenced by their IDs</strong>. This is useful for
+re-ranking external candidate sets, validating recall, or implementing custom retrieval
+pipelines on top of VSAG.</p>
+<p>Two flavors are provided:</p>
 <ul>
-<li><a href="https://github.com/antgroup/vsag/releases">Releases on GitHub</a></li>
+<li><code>CalcDistanceById</code>  — single ID, returns one distance.</li>
+<li><code>CalDistanceById</code>   — batch of IDs, returns a <code>DatasetPtr</code> containing distances.</li>
 </ul>
-<p>Each release includes:</p>
+<p>Each flavor has two overloads: one taking a raw <code>const float*</code> (dense vectors) and one taking
+a <code>DatasetPtr</code> (works for both dense and sparse vectors).</p>
+<blockquote>
+<p><strong>Note on naming.</strong> The batch method is currently spelled <code>CalDistanceById</code>
+(missing the <code>c</code> in <code>Calc</code>). This is a historical typo introduced when the
+batch overload was first added; the two names do <strong>not</strong> indicate any
+semantic difference beyond <em>single vs. batch</em>. The current spelling is
+kept for backward compatibility and is expected to be <strong>deprecated</strong> in a
+future release in favor of a correctly spelled name (proposed:
+<code>CalcDistancesById</code>). New code is encouraged to centralize calls behind a
+thin wrapper to ease the eventual migration. See
+<a href="https://github.com/antgroup/vsag/issues/2068">issue #2068</a> for tracking.</p>
+</blockquote>
+<h2 id="api-overview"><a class="header" href="#api-overview">API Overview</a></h2>
+<pre><code class="language-cpp">// Single, dense float pointer.
+tl::expected&lt;float, Error&gt;
+CalcDistanceById(const float* vector,
+                 int64_t id,
+                 bool calculate_precise_distance = true) const;
+
+// Single, DatasetPtr (dense or sparse).
+tl::expected&lt;float, Error&gt;
+CalcDistanceById(const DatasetPtr&amp; vector,
+                 int64_t id,
+                 bool calculate_precise_distance = true) const;
+
+// Batch, dense float pointer.
+tl::expected&lt;DatasetPtr, Error&gt;
+CalDistanceById(const float* query,
+                const int64_t* ids,
+                int64_t count,
+                bool calculate_precise_distance = true) const;
+
+// Batch, DatasetPtr (dense or sparse).
+tl::expected&lt;DatasetPtr, Error&gt;
+CalDistanceById(const DatasetPtr&amp; query,
+                const int64_t* ids,
+                int64_t count,
+                bool calculate_precise_distance = true) const;
+</code></pre>
+<p>Declarations live in
+<a href="https://github.com/antgroup/vsag/blob/main/include/vsag/index.h"><code>include/vsag/index.h</code></a>.</p>
+<h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
 <ul>
-<li><strong>Features</strong> — new functionality</li>
-<li><strong>Improvements</strong></li>
-<li><strong>Bug Fixes</strong></li>
-<li><strong>Breaking Changes</strong> (when applicable)</li>
-<li><strong>Contributor credits</strong></li>
+<li><code>true</code> (default): the implementation tries to use the <strong>high-precision</strong> representation
+of the stored vector (e.g. full-precision float32). For DiskANN this may require reading
+the original vector from disk and therefore incurs I/O.</li>
+<li><code>false</code>: the implementation may use the <strong>quantized / approximate</strong> representation that
+the index already keeps in memory. Faster, but the returned distance is approximate.</li>
 </ul>
-<h2 id="versioning"><a class="header" href="#versioning">Versioning</a></h2>
-<p>VSAG follows <a href="https://semver.org/">Semantic Versioning 2.0</a>:</p>
+<h3 id="return-semantics"><a class="header" href="#return-semantics">Return Semantics</a></h3>
 <ul>
-<li><code>MAJOR.MINOR.PATCH</code></li>
-<li><code>MAJOR</code> generally comes with incompatible API or serialization changes.</li>
-<li><code>MINOR</code> adds functionality while remaining backward compatible.</li>
-<li><code>PATCH</code> contains only bug fixes and performance improvements.</li>
+<li>The single-ID overload returns the distance as a <code>float</code>.</li>
+<li>The batch overload returns a <code>DatasetPtr</code> whose <code>GetDistances()</code> array has <code>count</code> entries
+aligned with the input <code>ids</code>. A value of <strong><code>-1</code></strong> in that array indicates an <strong>invalid ID</strong>
+(e.g. the ID does not exist in the index).</li>
+<li>The distance metric (IP / L2 / cosine) follows the <code>metric_type</code> chosen at index
+construction; see <a href="../resources/metric_semantics.html">Metric Semantics</a>.</li>
 </ul>
-<h2 id="getting-a-specific-version"><a class="header" href="#getting-a-specific-version">Getting a Specific Version</a></h2>
-<h3 id="c--source"><a class="header" href="#c--source">C++ / source</a></h3>
-<pre><code class="language-bash">git checkout vX.Y.Z
-make release
+<h2 id="basic-usage"><a class="header" href="#basic-usage">Basic Usage</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+// 1. Build an HGraph index over float32 vectors.
+auto index = engine.CreateIndex("hgraph", hgraph_build_parameters).value();
+index-&gt;Build(base);
+
+// 2. Single ID.
+auto d = index-&gt;CalcDistanceById(query_vector.data(), /*id=*/42);
+if (d.has_value()) {
+    std::cout &lt;&lt; "distance to id 42 = " &lt;&lt; d.value() &lt;&lt; std::endl;
+}
+
+// 3. Batch IDs.
+std::vector&lt;int64_t&gt; ids = { 1, 2, 3, 4, 5 };
+auto result = index-&gt;CalDistanceById(query_vector.data(), ids.data(), ids.size());
+if (result.has_value()) {
+    const float* dists = result.value()-&gt;GetDistances();
+    for (size_t i = 0; i &lt; ids.size(); ++i) {
+        if (dists[i] == -1.0f) {
+            std::cout &lt;&lt; ids[i] &lt;&lt; " -&gt; invalid ID" &lt;&lt; std::endl;
+        } else {
+            std::cout &lt;&lt; ids[i] &lt;&lt; " -&gt; " &lt;&lt; dists[i] &lt;&lt; std::endl;
+        }
+    }
+}
 </code></pre>
-<h3 id="python"><a class="header" href="#python">Python</a></h3>
-<pre><code class="language-bash">pip install pyvsag==X.Y.Z
+<p>A runnable example is provided in
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/306_feature_calculate_distance_by_id.cpp"><code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code></a>.</p>
+<h2 id="sparse-vectors"><a class="header" href="#sparse-vectors">Sparse Vectors</a></h2>
+<p>For sparse-vector indexes (SINDI, SparseIndex), the <code>const float*</code> overloads are not
+applicable. Pass the query as a <code>DatasetPtr</code> carrying sparse vectors via
+<code>SparseVectors(...)</code>, and use the <code>DatasetPtr</code> overloads:</p>
+<pre><code class="language-cpp">auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;SparseVectors(&amp;sparse_query)-&gt;Owner(false);
+
+auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 </code></pre>
-<h3 id="nodejs--typescript"><a class="header" href="#nodejs--typescript">Node.js / TypeScript</a></h3>
-<pre><code class="language-bash">npm install vsag@X.Y.Z
-</code></pre>
-<h2 id="upgrade-guidance"><a class="header" href="#upgrade-guidance">Upgrade Guidance</a></h2>
+<h2 id="support-matrix"><a class="header" href="#support-matrix">Support Matrix</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index type</th><th>Dense overload (<code>const float*</code>)</th><th>DatasetPtr overload</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td>hgraph</td><td>yes</td><td>yes</td><td>Honors <code>calculate_precise_distance</code>.</td></tr>
+<tr><td>hnsw</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
+<tr><td>ivf</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
+<tr><td>brute_force</td><td>yes</td><td>yes (default loop)</td><td>Always precise (no quantization).</td></tr>
+<tr><td>diskann</td><td>yes</td><td>yes (default loop)</td><td><code>calculate_precise_distance=true</code> may incur disk I/O.</td></tr>
+<tr><td>pyramid</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
+<tr><td>sindi</td><td>no</td><td>yes</td><td>Sparse vectors only.</td></tr>
+<tr><td>sparse_index</td><td>no</td><td>yes</td><td>Sparse vectors only.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Indexes that do not implement the API surface for a given overload return an
+<code>UNSUPPORTED_INDEX_OPERATION</code> error.</p>
+<h2 id="notes"><a class="header" href="#notes">Notes</a></h2>
 <ul>
-<li>Read the <strong>Breaking Changes</strong> section of the corresponding release before upgrading across major
-versions.</li>
-<li>When the serialization format changes, validate deserialization compatibility in a staging
-environment first.</li>
-<li>Roll out gradually in production and use the
-<a href="eval.html">performance evaluation tool</a> to compare recall and latency.</li>
+<li>The query dimension (for dense overloads) must match the index dimension.</li>
+<li>The batch overload has a default implementation that loops over single-ID calls;
+some indexes override it for batch-level optimization.</li>
+<li>Like all VSAG read-only APIs, these methods are safe to call concurrently with other
+read-only operations (e.g. <code>KnnSearch</code>).</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../resources/analyze_index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/range_search.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../resources/roadmap_2025.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/filtered_search.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -364,11 +458,11 @@ environment first.</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../resources/analyze_index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/range_search.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../resources/roadmap_2025.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/filtered_search.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
