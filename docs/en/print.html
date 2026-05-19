@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-48014c60.js";
+            window.path_to_searchindex_js = "searchindex-d580686a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-aeacd76a.js"></script>
+        <script src="toc-27365dad.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -5538,6 +5538,87 @@ the <a href="#contributing-to-vsag">contributors’ guide</a>.</li>
 constructively and respectfully.</p>
 <h2 id="related-projects"><a class="header" href="#related-projects">Related Projects</a></h2>
 <p>See <a href="#related-projects-1">Related Projects</a>.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="filing-issues-with-an-ai-agent"><a class="header" href="#filing-issues-with-an-ai-agent">Filing Issues with an AI Agent</a></h1>
+<p>You can use an AI coding agent (Claude Code, OpenCode, or Codex) together with
+the VSAG repository’s built-in <code>/create-issue</code> slash command to draft and
+submit a high-quality GitHub issue for VSAG. The agent maps your request onto
+the project’s issue templates, fills in the required fields, and submits the
+issue through GitHub CLI.</p>
+<p>This page walks through the end-to-end setup. The canonical workflow that the
+agent itself follows lives in
+<a href="https://github.com/antgroup/vsag/blob/main/.github/agent-prompts/create-issue.md"><code>.github/agent-prompts/create-issue.md</code></a>;
+this page focuses on the user-facing steps.</p>
+<h2 id="prerequisites-1"><a class="header" href="#prerequisites-1">Prerequisites</a></h2>
+<ul>
+<li>A GitHub account.</li>
+<li>One of the supported AI coding agents installed and configured locally:
+<a href="https://docs.claude.com/en/docs/claude-code/overview">Claude Code</a>,
+<a href="https://opencode.ai/">OpenCode</a>, or Codex.</li>
+<li><code>git</code> available on your machine.</li>
+</ul>
+<h2 id="1-install-and-sign-in-to-github-cli-gh"><a class="header" href="#1-install-and-sign-in-to-github-cli-gh">1. Install and sign in to GitHub CLI (<code>gh</code>)</a></h2>
+<p>First, install <code>gh</code> by following the official quickstart for your platform:</p>
+<p><a href="https://docs.github.com/en/github-cli/github-cli/quickstart">https://docs.github.com/en/github-cli/github-cli/quickstart</a></p>
+<p>Then sign in from your terminal:</p>
+<pre><code class="language-bash">gh auth login
+</code></pre>
+<p>Choose <strong>GitHub.com</strong>, pick an authentication protocol (HTTPS is fine), and
+follow the browser prompts to complete sign-in.</p>
+<h2 id="2-verify-your-gh-login"><a class="header" href="#2-verify-your-gh-login">2. Verify your <code>gh</code> login</a></h2>
+<pre><code class="language-bash">gh auth status
+</code></pre>
+<p>Confirm that GitHub.com authentication is active before continuing.</p>
+<h2 id="3-clone-the-vsag-repository"><a class="header" href="#3-clone-the-vsag-repository">3. Clone the VSAG repository</a></h2>
+<pre><code class="language-bash">git clone https://github.com/antgroup/vsag.git
+cd vsag
+</code></pre>
+<p>The <code>/create-issue</code> command and its prompt files live inside the repository,
+so the agent must be launched from within the <code>vsag/</code> working directory to
+pick them up.</p>
+<h2 id="4-launch-your-agent-inside-the-repo"><a class="header" href="#4-launch-your-agent-inside-the-repo">4. Launch your agent inside the repo</a></h2>
+<p>From the <code>vsag/</code> directory, start one of the supported agents:</p>
+<pre><code class="language-bash"># Claude Code
+claude
+
+# OpenCode
+opencode
+
+# Codex CLI
+codex
+</code></pre>
+<h2 id="5-run-create-issue"><a class="header" href="#5-run-create-issue">5. Run <code>/create-issue</code></a></h2>
+<p>In the agent prompt, invoke the slash command and describe your need in
+natural language. For example:</p>
+<pre><code>/create-issue HGraph build crashes when dim=0; want a clear error instead.
+</code></pre>
+<p>The agent will:</p>
+<ol>
+<li>Pick the most appropriate template under
+<a href="https://github.com/antgroup/vsag/tree/main/.github/ISSUE_TEMPLATE"><code>.github/ISSUE_TEMPLATE/</code></a>.</li>
+<li>Ask follow-up questions if required fields are missing.</li>
+<li>Draft the issue body with code/doc references in <code>path:line</code> form.</li>
+<li>Show you the final draft for confirmation.</li>
+<li>Submit the issue via <code>gh issue create</code> once you approve.</li>
+</ol>
+<p>You can iterate with the agent freely — ask it to revise wording, add
+reproduction steps, switch templates, or attach logs before it submits.</p>
+<h2 id="tips-3"><a class="header" href="#tips-3">Tips</a></h2>
+<ul>
+<li>Be specific: include the index type, parameters, dataset shape, error
+message, and platform when filing a bug.</li>
+<li>For feature requests, describe the use case and the expected API or
+behavior. The agent will mirror this into the template’s required fields.</li>
+<li>Issues do <strong>not</strong> carry <code>Signed-off-by:</code> — DCO applies only to commits.</li>
+<li>If you prefer to drive the workflow without an interactive agent, see the
+shell wrapper at
+<a href="https://github.com/antgroup/vsag/blob/main/tools/issue-helper/new-issue.sh"><code>tools/issue-helper/new-issue.sh</code></a>.</li>
+</ul>
+<h2 id="see-also-6"><a class="header" href="#see-also-6">See also</a></h2>
+<ul>
+<li><a href="#community">Community</a></li>
+<li><a href="#contributing-to-vsag">Contributing to VSAG</a></li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="related-projects-1"><a class="header" href="#related-projects-1">Related Projects</a></h1>
 <p>This page lists upstream and downstream projects related to or integrating with VSAG, making it
