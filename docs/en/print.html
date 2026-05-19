@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-8789391d.js";
+            window.path_to_searchindex_js = "searchindex-48014c60.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-06c56812.js"></script>
+        <script src="toc-aeacd76a.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -703,7 +703,7 @@ such as <code>base_quantization_type</code>.</p>
 <tbody>
 <tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
 <tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage</td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage — see the <a href="quantization/README.html">Quantization chapter</a> for all supported values</td></tr>
 </tbody>
 </table>
 </div>
@@ -777,8 +777,8 @@ nearest neighbours within a <code>max_degree</code> budget. The construction alg
 either NSW-style insertion (<code>graph_type: "nsw"</code>, the default) or ODescent
 (<code>graph_type: "odescent"</code>).</li>
 <li><strong>Quantization.</strong> The base storage is compressed with a configurable quantizer
-(<code>base_quantization_type</code> — <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>,
-<code>pq</code>, <code>pqfs</code>, <code>rabitq</code>). Optionally, a second high-precision copy is kept
+(<code>base_quantization_type</code> — <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>,
+<code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code>). Optionally, a second high-precision copy is kept
 (<code>use_reorder: true</code> with <code>precise_quantization_type</code>) and used to re-rank the
 candidates returned by the coarse search.</li>
 <li><strong>Search.</strong> Greedy beam search traverses the graph top-down, expanding the current
@@ -821,7 +821,7 @@ and <code>docs/hgraph.md</code> in the repository.</p>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>— (required)</td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>— (required)</td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code> — see the <a href="quantization/README.html">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per graph node</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size during build (higher = better recall, slower build)</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td>Graph algorithm: <code>nsw</code> or <code>odescent</code></td></tr>
@@ -1046,7 +1046,7 @@ repository for the exhaustive list.</p>
 <tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>First-level count (effective for <code>gno_imi</code>)</td></tr>
 <tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>Second-level count (effective for <code>gno_imi</code>)</td></tr>
 <tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>Centroid training: <code>kmeans</code> or <code>random</code></td></tr>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="quantization/README.html">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ subspaces (required with <code>pq</code> / <code>pqfs</code>)</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse scan</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (with <code>use_reorder: true</code>)</td></tr>
@@ -1326,7 +1326,7 @@ auto result = index-&gt;KnnSearch(
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>).</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>). See the <a href="quantization/README.html">Quantization chapter</a> for per-quantizer details.</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per node within a sub-graph.</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code> or <code>odescent</code>.</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size for <code>nsw</code> builds.</td></tr>
@@ -1437,7 +1437,7 @@ Advanced users can pass an <code>index_param</code> object to enable quantizatio
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="quantization/README.html">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Enable attribute-based filtering (see <a href="#attribute-filter-hybrid-search">Attribute Filter</a>)</td></tr>
 </tbody>
 </table>
@@ -1509,7 +1509,7 @@ auto r3 = index-&gt;RangeSearch(query, radius, R"({"parallelism": 8})").value();
 <tr><td><code>SUPPORT_CHECK_ID_EXIST</code> / <code>SUPPORT_CLONE</code> / <code>SUPPORT_ESTIMATE_MEMORY</code> / <code>SUPPORT_GET_MEMORY_USAGE</code></td><td>Standard introspection and lifecycle.</td></tr>
 <tr><td><code>SUPPORT_SERIALIZE_BINARY_SET</code> / <code>SUPPORT_SERIALIZE_FILE</code> / <code>SUPPORT_SERIALIZE_WRITE_FUNC</code></td><td>Full save surface.</td></tr>
 <tr><td><code>SUPPORT_DESERIALIZE_BINARY_SET</code> / <code>SUPPORT_DESERIALIZE_FILE</code> / <code>SUPPORT_DESERIALIZE_READER_SET</code></td><td>Full load surface. (There is no <code>DESERIALIZE_WRITE_FUNC</code> counterpart — read paths use <code>READER_SET</code> instead.)</td></tr>
-<tr><td><code>NEED_TRAIN</code></td><td>Set when <code>base_quantization_type</code> is one of <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>.</td></tr>
+<tr><td><code>NEED_TRAIN</code></td><td>Set when <code>base_quantization_type</code> is one of <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>.</td></tr>
 </tbody>
 </table>
 </div>
@@ -1535,6 +1535,960 @@ inverted-list structure.</li>
 <li><a href="#range-search">Range Search</a></li>
 <li><a href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a></li>
 <li><a href="#performance-evaluation-tool-eval_performance">Evaluation Tool</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="quantization"><a class="header" href="#quantization">Quantization</a></h1>
+<p>Vector quantization is the central memory/recall lever in VSAG. Every index
+type stores vectors through a <strong>base quantizer</strong> (configured by
+<code>base_quantization_type</code>), and may keep a second <strong>precise quantizer</strong> for
+re-ranking (<code>precise_quantization_type</code> + <code>use_reorder: true</code>). This chapter
+documents each supported quantizer: what it does, what JSON parameters it
+takes, when it needs training, which metrics it supports, and when to choose
+it.</p>
+<p><img src="figures/quantization/quantization-overview.svg" alt="Quantization decision tree: pick a quantizer by memory budget"></p>
+<h2 id="storage-and-search-pipeline"><a class="header" href="#storage-and-search-pipeline">Storage and search pipeline</a></h2>
+<pre><code>                 +---------------------+
+   raw vector --&gt;|  optional transform |   (TQ chain: pca / rom / fht / mrle)
+                 +----------+----------+
+                            |
+                            v
+                 +---------------------+
+                 |   base quantizer    |   fp32 / fp16 / bf16 /
+                 |                     |   sq8 / sq4 / sq8_uniform /
+                 |                     |   sq4_uniform / pq / pqfs /
+                 |                     |   rabitq
+                 +----------+----------+
+                            |
+                            v
+                  +-------------------+
+                  |   index storage   |   (HGraph / IVF / Pyramid /
+                  |                   |    BruteForce / SINDI)
+                  +---------+---------+
+                            |
+                            v
+                   graph / list walk
+                            |
+            +---------------+-----------------+
+            |                                 |
+   use_reorder: false                use_reorder: true
+            |                                 |
+            v                                 v
+       top-K result               +---------------------+
+                                  | precise quantizer   |  re-rank
+                                  | (fp32 default;      |
+                                  |  fp16/bf16/sq8 OK)  |
+                                  +----------+----------+
+                                             |
+                                             v
+                                        top-K result
+</code></pre>
+<p><code>use_reorder</code> and <code>precise_quantization_type</code> are not specific to any single
+quantizer — they apply whenever the index supports reordering (see
+<a href="#hgraph-1">HGraph</a>, <a href="#ivf-1">IVF</a>,
+<a href="#pyramid-1">Pyramid</a>).</p>
+<h2 id="supported-quantizers-at-a-glance"><a class="header" href="#supported-quantizers-at-a-glance">Supported quantizers at a glance</a></h2>
+<p>The factory in <code>src/datacell/flatten_interface.cpp</code> dispatches to
+the concrete quantizer based on the JSON <code>type</code> field.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>base_quantization_type</code></th><th>Bits / dim (approx.)</th><th>Needs training</th><th>Lossless</th><th>Typical use</th></tr>
+</thead>
+<tbody>
+<tr><td><code>fp32</code></td><td>32</td><td>no</td><td>yes</td><td>Reference / precise reorder store</td></tr>
+<tr><td><code>fp16</code></td><td>16</td><td>no</td><td>near-lossless</td><td>Half-precision storage; good default for high-dim float vectors</td></tr>
+<tr><td><code>bf16</code></td><td>16</td><td>no</td><td>near-lossless</td><td>Same memory as <code>fp16</code>, wider dynamic range</td></tr>
+<tr><td><code>sq8</code></td><td>8</td><td><strong>yes</strong></td><td>no</td><td>General memory-saving baseline</td></tr>
+<tr><td><code>sq4</code></td><td>4</td><td><strong>yes</strong></td><td>no</td><td>Aggressive memory saving, expect recall drop without reorder</td></tr>
+<tr><td><code>sq8_uniform</code></td><td>8</td><td><strong>yes</strong></td><td>no</td><td>SIMD-friendly SQ8 with global min/max</td></tr>
+<tr><td><code>sq4_uniform</code></td><td>4</td><td><strong>yes</strong></td><td>no</td><td>SIMD-friendly SQ4; supports <code>sq4_uniform_trunc_rate</code></td></tr>
+<tr><td><code>pq</code></td><td>~<code>pq_bits</code> × <code>pq_dim</code> / <code>dim</code></td><td><strong>yes</strong></td><td>no</td><td>Codebook-based, very compact</td></tr>
+<tr><td><code>pqfs</code></td><td>4 × <code>pq_dim</code> / <code>dim</code></td><td><strong>yes</strong></td><td>no</td><td>PQ FastScan — SIMD-accelerated PQ</td></tr>
+<tr><td><code>rabitq</code></td><td>1 (+ optional 7)</td><td><strong>yes</strong></td><td>no</td><td>1-bit / 1+7-bit binary quantization, strongest compression</td></tr>
+<tr><td><code>tq</code></td><td>depends on chain</td><td>depends on terminal quantizer</td><td>no</td><td><a href="#quantization-transform">Transform Quantizer</a>: prepend rotations / PCA before another quantizer</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>int8</code> and <code>sparse</code> are not exposed as general-purpose
+<code>base_quantization_type</code> values:</p>
+<ul>
+<li><code>int8</code> is selected automatically when <code>dtype: "int8"</code> is used; it is not a
+compression mode.</li>
+<li><code>sparse</code> backs the inverted lists of <a href="#sindi">SINDI</a> and is
+not selectable on dense indexes.</li>
+</ul>
+<h2 id="training-requirement"><a class="header" href="#training-requirement">Training requirement</a></h2>
+<p>Quantizers marked <strong>yes</strong> above implement the <code>NEED_TRAIN</code> flag and require
+either <code>Build</code> (which trains internally on the input vectors) or an explicit
+<code>Train</code> call before <code>Add</code>. See <a href="#build-and-train">Build and Train</a>
+for the full lifecycle.</p>
+<p>For HGraph the training data is the base vectors passed to <code>Build</code>; for IVF
+the centroids are trained first and the residuals fed to the configured
+base quantizer.</p>
+<h2 id="metric-compatibility"><a class="header" href="#metric-compatibility">Metric compatibility</a></h2>
+<p>All quantizers documented here support the three dense metrics
+(<code>l2</code> / <code>ip</code> / <code>cosine</code>). For <code>cosine</code>, the index normalizes vectors before
+quantization, so the underlying quantizer never sees the original magnitude.
+A few practical notes:</p>
+<ul>
+<li><code>pq</code> / <code>pqfs</code> perform their distance lookup tables per subspace; very low
+<code>pq_dim</code> (≤ 4) on <code>ip</code> / <code>cosine</code> is more sensitive to anisotropy than <code>l2</code>.</li>
+<li><code>rabitq</code> works best when input vectors are decorrelated — either turn on
+<code>rabitq_use_fht</code> / <code>rabitq_pca_dim</code>, or wrap with a <code>tq</code> chain like
+<code>"pca, rom, rabitq"</code>.</li>
+</ul>
+<h2 id="choosing-a-quantizer"><a class="header" href="#choosing-a-quantizer">Choosing a quantizer</a></h2>
+<p>A pragmatic decision tree:</p>
+<ol>
+<li><strong>Need exact distances or a precise reorder store?</strong> Use <code>fp32</code>.</li>
+<li><strong>Just want to halve memory with negligible recall loss?</strong> Use <code>fp16</code>
+(or <code>bf16</code> if the data has a wide dynamic range, e.g. unnormalized
+embeddings).</li>
+<li><strong>Want ~4× memory saving and willing to enable reorder?</strong> Use <code>sq8</code> (or
+<code>sq8_uniform</code> for better SIMD throughput on <code>l2</code> / <code>ip</code>).</li>
+<li><strong>Memory-tight and willing to lose more recall before reorder?</strong> Use
+<code>sq4_uniform</code>.</li>
+<li><strong>High-dim vectors, want strong compression with codebooks?</strong> Use <code>pq</code>,
+or <code>pqfs</code> when the platform supports the SIMD path.</li>
+<li><strong>Maximum compression (1-bit) and willing to pay reorder cost?</strong> Use
+<code>rabitq</code>, ideally with <code>rabitq_use_fht: true</code> or a <code>tq</code> chain.</li>
+</ol>
+<p>For every lossy quantizer above, enabling <code>use_reorder: true</code> with
+<code>precise_quantization_type: "fp32"</code> is the standard way to recover recall at
+the cost of extra memory; see the <a href="#parameters">HGraph parameter table</a>
+for the exact behavior.</p>
+<h2 id="where-quantization-is-exposed"><a class="header" href="#where-quantization-is-exposed">Where quantization is exposed</a></h2>
+<p>Not every index exposes every parameter as an external key. As of today:</p>
+<ul>
+<li><strong>HGraph</strong> exposes the richest set: <code>base_quantization_type</code>,
+<code>precise_quantization_type</code>, <code>use_reorder</code>, <code>base_pq_dim</code>,
+<code>rabitq_pca_dim</code>, <code>rabitq_bits_per_dim_query</code>,
+<code>rabitq_bits_per_dim_base</code>, <code>rabitq_version</code>, <code>rabitq_error_rate</code>,
+<code>rabitq_use_fht</code>, <code>sq4_uniform_trunc_rate</code>, <code>tq_chain</code>
+(see <code>src/algorithm/hgraph.cpp</code>).</li>
+<li><strong>IVF</strong>, <strong>Pyramid</strong>, <strong>BruteForce</strong> expose <code>base_quantization_type</code> and
+the common reorder keys; some tunables (e.g. <code>tq_chain</code>) are wired
+internally but not exposed as external keys today.</li>
+</ul>
+<p>Refer to each index page for its full parameter list.</p>
+<h2 id="in-this-chapter"><a class="header" href="#in-this-chapter">In this chapter</a></h2>
+<ul>
+<li><a href="#fp32-baseline">FP32 (Baseline)</a></li>
+<li><a href="#half-precision-fp16--bf16">Half-Precision (FP16 / BF16)</a></li>
+<li><a href="#scalar-quantization-sq4--sq8">Scalar Quantization (SQ4 / SQ8)</a></li>
+<li><a href="#scalar-quantization-uniform-sq4--sq8-uniform">Scalar Uniform (SQ4 / SQ8 Uniform)</a></li>
+<li><a href="#product-quantization-pq">Product Quantization (PQ)</a></li>
+<li><a href="#pq-fastscan">PQ FastScan</a></li>
+<li><a href="#rabitq">RaBitQ</a></li>
+<li><a href="#quantization-transform">Transform Quantizer (TQ)</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="fp32-baseline"><a class="header" href="#fp32-baseline">FP32 (Baseline)</a></h1>
+<p><code>fp32</code> stores every coordinate as a 32-bit IEEE-754 float — the same layout
+as the input vectors. It is the <strong>only fully lossless</strong> option in VSAG and
+serves as the reference baseline that all other quantizers are compared
+against.</p>
+<blockquote>
+<p>Implementation: <code>src/quantization/fp32_quantizer.cpp</code>, parameter file
+<code>fp32_quantizer_parameter.cpp</code>.</p>
+</blockquote>
+<h2 id="when-to-use-it"><a class="header" href="#when-to-use-it">When to use it</a></h2>
+<ul>
+<li><strong>Reorder / precise store.</strong> <code>precise_quantization_type: "fp32"</code> is the
+default precise store when <code>use_reorder: true</code>; the graph walk uses a
+cheap base quantizer and the top-K candidates are re-scored exactly
+against the fp32 copy.</li>
+<li><strong>Reference / ground truth.</strong> Building an index with
+<code>base_quantization_type: "fp32"</code> gives the highest possible recall for
+that index type and is the standard baseline for benchmarking other
+quantizers (<code>docs/docs/en/src/resources/eval.md</code>).</li>
+<li><strong>Small datasets</strong> where memory is not the bottleneck.</li>
+<li><strong>BruteForce with raw-vector retrieval.</strong> <code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code>
+is only advertised when <code>base_quantization_type</code> is <code>fp32</code> and the metric
+allows it (<code>src/index/brute_force.cpp</code>).</li>
+</ul>
+<h2 id="memory-cost"><a class="header" href="#memory-cost">Memory cost</a></h2>
+<p><code>4 × dim</code> bytes per vector for the codes alone. When <code>fp32</code> is used as a
+precise store on top of a base quantizer, the per-vector cost is
+<strong>base codes + 4 × dim</strong>.</p>
+<h2 id="parameters"><a class="header" href="#parameters">Parameters</a></h2>
+<p><code>fp32</code> has no quantizer-specific JSON parameters.</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "fp32",
+        "max_degree": 32,
+        "ef_construction": 300
+    }
+}
+</code></pre>
+<h2 id="training"><a class="header" href="#training">Training</a></h2>
+<p>Not required. <code>fp32</code> does <strong>not</strong> set <code>NEED_TRAIN</code>.</p>
+<h2 id="metric-compatibility-1"><a class="header" href="#metric-compatibility-1">Metric compatibility</a></h2>
+<p><code>l2</code>, <code>ip</code>, <code>cosine</code> — all supported with no special handling.</p>
+<h2 id="related-pages"><a class="header" href="#related-pages">Related pages</a></h2>
+<ul>
+<li><a href="quantization/README.html">Quantization overview</a></li>
+<li><a href="#hgraph-1">HGraph index</a> — see <code>precise_quantization_type</code></li>
+<li><a href="#memory-management">Memory Management</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="half-precision-fp16--bf16"><a class="header" href="#half-precision-fp16--bf16">Half-Precision (FP16 / BF16)</a></h1>
+<p><code>fp16</code> and <code>bf16</code> store each coordinate in 16 bits instead of 32, cutting
+code memory in half with <strong>near-lossless</strong> accuracy. They have no
+quantizer-specific JSON parameters; the only difference is the bit layout
+of the float format itself.</p>
+<p><img src="figures/quantization/fp-bitlayout.svg" alt="FP32 vs FP16 vs BF16 bit layout: sign / exponent / mantissa widths"></p>
+<blockquote>
+<p>Implementation: <code>src/quantization/scalar_quantization/half_precision_quantizer.cpp</code>
+with the type traits at <code>half_precision_traits.h</code>.
+Runnable example: <code>examples/cpp/321_index_fp16_hgraph.cpp</code>.</p>
+</blockquote>
+<h2 id="fp16-vs-bf16-at-a-glance"><a class="header" href="#fp16-vs-bf16-at-a-glance">FP16 vs BF16 at a glance</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Format</th><th>Sign</th><th>Exponent</th><th>Mantissa</th><th>Effective range</th><th>Precision</th></tr>
+</thead>
+<tbody>
+<tr><td><code>fp16</code></td><td>1</td><td>5</td><td>10</td><td>~±6.55e4</td><td>~3 decimal digits</td></tr>
+<tr><td><code>bf16</code></td><td>1</td><td>8</td><td>7</td><td>same as <code>fp32</code> (~±3.4e38)</td><td>~2 decimal digits</td></tr>
+</tbody>
+</table>
+</div>
+<p>Practical implications:</p>
+<ul>
+<li><strong><code>fp16</code></strong> keeps more mantissa bits — better precision for normalized
+embeddings whose values lie roughly in <code>[-1, 1]</code>. Standard choice for
+cosine-normalized vectors.</li>
+<li><strong><code>bf16</code></strong> keeps the full <code>fp32</code> exponent range — safer for raw,
+un-normalized features (e.g. weighted sums, accumulator-like
+embeddings). Loses some precision compared to <code>fp16</code> on values close to
+zero.</li>
+</ul>
+<p>If you do not know which one to pick, start with <code>fp16</code> for normalized
+embeddings and <code>bf16</code> for unnormalized or wide-range data.</p>
+<h2 id="when-to-use-it-1"><a class="header" href="#when-to-use-it-1">When to use it</a></h2>
+<ul>
+<li>Default “drop-in” memory saving on top of an <code>fp32</code> baseline. Recall
+loss is typically below 1% on standard benchmarks (SIFT, GIST,
+Glove, sentence embeddings).</li>
+<li>As a <strong>precise reorder store</strong> that is half the size of fp32:
+<code>precise_quantization_type: "fp16"</code> or <code>"bf16"</code> with
+<code>use_reorder: true</code>.</li>
+<li>High-dim float vectors where 32-bit storage is the bottleneck.</li>
+</ul>
+<h2 id="memory-cost-1"><a class="header" href="#memory-cost-1">Memory cost</a></h2>
+<p><code>2 × dim</code> bytes per vector for the codes alone.</p>
+<h2 id="parameters-1"><a class="header" href="#parameters-1">Parameters</a></h2>
+<p>Neither <code>fp16</code> nor <code>bf16</code> has quantizer-specific JSON parameters.</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 768,
+    "index_param": {
+        "base_quantization_type": "fp16",
+        "max_degree": 32,
+        "ef_construction": 300
+    }
+}
+</code></pre>
+<p>Swap <code>"fp16"</code> for <code>"bf16"</code> to switch formats. The input <code>dtype</code> stays
+<code>"float32"</code>: the quantizer converts on the fly.</p>
+<h2 id="training-1"><a class="header" href="#training-1">Training</a></h2>
+<p>Not required. Neither <code>fp16</code> nor <code>bf16</code> sets <code>NEED_TRAIN</code>.</p>
+<h2 id="metric-compatibility-2"><a class="header" href="#metric-compatibility-2">Metric compatibility</a></h2>
+<p><code>l2</code>, <code>ip</code>, <code>cosine</code> — all supported. <code>cosine</code> is implemented by
+normalizing inputs before storing them at 16-bit precision.</p>
+<h2 id="when-not-to-use-it"><a class="header" href="#when-not-to-use-it">When <strong>not</strong> to use it</a></h2>
+<ul>
+<li>When you also need a memory-aggressive <em>base</em> quantizer such as <code>sq8</code> or
+<code>pq</code> — those already pull the storage well below 2 bytes/dim.</li>
+<li>When you need exact distances (use <code>fp32</code>).</li>
+</ul>
+<h2 id="related-pages-1"><a class="header" href="#related-pages-1">Related pages</a></h2>
+<ul>
+<li><a href="quantization/README.html">Quantization overview</a></li>
+<li><a href="#hgraph-1">HGraph index</a> — <code>precise_quantization_type</code> table</li>
+<li><a href="#memory-management">Memory Management</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="scalar-quantization-sq4--sq8"><a class="header" href="#scalar-quantization-sq4--sq8">Scalar Quantization (SQ4 / SQ8)</a></h1>
+<p><code>sq8</code> and <code>sq4</code> are <strong>per-dimension scalar quantizers</strong>: each coordinate is
+mapped from <code>float32</code> to an 8-bit (<code>sq8</code>) or 4-bit (<code>sq4</code>) integer using a
+per-dimension <code>[min, max]</code> range learned during training. They share the
+same implementation, parameterized by bit width, in
+<code>src/quantization/scalar_quantization/scalar_quantizer.cpp</code> and
+<code>scalar_quantizer_parameter.h</code>.</p>
+<p>For SIMD-friendlier variants with a <strong>global</strong> <code>[min, max]</code>, see
+<a href="#scalar-quantization-uniform-sq4--sq8-uniform">Scalar Uniform</a>.</p>
+<p><img src="figures/quantization/sq-axis.svg" alt="Scalar Quantization: map a coordinate into one of 2^b bins on its per-dim range"></p>
+<h2 id="sq4-vs-sq8-at-a-glance"><a class="header" href="#sq4-vs-sq8-at-a-glance">SQ4 vs SQ8 at a glance</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Type</th><th>Bits / dim</th><th>Memory vs fp32</th><th>Typical accuracy</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sq8</code></td><td>8</td><td>~1/4</td><td>minor recall loss</td><td>General memory-saving baseline</td></tr>
+<tr><td><code>sq4</code></td><td>4</td><td>~1/8</td><td>noticeable loss without reorder</td><td>Aggressive compression; pair with <code>use_reorder: true</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>The training is per-dimension <code>min</code>/<code>max</code>, so heavy-tailed coordinates can
+waste code bits. If your data is anisotropic, consider either
+<a href="#scalar-quantization-uniform-sq4--sq8-uniform">Scalar Uniform</a> or a <a href="#quantization-transform">Transform Quantizer</a>
+chain like <code>"rom, sq8_uniform"</code> to rotate first.</p>
+<h2 id="memory-cost-codes-only"><a class="header" href="#memory-cost-codes-only">Memory cost (codes only)</a></h2>
+<ul>
+<li><code>sq8</code>: <code>dim</code> bytes per vector.</li>
+<li><code>sq4</code>: <code>ceil(dim / 2)</code> bytes per vector.</li>
+</ul>
+<p>There is also a small per-dimension range table (<code>8 × dim</code> bytes,
+amortized across all vectors).</p>
+<h2 id="parameters-2"><a class="header" href="#parameters-2">Parameters</a></h2>
+<p>Neither <code>sq8</code> nor <code>sq4</code> has quantizer-specific JSON parameters today
+(<code>scalar_quantizer_parameter.h:36-58</code>). The bit width is selected by the
+<code>type</code> string alone.</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>Replace <code>"sq8"</code> with <code>"sq4"</code> for 4-bit codes.</p>
+<h2 id="training-2"><a class="header" href="#training-2">Training</a></h2>
+<p><code>NEED_TRAIN</code> is set. Training collects per-dimension <code>min</code> / <code>max</code> from a
+sample of the input vectors. Calling <code>Build(base)</code> trains internally; on
+indexes that require an explicit <code>Train</code> (some IVF flows), call it before
+<code>Add</code>. See <a href="#build-and-train">Build and Train</a>.</p>
+<h2 id="metric-compatibility-3"><a class="header" href="#metric-compatibility-3">Metric compatibility</a></h2>
+<p><code>l2</code>, <code>ip</code>, <code>cosine</code> — all supported. Distances are computed by decoding
+the integer codes back to per-dimension scaled floats.</p>
+<h2 id="when-to-choose-sq8-vs-sq4"><a class="header" href="#when-to-choose-sq8-vs-sq4">When to choose <code>sq8</code> vs <code>sq4</code></a></h2>
+<ul>
+<li><strong><code>sq8</code></strong>: default memory-saving choice for graph indexes (HGraph,
+Pyramid) when ~4× memory reduction is the target. Recall loss is small
+enough that <code>use_reorder</code> is often optional, but enabling it with
+<code>precise_quantization_type: "fp32"</code> is the safest setup.</li>
+<li><strong><code>sq4</code></strong>: choose when memory is tight and you can afford a precise
+reorder store. Almost always pair with <code>use_reorder: true</code>.</li>
+<li>Pick <code>sq*_uniform</code> instead when the data is roughly homogeneous across
+dimensions; the uniform variants have higher SIMD throughput.</li>
+<li>For heavy-tailed / anisotropic data, prefer a <a href="#quantization-transform">Transform Quantizer</a>
+chain that rotates before quantization.</li>
+</ul>
+<h2 id="related-pages-2"><a class="header" href="#related-pages-2">Related pages</a></h2>
+<ul>
+<li><a href="#scalar-quantization-uniform-sq4--sq8-uniform">Scalar Uniform (SQ4 / SQ8 Uniform)</a></li>
+<li><a href="#quantization-transform">Transform Quantizer</a></li>
+<li><a href="quantization/README.html">Quantization overview</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="scalar-quantization-uniform-sq4--sq8-uniform"><a class="header" href="#scalar-quantization-uniform-sq4--sq8-uniform">Scalar Quantization Uniform (SQ4 / SQ8 Uniform)</a></h1>
+<p><code>sq8_uniform</code> and <code>sq4_uniform</code> are scalar quantizers like
+<a href="#scalar-quantization-sq4--sq8"><code>sq8</code> / <code>sq4</code></a>, except they learn a <strong>single global</strong> <code>[min, max]</code>
+range that applies to every dimension. This trade-off — slightly less
+adaptive per dimension, but a much simpler decode path — unlocks SIMD code
+that runs significantly faster on <code>l2</code> and <code>ip</code> distance kernels and
+keeps the code layout tighter.</p>
+<p><img src="figures/quantization/sq-uniform-vs-perdim.svg" alt="Uniform (global range) vs per-dimension Scalar Quantization"></p>
+<blockquote>
+<p>Implementation: <code>src/quantization/scalar_quantization/sq8_uniform_quantizer.cpp</code>,
+<code>src/quantization/scalar_quantization/sq4_uniform_quantizer.cpp</code>.</p>
+</blockquote>
+<h2 id="why-it-is-fast-distances-stay-in-the-integer-domain"><a class="header" href="#why-it-is-fast-distances-stay-in-the-integer-domain">Why it is fast: distances stay in the integer domain</a></h2>
+<p>This is the core reason to prefer <code>sq*_uniform</code> over <code>sq*</code> whenever it
+applies. Because every dimension shares one <code>(min, max)</code> pair, the affine
+decode <code>x = min + code · (max - min) / (2^b - 1)</code> has the <strong>same scale and
+offset for every coordinate</strong>. That has three consequences in the hot path:</p>
+<ul>
+<li>The query is encoded <strong>once</strong> with the same global <code>(min, max)</code> into a
+uint8 (or packed nibble) buffer, in <code>ProcessQueryImpl</code>
+(<code>src/quantization/scalar_quantization/sq8_uniform_quantizer.cpp:179</code>).</li>
+<li>Each base vector code is <strong>never decoded back to fp32</strong>. The kernel
+<code>SQ8UniformComputeCodesIP(uint8_t* q, uint8_t* x, dim)</code> /
+<code>SQ4UniformComputeCodesIP(...)</code> reads both operands as raw integer codes
+and does the dot product on uint8 / packed nibble lanes using AVX-512 /
+AMX (or NEON on ARM), one cache-line at a time. There is no per-element
+fp dequantization in the inner loop.</li>
+<li>The single shared scale factor and offset are applied <strong>once per
+pair</strong>, after the integer reduction, to recover the fp distance. Some
+metric-specific corrections (a per-vector norm or sum) are also added
+outside the loop; see the trailing metadata noted in
+<code>sq8_uniform_quantizer.cpp:200</code> and the
+<code>SQ8UniformComputeCodesIPBatch</code> batch kernel.</li>
+</ul>
+<p>In the per-dimension <code>sq*</code> quantizers, each coordinate has its own
+<code>(min_i, max_i)</code> so the kernel either has to multiply by a per-dim scale
+table inside the loop or decode at least one operand back to fp first.
+Skipping that work is what makes uniform variants significantly faster at
+the same recall.</p>
+<h2 id="when-to-use-it-2"><a class="header" href="#when-to-use-it-2">When to use it</a></h2>
+<ul>
+<li><strong>HGraph / IVF / Pyramid hot paths.</strong> When the bottleneck is the
+base-quantizer distance computation, <code>sq8_uniform</code> / <code>sq4_uniform</code> are
+almost always faster than their non-uniform counterparts at comparable
+recall.</li>
+<li><strong>Data with similar coordinate ranges across dimensions.</strong> Normalized
+embeddings (cosine), or vectors that have already been rotated (e.g.
+through a <a href="#quantization-transform">Transform Quantizer</a>
+chain like <code>"rom, sq8_uniform"</code> or <code>"fht, sq8_uniform"</code>) are the ideal
+inputs.</li>
+<li><strong>As the terminal quantizer of a <code>tq</code> chain.</strong> The most common chain is
+<code>"pca, rom, sq8_uniform"</code>, see example 501.</li>
+</ul>
+<h2 id="sq4-uniform-vs-sq8-uniform"><a class="header" href="#sq4-uniform-vs-sq8-uniform">SQ4 uniform vs SQ8 uniform</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Type</th><th>Bits / dim</th><th>Memory vs fp32</th><th>Typical accuracy</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sq8_uniform</code></td><td>8</td><td>~1/4</td><td>minor recall loss</td></tr>
+<tr><td><code>sq4_uniform</code></td><td>4</td><td>~1/8</td><td>needs reorder for high recall</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="parameters-3"><a class="header" href="#parameters-3">Parameters</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Type</th><th>Default</th><th>Applies to</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td><code>sq4_uniform</code> only</td><td>Symmetric truncation rate for outliers (<code>src/quantization/scalar_quantization/sq4_uniform_quantizer_parameter.h:39</code>). Higher values clip more extreme coordinates, reducing range loss for the bulk of the data at the cost of clipping the tails.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>sq8_uniform</code> has no quantizer-specific JSON parameters.</p>
+<p>When using HGraph, <code>sq4_uniform_trunc_rate</code> is exposed as a top-level key
+and mapped into the nested quantization params
+(<code>src/algorithm/hgraph.cpp:409-416</code>).</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq4_uniform",
+        "sq4_uniform_trunc_rate": 0.05,
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>Set <code>"base_quantization_type": "sq8_uniform"</code> and drop the <code>trunc_rate</code>
+key for the 8-bit variant.</p>
+<h2 id="training-3"><a class="header" href="#training-3">Training</a></h2>
+<p><code>NEED_TRAIN</code> is set. Training estimates one global <code>[min, max]</code> across all
+dimensions (with optional truncation for <code>sq4_uniform</code>). <code>Build</code> will
+perform training internally.</p>
+<h2 id="metric-compatibility-4"><a class="header" href="#metric-compatibility-4">Metric compatibility</a></h2>
+<p><code>l2</code>, <code>ip</code>, <code>cosine</code> — all supported. <code>cosine</code> normalizes before quantizing,
+which is also what makes uniform scaling close to optimal for that metric.</p>
+<h2 id="choosing-between-uniform-and-non-uniform"><a class="header" href="#choosing-between-uniform-and-non-uniform">Choosing between uniform and non-uniform</a></h2>
+<ul>
+<li>Data is normalized (<code>cosine</code> or pre-normalized <code>l2</code>) → <strong>uniform</strong>.</li>
+<li>Data has very heterogeneous per-dimension ranges (e.g. mixed feature
+blocks) → start with non-uniform <a href="#scalar-quantization-sq4--sq8"><code>sq*</code></a>, or use uniform behind a
+rotation transformer (<code>"rom, sq*_uniform"</code>).</li>
+<li>Throughput matters more than the last bit of recall → <strong>uniform</strong>.</li>
+</ul>
+<h2 id="related-pages-3"><a class="header" href="#related-pages-3">Related pages</a></h2>
+<ul>
+<li><a href="#scalar-quantization-sq4--sq8">Scalar Quantization (SQ4 / SQ8)</a></li>
+<li><a href="#quantization-transform">Transform Quantizer</a></li>
+<li><a href="quantization/README.html">Quantization overview</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="product-quantization-pq"><a class="header" href="#product-quantization-pq">Product Quantization (PQ)</a></h1>
+<p>Product Quantization splits a vector into <code>pq_dim</code> equal-sized <strong>subvectors</strong>
+and quantizes each one independently against a small learned codebook of
+<code>2^pq_bits</code> centroids. The stored code is then <code>pq_dim × pq_bits</code> bits per
+vector — orders of magnitude smaller than <code>fp32</code>. Distance computations
+use precomputed lookup tables (LUT) per query.</p>
+<p><img src="figures/quantization/pq-codebook.svg" alt="Product Quantization: sub-vector split and codebook lookup"></p>
+<blockquote>
+<p>Implementation: <code>src/quantization/product_quantization/product_quantizer.cpp</code>,
+parameter file <code>product_quantizer_parameter.cpp</code>.</p>
+</blockquote>
+<h2 id="when-to-use-it-3"><a class="header" href="#when-to-use-it-3">When to use it</a></h2>
+<ul>
+<li><strong>High-dim float vectors (≥ 256 dim)</strong> where <code>sq8</code> is still too large.</li>
+<li><strong>Memory-tight, accuracy-acceptable</strong> workloads where ~16× compression
+vs fp32 is required.</li>
+<li>Combined with <code>use_reorder: true</code> and a small <code>fp16</code>/<code>fp32</code> precise
+store, PQ is the standard “compressed graph index” recipe at large
+scale.</li>
+</ul>
+<p>For wider SIMD throughput at <code>pq_bits = 4</code>, see <a href="#pq-fastscan">PQ FastScan</a>.</p>
+<h2 id="memory-cost-codes-only-1"><a class="header" href="#memory-cost-codes-only-1">Memory cost (codes only)</a></h2>
+<p><code>ceil(pq_dim × pq_bits / 8)</code> bytes per vector for the codes, plus a small
+codebook stored once (<code>pq_dim × 2^pq_bits × subspace_dim × 4</code> bytes).
+For typical settings (<code>pq_dim = 32</code>, <code>pq_bits = 8</code>, <code>dim = 128</code>):</p>
+<ul>
+<li>code size = <code>32 × 8 / 8 = 32</code> bytes per vector (vs <code>128 × 4 = 512</code> for
+fp32 → 16× smaller).</li>
+</ul>
+<h2 id="parameters-4"><a class="header" href="#parameters-4">Parameters</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of subvectors. Must divide <code>dim</code>. Larger values give finer quantization at the cost of more codebooks and larger codes (<code>product_quantizer_parameter.h:38</code>).</td></tr>
+<tr><td><code>pq_bits</code></td><td>int</td><td><code>8</code></td><td>Bits per subvector (1–8). With <code>8</code>, each subvector is one byte. Most reliable with <code>8</code>; see <a href="#pq-fastscan">PQ FastScan</a> for the 4-bit SIMD variant.</td></tr>
+</tbody>
+</table>
+</div>
+<p>On HGraph these are exposed as the top-level keys <code>base_pq_dim</code> and
+<code>pq_bits</code> (<code>src/algorithm/hgraph.cpp:465-472</code>).</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pq",
+        "base_pq_dim": 32,
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp16"
+    }
+}
+</code></pre>
+<h2 id="training-4"><a class="header" href="#training-4">Training</a></h2>
+<p><code>NEED_TRAIN</code> is set. Training runs k-means per subspace to learn the
+<code>2^pq_bits</code> centroids; this is typically the most expensive training step
+of any built-in quantizer. Use a training sample of at least <code>256 × 2^pq_bits</code> vectors per subspace for stable codebooks; <code>Build(base)</code>
+samples from the input automatically.</p>
+<h2 id="metric-compatibility-5"><a class="header" href="#metric-compatibility-5">Metric compatibility</a></h2>
+<p><code>l2</code>, <code>ip</code>, <code>cosine</code> — all supported. Query-time distance is computed via
+a per-subspace LUT: for <code>l2</code> it is squared L2 between the query subvector
+and each centroid; for <code>ip</code> it is the dot product. Cosine reduces to <code>ip</code>
+on pre-normalized vectors.</p>
+<h2 id="tips"><a class="header" href="#tips">Tips</a></h2>
+<ul>
+<li><code>pq_dim</code> should divide <code>dim</code> evenly. Common ratios are <code>dim/4</code> or
+<code>dim/8</code>.</li>
+<li>Very small <code>pq_dim</code> (e.g. <code>dim/16</code>) produces very compact codes but
+loses recall fast; combine with reorder.</li>
+<li>For anisotropic data, a rotation transformer in front improves PQ
+recall noticeably: use <a href="#quantization-transform">Transform Quantizer</a>
+with a chain like <code>"rom, pq"</code>.</li>
+</ul>
+<h2 id="related-pages-4"><a class="header" href="#related-pages-4">Related pages</a></h2>
+<ul>
+<li><a href="#pq-fastscan">PQ FastScan</a></li>
+<li><a href="#quantization-transform">Transform Quantizer</a></li>
+<li><a href="#hgraph-1">HGraph index</a></li>
+<li><a href="quantization/README.html">Quantization overview</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pq-fastscan"><a class="header" href="#pq-fastscan">PQ FastScan</a></h1>
+<p><code>pqfs</code> is a SIMD-accelerated variant of <a href="#product-quantization-pq">Product Quantization</a> that
+fixes <code>pq_bits = 4</code> and uses a memory layout designed for the AVX-2 /
+AVX-512 “FastScan” lookup-table kernel. At the cost of being 4-bit only,
+it delivers significantly higher distance-computation throughput.</p>
+<p><img src="figures/quantization/pqfs-block.svg" alt="PQ FastScan: 16-vector 4-bit interleaved block and SIMD LUT lookup"></p>
+<blockquote>
+<p>Implementation: <code>src/quantization/product_quantization/pq_fastscan_quantizer.cpp</code>,
+parameter file <code>pq_fastscan_quantizer_parameter.cpp</code>.</p>
+</blockquote>
+<h2 id="when-to-use-it-4"><a class="header" href="#when-to-use-it-4">When to use it</a></h2>
+<ul>
+<li>The platform has AVX-2 (and ideally AVX-512); the FastScan kernel is
+the main reason to choose <code>pqfs</code> over <code>pq</code>.</li>
+<li>Search throughput, not just memory, matters.</li>
+<li>4-bit subspace codebooks (16 centroids per subvector) are sufficient
+for your recall target — typically yes when combined with reorder.</li>
+</ul>
+<p>If your platform does not advertise the required SIMD width, fall back to
+plain <a href="#product-quantization-pq"><code>pq</code></a>.</p>
+<h2 id="memory-cost-codes-only-2"><a class="header" href="#memory-cost-codes-only-2">Memory cost (codes only)</a></h2>
+<p><code>ceil(pq_dim / 2) = (pq_dim + 1) / 2</code> bytes per vector — both even and odd
+<code>pq_dim</code> are supported (<code>src/quantization/product_quantization/pq_fastscan_quantizer.cpp:41</code>).
+Codebooks: <code>pq_dim × 16 × subspace_dim × 4</code> bytes — significantly smaller
+than 8-bit <code>pq</code> because the codebook has only 16 centroids per subspace.</p>
+<h2 id="parameters-5"><a class="header" href="#parameters-5">Parameters</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of subvectors. Must divide <code>dim</code>. <code>pq_bits</code> is <strong>fixed to 4</strong> internally and not configurable (<code>pq_fastscan_quantizer_parameter.cpp:28-33</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<p>Exposed on HGraph as <code>base_pq_dim</code> (<code>src/algorithm/hgraph.cpp:465-472</code>).</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pqfs",
+        "base_pq_dim": 32,
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp16"
+    }
+}
+</code></pre>
+<h2 id="training-5"><a class="header" href="#training-5">Training</a></h2>
+<p><code>NEED_TRAIN</code> is set. Trains 16-centroid codebooks per subspace; cheaper
+than the 256-centroid training in <code>pq</code>.</p>
+<h2 id="metric-compatibility-6"><a class="header" href="#metric-compatibility-6">Metric compatibility</a></h2>
+<p><code>l2</code>, <code>ip</code>, <code>cosine</code> — same coverage as <code>pq</code>. The LUT layout is metric-
+specific but transparently handled by the quantizer.</p>
+<h2 id="tips-1"><a class="header" href="#tips-1">Tips</a></h2>
+<ul>
+<li><code>pq_dim</code> should be a multiple of the SIMD-batch width the kernel
+expects (the implementation uses 32 internally on AVX-512). When in
+doubt, choose <code>pq_dim ∈ {32, 64, 96, 128}</code>.</li>
+<li>The benefit over <code>pq</code> is <strong>throughput at the same recall</strong>, not memory
+(4-bit codes are inherently smaller, but <code>pq</code> with <code>pq_bits = 4</code> would
+match).</li>
+<li>For maximum recall recovery, pair with <code>use_reorder: true</code> and an
+<code>fp16</code> or <code>fp32</code> precise store.</li>
+</ul>
+<h2 id="related-pages-5"><a class="header" href="#related-pages-5">Related pages</a></h2>
+<ul>
+<li><a href="#product-quantization-pq">Product Quantization (PQ)</a></li>
+<li><a href="#hgraph-1">HGraph index</a></li>
+<li><a href="#quantization-transform">Transform Quantizer</a></li>
+<li><a href="quantization/README.html">Quantization overview</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="rabitq"><a class="header" href="#rabitq">RaBitQ</a></h1>
+<p><code>rabitq</code> is VSAG’s binary / low-bit quantizer. In its default mode each
+coordinate is encoded with <strong>1 bit</strong>, giving the highest compression ratio
+of any built-in quantizer. A second mode (<code>rabitq_version = "split_1bit_7bit"</code>) splits the representation into a 1-bit base and a
+7-bit refinement to recover much of the accuracy at ~8 bits/dim, while
+preserving the 1-bit fast distance kernel.</p>
+<p><img src="figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ: encode each coordinate by its sign relative to a random hyperplane"></p>
+<blockquote>
+<p>Implementation: <code>src/quantization/rabitq_quantization/rabitq_quantizer.cpp</code>,
+parameter file <code>rabitq_quantizer_parameter.cpp</code>.
+Design notes: <code>docs/rabitq_1xbit_new_repo_guide.md</code>,
+<code>docs/rabitq_split_1bit_7bit.md</code>.</p>
+</blockquote>
+<h2 id="when-to-use-it-5"><a class="header" href="#when-to-use-it-5">When to use it</a></h2>
+<ul>
+<li><strong>Maximum compression.</strong> 1-bit codes are the smallest possible storage
+for dense vectors.</li>
+<li><strong>High-dim embeddings</strong> where rotation + binarization preserves enough
+geometry for nearest-neighbor search.</li>
+<li>Combined with a precise reorder store (<code>fp16</code> / <code>fp32</code>) — the standard
+recipe is “RaBitQ + reorder”, because the binary distance is noisy on
+its own.</li>
+</ul>
+<p>For best accuracy, also enable <code>rabitq_use_fht: true</code> or wrap with a
+<a href="#quantization-transform">Transform Quantizer</a> chain such
+as <code>"pca, rom, rabitq"</code>.</p>
+<h2 id="memory-cost-codes-only-3"><a class="header" href="#memory-cost-codes-only-3">Memory cost (codes only)</a></h2>
+<ul>
+<li><code>rabitq_bits_per_dim_base = 1</code>: <code>ceil(dim / 8)</code> bytes per vector. With
+<code>dim = 768</code> that is 96 bytes (vs 3072 for fp32 → 32× smaller).</li>
+<li><code>rabitq_bits_per_dim_base = 8</code> (split-1+7 mode stores additional bits):
+~<code>dim</code> bytes per vector.</li>
+</ul>
+<h2 id="parameters-6"><a class="header" href="#parameters-6">Parameters</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pca_dim</code></td><td>int</td><td><code>0</code> (= input dim)</td><td>Optional PCA preprocessing dimension applied inside RaBitQ. <code>0</code> means no PCA reduction (<code>rabitq_quantizer_parameter.cpp:30-32</code>).</td></tr>
+<tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>Bits per dimension used to encode the <strong>query</strong> during search. Allowed values: <code>4</code> or <code>32</code> (<code>rabitq_quantizer_parameter.cpp:38-43</code>).</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>Bits per dimension for the <strong>base</strong> (stored) codes. Allowed range <code>[1, 8]</code> (<code>rabitq_quantizer_parameter.cpp:45-54</code>). Use <code>1</code> for pure 1-bit RaBitQ.</td></tr>
+<tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td>One of <code>"standard"</code> (1-bit) or <code>"split_1bit_7bit"</code>. The split version requires <code>rabitq_bits_per_dim_query = 32</code> (<code>rabitq_quantizer_parameter.cpp:55-67</code>).</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Controls the error budget of the encoder; must be finite and positive (<code>rabitq_quantizer_parameter.cpp:68-75</code>).</td></tr>
+<tr><td><code>use_fht</code></td><td>bool</td><td><code>false</code></td><td>If <code>true</code>, applies a Fast Hadamard Transform rotation before binarization. Improves accuracy on anisotropic data with cheap O(dim log dim) cost (<code>rabitq_quantizer_parameter.cpp:76-78</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<p>On HGraph these are exposed as the top-level keys <code>rabitq_pca_dim</code>,
+<code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>, <code>rabitq_version</code>,
+<code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code> — the last one is the HGraph
+alias for the quantizer’s <code>use_fht</code> key and is rewritten by the index
+layer (<code>src/algorithm/hgraph.cpp:473-480</code>, names defined in
+<code>src/constants.cpp:142-148</code>). Pyramid exposes the same <code>rabitq_*</code> keys
+(<code>src/algorithm/pyramid.cpp:698-699</code>).</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 768,
+    "index_param": {
+        "base_quantization_type": "rabitq",
+        "rabitq_use_fht": true,
+        "rabitq_pca_dim": 0,
+        "rabitq_bits_per_dim_base": 1,
+        "rabitq_bits_per_dim_query": 32,
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>Swap to the higher-accuracy split mode. The split layout is selected by a
+combination of two keys — <code>rabitq_version: "split_1bit_7bit"</code> selects the
+1+7 RaBitQ encoding, and <code>base_codes_type: "rabitq_split"</code> switches the
+storage datacell. Setting <code>rabitq_version</code> alone does <strong>not</strong> activate the
+split datacell path; both keys must be set together (see
+<code>docs/rabitq_split_1bit_7bit.md</code>):</p>
+<pre><code class="language-json">{
+    "base_quantization_type": "rabitq",
+    "base_codes_type": "rabitq_split",
+    "rabitq_version": "split_1bit_7bit",
+    "rabitq_bits_per_dim_base": 8,
+    "rabitq_bits_per_dim_query": 32,
+    "rabitq_use_fht": true
+}
+</code></pre>
+<h2 id="training-6"><a class="header" href="#training-6">Training</a></h2>
+<p><code>NEED_TRAIN</code> is set. Training learns the rotation and per-dimension
+statistics that make the 1-bit encoding well-balanced. The optional FHT
+rotation is fixed (not learned), so it adds no extra training cost; PCA
+preprocessing (when <code>pca_dim &gt; 0</code>) trains a projection matrix.</p>
+<h2 id="metric-compatibility-7"><a class="header" href="#metric-compatibility-7">Metric compatibility</a></h2>
+<p><code>l2</code>, <code>ip</code>, <code>cosine</code> — all supported. The binary distance kernel is a
+popcount over XORed code words; for <code>ip</code> / <code>cosine</code> the implementation
+also tracks a residual norm so the inner-product estimate is unbiased.</p>
+<h2 id="tips-2"><a class="header" href="#tips-2">Tips</a></h2>
+<ul>
+<li><strong>Always enable reorder</strong> unless you have validated that 1-bit recall
+is acceptable on your data. <code>use_reorder: true</code> +
+<code>precise_quantization_type: "fp32"</code> is the safe default.</li>
+<li><strong>Rotate first.</strong> For un-normalized data, set <code>rabitq_use_fht: true</code> or
+use a <code>tq</code> chain that includes <code>rom</code> / <code>fht</code>.</li>
+<li><strong>Split mode for accuracy.</strong> <code>rabitq_version: "split_1bit_7bit"</code> keeps
+the 1-bit fast path for graph traversal and adds a 7-bit refinement
+for re-ranking; expect significantly higher recall at ~8× the code
+size of pure 1-bit.</li>
+</ul>
+<h2 id="related-pages-6"><a class="header" href="#related-pages-6">Related pages</a></h2>
+<ul>
+<li><a href="#quantization-transform">Transform Quantizer</a></li>
+<li><a href="#hgraph-1">HGraph index</a></li>
+<li>Design notes: <code>docs/rabitq_1xbit_new_repo_guide.md</code>,
+<code>docs/rabitq_split_1bit_7bit.md</code></li>
+<li><a href="quantization/README.html">Quantization overview</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="quantization-transform"><a class="header" href="#quantization-transform">Quantization Transform</a></h1>
+<p>The <strong>Transform Quantizer</strong> (<code>base_quantization_type: "tq"</code>) chains one or more vector
+transformations in front of a final quantizer. Transformations reshape vectors so a downstream
+quantizer can encode them more accurately or compactly — for example, rotate vectors so their
+energy is spread across dimensions (RaBitQ / SQ benefit greatly), or reduce dimensionality with
+PCA before storing them.</p>
+<blockquote>
+<p>Runnable example: <code>examples/cpp/501_quantization_transform.cpp</code>.</p>
+</blockquote>
+<h2 id="why-a-transform-layer"><a class="header" href="#why-a-transform-layer">Why a transform layer</a></h2>
+<p>A pure quantizer compresses vectors directly. With low-bit quantizers (e.g. <code>sq4</code>,
+<code>sq*_uniform</code>, <code>rabitq</code>) accuracy depends heavily on the <strong>distribution</strong> of vector
+coordinates: heavy-tailed or anisotropic dimensions waste code bits. A transform layer
+mitigates this:</p>
+<ul>
+<li><strong>Random rotations</strong> (<code>rom</code>, <code>fht</code>) decorrelate coordinates so a uniform/scalar quantizer
+works better on each axis.</li>
+<li><strong>PCA</strong> (<code>pca</code>) reduces dimensions while keeping most of the variance — code size shrinks
+proportionally.</li>
+<li><strong>MRLE</strong> (<code>mrle</code>) is a metric-recoverable low-rank encoding tailored to L2/IP search.</li>
+</ul>
+<p>The transform output then feeds a standard quantizer (<code>fp32</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>rabitq</code>,
+…), which actually stores the codes. The whole chain is referred to as <strong><code>tq</code> (Transform
+Quantizer)</strong>.</p>
+<h2 id="quick-start-6"><a class="header" href="#quick-start-6">Quick start</a></h2>
+<p><code>tq</code> is currently exposed as a <strong>public, externally configurable</strong> quantization type only by
+<strong>HGraph</strong>. HGraph maps the top-level keys <code>tq_chain</code> and <code>rabitq_pca_dim</code> into the nested
+<code>base_codes.quantization_params</code> JSON via its external-parameter mapping
+(<code>src/algorithm/hgraph.cpp:370-385</code>). IVF, BruteForce, Pyramid and WARP all internally render
+a <code>tq_chain</code> field into their inner JSON template, but none of them expose <code>tq_chain</code> (or any
+other TQ parameter) in their external mapping today. <code>CheckAndMappingExternalParam</code> rejects
+unknown external keys with <code>invalid config param</code>
+(<code>src/utils/util_functions.cpp:50-53</code>), so passing <code>tq_chain</code> in the <code>index_param</code> JSON of
+those indexes will fail at index construction. Configuring TQ on non-HGraph indexes
+therefore requires code-side changes to add the external mapping.</p>
+<pre><code class="language-cpp">std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "tq",
+        "tq_chain": "pca, rom, sq8_uniform",
+        "rabitq_pca_dim": 64,
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+})";
+
+vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
+vsag::Engine engine(&amp;resource);
+auto index = engine.CreateIndex("hgraph", params).value();
+index-&gt;Build(base);
+auto result = index-&gt;KnnSearch(query, topk, search_params).value();
+</code></pre>
+<p>In the example above, base vectors are first projected from 128 to 64 dimensions (<code>pca</code>),
+randomly rotated (<code>rom</code>), then quantized with <code>sq8_uniform</code>. Reordering is enabled, so HGraph
+keeps an <code>fp32</code> precise copy and re-ranks the top candidates returned by the graph search
+(<code>include/vsag/index.h</code>; see <a href="#memory-management">Memory Management</a> for the storage implications).</p>
+<h2 id="tq_chain-syntax"><a class="header" href="#tq_chain-syntax"><code>tq_chain</code> syntax</a></h2>
+<p><code>tq_chain</code> is a <strong>comma-separated string</strong>: one or more transformer names followed by exactly
+one final quantizer name. Whitespace around tokens is trimmed
+(<code>src/quantization/transform_quantization/transform_quantizer_parameter.cpp:53-74</code>).</p>
+<pre><code>"&lt;transform1&gt;, &lt;transform2&gt;, ..., &lt;quantizer&gt;"
+</code></pre>
+<p>Examples:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Chain</th><th>Effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>"rom, fp32"</code></td><td>Random rotation, then store as fp32 (used for tests / sanity baselines).</td></tr>
+<tr><td><code>"fht, sq8_uniform"</code></td><td>Fast Hadamard rotation, then 8-bit uniform scalar quantization.</td></tr>
+<tr><td><code>"pca, rom, sq8_uniform"</code></td><td>PCA reduction, random rotation, then 8-bit uniform — the example chain.</td></tr>
+<tr><td><code>"pca, rom, rabitq"</code></td><td>PCA + rotation feeding the RaBitQ binary quantizer.</td></tr>
+<tr><td><code>"mrle, fp32"</code></td><td>MRLE projection then store as fp32 (MRLE must be first).</td></tr>
+</tbody>
+</table>
+</div>
+<p>Constraints (<code>transform_quantizer_parameter.cpp:33-45</code>):</p>
+<ul>
+<li>The chain must contain <strong>at least one transformer + one quantizer</strong> (length ≥ 2). An empty
+or single-token chain raises <code>INVALID_ARGUMENT</code>.</li>
+<li>The <strong>last token must be a quantizer that the TQ flatten path can dispatch</strong>: one of
+<code>fp32</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4</code>, <code>sq4_uniform</code>, <code>bf16</code>, <code>fp16</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>
+(<code>src/datacell/flatten_interface.cpp:126-164</code>). <code>TransformQuantizerParameter</code> parses a
+slightly wider set of names (it also accepts <code>sparse</code>, <code>int8</code>, <code>tq</code>), but the flatten
+factory does not have a dispatch branch for <code>int8</code>/<code>tq</code> and explicitly rejects <code>sparse</code>
+when <code>is_transform_quantizer</code> is true (<code>src/datacell/flatten_interface.cpp:166</code>), so using
+any of those three as the terminal quantizer fails at index construction with an
+“unsupported quantization type” error.</li>
+<li>Any unrecognized transformer name raises <code>INVALID_ARGUMENT: invalid transformer name</code>
+(<code>transform_quantizer.h:225-227</code>).</li>
+</ul>
+<h2 id="supported-transformers"><a class="header" href="#supported-transformers">Supported transformers</a></h2>
+<p>The factory at <code>src/quantization/transform_quantization/transform_quantizer.h:192-227</code>
+recognizes four transformer names today:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Name</th><th>Output dim</th><th>Description</th><th>Implementation</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pca</code></td><td><code>pca_dim</code> if set, else input dim</td><td>Principal-Component-Analysis projection; reduces dim while keeping variance.</td><td><code>src/impl/transform/pca_transformer.h</code></td></tr>
+<tr><td><code>rom</code></td><td>input dim</td><td>Random Orthogonal Matrix; rotates vectors to decorrelate dimensions.</td><td><code>src/impl/transform/random_orthogonal_transformer.h</code></td></tr>
+<tr><td><code>fht</code></td><td>input dim</td><td>Fast Hadamard / KAC random rotation; cheaper variant of <code>rom</code>.</td><td><code>src/impl/transform/fht_kac_rotate_transformer.h</code></td></tr>
+<tr><td><code>mrle</code></td><td><code>mrle_dim</code> (≤ input dim)</td><td>Metric-Recoverable Low-rank Encoding; <strong>must be the first transformer in the chain</strong>.</td><td><code>src/impl/transform/mrle_transformer.h</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Notes:</p>
+<ul>
+<li><code>mrle</code> placement is enforced at <code>transform_quantizer.h:155-159</code> and <code>mrle_dim ≤ input_dim</code>
+at <code>transform_quantizer.h:217-220</code>.</li>
+<li>Other strings declared in headers (<code>residual</code>, <code>normalize</code>) are <strong>not</strong> wired into the
+factory and will be rejected.</li>
+</ul>
+<h2 id="transformer-parameters"><a class="header" href="#transformer-parameters">Transformer parameters</a></h2>
+<p>The transformer JSON is read by <code>VectorTransformerParameter::FromJson</code>
+(<code>src/impl/transform/vector_transformer_parameter.cpp:22-35</code>):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pca_dim</code></td><td>int</td><td><code>0</code> (= input dim)</td><td>Output dim of the <code>pca</code> transformer.</td></tr>
+<tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code> (= input dim)</td><td>Output dim of the <code>mrle</code> transformer.</td></tr>
+<tr><td><code>input_dim</code></td><td>int</td><td>auto</td><td>Auto-populated by the chain — do not set manually.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="hgraph-external-mapping"><a class="header" href="#hgraph-external-mapping">HGraph external mapping</a></h3>
+<p>When using HGraph, two top-level shortcuts are mapped into the nested quantizer params
+(<code>src/algorithm/hgraph.cpp:370-385</code>):</p>
+<ul>
+<li><code>tq_chain</code> → <code>base_codes.quantization_params.tq_chain</code></li>
+<li><code>rabitq_pca_dim</code> → <code>base_codes.quantization_params.pca_dim</code></li>
+</ul>
+<p>The name <code>rabitq_pca_dim</code> predates Transform Quantizer; when the chain includes <code>pca</code>, it
+drives the <strong><code>pca</code> transformer’s output dim</strong> (it is not RaBitQ-specific). When the chain
+ends in <code>rabitq</code> without <code>pca</code>, the same key configures RaBitQ’s own PCA preprocessing
+(<code>src/quantization/rabitq_quantization/rabitq_quantizer_parameter.cpp:30</code>).</p>
+<h2 id="reordering-and-the-precise-codes-store"><a class="header" href="#reordering-and-the-precise-codes-store">Reordering and the precise codes store</a></h2>
+<p>Transform chains lose some information by design (rotation is lossless, but <code>pca</code> /
+<code>sq*_uniform</code> / <code>rabitq</code> are not). Combining <code>tq</code> with <strong>reorder</strong> — keep a precise (typically
+<code>fp32</code>) copy of every vector and re-rank the top candidates — restores accuracy with a
+modest memory cost:</p>
+<ul>
+<li><code>use_reorder: true</code> makes HGraph keep a second flatten store, the <strong>precise codes store</strong>
+(<code>src/algorithm/hgraph.cpp:76-79</code>).</li>
+<li><code>precise_quantization_type</code> selects its quantizer (<code>fp32</code> default; can be <code>fp16</code> / <code>bf16</code> /
+<code>sq8</code> if you want to trade memory for accuracy).</li>
+<li>At search time the graph walk uses the cheap <code>tq</code> base codes, then the top-K are re-scored
+against the precise codes (<code>hgraph.cpp:978-981</code> and surrounding sites).</li>
+</ul>
+<p><code>use_reorder</code> and <code>precise_quantization_type</code> are not specific to <code>tq</code> — they also apply when
+<code>base_quantization_type</code> is <code>sq8</code>, <code>pq</code>, <code>rabitq</code>, etc. See the table in
+<a href="#hgraph-1">HGraph index</a> for the full per-index parameter list.</p>
+<h2 id="choosing-a-chain"><a class="header" href="#choosing-a-chain">Choosing a chain</a></h2>
+<p>A pragmatic rule of thumb:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Goal</th><th>Suggested chain</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td>Memory-aggressive, accuracy-restored</td><td><code>"pca, rom, sq8_uniform"</code> + <code>use_reorder: true</code>, <code>precise_quantization_type: "fp32"</code></td><td>Example 501 baseline.</td></tr>
+<tr><td>Maximum compression</td><td><code>"pca, rom, rabitq"</code> + reorder</td><td>1-bit quantization with rotation cleanup; expect noticeable accuracy loss without reorder.</td></tr>
+<tr><td>Anisotropic data, no dim reduction</td><td><code>"rom, sq8_uniform"</code> or <code>"fht, sq8_uniform"</code></td><td>Use <code>fht</code> for lower build cost on high dim.</td></tr>
+<tr><td>Distance-preserving low-rank</td><td><code>"mrle, fp32"</code></td><td>Metric-aware reduction, no further quantization.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Always benchmark on your own data — the right tradeoff between <code>tq</code> aggressiveness and
+<code>use_reorder</code> depends on dataset distribution, target recall, and memory budget.</p>
+<h2 id="compatibility-and-merge"><a class="header" href="#compatibility-and-merge">Compatibility and merge</a></h2>
+<p>Two <code>tq</code> configurations are considered compatible only when the chain length, every
+transformer name, and the final quantizer all match
+(<code>src/quantization/transform_quantization/transform_quantizer_parameter.cpp:99-117</code>). This
+matters for serialization round-trips and for any future merge / clone operations across
+indexes — keep the chain string stable across builds you intend to combine.</p>
+<blockquote>
+<p><strong>Chain string equality is necessary but not sufficient.</strong> The <code>tq_chain</code> token list does
+not encode transformer parameters such as <code>pca_dim</code> / <code>mrle_dim</code> (read as separate sibling
+JSON keys at <code>src/quantization/transform_quantization/transform_quantizer.h:200-216</code>) or the
+internal parameters of the terminal quantizer (e.g. <code>pq</code> subspace count, <code>rabitq</code> rotation
+seed). These parameters change the effective code dimension and layout, so for two builds
+to be practically merge-/clone-compatible you must keep the <strong>entire</strong> transform + quantizer
+parameter set consistent, not just the chain string.</p>
+</blockquote>
+<h2 id="related-pages-7"><a class="header" href="#related-pages-7">Related pages</a></h2>
+<ul>
+<li><a href="#hgraph-1">HGraph index</a> — parameter reference for <code>base_quantization_type</code>,
+<code>use_reorder</code>, <code>precise_quantization_type</code>.</li>
+<li><a href="#memory-management">Memory Management</a> — memory cost of base + precise stores.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="code-structure"><a class="header" href="#code-structure">Code Structure</a></h1>
@@ -3249,7 +4203,7 @@ lightweight patch on the main graph, typically below 10% of the main graph’s s
 <h2 id="example"><a class="header" href="#example">Example</a></h2>
 <p><code>examples/cpp/304_feature_enhance_graph.cpp</code> walks through building, training, and comparing
 recall end-to-end.</p>
-<h2 id="when-to-use-it"><a class="header" href="#when-to-use-it">When to Use It</a></h2>
+<h2 id="when-to-use-it-6"><a class="header" href="#when-to-use-it-6">When to Use It</a></h2>
 <ul>
 <li>Data distributions with sparse clusters or outliers.</li>
 <li>Online services sensitive to P99 recall.</li>
@@ -3638,206 +4592,6 @@ deserialization with a dedicated reader if you only need a snapshot on disk.</li
 freely serialized and shipped before any vectors are added.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="quantization-transform"><a class="header" href="#quantization-transform">Quantization Transform</a></h1>
-<p>The <strong>Transform Quantizer</strong> (<code>base_quantization_type: "tq"</code>) chains one or more vector
-transformations in front of a final quantizer. Transformations reshape vectors so a downstream
-quantizer can encode them more accurately or compactly — for example, rotate vectors so their
-energy is spread across dimensions (RaBitQ / SQ benefit greatly), or reduce dimensionality with
-PCA before storing them.</p>
-<blockquote>
-<p>Runnable example: <code>examples/cpp/501_quantization_transform.cpp</code>.</p>
-</blockquote>
-<h2 id="why-a-transform-layer"><a class="header" href="#why-a-transform-layer">Why a transform layer</a></h2>
-<p>A pure quantizer compresses vectors directly. With low-bit quantizers (e.g. <code>sq4</code>,
-<code>sq*_uniform</code>, <code>rabitq</code>) accuracy depends heavily on the <strong>distribution</strong> of vector
-coordinates: heavy-tailed or anisotropic dimensions waste code bits. A transform layer
-mitigates this:</p>
-<ul>
-<li><strong>Random rotations</strong> (<code>rom</code>, <code>fht</code>) decorrelate coordinates so a uniform/scalar quantizer
-works better on each axis.</li>
-<li><strong>PCA</strong> (<code>pca</code>) reduces dimensions while keeping most of the variance — code size shrinks
-proportionally.</li>
-<li><strong>MRLE</strong> (<code>mrle</code>) is a metric-recoverable low-rank encoding tailored to L2/IP search.</li>
-</ul>
-<p>The transform output then feeds a standard quantizer (<code>fp32</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>rabitq</code>,
-…), which actually stores the codes. The whole chain is referred to as <strong><code>tq</code> (Transform
-Quantizer)</strong>.</p>
-<h2 id="quick-start-6"><a class="header" href="#quick-start-6">Quick start</a></h2>
-<p><code>tq</code> is currently exposed as a <strong>public, externally configurable</strong> quantization type only by
-<strong>HGraph</strong>. HGraph maps the top-level keys <code>tq_chain</code> and <code>rabitq_pca_dim</code> into the nested
-<code>base_codes.quantization_params</code> JSON via its external-parameter mapping
-(<code>src/algorithm/hgraph.cpp:370-385</code>). IVF, BruteForce, Pyramid and WARP all internally render
-a <code>tq_chain</code> field into their inner JSON template, but none of them expose <code>tq_chain</code> (or any
-other TQ parameter) in their external mapping today. <code>CheckAndMappingExternalParam</code> rejects
-unknown external keys with <code>invalid config param</code>
-(<code>src/utils/util_functions.cpp:50-53</code>), so passing <code>tq_chain</code> in the <code>index_param</code> JSON of
-those indexes will fail at index construction. Configuring TQ on non-HGraph indexes
-therefore requires code-side changes to add the external mapping.</p>
-<pre><code class="language-cpp">std::string params = R"({
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128,
-    "index_param": {
-        "base_quantization_type": "tq",
-        "tq_chain": "pca, rom, sq8_uniform",
-        "rabitq_pca_dim": 64,
-        "max_degree": 32,
-        "ef_construction": 300,
-        "use_reorder": true,
-        "precise_quantization_type": "fp32"
-    }
-})";
-
-vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
-vsag::Engine engine(&amp;resource);
-auto index = engine.CreateIndex("hgraph", params).value();
-index-&gt;Build(base);
-auto result = index-&gt;KnnSearch(query, topk, search_params).value();
-</code></pre>
-<p>In the example above, base vectors are first projected from 128 to 64 dimensions (<code>pca</code>),
-randomly rotated (<code>rom</code>), then quantized with <code>sq8_uniform</code>. Reordering is enabled, so HGraph
-keeps an <code>fp32</code> precise copy and re-ranks the top candidates returned by the graph search
-(<code>include/vsag/index.h</code>; see <a href="#memory-management">Memory Management</a> for the storage implications).</p>
-<h2 id="tq_chain-syntax"><a class="header" href="#tq_chain-syntax"><code>tq_chain</code> syntax</a></h2>
-<p><code>tq_chain</code> is a <strong>comma-separated string</strong>: one or more transformer names followed by exactly
-one final quantizer name. Whitespace around tokens is trimmed
-(<code>src/quantization/transform_quantization/transform_quantizer_parameter.cpp:53-74</code>).</p>
-<pre><code>"&lt;transform1&gt;, &lt;transform2&gt;, ..., &lt;quantizer&gt;"
-</code></pre>
-<p>Examples:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Chain</th><th>Effect</th></tr>
-</thead>
-<tbody>
-<tr><td><code>"rom, fp32"</code></td><td>Random rotation, then store as fp32 (used for tests / sanity baselines).</td></tr>
-<tr><td><code>"fht, sq8_uniform"</code></td><td>Fast Hadamard rotation, then 8-bit uniform scalar quantization.</td></tr>
-<tr><td><code>"pca, rom, sq8_uniform"</code></td><td>PCA reduction, random rotation, then 8-bit uniform — the example chain.</td></tr>
-<tr><td><code>"pca, rom, rabitq"</code></td><td>PCA + rotation feeding the RaBitQ binary quantizer.</td></tr>
-<tr><td><code>"mrle, fp32"</code></td><td>MRLE projection then store as fp32 (MRLE must be first).</td></tr>
-</tbody>
-</table>
-</div>
-<p>Constraints (<code>transform_quantizer_parameter.cpp:33-45</code>):</p>
-<ul>
-<li>The chain must contain <strong>at least one transformer + one quantizer</strong> (length ≥ 2). An empty
-or single-token chain raises <code>INVALID_ARGUMENT</code>.</li>
-<li>The <strong>last token must be a quantizer that the TQ flatten path can dispatch</strong>: one of
-<code>fp32</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>sq4</code>, <code>sq4_uniform</code>, <code>bf16</code>, <code>fp16</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>
-(<code>src/datacell/flatten_interface.cpp:126-164</code>). <code>TransformQuantizerParameter</code> parses a
-slightly wider set of names (it also accepts <code>sparse</code>, <code>int8</code>, <code>tq</code>), but the flatten
-factory does not have a dispatch branch for <code>int8</code>/<code>tq</code> and explicitly rejects <code>sparse</code>
-when <code>is_transform_quantizer</code> is true (<code>src/datacell/flatten_interface.cpp:166</code>), so using
-any of those three as the terminal quantizer fails at index construction with an
-“unsupported quantization type” error.</li>
-<li>Any unrecognized transformer name raises <code>INVALID_ARGUMENT: invalid transformer name</code>
-(<code>transform_quantizer.h:225-227</code>).</li>
-</ul>
-<h2 id="supported-transformers"><a class="header" href="#supported-transformers">Supported transformers</a></h2>
-<p>The factory at <code>src/quantization/transform_quantization/transform_quantizer.h:192-227</code>
-recognizes four transformer names today:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Name</th><th>Output dim</th><th>Description</th><th>Implementation</th></tr>
-</thead>
-<tbody>
-<tr><td><code>pca</code></td><td><code>pca_dim</code> if set, else input dim</td><td>Principal-Component-Analysis projection; reduces dim while keeping variance.</td><td><code>src/impl/transform/pca_transformer.h</code></td></tr>
-<tr><td><code>rom</code></td><td>input dim</td><td>Random Orthogonal Matrix; rotates vectors to decorrelate dimensions.</td><td><code>src/impl/transform/random_orthogonal_transformer.h</code></td></tr>
-<tr><td><code>fht</code></td><td>input dim</td><td>Fast Hadamard / KAC random rotation; cheaper variant of <code>rom</code>.</td><td><code>src/impl/transform/fht_kac_rotate_transformer.h</code></td></tr>
-<tr><td><code>mrle</code></td><td><code>mrle_dim</code> (≤ input dim)</td><td>Metric-Recoverable Low-rank Encoding; <strong>must be the first transformer in the chain</strong>.</td><td><code>src/impl/transform/mrle_transformer.h</code></td></tr>
-</tbody>
-</table>
-</div>
-<p>Notes:</p>
-<ul>
-<li><code>mrle</code> placement is enforced at <code>transform_quantizer.h:155-159</code> and <code>mrle_dim ≤ input_dim</code>
-at <code>transform_quantizer.h:217-220</code>.</li>
-<li>Other strings declared in headers (<code>residual</code>, <code>normalize</code>) are <strong>not</strong> wired into the
-factory and will be rejected.</li>
-</ul>
-<h2 id="transformer-parameters"><a class="header" href="#transformer-parameters">Transformer parameters</a></h2>
-<p>The transformer JSON is read by <code>VectorTransformerParameter::FromJson</code>
-(<code>src/impl/transform/vector_transformer_parameter.cpp:22-35</code>):</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Key</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>pca_dim</code></td><td>int</td><td><code>0</code> (= input dim)</td><td>Output dim of the <code>pca</code> transformer.</td></tr>
-<tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code> (= input dim)</td><td>Output dim of the <code>mrle</code> transformer.</td></tr>
-<tr><td><code>input_dim</code></td><td>int</td><td>auto</td><td>Auto-populated by the chain — do not set manually.</td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="hgraph-external-mapping"><a class="header" href="#hgraph-external-mapping">HGraph external mapping</a></h3>
-<p>When using HGraph, two top-level shortcuts are mapped into the nested quantizer params
-(<code>src/algorithm/hgraph.cpp:370-385</code>):</p>
-<ul>
-<li><code>tq_chain</code> → <code>base_codes.quantization_params.tq_chain</code></li>
-<li><code>rabitq_pca_dim</code> → <code>base_codes.quantization_params.pca_dim</code></li>
-</ul>
-<p>The name <code>rabitq_pca_dim</code> predates Transform Quantizer; when the chain includes <code>pca</code>, it
-drives the <strong><code>pca</code> transformer’s output dim</strong> (it is not RaBitQ-specific). When the chain
-ends in <code>rabitq</code> without <code>pca</code>, the same key configures RaBitQ’s own PCA preprocessing
-(<code>src/quantization/rabitq_quantization/rabitq_quantizer_parameter.cpp:30</code>).</p>
-<h2 id="reordering-and-the-precise-codes-store"><a class="header" href="#reordering-and-the-precise-codes-store">Reordering and the precise codes store</a></h2>
-<p>Transform chains lose some information by design (rotation is lossless, but <code>pca</code> /
-<code>sq*_uniform</code> / <code>rabitq</code> are not). Combining <code>tq</code> with <strong>reorder</strong> — keep a precise (typically
-<code>fp32</code>) copy of every vector and re-rank the top candidates — restores accuracy with a
-modest memory cost:</p>
-<ul>
-<li><code>use_reorder: true</code> makes HGraph keep a second flatten store, the <strong>precise codes store</strong>
-(<code>src/algorithm/hgraph.cpp:76-79</code>).</li>
-<li><code>precise_quantization_type</code> selects its quantizer (<code>fp32</code> default; can be <code>fp16</code> / <code>bf16</code> /
-<code>sq8</code> if you want to trade memory for accuracy).</li>
-<li>At search time the graph walk uses the cheap <code>tq</code> base codes, then the top-K are re-scored
-against the precise codes (<code>hgraph.cpp:978-981</code> and surrounding sites).</li>
-</ul>
-<p><code>use_reorder</code> and <code>precise_quantization_type</code> are not specific to <code>tq</code> — they also apply when
-<code>base_quantization_type</code> is <code>sq8</code>, <code>pq</code>, <code>rabitq</code>, etc. See the table in
-<a href="#hgraph-1">HGraph index</a> for the full per-index parameter list.</p>
-<h2 id="choosing-a-chain"><a class="header" href="#choosing-a-chain">Choosing a chain</a></h2>
-<p>A pragmatic rule of thumb:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Goal</th><th>Suggested chain</th><th>Notes</th></tr>
-</thead>
-<tbody>
-<tr><td>Memory-aggressive, accuracy-restored</td><td><code>"pca, rom, sq8_uniform"</code> + <code>use_reorder: true</code>, <code>precise_quantization_type: "fp32"</code></td><td>Example 501 baseline.</td></tr>
-<tr><td>Maximum compression</td><td><code>"pca, rom, rabitq"</code> + reorder</td><td>1-bit quantization with rotation cleanup; expect noticeable accuracy loss without reorder.</td></tr>
-<tr><td>Anisotropic data, no dim reduction</td><td><code>"rom, sq8_uniform"</code> or <code>"fht, sq8_uniform"</code></td><td>Use <code>fht</code> for lower build cost on high dim.</td></tr>
-<tr><td>Distance-preserving low-rank</td><td><code>"mrle, fp32"</code></td><td>Metric-aware reduction, no further quantization.</td></tr>
-</tbody>
-</table>
-</div>
-<p>Always benchmark on your own data — the right tradeoff between <code>tq</code> aggressiveness and
-<code>use_reorder</code> depends on dataset distribution, target recall, and memory budget.</p>
-<h2 id="compatibility-and-merge"><a class="header" href="#compatibility-and-merge">Compatibility and merge</a></h2>
-<p>Two <code>tq</code> configurations are considered compatible only when the chain length, every
-transformer name, and the final quantizer all match
-(<code>src/quantization/transform_quantization/transform_quantizer_parameter.cpp:99-117</code>). This
-matters for serialization round-trips and for any future merge / clone operations across
-indexes — keep the chain string stable across builds you intend to combine.</p>
-<blockquote>
-<p><strong>Chain string equality is necessary but not sufficient.</strong> The <code>tq_chain</code> token list does
-not encode transformer parameters such as <code>pca_dim</code> / <code>mrle_dim</code> (read as separate sibling
-JSON keys at <code>src/quantization/transform_quantization/transform_quantizer.h:200-216</code>) or the
-internal parameters of the terminal quantizer (e.g. <code>pq</code> subspace count, <code>rabitq</code> rotation
-seed). These parameters change the effective code dimension and layout, so for two builds
-to be practically merge-/clone-compatible you must keep the <strong>entire</strong> transform + quantizer
-parameter set consistent, not just the chain string.</p>
-</blockquote>
-<h2 id="related-pages"><a class="header" href="#related-pages">Related pages</a></h2>
-<ul>
-<li><a href="#hgraph-1">HGraph index</a> — parameter reference for <code>base_quantization_type</code>,
-<code>use_reorder</code>, <code>precise_quantization_type</code>.</li>
-<li><a href="#memory-management">Memory Management</a> — memory cost of base + precise stores.</li>
-</ul>
-<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h1>
 <p>This page gathers practical advice for running VSAG in production, as a companion to the
 parameter reference and performance tuning guide.</p>
@@ -3953,7 +4707,7 @@ the same metric family.</li>
 <li>When comparing results across tools, check whether the tool uses a distance
 or a similarity convention.</li>
 </ul>
-<h2 id="related-pages-1"><a class="header" href="#related-pages-1">Related Pages</a></h2>
+<h2 id="related-pages-8"><a class="header" href="#related-pages-8">Related Pages</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#index-parameters">Index Parameters</a></li>

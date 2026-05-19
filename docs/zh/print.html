@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-d03566ae.js";
+            window.path_to_searchindex_js = "searchindex-b32a6c9b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-fb803ab4.js"></script>
+        <script src="toc-4baadde4.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -719,7 +719,7 @@ for rid, rdist in zip(result_ids, result_dists):
 <tbody>
 <tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
 <tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略</td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略 —— 支持的全部取值见<a href="quantization/README.html">量化章节</a></td></tr>
 </tbody>
 </table>
 </div>
@@ -788,7 +788,7 @@ HGraph 都是推荐的默认索引。</p>
 <code>max_degree</code> 预算内的最近邻。构图算法可以是 NSW 风格插入（<code>graph_type: "nsw"</code>，默认）
 或 ODescent（<code>graph_type: "odescent"</code>）。</li>
 <li><strong>量化。</strong> 底层存储使用可配置的量化器进行压缩（<code>base_quantization_type</code> —
-<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>）。
+<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code>）。
 可选地再保留一份高精度副本（<code>use_reorder: true</code> 搭配 <code>precise_quantization_type</code>），
 用于对粗排结果进行重打分。</li>
 <li><strong>搜索。</strong> 自顶向下在图上做贪心 beam search，扩展候选集到 <code>ef_search</code> 个节点；如启用精排，
@@ -829,7 +829,7 @@ auto result = index-&gt;KnnSearch(
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—（必填）</td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—（必填）</td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code> —— 各量化器细节见<a href="quantization/README.html">量化章节</a></td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>图节点最大出度</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>构建阶段的候选集大小（越大召回越高，构建越慢）</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td>构图算法：<code>nsw</code> 或 <code>odescent</code></td></tr>
@@ -1040,7 +1040,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第一级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
 <tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第二级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
 <tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>中心训练方式：<code>kmeans</code> 或 <code>random</code></td></tr>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> —— 各量化器细节见<a href="quantization/README.html">量化章节</a></td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排量化类型（<code>use_reorder: true</code> 时使用）</td></tr>
@@ -1299,7 +1299,7 @@ auto result = index-&gt;KnnSearch(
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>底层量化类型（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>）</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>底层量化类型（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>）。各量化器细节见<a href="quantization/README.html">量化章节</a>。</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>子图内节点的最大出度</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code> 或 <code>odescent</code></td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td><code>nsw</code> 构图时的候选集大小</td></tr>
@@ -1403,7 +1403,7 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> —— 各量化器细节见<a href="quantization/README.html">量化章节</a></td></tr>
 <tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>启用属性过滤（参见 <a href="#属性过滤混合搜索">属性过滤</a>）</td></tr>
 </tbody>
 </table>
@@ -1427,7 +1427,7 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
     }
 }
 </code></pre>
-<p>当 <code>base_quantization_type</code> 选择了需要训练的量化器（<code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、
+<p>当 <code>base_quantization_type</code> 选择了需要训练的量化器（<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、
 <code>pq</code>、<code>pqfs</code>、<code>rabitq</code>）时，<code>Build</code> 会先用传入的数据集训练量化器，此时召回率不再保证
 100%。只有 <code>fp32</code>、<code>fp16</code>、<code>bf16</code> 不需要训练，能保持精确距离（仅受浮点数值精度影响）。</p>
 <h2 id="搜索参数"><a class="header" href="#搜索参数">搜索参数</a></h2>
@@ -1472,7 +1472,7 @@ auto r3 = index-&gt;RangeSearch(query, radius, R"({"parallelism": 8})").value();
 <tr><td><code>SUPPORT_CHECK_ID_EXIST</code> / <code>SUPPORT_CLONE</code> / <code>SUPPORT_ESTIMATE_MEMORY</code> / <code>SUPPORT_GET_MEMORY_USAGE</code></td><td>标准的内省与生命周期接口。</td></tr>
 <tr><td><code>SUPPORT_SERIALIZE_BINARY_SET</code> / <code>SUPPORT_SERIALIZE_FILE</code> / <code>SUPPORT_SERIALIZE_WRITE_FUNC</code></td><td>完整的保存能力。</td></tr>
 <tr><td><code>SUPPORT_DESERIALIZE_BINARY_SET</code> / <code>SUPPORT_DESERIALIZE_FILE</code> / <code>SUPPORT_DESERIALIZE_READER_SET</code></td><td>完整的加载能力。（没有对应的 <code>DESERIALIZE_WRITE_FUNC</code>，读路径使用 <code>READER_SET</code> 形式。）</td></tr>
-<tr><td><code>NEED_TRAIN</code></td><td>当 <code>base_quantization_type</code> 是 <code>sq8</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> 之一时声明。</td></tr>
+<tr><td><code>NEED_TRAIN</code></td><td>当 <code>base_quantization_type</code> 是 <code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> 之一时声明。</td></tr>
 </tbody>
 </table>
 </div>
@@ -1495,6 +1495,889 @@ auto r3 = index-&gt;RangeSearch(query, radius, R"({"parallelism": 8})").value();
 <li><a href="#范围搜索">范围搜索</a></li>
 <li><a href="#属性过滤混合搜索">属性过滤（混合搜索）</a></li>
 <li><a href="#性能评估工具eval_performance">性能评估工具</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="量化"><a class="header" href="#量化">量化</a></h1>
+<p>向量量化是 VSAG 中权衡内存与召回的核心手段。每种索引类型都通过一个
+<strong>基础量化器</strong>（由 <code>base_quantization_type</code> 配置）存储向量，并可以额外保留
+一个<strong>精确量化器</strong>用于重排（<code>precise_quantization_type</code> + <code>use_reorder: true</code>）。本章介绍每一种受支持的量化器：它做什么、接受哪些 JSON 参数、是否
+需要训练、支持哪些度量、以及何时选用它。</p>
+<p><img src="figures/quantization/quantization-overview.svg" alt="量化器选择决策树：按内存预算挑选量化器"></p>
+<h2 id="存储与搜索流水线"><a class="header" href="#存储与搜索流水线">存储与搜索流水线</a></h2>
+<pre><code>                  +---------------------+
+   原始向量 -----&gt;|  可选变换           |   (TQ 链：pca / rom / fht / mrle)
+                  +----------+----------+
+                             |
+                             v
+                  +---------------------+
+                  |   基础量化器        |   fp32 / fp16 / bf16 /
+                  |                     |   sq8 / sq4 / sq8_uniform /
+                  |                     |   sq4_uniform / pq / pqfs /
+                  |                     |   rabitq
+                  +----------+----------+
+                             |
+                             v
+                   +-------------------+
+                   |   索引存储        |   (HGraph / IVF / Pyramid /
+                   |                   |    BruteForce / SINDI)
+                   +---------+---------+
+                             |
+                             v
+                    图 / 倒排链路游走
+                             |
+             +---------------+-----------------+
+             |                                 |
+    use_reorder: false                use_reorder: true
+             |                                 |
+             v                                 v
+        top-K 结果                  +---------------------+
+                                    | 精确量化器          |  重排
+                                    | (默认 fp32；        |
+                                    |  fp16/bf16/sq8 可)  |
+                                    +----------+----------+
+                                               |
+                                               v
+                                          top-K 结果
+</code></pre>
+<p><code>use_reorder</code> 与 <code>precise_quantization_type</code> 并非某一具体量化器专属——只要
+索引支持重排，它们就生效（见
+<a href="#hgraph-1">HGraph</a>、<a href="#ivf-1">IVF</a>、
+<a href="#pyramid-1">Pyramid</a>）。</p>
+<h2 id="支持的量化器一览"><a class="header" href="#支持的量化器一览">支持的量化器一览</a></h2>
+<p><code>src/datacell/flatten_interface.cpp</code> 的工厂会根据 JSON 中的 <code>type</code>
+字段分派到具体量化器。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>base_quantization_type</code></th><th>每维位数（约）</th><th>需要训练</th><th>是否无损</th><th>典型场景</th></tr>
+</thead>
+<tbody>
+<tr><td><code>fp32</code></td><td>32</td><td>否</td><td>是</td><td>参考基线 / 精确重排存储</td></tr>
+<tr><td><code>fp16</code></td><td>16</td><td>否</td><td>近似无损</td><td>半精度存储；高维 float 向量的良好默认</td></tr>
+<tr><td><code>bf16</code></td><td>16</td><td>否</td><td>近似无损</td><td>与 <code>fp16</code> 同样大小，动态范围更宽</td></tr>
+<tr><td><code>sq8</code></td><td>8</td><td><strong>是</strong></td><td>否</td><td>通用的省内存基线</td></tr>
+<tr><td><code>sq4</code></td><td>4</td><td><strong>是</strong></td><td>否</td><td>激进压缩，不重排时召回会下降</td></tr>
+<tr><td><code>sq8_uniform</code></td><td>8</td><td><strong>是</strong></td><td>否</td><td>全局 min/max，SIMD 友好的 SQ8</td></tr>
+<tr><td><code>sq4_uniform</code></td><td>4</td><td><strong>是</strong></td><td>否</td><td>SIMD 友好的 SQ4；支持 <code>sq4_uniform_trunc_rate</code></td></tr>
+<tr><td><code>pq</code></td><td>~<code>pq_bits</code> × <code>pq_dim</code> / <code>dim</code></td><td><strong>是</strong></td><td>否</td><td>基于码本，非常紧凑</td></tr>
+<tr><td><code>pqfs</code></td><td>4 × <code>pq_dim</code> / <code>dim</code></td><td><strong>是</strong></td><td>否</td><td>PQ FastScan——SIMD 加速版 PQ</td></tr>
+<tr><td><code>rabitq</code></td><td>1（可选额外 7）</td><td><strong>是</strong></td><td>否</td><td>1 比特 / 1+7 比特二值量化，最强压缩</td></tr>
+<tr><td><code>tq</code></td><td>取决于链路</td><td>取决于末端量化器</td><td>否</td><td><a href="#量化变换quantization-transform">量化变换</a>：在另一个量化器之前串接旋转 / PCA</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>int8</code> 与 <code>sparse</code> 不作为通用的 <code>base_quantization_type</code> 暴露：</p>
+<ul>
+<li><code>int8</code> 在使用 <code>dtype: "int8"</code> 时被自动选用，并非一种压缩模式。</li>
+<li><code>sparse</code> 为 <a href="#sindi">SINDI</a> 的倒排链表服务，密集索引不可
+直接选择。</li>
+</ul>
+<h2 id="训练需求"><a class="header" href="#训练需求">训练需求</a></h2>
+<p>上表中标记为<strong>是</strong>的量化器实现了 <code>NEED_TRAIN</code> 标志，必须先调用 <code>Build</code>
+（在输入向量上内部完成训练）或显式 <code>Train</code> 之后再 <code>Add</code>。完整生命周期见
+<a href="#索引构建与训练">索引构建与训练</a>。</p>
+<p>对 HGraph 而言，训练数据就是传给 <code>Build</code> 的基础向量；对 IVF 而言，先训练
+聚类中心，再把残差喂给所配置的基础量化器。</p>
+<h2 id="度量兼容性"><a class="header" href="#度量兼容性">度量兼容性</a></h2>
+<p>本章所列量化器全部支持三种稠密度量（<code>l2</code> / <code>ip</code> / <code>cosine</code>）。对 <code>cosine</code>，
+索引会在量化前对向量做归一化，因此底层量化器看不到原始模长。一些实践
+要点：</p>
+<ul>
+<li><code>pq</code> / <code>pqfs</code> 在每个子空间上做距离查表；当 <code>pq_dim</code> 非常小（≤ 4），
+在 <code>ip</code> / <code>cosine</code> 上比 <code>l2</code> 更容易受各向异性影响。</li>
+<li><code>rabitq</code> 在输入向量去相关的情况下效果最好——要么开启
+<code>rabitq_use_fht</code> / <code>rabitq_pca_dim</code>，要么用 <code>tq</code> 链路如
+<code>"pca, rom, rabitq"</code> 包一层。</li>
+</ul>
+<h2 id="量化器选择"><a class="header" href="#量化器选择">量化器选择</a></h2>
+<p>一份实用的决策树：</p>
+<ol>
+<li><strong>需要精确距离或精确重排存储？</strong> 用 <code>fp32</code>。</li>
+<li><strong>只想内存减半且召回基本无损？</strong> 用 <code>fp16</code>（若数据动态范围大，例如未
+归一化的嵌入，则用 <code>bf16</code>）。</li>
+<li><strong>想要约 4× 的内存节省并愿意启用重排？</strong> 用 <code>sq8</code>（在 <code>l2</code> / <code>ip</code> 上
+想要更高 SIMD 吞吐可用 <code>sq8_uniform</code>）。</li>
+<li><strong>内存紧张、可在重排前承受更大召回损失？</strong> 用 <code>sq4_uniform</code>。</li>
+<li><strong>高维向量，希望基于码本做强压缩？</strong> 用 <code>pq</code>，平台支持 SIMD 路径时用
+<code>pqfs</code>。</li>
+<li><strong>追求最强压缩（1 比特）并能承担重排代价？</strong> 用 <code>rabitq</code>，最好搭配
+<code>rabitq_use_fht: true</code> 或 <code>tq</code> 链路。</li>
+</ol>
+<p>对上述任何一种有损量化器，将 <code>use_reorder: true</code> 配合
+<code>precise_quantization_type: "fp32"</code> 是恢复召回的标准做法，代价是额外内存；
+具体行为参考 <a href="#parameters">HGraph 参数表</a>。</p>
+<h2 id="量化在何处暴露"><a class="header" href="#量化在何处暴露">量化在何处暴露</a></h2>
+<p>并非每种索引都将所有参数都暴露为外部 key。当前情况：</p>
+<ul>
+<li><strong>HGraph</strong> 暴露最完整的集合：<code>base_quantization_type</code>、
+<code>precise_quantization_type</code>、<code>use_reorder</code>、<code>base_pq_dim</code>、
+<code>rabitq_pca_dim</code>、<code>rabitq_bits_per_dim_query</code>、
+<code>rabitq_bits_per_dim_base</code>、<code>rabitq_version</code>、<code>rabitq_error_rate</code>、
+<code>rabitq_use_fht</code>、<code>sq4_uniform_trunc_rate</code>、<code>tq_chain</code>
+（见 <code>src/algorithm/hgraph.cpp</code>）。</li>
+<li><strong>IVF</strong>、<strong>Pyramid</strong>、<strong>BruteForce</strong> 暴露 <code>base_quantization_type</code>
+与通用的重排相关 key；部分可调项（如 <code>tq_chain</code>）目前在内部接好但未作
+为外部 key 暴露。</li>
+</ul>
+<p>每种索引的完整参数列表见对应索引页。</p>
+<h2 id="本章内容"><a class="header" href="#本章内容">本章内容</a></h2>
+<ul>
+<li><a href="#fp32基线">FP32（基线）</a></li>
+<li><a href="#半精度浮点fp16--bf16">半精度浮点（FP16 / BF16）</a></li>
+<li><a href="#标量量化sq4--sq8">标量量化（SQ4 / SQ8）</a></li>
+<li><a href="#标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform">Uniform 标量量化（SQ4 / SQ8 Uniform）</a></li>
+<li><a href="#乘积量化pq">乘积量化（PQ）</a></li>
+<li><a href="#pq-fastscan">PQ FastScan</a></li>
+<li><a href="#rabitq">RaBitQ</a></li>
+<li><a href="#量化变换quantization-transform">量化变换（TQ）</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="fp32基线"><a class="header" href="#fp32基线">FP32（基线）</a></h1>
+<p><code>fp32</code> 把每个坐标按 32 位 IEEE-754 浮点存储——与输入向量布局一致。它是
+VSAG 中<strong>唯一完全无损</strong>的选项，作为所有其他量化器对比的参考基线。</p>
+<blockquote>
+<p>实现：<code>src/quantization/fp32_quantizer.cpp</code>，参数文件
+<code>fp32_quantizer_parameter.cpp</code>。</p>
+</blockquote>
+<h2 id="何时使用"><a class="header" href="#何时使用">何时使用</a></h2>
+<ul>
+<li><strong>重排 / 精确存储。</strong> 当 <code>use_reorder: true</code> 时，
+<code>precise_quantization_type: "fp32"</code> 是默认的精确存储；图上游走使用便宜
+的基础量化器，对 top-K 候选再用 fp32 精确重打分。</li>
+<li><strong>参考 / 基准真值。</strong> 用 <code>base_quantization_type: "fp32"</code> 构建索引能拿
+到该索引类型可达的最高召回，是其他量化器对比的标准基线
+（<code>docs/docs/en/src/resources/eval.md</code>）。</li>
+<li><strong>小规模数据集</strong>，内存不是瓶颈时。</li>
+<li><strong>BruteForce 原始向量取回。</strong> 仅当 <code>base_quantization_type</code> 为 <code>fp32</code>
+且度量允许时，<code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code> 才会被广播
+（<code>src/index/brute_force.cpp</code>）。</li>
+</ul>
+<h2 id="内存代价"><a class="header" href="#内存代价">内存代价</a></h2>
+<p>仅码本身的开销为每向量 <code>4 × dim</code> 字节。当 <code>fp32</code> 作为某个基础量化器之上的
+精确存储时，每向量代价为 <strong>base 码 + 4 × dim</strong>。</p>
+<h2 id="参数"><a class="header" href="#参数">参数</a></h2>
+<p><code>fp32</code> 没有量化器专属的 JSON 参数。</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "fp32",
+        "max_degree": 32,
+        "ef_construction": 300
+    }
+}
+</code></pre>
+<h2 id="训练"><a class="header" href="#训练">训练</a></h2>
+<p>不需要。<code>fp32</code> <strong>不</strong>设置 <code>NEED_TRAIN</code>。</p>
+<h2 id="度量兼容性-1"><a class="header" href="#度量兼容性-1">度量兼容性</a></h2>
+<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持，无特殊处理。</p>
+<h2 id="相关页面"><a class="header" href="#相关页面">相关页面</a></h2>
+<ul>
+<li><a href="quantization/README.html">量化总览</a></li>
+<li><a href="#hgraph-1">HGraph 索引</a> —— 见 <code>precise_quantization_type</code></li>
+<li><a href="#内存管理">内存管理</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="半精度浮点fp16--bf16"><a class="header" href="#半精度浮点fp16--bf16">半精度浮点（FP16 / BF16）</a></h1>
+<p><code>fp16</code> 与 <code>bf16</code> 把每个坐标用 16 位而非 32 位存储，把码内存减半且<strong>近似
+无损</strong>。它们没有量化器专属的 JSON 参数；二者的唯一差异是浮点格式自身的
+位布局。</p>
+<p><img src="figures/quantization/fp-bitlayout.svg" alt="FP32 / FP16 / BF16 位布局：符号位 / 指数位 / 尾数位宽度"></p>
+<blockquote>
+<p>实现：<code>src/quantization/scalar_quantization/half_precision_quantizer.cpp</code>，
+类型特征在 <code>half_precision_traits.h</code>。
+可运行示例：<code>examples/cpp/321_index_fp16_hgraph.cpp</code>。</p>
+</blockquote>
+<h2 id="fp16-与-bf16-一览"><a class="header" href="#fp16-与-bf16-一览">FP16 与 BF16 一览</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>格式</th><th>符号位</th><th>指数位</th><th>尾数位</th><th>有效范围</th><th>精度</th></tr>
+</thead>
+<tbody>
+<tr><td><code>fp16</code></td><td>1</td><td>5</td><td>10</td><td>~±6.55e4</td><td>约 3 位十进制</td></tr>
+<tr><td><code>bf16</code></td><td>1</td><td>8</td><td>7</td><td>与 <code>fp32</code> 相同（~±3.4e38）</td><td>约 2 位十进制</td></tr>
+</tbody>
+</table>
+</div>
+<p>实践含义：</p>
+<ul>
+<li><strong><code>fp16</code></strong> 保留更多尾数位——对取值大致在 <code>[-1, 1]</code> 的归一化嵌入精度更
+好。是 cosine 归一化向量的标准选择。</li>
+<li><strong><code>bf16</code></strong> 保留与 <code>fp32</code> 一致的指数范围——对原始、未归一化的特征（如
+加权和、累加器式嵌入）更安全。相对 <code>fp16</code>，在接近零的取值上损失一些
+精度。</li>
+</ul>
+<p>不确定时：归一化嵌入选 <code>fp16</code>，未归一化或范围较宽的数据选 <code>bf16</code>。</p>
+<h2 id="何时使用-1"><a class="header" href="#何时使用-1">何时使用</a></h2>
+<ul>
+<li>在 <code>fp32</code> 基线之上作为“即插即用“的内存优化。在标准基准（SIFT、GIST、
+Glove、句向量）上召回损失通常低于 1%。</li>
+<li>作为<strong>精确重排存储</strong>，体积仅为 fp32 的一半：
+<code>precise_quantization_type: "fp16"</code> 或 <code>"bf16"</code> 配合 <code>use_reorder: true</code>。</li>
+<li>高维浮点向量，32 位存储成为瓶颈时。</li>
+</ul>
+<h2 id="内存代价-1"><a class="header" href="#内存代价-1">内存代价</a></h2>
+<p>仅码本身每向量 <code>2 × dim</code> 字节。</p>
+<h2 id="参数-1"><a class="header" href="#参数-1">参数</a></h2>
+<p><code>fp16</code> 与 <code>bf16</code> 均没有量化器专属 JSON 参数。</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 768,
+    "index_param": {
+        "base_quantization_type": "fp16",
+        "max_degree": 32,
+        "ef_construction": 300
+    }
+}
+</code></pre>
+<p>将 <code>"fp16"</code> 替换为 <code>"bf16"</code> 即可切换格式。输入 <code>dtype</code> 仍是 <code>"float32"</code>：
+量化器会在运行时转换。</p>
+<h2 id="训练-1"><a class="header" href="#训练-1">训练</a></h2>
+<p>不需要。<code>fp16</code> 与 <code>bf16</code> 均不设置 <code>NEED_TRAIN</code>。</p>
+<h2 id="度量兼容性-2"><a class="header" href="#度量兼容性-2">度量兼容性</a></h2>
+<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持。<code>cosine</code> 通过先归一化输入再以 16 位精度
+存储实现。</p>
+<h2 id="何时不要使用"><a class="header" href="#何时不要使用">何时<strong>不要</strong>使用</a></h2>
+<ul>
+<li>当你还需要一个内存更激进的<em>基础</em>量化器（如 <code>sq8</code> 或 <code>pq</code>）——它们已经
+把存储压到远低于 2 字节/维。</li>
+<li>当你需要精确距离（用 <code>fp32</code>）。</li>
+</ul>
+<h2 id="相关页面-1"><a class="header" href="#相关页面-1">相关页面</a></h2>
+<ul>
+<li><a href="quantization/README.html">量化总览</a></li>
+<li><a href="#hgraph-1">HGraph 索引</a> —— <code>precise_quantization_type</code> 表</li>
+<li><a href="#内存管理">内存管理</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="标量量化sq4--sq8"><a class="header" href="#标量量化sq4--sq8">标量量化（SQ4 / SQ8）</a></h1>
+<p><code>sq8</code> 与 <code>sq4</code> 是<strong>逐维标量量化器</strong>：每个坐标按训练得到的逐维 <code>[min, max]</code>
+范围，从 <code>float32</code> 映射到 8 位（<code>sq8</code>）或 4 位（<code>sq4</code>）整数。它们共享同
+一份实现，仅以位宽参数化，位于
+<code>src/quantization/scalar_quantization/scalar_quantizer.cpp</code> 与
+<code>scalar_quantizer_parameter.h</code>。</p>
+<p>如果想要 SIMD 更友好、使用<strong>全局</strong> <code>[min, max]</code> 的变种，见
+<a href="#标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform">Uniform 标量量化</a>。</p>
+<p><img src="figures/quantization/sq-axis.svg" alt="标量量化：按逐维 [min, max] 范围将坐标映射到 2^b 个 bin 之一"></p>
+<h2 id="sq4-与-sq8-一览"><a class="header" href="#sq4-与-sq8-一览">SQ4 与 SQ8 一览</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>类型</th><th>每维位数</th><th>相对 fp32 内存</th><th>典型精度</th><th>备注</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sq8</code></td><td>8</td><td>~1/4</td><td>轻微召回下降</td><td>通用省内存基线</td></tr>
+<tr><td><code>sq4</code></td><td>4</td><td>~1/8</td><td>不重排时下降明显</td><td>激进压缩；配合 <code>use_reorder: true</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>训练得到的是逐维 <code>min</code>/<code>max</code>，重尾分布的坐标可能浪费码位。如果数据各
+向异性强，可考虑改用 <a href="#标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform">Uniform 标量量化</a> 或先旋转的
+<a href="#量化变换quantization-transform">量化变换</a> 链路，例如
+<code>"rom, sq8_uniform"</code>。</p>
+<h2 id="内存代价仅码"><a class="header" href="#内存代价仅码">内存代价（仅码）</a></h2>
+<ul>
+<li><code>sq8</code>：每向量 <code>dim</code> 字节。</li>
+<li><code>sq4</code>：每向量 <code>ceil(dim / 2)</code> 字节。</li>
+</ul>
+<p>此外还有一份小型逐维范围表（<code>8 × dim</code> 字节，所有向量摊销）。</p>
+<h2 id="参数-2"><a class="header" href="#参数-2">参数</a></h2>
+<p>目前 <code>sq8</code> 与 <code>sq4</code> 均无量化器专属 JSON 参数
+（<code>scalar_quantizer_parameter.h:36-58</code>）。位宽仅由 <code>type</code> 字符串决定。</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>将 <code>"sq8"</code> 替换为 <code>"sq4"</code> 即得到 4 位码。</p>
+<h2 id="训练-2"><a class="header" href="#训练-2">训练</a></h2>
+<p>设置了 <code>NEED_TRAIN</code>。训练从输入向量样本中收集逐维 <code>min</code> / <code>max</code>。
+<code>Build(base)</code> 会内部完成训练；对需要显式 <code>Train</code> 的索引（如部分 IVF 流程），
+请在 <code>Add</code> 之前调用。详见
+<a href="#索引构建与训练">索引构建与训练</a>。</p>
+<h2 id="度量兼容性-3"><a class="header" href="#度量兼容性-3">度量兼容性</a></h2>
+<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持。距离通过把整数码解码回逐维缩放浮点后
+计算。</p>
+<h2 id="sq8-与-sq4-如何选"><a class="header" href="#sq8-与-sq4-如何选"><code>sq8</code> 与 <code>sq4</code> 如何选</a></h2>
+<ul>
+<li><strong><code>sq8</code></strong>：图索引（HGraph、Pyramid）追求约 4× 内存压缩时的默认选择。
+召回损失通常很小，<code>use_reorder</code> 经常可选，但搭配
+<code>precise_quantization_type: "fp32"</code> 启用重排是最稳妥的配置。</li>
+<li><strong><code>sq4</code></strong>：内存紧张且能承担精确重排存储时选用。几乎总是要配合
+<code>use_reorder: true</code>。</li>
+<li>如果数据大致维度同质，改选 <code>sq*_uniform</code>；uniform 变种具有更高的 SIMD
+吞吐。</li>
+<li>对重尾 / 各向异性数据，更推荐前置旋转的
+<a href="#量化变换quantization-transform">量化变换</a> 链路。</li>
+</ul>
+<h2 id="相关页面-2"><a class="header" href="#相关页面-2">相关页面</a></h2>
+<ul>
+<li><a href="#标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform">Uniform 标量量化（SQ4 / SQ8 Uniform）</a></li>
+<li><a href="#量化变换quantization-transform">量化变换</a></li>
+<li><a href="quantization/README.html">量化总览</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform"><a class="header" href="#标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform">标量量化 Uniform（Scalar Quantization Uniform：SQ4 / SQ8 Uniform）</a></h1>
+<p><code>sq8_uniform</code> 与 <code>sq4_uniform</code> 与 <a href="#标量量化sq4--sq8"><code>sq8</code> / <code>sq4</code></a> 类似，是标量量化
+器，但它们学习的是<strong>全局唯一</strong>的 <code>[min, max]</code> 范围，对所有维度都使用同一
+份缩放参数。这一权衡——逐维自适应能力略弱，但解码路径更简单——换来了
+显著更快的 SIMD 距离计算（<code>l2</code> 与 <code>ip</code>），并保持更紧凑的码布局。</p>
+<p><img src="figures/quantization/sq-uniform-vs-perdim.svg" alt="Uniform（全局范围）与逐维标量量化对比"></p>
+<blockquote>
+<p>实现：<code>src/quantization/scalar_quantization/sq8_uniform_quantizer.cpp</code>、
+<code>src/quantization/scalar_quantization/sq4_uniform_quantizer.cpp</code>。</p>
+</blockquote>
+<h2 id="为什么快距离计算停留在整数域"><a class="header" href="#为什么快距离计算停留在整数域">为什么快：距离计算停留在整数域</a></h2>
+<p>这是在条件允许时优先选用 <code>sq*_uniform</code> 而非 <code>sq*</code> 的核心原因。由于每个
+维度共享同一对 <code>(min, max)</code>，仿射解码
+<code>x = min + code · (max - min) / (2^b - 1)</code> 对<strong>所有坐标都使用相同的
+scale 与 offset</strong>。这在热路径上带来三点收益：</p>
+<ul>
+<li>query 用同一份全局 <code>(min, max)</code> <strong>只编码一次</strong>，存入 uint8（或打包的
+半字节）缓冲，见 <code>ProcessQueryImpl</code>
+（<code>src/quantization/scalar_quantization/sq8_uniform_quantizer.cpp:179</code>）。</li>
+<li>base 向量的 code <strong>从不解码回 fp32</strong>。kernel
+<code>SQ8UniformComputeCodesIP(uint8_t* q, uint8_t* x, dim)</code> /
+<code>SQ4UniformComputeCodesIP(...)</code> 把两个操作数都按原始整数 code 读入，
+在 uint8 / 打包半字节通道上直接用 AVX-512 / AMX（ARM 上为 NEON）做
+点积，一次处理一个 cache line。内层循环里没有任何逐元素的 fp 反量化。</li>
+<li>共享的 scale 与 offset 在整数累加完成之后<strong>对每对向量只补偿一次</strong>，
+即可还原 fp 距离。某些度量需要的额外项（每向量的 norm 或 sum）也在
+循环外加上，参见
+<code>sq8_uniform_quantizer.cpp:200</code> 的 trailing metadata 说明以及
+<code>SQ8UniformComputeCodesIPBatch</code> 批量 kernel。</li>
+</ul>
+<p>而在逐维的 <code>sq*</code> 量化器里，每个坐标都有自己的 <code>(min_i, max_i)</code>，kernel
+要么在循环内乘以逐维 scale 表，要么先把至少一边的操作数解码回 fp。
+省掉这一步，就是 uniform 变种在同等召回下显著更快的根本原因。</p>
+<h2 id="何时使用-2"><a class="header" href="#何时使用-2">何时使用</a></h2>
+<ul>
+<li><strong>HGraph / IVF / Pyramid 的热路径。</strong> 当瓶颈在基础量化器距离计算时，
+在相近召回下，<code>sq8_uniform</code> / <code>sq4_uniform</code> 几乎总是比对应的非 uniform
+变种更快。</li>
+<li><strong>维度间取值范围相近的数据。</strong> 归一化嵌入（cosine），或已通过
+<a href="#量化变换quantization-transform">量化变换</a> 链路（如
+<code>"rom, sq8_uniform"</code> 或 <code>"fht, sq8_uniform"</code>）旋转过的向量，都是理想
+输入。</li>
+<li><strong>作为 <code>tq</code> 链路的末端量化器。</strong> 最常见的链路是
+<code>"pca, rom, sq8_uniform"</code>，参考示例 501。</li>
+</ul>
+<h2 id="sq4-uniform-与-sq8-uniform-对比"><a class="header" href="#sq4-uniform-与-sq8-uniform-对比">SQ4 uniform 与 SQ8 uniform 对比</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>类型</th><th>每维位数</th><th>相对 fp32 内存</th><th>典型精度</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sq8_uniform</code></td><td>8</td><td>~1/4</td><td>轻微召回下降</td></tr>
+<tr><td><code>sq4_uniform</code></td><td>4</td><td>~1/8</td><td>需重排以保持高召回</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="参数-3"><a class="header" href="#参数-3">参数</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>类型</th><th>默认</th><th>适用</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td>仅 <code>sq4_uniform</code></td><td>对离群值的对称截断比例（<code>src/quantization/scalar_quantization/sq4_uniform_quantizer_parameter.h:39</code>）。值越大，越多极端坐标被截断，从而减少主体数据的范围浪费，代价是尾部被裁掉。</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>sq8_uniform</code> 没有量化器专属的 JSON 参数。</p>
+<p>在 HGraph 上，<code>sq4_uniform_trunc_rate</code> 作为顶层 key 暴露，并被映射到
+嵌套的量化参数中（<code>src/algorithm/hgraph.cpp:409-416</code>）。</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq4_uniform",
+        "sq4_uniform_trunc_rate": 0.05,
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>若需 8 位变种，把 <code>"base_quantization_type"</code> 设为 <code>"sq8_uniform"</code> 并去掉
+<code>trunc_rate</code> key 即可。</p>
+<h2 id="训练-3"><a class="header" href="#训练-3">训练</a></h2>
+<p>设置了 <code>NEED_TRAIN</code>。训练在所有维度上估计单一的 <code>[min, max]</code>
+（<code>sq4_uniform</code> 时可附加截断）。<code>Build</code> 会内部完成训练。</p>
+<h2 id="度量兼容性-4"><a class="header" href="#度量兼容性-4">度量兼容性</a></h2>
+<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持。<code>cosine</code> 会先归一化再量化，这也使得 uniform
+缩放在该度量下接近最优。</p>
+<h2 id="uniform-与非-uniform-之间如何选"><a class="header" href="#uniform-与非-uniform-之间如何选">uniform 与非 uniform 之间如何选</a></h2>
+<ul>
+<li>数据已归一化（<code>cosine</code> 或预归一化 <code>l2</code>）→ 选 <strong>uniform</strong>。</li>
+<li>数据各维度取值范围差异极大（如混合特征块）→ 先尝试非 uniform 的
+<a href="#标量量化sq4--sq8"><code>sq*</code></a>，或在旋转变换后再用 uniform（<code>"rom, sq*_uniform"</code>）。</li>
+<li>吞吐比最后一点点召回更重要 → <strong>uniform</strong>。</li>
+</ul>
+<h2 id="相关页面-3"><a class="header" href="#相关页面-3">相关页面</a></h2>
+<ul>
+<li><a href="#标量量化sq4--sq8">标量量化（SQ4 / SQ8）</a></li>
+<li><a href="#量化变换quantization-transform">量化变换</a></li>
+<li><a href="quantization/README.html">量化总览</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="乘积量化pq"><a class="header" href="#乘积量化pq">乘积量化（PQ）</a></h1>
+<p>乘积量化把一个向量切成 <code>pq_dim</code> 个等长的<strong>子向量</strong>，每个子向量独立地按
+含 <code>2^pq_bits</code> 个中心的小型码本进行量化。最终存储的码为每向量
+<code>pq_dim × pq_bits</code> 比特——比 <code>fp32</code> 小数量级。查询时的距离计算通过每查询
+预先计算的查找表（LUT）完成。</p>
+<p><img src="figures/quantization/pq-codebook.svg" alt="乘积量化：子向量切分与码本查表"></p>
+<blockquote>
+<p>实现：<code>src/quantization/product_quantization/product_quantizer.cpp</code>，
+参数文件 <code>product_quantizer_parameter.cpp</code>。</p>
+</blockquote>
+<h2 id="何时使用-3"><a class="header" href="#何时使用-3">何时使用</a></h2>
+<ul>
+<li><strong>高维浮点向量（≥ 256 维）</strong>，且 <code>sq8</code> 仍嫌过大。</li>
+<li><strong>内存紧张、精度可接受</strong>的工作负载，需要相对 fp32 约 16× 压缩。</li>
+<li>配合 <code>use_reorder: true</code> 与一个小型 <code>fp16</code>/<code>fp32</code> 精确存储，PQ 是大规模
+场景下“压缩图索引“的标准配方。</li>
+</ul>
+<p>如需在 <code>pq_bits = 4</code> 时获得更高的 SIMD 吞吐，见 <a href="#pq-fastscan">PQ FastScan</a>。</p>
+<h2 id="内存代价仅码-1"><a class="header" href="#内存代价仅码-1">内存代价（仅码）</a></h2>
+<p>每向量 <code>ceil(pq_dim × pq_bits / 8)</code> 字节，外加一份只存一次的小型码本
+（<code>pq_dim × 2^pq_bits × subspace_dim × 4</code> 字节）。以典型配置
+（<code>pq_dim = 32</code>、<code>pq_bits = 8</code>、<code>dim = 128</code>）为例：</p>
+<ul>
+<li>码大小 = <code>32 × 8 / 8 = 32</code> 字节/向量（对比 fp32 的 <code>128 × 4 = 512</code>
+→ 小 16×）。</li>
+</ul>
+<h2 id="参数-4"><a class="header" href="#参数-4">参数</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>类型</th><th>默认</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pq_dim</code></td><td>int</td><td><code>1</code></td><td>子向量数量。必须整除 <code>dim</code>。取值越大，量化越细，但码本数量与码大小也会变大（<code>product_quantizer_parameter.h:38</code>）。</td></tr>
+<tr><td><code>pq_bits</code></td><td>int</td><td><code>8</code></td><td>每个子向量的位数（1–8）。取 <code>8</code> 时每个子向量一字节。<code>8</code> 最稳；4 位 SIMD 变种见 <a href="#pq-fastscan">PQ FastScan</a>。</td></tr>
+</tbody>
+</table>
+</div>
+<p>在 HGraph 上，这些以顶层 key <code>base_pq_dim</code> 与 <code>pq_bits</code> 暴露
+（<code>src/algorithm/hgraph.cpp:465-472</code>）。</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pq",
+        "base_pq_dim": 32,
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp16"
+    }
+}
+</code></pre>
+<h2 id="训练-4"><a class="header" href="#训练-4">训练</a></h2>
+<p>设置了 <code>NEED_TRAIN</code>。训练在每个子空间上跑 k-means 来学习 <code>2^pq_bits</code> 个
+中心；这通常是所有内建量化器中最贵的训练步骤。每个子空间使用至少
+<code>256 × 2^pq_bits</code> 个训练样本，码本会更稳定；<code>Build(base)</code> 会自动从输入
+采样。</p>
+<h2 id="度量兼容性-5"><a class="header" href="#度量兼容性-5">度量兼容性</a></h2>
+<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持。查询时距离通过每子空间的 LUT 计算：
+<code>l2</code> 使用查询子向量与每个中心的 L2 平方；<code>ip</code> 使用点积。<code>cosine</code> 在预
+归一化向量上等价于 <code>ip</code>。</p>
+<h2 id="实践要点"><a class="header" href="#实践要点">实践要点</a></h2>
+<ul>
+<li><code>pq_dim</code> 应整除 <code>dim</code>。常用比例是 <code>dim/4</code> 或 <code>dim/8</code>。</li>
+<li>极小的 <code>pq_dim</code>（如 <code>dim/16</code>）能得到非常紧凑的码，但召回会迅速下降；
+务必配合重排。</li>
+<li>对各向异性数据，在 PQ 前接一层旋转变换能显著提升召回：用
+<a href="#量化变换quantization-transform">量化变换</a> 链路如 <code>"rom, pq"</code>。</li>
+</ul>
+<h2 id="相关页面-4"><a class="header" href="#相关页面-4">相关页面</a></h2>
+<ul>
+<li><a href="#pq-fastscan">PQ FastScan</a></li>
+<li><a href="#量化变换quantization-transform">量化变换</a></li>
+<li><a href="#hgraph-1">HGraph 索引</a></li>
+<li><a href="quantization/README.html">量化总览</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="pq-fastscan"><a class="header" href="#pq-fastscan">PQ FastScan</a></h1>
+<p><code>pqfs</code> 是 <a href="#乘积量化pq">乘积量化</a> 的一个 SIMD 加速变种：将 <code>pq_bits</code> 固定为 4，
+并采用专为 AVX-2 / AVX-512 “FastScan” 查表内核设计的内存布局。代价是仅
+支持 4 位，但能带来显著更高的距离计算吞吐。</p>
+<p><img src="figures/quantization/pqfs-block.svg" alt="PQ FastScan：16 向量 4 位交错块与 SIMD LUT 查表"></p>
+<blockquote>
+<p>实现：<code>src/quantization/product_quantization/pq_fastscan_quantizer.cpp</code>，
+参数文件 <code>pq_fastscan_quantizer_parameter.cpp</code>。</p>
+</blockquote>
+<h2 id="何时使用-4"><a class="header" href="#何时使用-4">何时使用</a></h2>
+<ul>
+<li>平台有 AVX-2（最好还有 AVX-512）；FastScan 内核正是选用 <code>pqfs</code> 而非
+<code>pq</code> 的主要理由。</li>
+<li>关注的不只是内存，还有搜索吞吐。</li>
+<li>4 位子空间码本（每子向量 16 个中心）能满足召回目标——通常配合重排即
+可。</li>
+</ul>
+<p>如果平台不具备所需的 SIMD 宽度，请回退到普通 <a href="#乘积量化pq"><code>pq</code></a>。</p>
+<h2 id="内存代价仅码-2"><a class="header" href="#内存代价仅码-2">内存代价（仅码）</a></h2>
+<p>每向量 <code>ceil(pq_dim / 2) = (pq_dim + 1) / 2</code> 字节——奇数和偶数 <code>pq_dim</code>
+都支持（<code>src/quantization/product_quantization/pq_fastscan_quantizer.cpp:41</code>）。
+码本：<code>pq_dim × 16 × subspace_dim × 4</code> 字节——因为每子空间只有 16 个中心，
+比 8 位 <code>pq</code> 的码本小很多。</p>
+<h2 id="参数-5"><a class="header" href="#参数-5">参数</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>类型</th><th>默认</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pq_dim</code></td><td>int</td><td><code>1</code></td><td>子向量数量。必须整除 <code>dim</code>。<code>pq_bits</code> 在内部<strong>固定为 4</strong> 且不可配（<code>pq_fastscan_quantizer_parameter.cpp:28-33</code>）。</td></tr>
+</tbody>
+</table>
+</div>
+<p>在 HGraph 上以 <code>base_pq_dim</code> 暴露（<code>src/algorithm/hgraph.cpp:465-472</code>）。</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "pqfs",
+        "base_pq_dim": 32,
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp16"
+    }
+}
+</code></pre>
+<h2 id="训练-5"><a class="header" href="#训练-5">训练</a></h2>
+<p>设置了 <code>NEED_TRAIN</code>。在每子空间训练 16 中心码本；比 <code>pq</code> 的 256 中心训练
+更便宜。</p>
+<h2 id="度量兼容性-6"><a class="header" href="#度量兼容性-6">度量兼容性</a></h2>
+<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——覆盖与 <code>pq</code> 一致。LUT 布局因度量而异，但由量化器
+透明处理。</p>
+<h2 id="实践要点-1"><a class="header" href="#实践要点-1">实践要点</a></h2>
+<ul>
+<li><code>pq_dim</code> 最好是内核预期 SIMD 批宽的倍数（实现在 AVX-512 上内部使用
+32）。拿不准时，选 <code>pq_dim ∈ {32, 64, 96, 128}</code>。</li>
+<li>相对 <code>pq</code> 的优势是<strong>相同召回下的吞吐</strong>，而非内存（4 位码本身就小，但
+<code>pq</code> 设 <code>pq_bits = 4</code> 同样能匹配大小）。</li>
+<li>想最大化召回恢复，配合 <code>use_reorder: true</code> 与 <code>fp16</code> 或 <code>fp32</code> 精确
+存储。</li>
+</ul>
+<h2 id="相关页面-5"><a class="header" href="#相关页面-5">相关页面</a></h2>
+<ul>
+<li><a href="#乘积量化pq">乘积量化（PQ）</a></li>
+<li><a href="#hgraph-1">HGraph 索引</a></li>
+<li><a href="#量化变换quantization-transform">量化变换</a></li>
+<li><a href="quantization/README.html">量化总览</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="rabitq"><a class="header" href="#rabitq">RaBitQ</a></h1>
+<p><code>rabitq</code> 是 VSAG 的二值 / 低比特量化器。默认模式下每个坐标用 <strong>1 比特</strong>
+编码，给出所有内建量化器中最高的压缩率。另一种模式
+（<code>rabitq_version = "split_1bit_7bit"</code>）把表示拆分为 1 比特基础 + 7 比特
+精化，在保留 1 比特快速距离内核的同时，以约 8 比特/维换回大部分精度。</p>
+<p><img src="figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ：按坐标相对随机超平面的符号进行编码"></p>
+<blockquote>
+<p>实现：<code>src/quantization/rabitq_quantization/rabitq_quantizer.cpp</code>，
+参数文件 <code>rabitq_quantizer_parameter.cpp</code>。
+设计说明：<code>docs/rabitq_1xbit_new_repo_guide.md</code>、
+<code>docs/rabitq_split_1bit_7bit.md</code>。</p>
+</blockquote>
+<h2 id="何时使用-5"><a class="header" href="#何时使用-5">何时使用</a></h2>
+<ul>
+<li><strong>最强压缩。</strong> 1 比特码是稠密向量可能的最小存储。</li>
+<li><strong>高维嵌入</strong>——旋转 + 二值化后仍能保留足够近邻搜索所需的几何信息。</li>
+<li>配合精确重排存储（<code>fp16</code> / <code>fp32</code>）——标准做法就是 “RaBitQ + 重排”，
+因为 1 比特距离本身噪声较大。</li>
+</ul>
+<p>为获得最佳精度，请同时启用 <code>rabitq_use_fht: true</code>，或者用
+<a href="#量化变换quantization-transform">量化变换</a> 链路如
+<code>"pca, rom, rabitq"</code> 包一层。</p>
+<h2 id="内存代价仅码-3"><a class="header" href="#内存代价仅码-3">内存代价（仅码）</a></h2>
+<ul>
+<li><code>rabitq_bits_per_dim_base = 1</code>：每向量 <code>ceil(dim / 8)</code> 字节。<code>dim = 768</code>
+时为 96 字节（对比 fp32 的 3072 → 小 32×）。</li>
+<li><code>rabitq_bits_per_dim_base = 8</code>（split 1+7 模式存储更多比特）：每向量
+约 <code>dim</code> 字节。</li>
+</ul>
+<h2 id="参数-6"><a class="header" href="#参数-6">参数</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>类型</th><th>默认</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pca_dim</code></td><td>int</td><td><code>0</code>（= 输入维度）</td><td>RaBitQ 内部可选的 PCA 预处理维度。<code>0</code> 表示不做 PCA 降维（<code>rabitq_quantizer_parameter.cpp:30-32</code>）。</td></tr>
+<tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>搜索时<strong>查询</strong>的每维位数。允许值：<code>4</code> 或 <code>32</code>（<code>rabitq_quantizer_parameter.cpp:38-43</code>）。</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td><strong>底库</strong>（存储）码的每维位数。范围 <code>[1, 8]</code>（<code>rabitq_quantizer_parameter.cpp:45-54</code>）。纯 1 比特 RaBitQ 取 <code>1</code>。</td></tr>
+<tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td>取值：<code>"standard"</code>（1 比特）或 <code>"split_1bit_7bit"</code>。split 模式要求 <code>rabitq_bits_per_dim_query = 32</code>（<code>rabitq_quantizer_parameter.cpp:55-67</code>）。</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>控制编码器误差预算；必须为有限正数（<code>rabitq_quantizer_parameter.cpp:68-75</code>）。</td></tr>
+<tr><td><code>use_fht</code></td><td>bool</td><td><code>false</code></td><td><code>true</code> 时在二值化前应用快速 Hadamard 变换旋转。以 O(dim log dim) 的廉价代价提升各向异性数据上的精度（<code>rabitq_quantizer_parameter.cpp:76-78</code>）。</td></tr>
+</tbody>
+</table>
+</div>
+<p>在 HGraph 上，这些以顶层 key 暴露：<code>rabitq_pca_dim</code>、
+<code>rabitq_bits_per_dim_query</code>、<code>rabitq_bits_per_dim_base</code>、<code>rabitq_version</code>、
+<code>rabitq_error_rate</code>、<code>rabitq_use_fht</code>。其中 <code>rabitq_use_fht</code> 是 HGraph
+对量化器内部 <code>use_fht</code> key 的别名，由索引层重写（<code>src/algorithm/hgraph.cpp:473-480</code>，
+名称定义见 <code>src/constants.cpp:142-148</code>）。Pyramid 同样暴露相应的 <code>rabitq_*</code> key
+（<code>src/algorithm/pyramid.cpp:698-699</code>）。</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 768,
+    "index_param": {
+        "base_quantization_type": "rabitq",
+        "rabitq_use_fht": true,
+        "rabitq_pca_dim": 0,
+        "rabitq_bits_per_dim_base": 1,
+        "rabitq_bits_per_dim_query": 32,
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>切换到高精度的 split 模式。split 布局由两个 key 共同决定：
+<code>rabitq_version: "split_1bit_7bit"</code> 选择 1+7 RaBitQ 编码，
+<code>base_codes_type: "rabitq_split"</code> 切换存储 datacell。仅设置
+<code>rabitq_version</code> <strong>不会</strong>走 split datacell 路径，二者必须同时设置（详见
+<code>docs/rabitq_split_1bit_7bit.md</code>）：</p>
+<pre><code class="language-json">{
+    "base_quantization_type": "rabitq",
+    "base_codes_type": "rabitq_split",
+    "rabitq_version": "split_1bit_7bit",
+    "rabitq_bits_per_dim_base": 8,
+    "rabitq_bits_per_dim_query": 32,
+    "rabitq_use_fht": true
+}
+</code></pre>
+<h2 id="训练-6"><a class="header" href="#训练-6">训练</a></h2>
+<p>设置了 <code>NEED_TRAIN</code>。训练学习让 1 比特编码均衡的旋转与逐维统计。可选的
+FHT 旋转是固定的（无需学习），因此不增加训练代价；PCA 预处理（`pca_dim</p>
+<blockquote>
+<p>0`）会训练一个投影矩阵。</p>
+</blockquote>
+<h2 id="度量兼容性-7"><a class="header" href="#度量兼容性-7">度量兼容性</a></h2>
+<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持。二值距离内核是对 XOR 后的码字做 popcount；
+对 <code>ip</code> / <code>cosine</code>，实现还会追踪一份残差范数，使内积估计无偏。</p>
+<h2 id="实践要点-2"><a class="header" href="#实践要点-2">实践要点</a></h2>
+<ul>
+<li><strong>始终启用重排</strong>，除非你已经验证 1 比特召回在你的数据上可接受。
+<code>use_reorder: true</code> + <code>precise_quantization_type: "fp32"</code> 是稳妥默认。</li>
+<li><strong>先旋转。</strong> 对未归一化数据，设 <code>rabitq_use_fht: true</code>，或在 <code>tq</code> 链路
+中包含 <code>rom</code> / <code>fht</code>。</li>
+<li><strong>精度优先时用 split 模式。</strong> <code>rabitq_version: "split_1bit_7bit"</code> 保留
+图遍历的 1 比特快速路径，再添加 7 比特精化用于重排；相对纯 1 比特，
+代价约为 8× 码大小，召回明显更高。</li>
+</ul>
+<h2 id="相关页面-6"><a class="header" href="#相关页面-6">相关页面</a></h2>
+<ul>
+<li><a href="#量化变换quantization-transform">量化变换</a></li>
+<li><a href="#hgraph-1">HGraph 索引</a></li>
+<li>设计说明：<code>docs/rabitq_1xbit_new_repo_guide.md</code>、
+<code>docs/rabitq_split_1bit_7bit.md</code></li>
+<li><a href="quantization/README.html">量化总览</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="量化变换quantization-transform"><a class="header" href="#量化变换quantization-transform">量化变换（Quantization Transform）</a></h1>
+<p><strong>变换量化器</strong>（<code>base_quantization_type: "tq"</code>）在最终量化器之前串联一个或多个向量变换。
+变换会重塑向量分布，让后续量化器能更准确、更紧凑地编码 —— 例如把向量旋转一下，让能量分散
+到各个维度（RaBitQ / SQ 受益最大），或者先用 PCA 降维再存储。</p>
+<blockquote>
+<p>可运行示例：<code>examples/cpp/501_quantization_transform.cpp</code>。</p>
+</blockquote>
+<h2 id="为什么需要变换层"><a class="header" href="#为什么需要变换层">为什么需要变换层</a></h2>
+<p>纯量化器直接压缩向量。对低比特量化器（如 <code>sq4</code>、<code>sq*_uniform</code>、<code>rabitq</code>），编码精度严重
+依赖向量坐标的<strong>分布</strong>：长尾或各向异性的维度会浪费 code bit。变换层可以缓解这个问题：</p>
+<ul>
+<li><strong>随机旋转</strong>（<code>rom</code>、<code>fht</code>）让坐标去相关，均匀/标量量化器在每个轴上工作得更好。</li>
+<li><strong>PCA</strong>（<code>pca</code>）在保留主要方差的同时降低维度 —— code 大小按比例缩小。</li>
+<li><strong>MRLE</strong>（<code>mrle</code>）是为 L2/IP 搜索设计的距离可恢复低秩编码。</li>
+</ul>
+<p>变换后的输出再喂给一个标准量化器（<code>fp32</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>rabitq</code> ……），由后者
+真正存储 code。整条链被称为 <strong><code>tq</code>（Transform Quantizer）</strong>。</p>
+<h2 id="快速上手"><a class="header" href="#快速上手">快速上手</a></h2>
+<p><code>tq</code> 目前作为<strong>对外可配置</strong>的量化类型，只有 <strong>HGraph</strong> 真正暴露了它。HGraph 通过外部参数映射把
+顶层键 <code>tq_chain</code> 和 <code>rabitq_pca_dim</code> 写到嵌套的 <code>base_codes.quantization_params</code>
+（<code>src/algorithm/hgraph.cpp:370-385</code>）。IVF、BruteForce、Pyramid、WARP 虽然在内部 JSON 模板中
+也会渲染 <code>tq_chain</code> 字段，但它们的外部参数映射里<strong>都没有</strong> <code>tq_chain</code>（或其它 TQ 参数）。
+<code>CheckAndMappingExternalParam</code> 遇到未映射的外部键会直接抛 <code>invalid config param</code>
+（<code>src/utils/util_functions.cpp:50-53</code>），因此在这些索引的 <code>index_param</code> JSON 中传 <code>tq_chain</code>
+会在构建时报错。在非 HGraph 索引上启用 TQ 目前需要在代码侧补一条外部映射。</p>
+<pre><code class="language-cpp">std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "tq",
+        "tq_chain": "pca, rom, sq8_uniform",
+        "rabitq_pca_dim": 64,
+        "max_degree": 32,
+        "ef_construction": 300,
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+})";
+
+vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
+vsag::Engine engine(&amp;resource);
+auto index = engine.CreateIndex("hgraph", params).value();
+index-&gt;Build(base);
+auto result = index-&gt;KnnSearch(query, topk, search_params).value();
+</code></pre>
+<p>上面的例子里，base 向量先从 128 维降到 64 维（<code>pca</code>），随后做随机旋转（<code>rom</code>），最后用
+<code>sq8_uniform</code> 量化。开启了 reorder，HGraph 同时保留一份 <code>fp32</code> 精确副本，对图搜索返回的
+top 候选做精排（<code>include/vsag/index.h</code>；存储影响见 <a href="#内存管理">内存管理</a>）。</p>
+<h2 id="tq_chain-语法"><a class="header" href="#tq_chain-语法"><code>tq_chain</code> 语法</a></h2>
+<p><code>tq_chain</code> 是一个<strong>以逗号分隔的字符串</strong>：一个或多个变换名，最后跟一个<strong>唯一的</strong>量化器名。
+token 两侧的空白会被自动 trim
+（<code>src/quantization/transform_quantization/transform_quantizer_parameter.cpp:53-74</code>）。</p>
+<pre><code>"&lt;变换1&gt;, &lt;变换2&gt;, ..., &lt;量化器&gt;"
+</code></pre>
+<p>示例：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>链</th><th>作用</th></tr>
+</thead>
+<tbody>
+<tr><td><code>"rom, fp32"</code></td><td>随机旋转后以 fp32 存储（多用于基线/sanity）。</td></tr>
+<tr><td><code>"fht, sq8_uniform"</code></td><td>快速 Hadamard 旋转 + 8 位均匀标量量化。</td></tr>
+<tr><td><code>"pca, rom, sq8_uniform"</code></td><td>先 PCA 降维，再随机旋转，再 8 位均匀量化 —— 即示例 501。</td></tr>
+<tr><td><code>"pca, rom, rabitq"</code></td><td>PCA + 旋转后喂给 RaBitQ 二值量化器。</td></tr>
+<tr><td><code>"mrle, fp32"</code></td><td>MRLE 投影再以 fp32 存储（MRLE 必须放在最前）。</td></tr>
+</tbody>
+</table>
+</div>
+<p>约束（<code>transform_quantizer_parameter.cpp:33-45</code>）：</p>
+<ul>
+<li>链至少包含 <strong>1 个变换 + 1 个量化器</strong>（长度 ≥ 2）。空串或单 token 会抛
+<code>INVALID_ARGUMENT</code>。</li>
+<li><strong>最后一个 token 必须是 TQ flatten 路径能够 dispatch 的量化器</strong> —— <code>fp32</code>、<code>sq8</code>、
+<code>sq8_uniform</code>、<code>sq4</code>、<code>sq4_uniform</code>、<code>bf16</code>、<code>fp16</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> 之一
+（<code>src/datacell/flatten_interface.cpp:126-164</code>）。<code>TransformQuantizerParameter</code> 解析层会
+额外接受 <code>sparse</code>、<code>int8</code>、<code>tq</code>，但 flatten 工厂没有针对 <code>int8</code>/<code>tq</code> 的分发分支，并且当
+<code>is_transform_quantizer=true</code> 时显式拒绝 <code>sparse</code>
+（<code>src/datacell/flatten_interface.cpp:166</code>），因此这三个不能用作 TQ 末端，否则会在构建索引时
+以 “unsupported quantization type” 失败。</li>
+<li>未识别的变换名会抛 <code>INVALID_ARGUMENT: invalid transformer name</code>
+（<code>transform_quantizer.h:225-227</code>）。</li>
+</ul>
+<h2 id="支持的变换"><a class="header" href="#支持的变换">支持的变换</a></h2>
+<p><code>src/quantization/transform_quantization/transform_quantizer.h:192-227</code> 的工厂当前识别
+4 个变换名：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>名称</th><th>输出维度</th><th>描述</th><th>实现</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pca</code></td><td>设置了 <code>pca_dim</code> 则取该值，否则同输入</td><td>主成分分析投影；在保留方差的前提下降维。</td><td><code>src/impl/transform/pca_transformer.h</code></td></tr>
+<tr><td><code>rom</code></td><td>同输入</td><td>随机正交矩阵；旋转向量以让各维去相关。</td><td><code>src/impl/transform/random_orthogonal_transformer.h</code></td></tr>
+<tr><td><code>fht</code></td><td>同输入</td><td>快速 Hadamard / KAC 随机旋转；<code>rom</code> 的低开销变体。</td><td><code>src/impl/transform/fht_kac_rotate_transformer.h</code></td></tr>
+<tr><td><code>mrle</code></td><td><code>mrle_dim</code>（≤ 输入维）</td><td>距离可恢复低秩编码；<strong>必须是链中第一个变换</strong>。</td><td><code>src/impl/transform/mrle_transformer.h</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>说明：</p>
+<ul>
+<li><code>mrle</code> 必须位于首位由 <code>transform_quantizer.h:155-159</code> 强制；<code>mrle_dim ≤ input_dim</code>
+由 <code>transform_quantizer.h:217-220</code> 强制。</li>
+<li>header 中声明的其它字符串（<code>residual</code>、<code>normalize</code>）<strong>未</strong>接入工厂，会被拒绝。</li>
+</ul>
+<h2 id="变换参数"><a class="header" href="#变换参数">变换参数</a></h2>
+<p>变换 JSON 由 <code>VectorTransformerParameter::FromJson</code> 解析
+（<code>src/impl/transform/vector_transformer_parameter.cpp:22-35</code>）：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>键</th><th>类型</th><th>默认</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pca_dim</code></td><td>int</td><td><code>0</code>（= 输入维）</td><td><code>pca</code> 变换的输出维。</td></tr>
+<tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code>（= 输入维）</td><td><code>mrle</code> 变换的输出维。</td></tr>
+<tr><td><code>input_dim</code></td><td>int</td><td>自动</td><td>由链自动填充 —— 不要手动设置。</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="hgraph-顶层映射"><a class="header" href="#hgraph-顶层映射">HGraph 顶层映射</a></h3>
+<p>使用 HGraph 时，两个顶层快捷键会被映射到嵌套的量化器参数中
+（<code>src/algorithm/hgraph.cpp:370-385</code>）：</p>
+<ul>
+<li><code>tq_chain</code> → <code>base_codes.quantization_params.tq_chain</code></li>
+<li><code>rabitq_pca_dim</code> → <code>base_codes.quantization_params.pca_dim</code></li>
+</ul>
+<p><code>rabitq_pca_dim</code> 这个名字早于 Transform Quantizer 引入；当链中包含 <code>pca</code> 时，它实际
+驱动的是 <strong><code>pca</code> 变换的输出维</strong>（与 RaBitQ 无关）。如果链以 <code>rabitq</code> 结尾且未使用
+<code>pca</code>，则同一个键会配置 RaBitQ 自身的 PCA 预处理
+（<code>src/quantization/rabitq_quantization/rabitq_quantizer_parameter.cpp:30</code>）。</p>
+<h2 id="reorder-与精确码存储"><a class="header" href="#reorder-与精确码存储">Reorder 与精确码存储</a></h2>
+<p>变换链在设计上一定有信息损失（旋转无损，但 <code>pca</code> / <code>sq*_uniform</code> / <code>rabitq</code> 有损）。
+把 <code>tq</code> 与 <strong>reorder</strong> 组合使用 —— 即额外保留一份精确（通常是 <code>fp32</code>）副本，对 top 候选
+做精排 —— 可以以较小的内存成本恢复精度：</p>
+<ul>
+<li><code>use_reorder: true</code> 会让 HGraph 额外维护一份 flatten 存储，称为<strong>精确码存储</strong>
+（<code>src/algorithm/hgraph.cpp:76-79</code>）。</li>
+<li><code>precise_quantization_type</code> 决定精确码使用的量化器（默认 <code>fp32</code>；若想用内存换精度，
+也可以设为 <code>fp16</code> / <code>bf16</code> / <code>sq8</code>）。</li>
+<li>搜索时先用低成本的 <code>tq</code> base codes 走图，得到的 top-K 候选再用精确码重新打分
+（<code>hgraph.cpp:978-981</code> 及附近调用）。</li>
+</ul>
+<p><code>use_reorder</code> 与 <code>precise_quantization_type</code> 并非 <code>tq</code> 专属 —— 当
+<code>base_quantization_type</code> 是 <code>sq8</code>、<code>pq</code>、<code>rabitq</code> 等时同样适用。完整的逐索引参数表见
+<a href="#hgraph-1">HGraph 索引</a>。</p>
+<h2 id="链该怎么选"><a class="header" href="#链该怎么选">链该怎么选</a></h2>
+<p>经验法则：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>目标</th><th>建议链</th><th>备注</th></tr>
+</thead>
+<tbody>
+<tr><td>激进压缩 + 精度恢复</td><td><code>"pca, rom, sq8_uniform"</code> + <code>use_reorder: true</code>、<code>precise_quantization_type: "fp32"</code></td><td>示例 501 的基线。</td></tr>
+<tr><td>最大压缩</td><td><code>"pca, rom, rabitq"</code> + reorder</td><td>1 bit 量化 + 旋转校正；不开 reorder 精度损失明显。</td></tr>
+<tr><td>各向异性数据、不降维</td><td><code>"rom, sq8_uniform"</code> 或 <code>"fht, sq8_uniform"</code></td><td>高维下用 <code>fht</code> 构建成本更低。</td></tr>
+<tr><td>距离保持的低秩</td><td><code>"mrle, fp32"</code></td><td>度量感知降维，不再量化。</td></tr>
+</tbody>
+</table>
+</div>
+<p>请在自有数据上 benchmark —— <code>tq</code> 的激进程度与 <code>use_reorder</code> 的取舍最终取决于数据分布、
+目标召回率以及内存预算。</p>
+<h2 id="兼容性与合并"><a class="header" href="#兼容性与合并">兼容性与合并</a></h2>
+<p>两个 <code>tq</code> 配置只有在链长度、每一步变换名、最终量化器都完全一致时才被视为兼容
+（<code>src/quantization/transform_quantization/transform_quantizer_parameter.cpp:99-117</code>）。
+这一点对序列化往返以及未来的合并/克隆操作至关重要 —— 准备合在一起的索引，应保持 chain
+字符串稳定。</p>
+<blockquote>
+<p><strong>chain 字符串一致只是必要条件，并不充分。</strong> <code>tq_chain</code> token 列表并不编码变换器参数
+（例如 <code>pca_dim</code> / <code>mrle_dim</code>，它们作为兄弟 JSON 键单独读取，见
+<code>src/quantization/transform_quantization/transform_quantizer.h:200-216</code>），也不编码末端量化器
+的内部参数（例如 <code>pq</code> 子空间数、<code>rabitq</code> 旋转种子等）。这些参数会改变实际 code 的维度与
+布局，因此两个构建要真正可合并/可克隆，必须保持<strong>整套</strong> transform + quantizer 参数一致，
+不能只对齐 chain 字符串。</p>
+</blockquote>
+<h2 id="相关页面-7"><a class="header" href="#相关页面-7">相关页面</a></h2>
+<ul>
+<li><a href="#hgraph-1">HGraph 索引</a> —— <code>base_quantization_type</code>、<code>use_reorder</code>、
+<code>precise_quantization_type</code> 等参数说明。</li>
+<li><a href="#内存管理">内存管理</a> —— base + precise 存储的内存开销。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="代码目录结构"><a class="header" href="#代码目录结构">代码目录结构</a></h1>
@@ -3455,190 +4338,6 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
 之前自由序列化、分发。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="量化变换quantization-transform"><a class="header" href="#量化变换quantization-transform">量化变换（Quantization Transform）</a></h1>
-<p><strong>变换量化器</strong>（<code>base_quantization_type: "tq"</code>）在最终量化器之前串联一个或多个向量变换。
-变换会重塑向量分布，让后续量化器能更准确、更紧凑地编码 —— 例如把向量旋转一下，让能量分散
-到各个维度（RaBitQ / SQ 受益最大），或者先用 PCA 降维再存储。</p>
-<blockquote>
-<p>可运行示例：<code>examples/cpp/501_quantization_transform.cpp</code>。</p>
-</blockquote>
-<h2 id="为什么需要变换层"><a class="header" href="#为什么需要变换层">为什么需要变换层</a></h2>
-<p>纯量化器直接压缩向量。对低比特量化器（如 <code>sq4</code>、<code>sq*_uniform</code>、<code>rabitq</code>），编码精度严重
-依赖向量坐标的<strong>分布</strong>：长尾或各向异性的维度会浪费 code bit。变换层可以缓解这个问题：</p>
-<ul>
-<li><strong>随机旋转</strong>（<code>rom</code>、<code>fht</code>）让坐标去相关，均匀/标量量化器在每个轴上工作得更好。</li>
-<li><strong>PCA</strong>（<code>pca</code>）在保留主要方差的同时降低维度 —— code 大小按比例缩小。</li>
-<li><strong>MRLE</strong>（<code>mrle</code>）是为 L2/IP 搜索设计的距离可恢复低秩编码。</li>
-</ul>
-<p>变换后的输出再喂给一个标准量化器（<code>fp32</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>rabitq</code> ……），由后者
-真正存储 code。整条链被称为 <strong><code>tq</code>（Transform Quantizer）</strong>。</p>
-<h2 id="快速上手"><a class="header" href="#快速上手">快速上手</a></h2>
-<p><code>tq</code> 目前作为<strong>对外可配置</strong>的量化类型，只有 <strong>HGraph</strong> 真正暴露了它。HGraph 通过外部参数映射把
-顶层键 <code>tq_chain</code> 和 <code>rabitq_pca_dim</code> 写到嵌套的 <code>base_codes.quantization_params</code>
-（<code>src/algorithm/hgraph.cpp:370-385</code>）。IVF、BruteForce、Pyramid、WARP 虽然在内部 JSON 模板中
-也会渲染 <code>tq_chain</code> 字段，但它们的外部参数映射里<strong>都没有</strong> <code>tq_chain</code>（或其它 TQ 参数）。
-<code>CheckAndMappingExternalParam</code> 遇到未映射的外部键会直接抛 <code>invalid config param</code>
-（<code>src/utils/util_functions.cpp:50-53</code>），因此在这些索引的 <code>index_param</code> JSON 中传 <code>tq_chain</code>
-会在构建时报错。在非 HGraph 索引上启用 TQ 目前需要在代码侧补一条外部映射。</p>
-<pre><code class="language-cpp">std::string params = R"({
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128,
-    "index_param": {
-        "base_quantization_type": "tq",
-        "tq_chain": "pca, rom, sq8_uniform",
-        "rabitq_pca_dim": 64,
-        "max_degree": 32,
-        "ef_construction": 300,
-        "use_reorder": true,
-        "precise_quantization_type": "fp32"
-    }
-})";
-
-vsag::Resource resource(vsag::Engine::CreateDefaultAllocator(), nullptr);
-vsag::Engine engine(&amp;resource);
-auto index = engine.CreateIndex("hgraph", params).value();
-index-&gt;Build(base);
-auto result = index-&gt;KnnSearch(query, topk, search_params).value();
-</code></pre>
-<p>上面的例子里，base 向量先从 128 维降到 64 维（<code>pca</code>），随后做随机旋转（<code>rom</code>），最后用
-<code>sq8_uniform</code> 量化。开启了 reorder，HGraph 同时保留一份 <code>fp32</code> 精确副本，对图搜索返回的
-top 候选做精排（<code>include/vsag/index.h</code>；存储影响见 <a href="#内存管理">内存管理</a>）。</p>
-<h2 id="tq_chain-语法"><a class="header" href="#tq_chain-语法"><code>tq_chain</code> 语法</a></h2>
-<p><code>tq_chain</code> 是一个<strong>以逗号分隔的字符串</strong>：一个或多个变换名，最后跟一个<strong>唯一的</strong>量化器名。
-token 两侧的空白会被自动 trim
-（<code>src/quantization/transform_quantization/transform_quantizer_parameter.cpp:53-74</code>）。</p>
-<pre><code>"&lt;变换1&gt;, &lt;变换2&gt;, ..., &lt;量化器&gt;"
-</code></pre>
-<p>示例：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>链</th><th>作用</th></tr>
-</thead>
-<tbody>
-<tr><td><code>"rom, fp32"</code></td><td>随机旋转后以 fp32 存储（多用于基线/sanity）。</td></tr>
-<tr><td><code>"fht, sq8_uniform"</code></td><td>快速 Hadamard 旋转 + 8 位均匀标量量化。</td></tr>
-<tr><td><code>"pca, rom, sq8_uniform"</code></td><td>先 PCA 降维，再随机旋转，再 8 位均匀量化 —— 即示例 501。</td></tr>
-<tr><td><code>"pca, rom, rabitq"</code></td><td>PCA + 旋转后喂给 RaBitQ 二值量化器。</td></tr>
-<tr><td><code>"mrle, fp32"</code></td><td>MRLE 投影再以 fp32 存储（MRLE 必须放在最前）。</td></tr>
-</tbody>
-</table>
-</div>
-<p>约束（<code>transform_quantizer_parameter.cpp:33-45</code>）：</p>
-<ul>
-<li>链至少包含 <strong>1 个变换 + 1 个量化器</strong>（长度 ≥ 2）。空串或单 token 会抛
-<code>INVALID_ARGUMENT</code>。</li>
-<li><strong>最后一个 token 必须是 TQ flatten 路径能够 dispatch 的量化器</strong> —— <code>fp32</code>、<code>sq8</code>、
-<code>sq8_uniform</code>、<code>sq4</code>、<code>sq4_uniform</code>、<code>bf16</code>、<code>fp16</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> 之一
-（<code>src/datacell/flatten_interface.cpp:126-164</code>）。<code>TransformQuantizerParameter</code> 解析层会
-额外接受 <code>sparse</code>、<code>int8</code>、<code>tq</code>，但 flatten 工厂没有针对 <code>int8</code>/<code>tq</code> 的分发分支，并且当
-<code>is_transform_quantizer=true</code> 时显式拒绝 <code>sparse</code>
-（<code>src/datacell/flatten_interface.cpp:166</code>），因此这三个不能用作 TQ 末端，否则会在构建索引时
-以 “unsupported quantization type” 失败。</li>
-<li>未识别的变换名会抛 <code>INVALID_ARGUMENT: invalid transformer name</code>
-（<code>transform_quantizer.h:225-227</code>）。</li>
-</ul>
-<h2 id="支持的变换"><a class="header" href="#支持的变换">支持的变换</a></h2>
-<p><code>src/quantization/transform_quantization/transform_quantizer.h:192-227</code> 的工厂当前识别
-4 个变换名：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>名称</th><th>输出维度</th><th>描述</th><th>实现</th></tr>
-</thead>
-<tbody>
-<tr><td><code>pca</code></td><td>设置了 <code>pca_dim</code> 则取该值，否则同输入</td><td>主成分分析投影；在保留方差的前提下降维。</td><td><code>src/impl/transform/pca_transformer.h</code></td></tr>
-<tr><td><code>rom</code></td><td>同输入</td><td>随机正交矩阵；旋转向量以让各维去相关。</td><td><code>src/impl/transform/random_orthogonal_transformer.h</code></td></tr>
-<tr><td><code>fht</code></td><td>同输入</td><td>快速 Hadamard / KAC 随机旋转；<code>rom</code> 的低开销变体。</td><td><code>src/impl/transform/fht_kac_rotate_transformer.h</code></td></tr>
-<tr><td><code>mrle</code></td><td><code>mrle_dim</code>（≤ 输入维）</td><td>距离可恢复低秩编码；<strong>必须是链中第一个变换</strong>。</td><td><code>src/impl/transform/mrle_transformer.h</code></td></tr>
-</tbody>
-</table>
-</div>
-<p>说明：</p>
-<ul>
-<li><code>mrle</code> 必须位于首位由 <code>transform_quantizer.h:155-159</code> 强制；<code>mrle_dim ≤ input_dim</code>
-由 <code>transform_quantizer.h:217-220</code> 强制。</li>
-<li>header 中声明的其它字符串（<code>residual</code>、<code>normalize</code>）<strong>未</strong>接入工厂，会被拒绝。</li>
-</ul>
-<h2 id="变换参数"><a class="header" href="#变换参数">变换参数</a></h2>
-<p>变换 JSON 由 <code>VectorTransformerParameter::FromJson</code> 解析
-（<code>src/impl/transform/vector_transformer_parameter.cpp:22-35</code>）：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>键</th><th>类型</th><th>默认</th><th>含义</th></tr>
-</thead>
-<tbody>
-<tr><td><code>pca_dim</code></td><td>int</td><td><code>0</code>（= 输入维）</td><td><code>pca</code> 变换的输出维。</td></tr>
-<tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code>（= 输入维）</td><td><code>mrle</code> 变换的输出维。</td></tr>
-<tr><td><code>input_dim</code></td><td>int</td><td>自动</td><td>由链自动填充 —— 不要手动设置。</td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="hgraph-顶层映射"><a class="header" href="#hgraph-顶层映射">HGraph 顶层映射</a></h3>
-<p>使用 HGraph 时，两个顶层快捷键会被映射到嵌套的量化器参数中
-（<code>src/algorithm/hgraph.cpp:370-385</code>）：</p>
-<ul>
-<li><code>tq_chain</code> → <code>base_codes.quantization_params.tq_chain</code></li>
-<li><code>rabitq_pca_dim</code> → <code>base_codes.quantization_params.pca_dim</code></li>
-</ul>
-<p><code>rabitq_pca_dim</code> 这个名字早于 Transform Quantizer 引入；当链中包含 <code>pca</code> 时，它实际
-驱动的是 <strong><code>pca</code> 变换的输出维</strong>（与 RaBitQ 无关）。如果链以 <code>rabitq</code> 结尾且未使用
-<code>pca</code>，则同一个键会配置 RaBitQ 自身的 PCA 预处理
-（<code>src/quantization/rabitq_quantization/rabitq_quantizer_parameter.cpp:30</code>）。</p>
-<h2 id="reorder-与精确码存储"><a class="header" href="#reorder-与精确码存储">Reorder 与精确码存储</a></h2>
-<p>变换链在设计上一定有信息损失（旋转无损，但 <code>pca</code> / <code>sq*_uniform</code> / <code>rabitq</code> 有损）。
-把 <code>tq</code> 与 <strong>reorder</strong> 组合使用 —— 即额外保留一份精确（通常是 <code>fp32</code>）副本，对 top 候选
-做精排 —— 可以以较小的内存成本恢复精度：</p>
-<ul>
-<li><code>use_reorder: true</code> 会让 HGraph 额外维护一份 flatten 存储，称为<strong>精确码存储</strong>
-（<code>src/algorithm/hgraph.cpp:76-79</code>）。</li>
-<li><code>precise_quantization_type</code> 决定精确码使用的量化器（默认 <code>fp32</code>；若想用内存换精度，
-也可以设为 <code>fp16</code> / <code>bf16</code> / <code>sq8</code>）。</li>
-<li>搜索时先用低成本的 <code>tq</code> base codes 走图，得到的 top-K 候选再用精确码重新打分
-（<code>hgraph.cpp:978-981</code> 及附近调用）。</li>
-</ul>
-<p><code>use_reorder</code> 与 <code>precise_quantization_type</code> 并非 <code>tq</code> 专属 —— 当
-<code>base_quantization_type</code> 是 <code>sq8</code>、<code>pq</code>、<code>rabitq</code> 等时同样适用。完整的逐索引参数表见
-<a href="#hgraph-1">HGraph 索引</a>。</p>
-<h2 id="链该怎么选"><a class="header" href="#链该怎么选">链该怎么选</a></h2>
-<p>经验法则：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>目标</th><th>建议链</th><th>备注</th></tr>
-</thead>
-<tbody>
-<tr><td>激进压缩 + 精度恢复</td><td><code>"pca, rom, sq8_uniform"</code> + <code>use_reorder: true</code>、<code>precise_quantization_type: "fp32"</code></td><td>示例 501 的基线。</td></tr>
-<tr><td>最大压缩</td><td><code>"pca, rom, rabitq"</code> + reorder</td><td>1 bit 量化 + 旋转校正；不开 reorder 精度损失明显。</td></tr>
-<tr><td>各向异性数据、不降维</td><td><code>"rom, sq8_uniform"</code> 或 <code>"fht, sq8_uniform"</code></td><td>高维下用 <code>fht</code> 构建成本更低。</td></tr>
-<tr><td>距离保持的低秩</td><td><code>"mrle, fp32"</code></td><td>度量感知降维，不再量化。</td></tr>
-</tbody>
-</table>
-</div>
-<p>请在自有数据上 benchmark —— <code>tq</code> 的激进程度与 <code>use_reorder</code> 的取舍最终取决于数据分布、
-目标召回率以及内存预算。</p>
-<h2 id="兼容性与合并"><a class="header" href="#兼容性与合并">兼容性与合并</a></h2>
-<p>两个 <code>tq</code> 配置只有在链长度、每一步变换名、最终量化器都完全一致时才被视为兼容
-（<code>src/quantization/transform_quantization/transform_quantizer_parameter.cpp:99-117</code>）。
-这一点对序列化往返以及未来的合并/克隆操作至关重要 —— 准备合在一起的索引，应保持 chain
-字符串稳定。</p>
-<blockquote>
-<p><strong>chain 字符串一致只是必要条件，并不充分。</strong> <code>tq_chain</code> token 列表并不编码变换器参数
-（例如 <code>pca_dim</code> / <code>mrle_dim</code>，它们作为兄弟 JSON 键单独读取，见
-<code>src/quantization/transform_quantization/transform_quantizer.h:200-216</code>），也不编码末端量化器
-的内部参数（例如 <code>pq</code> 子空间数、<code>rabitq</code> 旋转种子等）。这些参数会改变实际 code 的维度与
-布局，因此两个构建要真正可合并/可克隆，必须保持<strong>整套</strong> transform + quantizer 参数一致，
-不能只对齐 chain 字符串。</p>
-</blockquote>
-<h2 id="相关页面"><a class="header" href="#相关页面">相关页面</a></h2>
-<ul>
-<li><a href="#hgraph-1">HGraph 索引</a> —— <code>base_quantization_type</code>、<code>use_reorder</code>、
-<code>precise_quantization_type</code> 等参数说明。</li>
-<li><a href="#内存管理">内存管理</a> —— base + precise 存储的内存开销。</li>
-</ul>
-<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="最佳实践"><a class="header" href="#最佳实践">最佳实践</a></h1>
 <p>本页整理在生产环境使用 VSAG 的经验性建议，作为参数手册与性能调优的补充。</p>
 <h2 id="索引选型"><a class="header" href="#索引选型">索引选型</a></h2>
@@ -3737,7 +4436,7 @@ token 两侧的空白会被自动 trim
 <li>索引构建后，<code>l2</code>、<code>ip</code>、<code>cosine</code> 不能互相切换。</li>
 <li>跨工具对比结果时，要先确认对方使用的是“距离”还是“相似度”语义。</li>
 </ul>
-<h2 id="相关页面-1"><a class="header" href="#相关页面-1">相关页面</a></h2>
+<h2 id="相关页面-8"><a class="header" href="#相关页面-8">相关页面</a></h2>
 <ul>
 <li><a href="#创建索引">创建索引</a></li>
 <li><a href="#索引参数">索引参数</a></li>

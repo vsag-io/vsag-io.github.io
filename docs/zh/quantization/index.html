@@ -1,0 +1,498 @@
+<!DOCTYPE HTML>
+<html lang="zh" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>总览 - VSAG文档</title>
+
+
+        <!-- Custom HTML head -->
+        <!-- Google tag (gtag.js) -->
+        <!-- Shared with docs/{docs,blog}/{en,zh}/theme/head.hbs and docs/landing/index.html. Keep these five copies in sync. -->
+        <!-- Hostname-gated so local mdBook previews and fork deploys do not pollute the production GA4 property. -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-2VKGDGDEQV"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          if (location.hostname === 'vsag.io') {
+            gtag('config', 'G-2VKGDGDEQV');
+          }
+        </script>
+        
+        <!-- Language toggle button injected into mdBook's top menu bar. -->
+        <!-- Shared across docs/{en,zh} and blog/{en,zh}. Keep these four copies in sync. -->
+        <style>
+          #lang-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2.2em;
+            height: 2.2em;
+            padding: 0 0.55em;
+            margin-left: 0.2em;
+            border: 0;
+            border-radius: 4px;
+            background: transparent;
+            color: var(--icons);
+            font: inherit;
+            font-size: 0.95em;
+            line-height: 1;
+            cursor: pointer;
+            text-decoration: none;
+            user-select: none;
+          }
+          #lang-toggle:hover {
+            color: var(--icons-hover);
+            background: var(--theme-hover, rgba(0, 0, 0, 0.05));
+          }
+          #lang-toggle[aria-busy="true"] {
+            opacity: 0.6;
+            cursor: progress;
+          }
+        </style>
+        <script>
+          (function () {
+            // Site layout (deployed at https://vsag.io/):
+            //   /docs/en/...   /docs/zh/...
+            //   /blogs/en/...  /blogs/zh/...
+            // mdBook sources in this repo live under docs/docs/{en,zh} and docs/blog/{en,zh};
+            // the deploy workflow renames blog -> blogs, so runtime paths use /blogs/.
+            var PAIRS = [
+              { a: '/docs/en/',  b: '/docs/zh/'  },
+              { a: '/blogs/en/', b: '/blogs/zh/' }
+            ];
+        
+            function detect(pathname) {
+              for (var i = 0; i < PAIRS.length; i++) {
+                var p = PAIRS[i];
+                if (pathname.indexOf(p.a) === 0) {
+                  return { current: 'en', other: 'zh', currentRoot: p.a, otherRoot: p.b };
+                }
+                if (pathname.indexOf(p.b) === 0) {
+                  return { current: 'zh', other: 'en', currentRoot: p.b, otherRoot: p.a };
+                }
+              }
+              return null;
+            }
+        
+            function buildTargetUrl(info, pathname) {
+              var rest = pathname.slice(info.currentRoot.length);
+              return info.otherRoot + rest;
+            }
+        
+            function insertButton() {
+              var bar = document.querySelector('.right-buttons');
+              if (!bar) return false;
+              if (document.getElementById('lang-toggle')) return true;
+        
+              var info = detect(window.location.pathname);
+              // On local `mdbook serve`, paths look like "/" instead of "/docs/en/";
+              // hide the button in that case to avoid sending users to nonexistent URLs.
+              if (!info) return true;
+        
+              // Use a real <button> so keyboard activation (Enter/Space) and focus
+              // styles match the other icons in mdBook's .right-buttons toolbar.
+              var btn = document.createElement('button');
+              btn.id = 'lang-toggle';
+              btn.type = 'button';
+              // Show the *target* language so users know what clicking does. Set
+              // `lang` so screen readers pronounce "中" / "EN" in the right voice.
+              btn.textContent = info.other === 'zh' ? '\u4e2d' : 'EN';
+              btn.lang = info.other;
+              btn.title = info.other === 'zh' ? '\u5207\u6362\u4e3a\u4e2d\u6587' : 'Switch to English';
+              btn.setAttribute('aria-label', btn.title);
+        
+              btn.addEventListener('click', function () {
+                // Guard against rapid double-clicks firing concurrent probes.
+                if (btn.getAttribute('aria-busy') === 'true') return;
+                var target = buildTargetUrl(info, window.location.pathname);
+                var hash = window.location.hash || '';
+                btn.setAttribute('aria-busy', 'true');
+                // Bound the HEAD probe so a stalled network does not leave the
+                // toggle stuck in the busy state forever.
+                var controller = (typeof AbortController === 'function') ? new AbortController() : null;
+                var timer = setTimeout(function () { if (controller) controller.abort(); }, 3000);
+                var opts = { method: 'HEAD' };
+                if (controller) opts.signal = controller.signal;
+                // Prefer HEAD to check existence without downloading the page.
+                fetch(target, opts).then(function (r) {
+                  clearTimeout(timer);
+                  window.location.assign(r.ok ? (target + hash) : info.otherRoot);
+                }).catch(function () {
+                  clearTimeout(timer);
+                  // Network error / CORS / offline / timeout -> fall back to language root.
+                  window.location.assign(info.otherRoot);
+                });
+              });
+        
+              bar.insertBefore(btn, bar.firstChild);
+              return true;
+            }
+        
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', insertButton);
+            } else {
+              insertButton();
+            }
+          })();
+        </script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-2459343d.css">
+        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-b32a6c9b.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-4baadde4.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">VSAG文档</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="量化"><a class="header" href="#量化">量化</a></h1>
+<p>向量量化是 VSAG 中权衡内存与召回的核心手段。每种索引类型都通过一个
+<strong>基础量化器</strong>（由 <code>base_quantization_type</code> 配置）存储向量，并可以额外保留
+一个<strong>精确量化器</strong>用于重排（<code>precise_quantization_type</code> + <code>use_reorder: true</code>）。本章介绍每一种受支持的量化器：它做什么、接受哪些 JSON 参数、是否
+需要训练、支持哪些度量、以及何时选用它。</p>
+<p><img src="../figures/quantization/quantization-overview.svg" alt="量化器选择决策树：按内存预算挑选量化器"></p>
+<h2 id="存储与搜索流水线"><a class="header" href="#存储与搜索流水线">存储与搜索流水线</a></h2>
+<pre><code>                  +---------------------+
+   原始向量 -----&gt;|  可选变换           |   (TQ 链：pca / rom / fht / mrle)
+                  +----------+----------+
+                             |
+                             v
+                  +---------------------+
+                  |   基础量化器        |   fp32 / fp16 / bf16 /
+                  |                     |   sq8 / sq4 / sq8_uniform /
+                  |                     |   sq4_uniform / pq / pqfs /
+                  |                     |   rabitq
+                  +----------+----------+
+                             |
+                             v
+                   +-------------------+
+                   |   索引存储        |   (HGraph / IVF / Pyramid /
+                   |                   |    BruteForce / SINDI)
+                   +---------+---------+
+                             |
+                             v
+                    图 / 倒排链路游走
+                             |
+             +---------------+-----------------+
+             |                                 |
+    use_reorder: false                use_reorder: true
+             |                                 |
+             v                                 v
+        top-K 结果                  +---------------------+
+                                    | 精确量化器          |  重排
+                                    | (默认 fp32；        |
+                                    |  fp16/bf16/sq8 可)  |
+                                    +----------+----------+
+                                               |
+                                               v
+                                          top-K 结果
+</code></pre>
+<p><code>use_reorder</code> 与 <code>precise_quantization_type</code> 并非某一具体量化器专属——只要
+索引支持重排，它们就生效（见
+<a href="../indexes/hgraph.html">HGraph</a>、<a href="../indexes/ivf.html">IVF</a>、
+<a href="../indexes/pyramid.html">Pyramid</a>）。</p>
+<h2 id="支持的量化器一览"><a class="header" href="#支持的量化器一览">支持的量化器一览</a></h2>
+<p><code>src/datacell/flatten_interface.cpp</code> 的工厂会根据 JSON 中的 <code>type</code>
+字段分派到具体量化器。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>base_quantization_type</code></th><th>每维位数（约）</th><th>需要训练</th><th>是否无损</th><th>典型场景</th></tr>
+</thead>
+<tbody>
+<tr><td><code>fp32</code></td><td>32</td><td>否</td><td>是</td><td>参考基线 / 精确重排存储</td></tr>
+<tr><td><code>fp16</code></td><td>16</td><td>否</td><td>近似无损</td><td>半精度存储；高维 float 向量的良好默认</td></tr>
+<tr><td><code>bf16</code></td><td>16</td><td>否</td><td>近似无损</td><td>与 <code>fp16</code> 同样大小，动态范围更宽</td></tr>
+<tr><td><code>sq8</code></td><td>8</td><td><strong>是</strong></td><td>否</td><td>通用的省内存基线</td></tr>
+<tr><td><code>sq4</code></td><td>4</td><td><strong>是</strong></td><td>否</td><td>激进压缩，不重排时召回会下降</td></tr>
+<tr><td><code>sq8_uniform</code></td><td>8</td><td><strong>是</strong></td><td>否</td><td>全局 min/max，SIMD 友好的 SQ8</td></tr>
+<tr><td><code>sq4_uniform</code></td><td>4</td><td><strong>是</strong></td><td>否</td><td>SIMD 友好的 SQ4；支持 <code>sq4_uniform_trunc_rate</code></td></tr>
+<tr><td><code>pq</code></td><td>~<code>pq_bits</code> × <code>pq_dim</code> / <code>dim</code></td><td><strong>是</strong></td><td>否</td><td>基于码本，非常紧凑</td></tr>
+<tr><td><code>pqfs</code></td><td>4 × <code>pq_dim</code> / <code>dim</code></td><td><strong>是</strong></td><td>否</td><td>PQ FastScan——SIMD 加速版 PQ</td></tr>
+<tr><td><code>rabitq</code></td><td>1（可选额外 7）</td><td><strong>是</strong></td><td>否</td><td>1 比特 / 1+7 比特二值量化，最强压缩</td></tr>
+<tr><td><code>tq</code></td><td>取决于链路</td><td>取决于末端量化器</td><td>否</td><td><a href="../advanced/quantization_transform.html">量化变换</a>：在另一个量化器之前串接旋转 / PCA</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>int8</code> 与 <code>sparse</code> 不作为通用的 <code>base_quantization_type</code> 暴露：</p>
+<ul>
+<li><code>int8</code> 在使用 <code>dtype: "int8"</code> 时被自动选用，并非一种压缩模式。</li>
+<li><code>sparse</code> 为 <a href="../indexes/sindi.html">SINDI</a> 的倒排链表服务，密集索引不可
+直接选择。</li>
+</ul>
+<h2 id="训练需求"><a class="header" href="#训练需求">训练需求</a></h2>
+<p>上表中标记为<strong>是</strong>的量化器实现了 <code>NEED_TRAIN</code> 标志，必须先调用 <code>Build</code>
+（在输入向量上内部完成训练）或显式 <code>Train</code> 之后再 <code>Add</code>。完整生命周期见
+<a href="../advanced/build_and_train.html">索引构建与训练</a>。</p>
+<p>对 HGraph 而言，训练数据就是传给 <code>Build</code> 的基础向量；对 IVF 而言，先训练
+聚类中心，再把残差喂给所配置的基础量化器。</p>
+<h2 id="度量兼容性"><a class="header" href="#度量兼容性">度量兼容性</a></h2>
+<p>本章所列量化器全部支持三种稠密度量（<code>l2</code> / <code>ip</code> / <code>cosine</code>）。对 <code>cosine</code>，
+索引会在量化前对向量做归一化，因此底层量化器看不到原始模长。一些实践
+要点：</p>
+<ul>
+<li><code>pq</code> / <code>pqfs</code> 在每个子空间上做距离查表；当 <code>pq_dim</code> 非常小（≤ 4），
+在 <code>ip</code> / <code>cosine</code> 上比 <code>l2</code> 更容易受各向异性影响。</li>
+<li><code>rabitq</code> 在输入向量去相关的情况下效果最好——要么开启
+<code>rabitq_use_fht</code> / <code>rabitq_pca_dim</code>，要么用 <code>tq</code> 链路如
+<code>"pca, rom, rabitq"</code> 包一层。</li>
+</ul>
+<h2 id="量化器选择"><a class="header" href="#量化器选择">量化器选择</a></h2>
+<p>一份实用的决策树：</p>
+<ol>
+<li><strong>需要精确距离或精确重排存储？</strong> 用 <code>fp32</code>。</li>
+<li><strong>只想内存减半且召回基本无损？</strong> 用 <code>fp16</code>（若数据动态范围大，例如未
+归一化的嵌入，则用 <code>bf16</code>）。</li>
+<li><strong>想要约 4× 的内存节省并愿意启用重排？</strong> 用 <code>sq8</code>（在 <code>l2</code> / <code>ip</code> 上
+想要更高 SIMD 吞吐可用 <code>sq8_uniform</code>）。</li>
+<li><strong>内存紧张、可在重排前承受更大召回损失？</strong> 用 <code>sq4_uniform</code>。</li>
+<li><strong>高维向量，希望基于码本做强压缩？</strong> 用 <code>pq</code>，平台支持 SIMD 路径时用
+<code>pqfs</code>。</li>
+<li><strong>追求最强压缩（1 比特）并能承担重排代价？</strong> 用 <code>rabitq</code>，最好搭配
+<code>rabitq_use_fht: true</code> 或 <code>tq</code> 链路。</li>
+</ol>
+<p>对上述任何一种有损量化器，将 <code>use_reorder: true</code> 配合
+<code>precise_quantization_type: "fp32"</code> 是恢复召回的标准做法，代价是额外内存；
+具体行为参考 <a href="../indexes/hgraph.html#parameters">HGraph 参数表</a>。</p>
+<h2 id="量化在何处暴露"><a class="header" href="#量化在何处暴露">量化在何处暴露</a></h2>
+<p>并非每种索引都将所有参数都暴露为外部 key。当前情况：</p>
+<ul>
+<li><strong>HGraph</strong> 暴露最完整的集合：<code>base_quantization_type</code>、
+<code>precise_quantization_type</code>、<code>use_reorder</code>、<code>base_pq_dim</code>、
+<code>rabitq_pca_dim</code>、<code>rabitq_bits_per_dim_query</code>、
+<code>rabitq_bits_per_dim_base</code>、<code>rabitq_version</code>、<code>rabitq_error_rate</code>、
+<code>rabitq_use_fht</code>、<code>sq4_uniform_trunc_rate</code>、<code>tq_chain</code>
+（见 <code>src/algorithm/hgraph.cpp</code>）。</li>
+<li><strong>IVF</strong>、<strong>Pyramid</strong>、<strong>BruteForce</strong> 暴露 <code>base_quantization_type</code>
+与通用的重排相关 key；部分可调项（如 <code>tq_chain</code>）目前在内部接好但未作
+为外部 key 暴露。</li>
+</ul>
+<p>每种索引的完整参数列表见对应索引页。</p>
+<h2 id="本章内容"><a class="header" href="#本章内容">本章内容</a></h2>
+<ul>
+<li><a href="fp32.html">FP32（基线）</a></li>
+<li><a href="fp16_bf16.html">半精度浮点（FP16 / BF16）</a></li>
+<li><a href="sq.html">标量量化（SQ4 / SQ8）</a></li>
+<li><a href="sq_uniform.html">Uniform 标量量化（SQ4 / SQ8 Uniform）</a></li>
+<li><a href="pq.html">乘积量化（PQ）</a></li>
+<li><a href="pqfs.html">PQ FastScan</a></li>
+<li><a href="rabitq.html">RaBitQ</a></li>
+<li><a href="../advanced/quantization_transform.html">量化变换（TQ）</a></li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../indexes/brute_force.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../quantization/fp32.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../indexes/brute_force.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../quantization/fp32.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-c2a407aa.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-a0b12cfe.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>
