@@ -146,8 +146,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-2459343d.css">
-        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/general-0392ca55.css">
+        <link rel="stylesheet" href="css/chrome-fc474251.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-d580686a.js";
+            window.path_to_searchindex_js = "searchindex-61b2288d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-27365dad.js"></script>
+        <script src="toc-5ca7a203.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -949,11 +949,16 @@ still controlled by <code>base_quantization_type</code> (and optionally <code>pr
 </thead>
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td>Size of the search frontier. Larger = higher recall, slower query.</td></tr>
+<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code> by default. Set to <code>false</code> to skip the final reorder stage for this request even when the index was built with reorder enabled. This also disables the RaBitQ one-bit reorder path.</td></tr>
 </tbody>
 </table>
 </div>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk, R"({"hgraph": {"ef_search": 200}})").value();
+</code></pre>
+<pre><code class="language-cpp">auto fast_result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"hgraph": {"ef_search": 200, "enable_reorder": false}})").value();
 </code></pre>
 <h2 id="when-to-use-hgraph"><a class="header" href="#when-to-use-hgraph">When to use HGraph</a></h2>
 <ul>
@@ -1068,6 +1073,7 @@ corpus size.</p>
 <tbody>
 <tr><td><code>scan_buckets_count</code></td><td>int</td><td>— (required)</td><td>Number of buckets probed per query. Must be ≤ <code>buckets_count</code>.</td></tr>
 <tr><td><code>factor</code></td><td>float</td><td><code>2.0</code></td><td>With reordering enabled, pulls <code>factor * topk</code> coarse candidates before the precise rescore.</td></tr>
+<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>Set to <code>false</code> to skip the final reorder stage for this request even when the index was built with reorder enabled.</td></tr>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Threads used to scan buckets in parallel for a single query.</td></tr>
 <tr><td><code>timeout_ms</code></td><td>double</td><td><code>+∞</code></td><td>Hard cap in milliseconds; partial results are returned once exceeded.</td></tr>
 </tbody>
@@ -1076,6 +1082,10 @@ corpus size.</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"ivf": {"scan_buckets_count": 32, "factor": 2.0, "parallelism": 4}})").value();
+</code></pre>
+<pre><code class="language-cpp">auto fast_result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"ivf": {"scan_buckets_count": 32, "factor": 2.0, "enable_reorder": false}})").value();
 </code></pre>
 <h2 id="when-to-use-ivf"><a class="header" href="#when-to-use-ivf">When to use IVF</a></h2>
 <ul>
@@ -5788,11 +5798,11 @@ first contribution:</p>
 
         <script src="elasticlunr-ef4e11c1.min.js"></script>
         <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-c2a407aa.js"></script>
+        <script src="searcher-09f2665d.js"></script>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-a0b12cfe.js"></script>
+        <script src="book-c22b7243.js"></script>
 
         <!-- Custom JS scripts -->
 

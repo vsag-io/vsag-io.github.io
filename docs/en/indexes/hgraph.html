@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-0392ca55.css">
+        <link rel="stylesheet" href="../css/chrome-fc474251.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-d580686a.js";
+            window.path_to_searchindex_js = "../searchindex-61b2288d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-27365dad.js"></script>
+        <script src="../toc-5ca7a203.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -496,11 +496,16 @@ still controlled by <code>base_quantization_type</code> (and optionally <code>pr
 </thead>
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td>Size of the search frontier. Larger = higher recall, slower query.</td></tr>
+<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code> by default. Set to <code>false</code> to skip the final reorder stage for this request even when the index was built with reorder enabled. This also disables the RaBitQ one-bit reorder path.</td></tr>
 </tbody>
 </table>
 </div>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk, R"({"hgraph": {"ef_search": 200}})").value();
+</code></pre>
+<pre><code class="language-cpp">auto fast_result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"hgraph": {"ef_search": 200, "enable_reorder": false}})").value();
 </code></pre>
 <h2 id="when-to-use-hgraph"><a class="header" href="#when-to-use-hgraph">When to use HGraph</a></h2>
 <ul>
@@ -564,11 +569,11 @@ strongly I/O-bound on a SSD, compare against <a href="ivf.html">IVF</a> before c
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-c22b7243.js"></script>
 
         <!-- Custom JS scripts -->
 

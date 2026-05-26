@@ -8,7 +8,7 @@ class MDBookSidebarScrollbox extends HTMLElement {
         super();
     }
     connectedCallback() {
-        this.innerHTML = '<ol class="chapter"><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="index.html">Introduction</a></span></li></ol>';
+        this.innerHTML = '<ol class="chapter"><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="index.html">简介</a></span></li><li class="chapter-item expanded "><li class="part-title">文章</li></li><li class="chapter-item expanded "><span class="chapter-link-wrapper"><a href="2025-07-16-rabitq-intro/rabitq_intro_zh.html"><strong aria-hidden="true">1.</strong> RaBitQ 简介（2025-07-16）</a></span></li></ol>';
         // Set the current, active page, and reveal it if it's hidden
         let current_page = document.location.href.toString().split('#')[0].split('?')[0];
         if (current_page.endsWith('/')) {
@@ -23,7 +23,8 @@ class MDBookSidebarScrollbox extends HTMLElement {
                 link.href = path_to_root + href;
             }
             // The 'index' page is supposed to alias the first chapter in the book.
-            if (link.href === current_page
+            // Check both with and without the '.html' suffix to be robust against pretty URLs
+            if (link.href.replace(/\.html$/, '') === current_page.replace(/\.html$/, '')
                 || i === 0
                 && path_to_root === ''
                 && current_page.endsWith('/index.html')) {

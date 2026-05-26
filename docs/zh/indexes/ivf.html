@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-2459343d.css">
-        <link rel="stylesheet" href="../css/chrome-ae938929.css">
+        <link rel="stylesheet" href="../css/general-0392ca55.css">
+        <link rel="stylesheet" href="../css/chrome-fc474251.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-05e8bbc6.js";
+            window.path_to_searchindex_js = "../searchindex-b5df15af.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-9c048a7b.js"></script>
+        <script src="../toc-fe5209a2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -392,6 +392,7 @@ auto result = index-&gt;KnnSearch(
 <tbody>
 <tr><td><code>scan_buckets_count</code></td><td>int</td><td>—（必填）</td><td>每次查询扫描的桶数，须 ≤ <code>buckets_count</code></td></tr>
 <tr><td><code>factor</code></td><td>float</td><td><code>2.0</code></td><td>启用精排时，粗排阶段会预取 <code>factor * topk</code> 个候选再重打分</td></tr>
+<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>即使索引构建时启用了 reorder，也可以在单次请求里设为 <code>false</code> 跳过最终精排</td></tr>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>单次查询内扫描桶时使用的线程数</td></tr>
 <tr><td><code>timeout_ms</code></td><td>double</td><td><code>+∞</code></td><td>单次查询最长耗时（毫秒），超时会返回当前的部分结果</td></tr>
 </tbody>
@@ -400,6 +401,10 @@ auto result = index-&gt;KnnSearch(
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"ivf": {"scan_buckets_count": 32, "factor": 2.0, "parallelism": 4}})").value();
+</code></pre>
+<pre><code class="language-cpp">auto fast_result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"ivf": {"scan_buckets_count": 32, "factor": 2.0, "enable_reorder": false}})").value();
 </code></pre>
 <h2 id="何时选择-ivf"><a class="header" href="#何时选择-ivf">何时选择 IVF</a></h2>
 <ul>
@@ -462,11 +467,11 @@ auto result = index-&gt;KnnSearch(
 
         <script src="../elasticlunr-ef4e11c1.min.js"></script>
         <script src="../mark-09e88c2c.min.js"></script>
-        <script src="../searcher-c2a407aa.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-a0b12cfe.js"></script>
+        <script src="../book-c22b7243.js"></script>
 
         <!-- Custom JS scripts -->
 
