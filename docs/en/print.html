@@ -758,6 +758,7 @@ such as <code>base_quantization_type</code>.</p>
 <code>examples/cpp/3xx_feature_*.cpp</code> examples.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h1>
+<p><img src="figures/indexes/hgraph-overview.svg" alt="HGraph: hierarchical proximity graph with top-down greedy search and optional reorder"></p>
 <p>HGraph is VSAG’s flagship <strong>graph-based</strong> index. It builds a hierarchical proximity graph
 similar in spirit to HNSW, but with a richer set of quantization options, a unified
 build-parameter schema (<code>index_param</code>), and first-class support for reordering,
@@ -979,6 +980,7 @@ strongly I/O-bound on a SSD, compare against <a href="#ivf-1">IVF</a> before com
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="ivf-1"><a class="header" href="#ivf-1">IVF</a></h1>
+<p><img src="figures/indexes/ivf-overview.svg" alt="IVF: Voronoi partition over k-means centroids; only the scan_buckets_count buckets closest to the query are scanned, with an optional precise rerank"></p>
 <p>IVF (Inverted File) is VSAG’s <strong>partition-based</strong> index. It clusters the corpus into
 buckets at build time, and at query time only scans the buckets whose centroids are
 closest to the query. This turns an O(N) linear scan into O(N · <code>scan_buckets_count</code>
@@ -1108,6 +1110,7 @@ queries-per-second.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="sindi"><a class="header" href="#sindi">SINDI</a></h1>
+<p><img src="figures/indexes/sindi-overview.svg" alt="SINDI: per-term inverted lists grouped by window; only the lists matching the query’s non-zero terms are walked and accumulated into an n_candidate-sized heap"></p>
 <p>SINDI (<strong>S</strong>parse <strong>IN</strong>verted <strong>D</strong>ense <strong>I</strong>ndex) is VSAG’s index for <strong>sparse
 vectors</strong> — the kind produced by BM25, SPLADE, and other learned-sparse encoders.
 Unlike the dense indexes (HGraph, IVF), SINDI operates directly on term/value
@@ -1257,6 +1260,7 @@ empty posting lists and helps stay below the <code>term_id_limit</code> ceiling.
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pyramid-1"><a class="header" href="#pyramid-1">Pyramid</a></h1>
+<p><img src="figures/indexes/pyramid-overview.svg" alt="Pyramid: a tree of per-node proximity sub-graphs keyed by a path string; the search walks down the tree along the query’s path prefix and runs ef_search inside the leaf sub-graph"></p>
 <p>Pyramid is VSAG’s <strong>hierarchical, path-partitioned</strong> graph index. Every vector is
 tagged with a path string such as <code>"a/d/f"</code>, and Pyramid builds a graph per node
 in that path tree. At query time you supply a path prefix, and Pyramid restricts
@@ -1389,6 +1393,7 @@ faster.</p>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="bruteforce"><a class="header" href="#bruteforce">BruteForce</a></h1>
+<p><img src="figures/indexes/brute_force-overview.svg" alt="BruteForce: vectors live in a flat store; the query is compared against every stored vector, with optional intra-query parallelism splitting the scan across threads, and the smallest distances are kept in a top-k heap"></p>
 <p>BruteForce is VSAG’s <strong>exact, flat</strong> index. At query time it scores the query against every
 vector in the corpus and returns the true top-k — no graph traversal, no inverted lists, no
 approximation. Its main role is to be the <strong>ground-truth baseline</strong> that approximate indexes

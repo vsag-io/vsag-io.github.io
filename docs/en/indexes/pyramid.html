@@ -305,6 +305,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h1>
+<p><img src="../figures/indexes/pyramid-overview.svg" alt="Pyramid: a tree of per-node proximity sub-graphs keyed by a path string; the search walks down the tree along the query’s path prefix and runs ef_search inside the leaf sub-graph"></p>
 <p>Pyramid is VSAG’s <strong>hierarchical, path-partitioned</strong> graph index. Every vector is
 tagged with a path string such as <code>"a/d/f"</code>, and Pyramid builds a graph per node
 in that path tree. At query time you supply a path prefix, and Pyramid restricts

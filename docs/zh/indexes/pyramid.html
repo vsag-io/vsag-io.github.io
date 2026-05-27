@@ -305,6 +305,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h1>
+<p><img src="../figures/indexes/pyramid-overview.svg" alt="Pyramid：以路径字符串为键的“每节点一个邻近子图“的树形结构；搜索沿查询路径前缀下行到叶子子图后再执行 ef_search"></p>
 <p>Pyramid 是 VSAG 的 <strong>层级路径分区</strong> 图索引。每条向量都附带一个路径字符串（例如
 <code>"a/d/f"</code>），Pyramid 会按路径树为每个节点构建一个子图；查询时提供一个路径前缀，
 检索即被限定在相应的子树内。</p>
