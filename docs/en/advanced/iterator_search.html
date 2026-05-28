@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="zh" class="light sidebar-visible" dir="ltr">
+<html lang="en" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>FP32（基线） - VSAG文档</title>
+        <title>Iterator Search - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7d0a0948.js";
+            window.path_to_searchindex_js = "../searchindex-8126364c.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-137430ab.js"></script>
+        <script src="../toc-641b3792.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG文档</h1>
+                    <h1 class="menu-title">VSAG Documentation</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,62 +304,171 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="fp32基线"><a class="header" href="#fp32基线">FP32（基线）</a></h1>
-<p><code>fp32</code> 把每个坐标按 32 位 IEEE-754 浮点存储——与输入向量布局一致。它是
-VSAG 中<strong>唯一完全无损</strong>的选项，作为所有其他量化器对比的参考基线。</p>
-<blockquote>
-<p>实现：<code>src/quantization/fp32_quantizer.cpp</code>，参数文件
-<code>fp32_quantizer_parameter.cpp</code>。</p>
-</blockquote>
-<h2 id="何时使用"><a class="header" href="#何时使用">何时使用</a></h2>
+                        <h1 id="iterator-search"><a class="header" href="#iterator-search">Iterator Search</a></h1>
+<p>VSAG supports <strong>iterator-based search</strong> (also called <em>iterative search</em>): instead of asking for
+the top-<code>k</code> results in one shot, the caller can request results in successive chunks while VSAG
+preserves the internal search state between calls. Each subsequent call resumes from where the
+previous one left off and returns <em>new</em>, non-overlapping results.</p>
+<p>This is useful when:</p>
 <ul>
-<li><strong>重排 / 精确存储。</strong> 当 <code>use_reorder: true</code> 时，
-<code>precise_quantization_type: "fp32"</code> 是默认的精确存储；图上游走使用便宜
-的基础量化器，对 top-K 候选再用 fp32 精确重打分。</li>
-<li><strong>参考 / 基准真值。</strong> 用 <code>base_quantization_type: "fp32"</code> 构建索引能拿
-到该索引类型可达的最高召回，是其他量化器对比的标准基线
-（<code>docs/docs/en/src/resources/eval.md</code>）。</li>
-<li><strong>小规模数据集</strong>，内存不是瓶颈时。</li>
-<li><strong>BruteForce 原始向量取回。</strong> 仅当 <code>base_quantization_type</code> 为 <code>fp32</code>
-且度量允许时，<code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code> 才会被广播
-（<code>src/index/brute_force.cpp</code>）。</li>
+<li>The application implements an external re-ranker or post-filter and wants to keep pulling more
+candidates until enough survivors are collected.</li>
+<li>Result consumption is lazy / streaming (e.g. UI pagination, server-side cursor).</li>
+<li>The eventual <code>k</code> is unknown up front and may grow on demand.</li>
 </ul>
-<h2 id="内存代价"><a class="header" href="#内存代价">内存代价</a></h2>
-<p>仅码本身的开销为每向量 <code>4 × dim</code> 字节。当 <code>fp32</code> 作为某个基础量化器之上的
-精确存储时，每向量代价为 <strong>base 码 + 4 × dim</strong>。</p>
-<h2 id="参数"><a class="header" href="#参数">参数</a></h2>
-<p><code>fp32</code> 没有量化器专属的 JSON 参数。</p>
-<pre><code class="language-json">{
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128,
-    "index_param": {
-        "base_quantization_type": "fp32",
-        "max_degree": 32,
-        "ef_construction": 300
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How It Works</a></h2>
+<p>Iterator search relies on a long-lived <code>IteratorContext</code> object that holds:</p>
+<ul>
+<li>the current candidate heap / visited bitmap, and</li>
+<li>the cursor into the underlying graph or inverted lists.</li>
+</ul>
+<p>The first call creates the context (when the pointer is <code>nullptr</code>); follow-up calls reuse it so
+the search continues instead of restarting. When the caller is done, the <code>IteratorContext</code> object
+itself must be deleted by the caller — that is what releases the iterator’s internal state.</p>
+<p>The <code>is_last_search</code> flag is <em>optional</em>: when set to <code>true</code>, the index drains the candidates that
+are still buffered inside the context (the “discard heap”) and returns them as the result of that
+call. This is useful when the caller wants the long tail of explored-but-not-yet-emitted
+candidates; if you don’t need them, you can simply skip the final call and <code>delete</code> the context
+directly. Note that the returned set is still capped to <code>k</code>, so if you want all tail candidates,
+pass a sufficiently large <code>k</code> on the finalize call.</p>
+<h2 id="basic-usage-searchparam-api"><a class="header" href="#basic-usage-searchparam-api">Basic Usage (<code>SearchParam</code> API)</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+// 1. Build an index (HNSW in this example)
+auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_params).value();
+index-&gt;Build(dataset);
+
+// 2. Prepare query
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(dim)-&gt;Float32Vectors(query_vec)-&gt;Owner(false);
+
+// 3. Configure SearchParam in iterator mode
+nlohmann::json search_parameters = {
+    {"hnsw", {{"ef_search", 100}, {"skip_ratio", 0.7f}}},
+};
+std::string param_str = search_parameters.dump();
+
+vsag::SearchParam search_param(
+    /*iter_filter_flag=*/true,   // enable iterator mode
+    param_str,
+    /*filter=*/nullptr,
+    /*allocator=*/&amp;allocator,
+    /*iter_ctx=*/nullptr,        // first call: context is created internally
+    /*last_search_flag=*/false);
+
+// 4. First page
+auto page1 = index-&gt;KnnSearch(query, /*k=*/10, search_param).value();
+
+// 5. Next page — context carries over, results do not overlap with page1
+auto page2 = index-&gt;KnnSearch(query, /*k=*/10, search_param).value();
+
+// 6. (Optional) drain the candidates still buffered in the context.
+//    Skip this call if you don't need the tail candidates; cleanup
+//    happens through `delete` below either way.
+search_param.is_last_search = true;
+auto page3 = index-&gt;KnnSearch(query, /*k=*/10, search_param).value();
+
+// 7. The caller owns the context object — this is what releases resources.
+delete search_param.iter_ctx;
+</code></pre>
+<blockquote>
+<p>Reference: <code>examples/cpp/313_feature_search_allocator.cpp</code> and
+<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>.</p>
+</blockquote>
+<h2 id="alternative-explicit-iteratorcontext-argument"><a class="header" href="#alternative-explicit-iteratorcontext-argument">Alternative: Explicit <code>IteratorContext</code> Argument</a></h2>
+<p>The lower-level <code>KnnSearch</code> overload accepts the context pointer directly. This is the form used
+by VSAG’s own tests (<code>tests/test_index/test_index_search.cpp</code>) when calling <code>KnnSearch</code> several
+times in a row:</p>
+<pre><code class="language-cpp">vsag::IteratorContext* iter_ctx = nullptr;
+
+auto r1 = index-&gt;KnnSearch(query, k1, param_str, filter, iter_ctx, /*is_last_search=*/false);
+auto r2 = index-&gt;KnnSearch(query, k2, param_str, filter, iter_ctx, /*is_last_search=*/false);
+auto r3 = index-&gt;KnnSearch(query, k3, param_str, filter, iter_ctx, /*is_last_search=*/false);
+
+delete iter_ctx;
+</code></pre>
+<p>Each call advances <code>iter_ctx</code>; the union of the returned ids is a non-overlapping continuation of
+the search ordered by distance. Pass <code>is_last_search=true</code> on a trailing call instead if you want
+the index to also emit the candidates still buffered in the context.</p>
+<blockquote>
+<p><strong><code>SearchRequest</code> API.</strong> <code>SearchRequest</code> declares <code>enable_iterator_search_</code>, <code>p_iter_ctx_</code>, and
+<code>is_last_search_</code> fields, but no in-tree <code>SearchWithRequest</code> implementation currently consults
+them. Until that wiring lands, use one of the two <code>KnnSearch</code> forms above to drive iterator
+search.</p>
+</blockquote>
+<h2 id="combining-with-filters"><a class="header" href="#combining-with-filters">Combining With Filters</a></h2>
+<p>Iterator search composes with regular filters (label filter, attribute filter, bitset filter).
+A common use case is “keep iterating until enough results pass my external check”:</p>
+<pre><code class="language-cpp">size_t needed = 50;
+std::vector&lt;int64_t&gt; kept;
+vsag::IteratorContext* ctx = nullptr;
+
+while (kept.size() &lt; needed) {
+    auto page = index-&gt;KnnSearch(query, 32, param_str, filter, ctx, /*is_last_search=*/false);
+    if (!page.has_value() || page.value()-&gt;GetDim() == 0) break;
+
+    for (int64_t i = 0; i &lt; page.value()-&gt;GetDim(); ++i) {
+        if (external_check(page.value()-&gt;GetIds()[i])) {
+            kept.push_back(page.value()-&gt;GetIds()[i]);
+        }
     }
 }
+
+// Release the iterator state. No `is_last_search=true` call is required —
+// add one only if you also want the candidates still buffered in `ctx`.
+delete ctx;
 </code></pre>
-<h2 id="训练"><a class="header" href="#训练">训练</a></h2>
-<p>不需要。<code>fp32</code> <strong>不</strong>设置 <code>NEED_TRAIN</code>。</p>
-<h2 id="度量兼容性"><a class="header" href="#度量兼容性">度量兼容性</a></h2>
-<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持，无特殊处理。</p>
-<h2 id="相关页面"><a class="header" href="#相关页面">相关页面</a></h2>
+<p>The HNSW graph supports an additional runtime parameter — <code>skip_ratio</code> — that controls how
+aggressively the iterator skips already-explored regions during continuation. See the
+HNSW section in <code>examples/cpp/313_feature_search_allocator.cpp</code>.</p>
+<h2 id="support-matrix"><a class="header" href="#support-matrix">Support Matrix</a></h2>
+<p>Indexes that advertise the <code>SUPPORT_KNN_ITERATOR_FILTER_SEARCH</code> feature (queryable via
+<code>Index::CheckFeature</code>):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index type</th><th>Supports iterator search</th></tr>
+</thead>
+<tbody>
+<tr><td>hnsw</td><td>yes</td></tr>
+<tr><td>hgraph</td><td>yes</td></tr>
+<tr><td>ivf</td><td>no</td></tr>
+<tr><td>diskann</td><td>no</td></tr>
+<tr><td>brute_force</td><td>no</td></tr>
+<tr><td>sindi</td><td>no</td></tr>
+</tbody>
+</table>
+</div>
+<p>Always check <code>index-&gt;CheckFeature(vsag::SUPPORT_KNN_ITERATOR_FILTER_SEARCH)</code> at runtime before
+relying on this capability — coverage may expand in future releases.</p>
+<h2 id="notes-and-pitfalls"><a class="header" href="#notes-and-pitfalls">Notes and Pitfalls</a></h2>
 <ul>
-<li><a href="README.html">量化总览</a></li>
-<li><a href="../indexes/hgraph.html">HGraph 索引</a> —— 见 <code>precise_quantization_type</code></li>
-<li><a href="../advanced/memory.html">内存管理</a></li>
+<li><strong>Ownership.</strong> The <code>IteratorContext</code> is owned by the caller. Forgetting to <code>delete</code> it leaks
+the internal search state (heap, visited bitmap, allocator scratch). Resource release is driven
+entirely by <code>delete</code>, not by <code>is_last_search</code>.</li>
+<li><strong>Optional last call.</strong> <code>is_last_search = true</code> is <em>not</em> required for cleanup. Its only effect
+is to make the index drain the candidates that are still buffered in the context and return
+them as that call’s result, still capped to <code>k</code>. Use it only when you want those tail
+candidates, and pick a <code>k</code> large enough not to truncate them.</li>
+<li><strong>Parameter stability.</strong> Do not change the query vector, distance metric, or filter between
+calls that share a context — results are only meaningful when the search state is reused for
+the same logical query.</li>
+<li><strong><code>k</code> per call.</strong> The <code>k</code> argument applies to each call individually; the returned chunks are
+disjoint, so the cumulative result size grows by <code>k</code> (or less if the index is exhausted) each
+iteration.</li>
+<li><strong>Thread safety.</strong> A single <code>IteratorContext</code> must not be used concurrently from multiple
+threads. Different queries should each have their own context.</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../quantization/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/filtered_search.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../quantization/fp16_bf16.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/attribute_filter.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -369,11 +478,11 @@ VSAG 中<strong>唯一完全无损</strong>的选项，作为所有其他量化�
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../quantization/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/filtered_search.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../quantization/fp16_bf16.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/attribute_filter.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
