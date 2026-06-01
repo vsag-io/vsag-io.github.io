@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7d0a0948.js";
+            window.path_to_searchindex_js = "../searchindex-78d0c8be.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-137430ab.js"></script>
@@ -335,11 +335,11 @@
 <h2 id="删除向量"><a class="header" href="#删除向量">删除向量</a></h2>
 <p><code>Remove</code> 按 id 删除向量。HGraph 支持两种删除模式，要求不同：</p>
 <ul>
-<li><code>RemoveMode::MARK_REMOVE</code>（默认）：仅通过 label table 写入墓碑标记，<strong>不依赖</strong> <code>support_remove</code>
+<li><code>RemoveMode::MARK_REMOVE</code>（默认）：仅通过 label table 写入墓碑标记，<strong>不依赖</strong> <code>support_force_remove</code>
 即可调用。该 id 会在后续搜索中被过滤掉，但底层图节点与向量存储仍然保留。</li>
 <li><code>RemoveMode::FORCE_REMOVE</code>：物理重写图并回收存储槽。该模式仅在索引以
-<code>index_param</code> 中 <code>support_remove: true</code> 构建时可用（这会让图 datacell 分配删除追踪元数据）。
-若索引未带 <code>support_remove: true</code> 构建，调用 <code>FORCE_REMOVE</code> 会失败。</li>
+<code>index_param</code> 中 <code>support_force_remove: true</code> 构建时可用。该开关会启用 force remove 路径及其额外同步；
+若索引未带 <code>support_force_remove: true</code> 构建，调用 <code>FORCE_REMOVE</code> 会失败。</li>
 </ul>
 <pre><code class="language-json">{
     "dtype": "float32",
@@ -349,12 +349,12 @@
         "base_quantization_type": "sq8",
         "max_degree": 16,
         "ef_construction": 100,
-        "support_remove": true
+        "support_force_remove": true
     }
 }
 </code></pre>
 <p>上述 JSON 仅在打算使用 <code>FORCE_REMOVE</code> 时是必需的。若只用 <code>MARK_REMOVE</code>，可以省略
-<code>support_remove</code> 字段。</p>
+<code>support_force_remove</code> 字段。</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -362,8 +362,7 @@
     "index_param": {
         "base_quantization_type": "sq8",
         "max_degree": 16,
-        "ef_construction": 100,
-        "support_remove": true
+        "ef_construction": 100
     }
 }
 </code></pre>
@@ -379,8 +378,8 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2, id3});
 <tr><th>模式</th><th>行为</th></tr>
 </thead>
 <tbody>
-<tr><td><code>RemoveMode::MARK_REMOVE</code>（默认）</td><td>对 id 打墓碑标记；速度快，不收缩、不修图。后续搜索会跳过该 id。不要求 <code>support_remove: true</code>。</td></tr>
-<tr><td><code>RemoveMode::FORCE_REMOVE</code></td><td>物理删除向量并修复图结构。开销较大。要求索引以 <code>support_remove: true</code> 构建。</td></tr>
+<tr><td><code>RemoveMode::MARK_REMOVE</code>（默认）</td><td>对 id 打墓碑标记；速度快，不收缩、不修图。后续搜索会跳过该 id。不要求 <code>support_force_remove: true</code>。</td></tr>
+<tr><td><code>RemoveMode::FORCE_REMOVE</code></td><td>物理删除向量并修复图结构。开销较大。要求索引以 <code>support_force_remove: true</code> 构建。</td></tr>
 </tbody>
 </table>
 </div>

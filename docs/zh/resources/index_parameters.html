@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7d0a0948.js";
+            window.path_to_searchindex_js = "../searchindex-78d0c8be.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-137430ab.js"></script>
@@ -382,6 +382,10 @@
 <p>搜索时：</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
+<p><code>hgraph</code> 搜索参数还接受 <code>brute_force_threshold</code>（<code>[0.0, 1.0]</code> 区间的 float，
+默认 <code>0.0</code>）。当取值 <code>&gt; 0</code> 且当前请求的 filter 的 <code>ValidRatio()</code> 不超过该
+阈值时，HGraph 会跳过图遍历，直接在通过过滤的 id 上做精确暴扫。详见
+<a href="../indexes/hgraph.html#高选择性过滤下的暴搜回退brute_force_threshold">HGraph 索引文档</a>。</p>
 <h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
 <pre><code class="language-json">{
     "diskann": {

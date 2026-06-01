@@ -166,7 +166,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-8126364c.js";
+            window.path_to_searchindex_js = "searchindex-f436b2d9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-641b3792.js"></script>
@@ -710,6 +710,12 @@ such as <code>base_quantization_type</code>.</p>
 <p>At search time:</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
+<p>The <code>hgraph</code> search-param object also accepts <code>brute_force_threshold</code> (a float
+in <code>[0.0, 1.0]</code>, default <code>0.0</code>). When set above zero and the request carries a
+filter whose <code>ValidRatio()</code> is at most this threshold, HGraph skips the graph
+traversal and runs an exact scan over the surviving ids. See the
+<a href="#brute-force-fallback-under-highly-selective-filters-brute_force_threshold">HGraph index page</a>
+for details.</p>
 <h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
 <pre><code class="language-json">{
     "diskann": {
@@ -758,7 +764,6 @@ such as <code>base_quantization_type</code>.</p>
 <code>examples/cpp/3xx_feature_*.cpp</code> examples.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h1>
-<p><img src="figures/indexes/hgraph-overview.svg" alt="HGraph: hierarchical proximity graph with top-down greedy search and optional reorder"></p>
 <p>HGraph is VSAG’s flagship <strong>graph-based</strong> index. It builds a hierarchical proximity graph
 similar in spirit to HNSW, but with a richer set of quantization options, a unified
 build-parameter schema (<code>index_param</code>), and first-class support for reordering,
@@ -832,7 +837,8 @@ and <code>docs/hgraph.md</code> in the repository.</p>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>Threads used to parallelise build</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Enable duplicate-ID detection on insert</td></tr>
 <tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Duplicate-detection distance threshold. When greater than <code>0</code>, deduplicate by the nearest candidate distance; when <code>0</code>, fall back to the current code <code>memcmp</code> check</td></tr>
-<tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>Remove()</code> on the built index</td></tr>
+<tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable graph delete-tracking metadata used by mark-remove recovery paths</td></tr>
+<tr><td><code>support_force_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>RemoveMode::FORCE_REMOVE</code> and its extra synchronization on the built index</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Keep the raw vector in addition to the quantized copy (useful for <code>cosine</code>)</td></tr>
 <tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>Auto-tune search parameters after build</td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend (<code>memory_io</code>, <code>block_memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>mmap_io</code>)</td></tr>
@@ -946,26 +952,74 @@ still controlled by <code>base_quantization_type</code> (and optionally <code>pr
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ef_search</code></td><td>int</td><td>Size of the search frontier. Larger = higher recall, slower query.</td></tr>
-<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code> by default. Set to <code>false</code> to skip the final reorder stage for this request even when the index was built with reorder enabled. This also disables the RaBitQ one-bit reorder path.</td></tr>
+<tr><td><code>ef_search</code></td><td>int</td><td>— (required)</td><td>Size of the search frontier. Larger = higher recall, slower query.</td></tr>
+<tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Hard cap on the number of hops the beam search performs before returning the current frontier.</td></tr>
+<tr><td><code>brute_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Selectivity-aware brute-force fallback. When <code>&gt; 0</code> and the supplied filter’s <code>ValidRatio()</code> is <code>≤ brute_force_threshold</code>, the search <strong>bypasses the graph traversal entirely</strong> and runs an exact scan over the valid ids using the best available flatten codes (see the section below). Must lie in <code>[0.0, 1.0]</code>; the default <code>0.0</code> disables the feature and preserves legacy behavior.</td></tr>
+<tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>RabitQ one-bit search path; see the <a href="quantization/README.html">Quantization chapter</a>.</td></tr>
 </tbody>
 </table>
 </div>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk, R"({"hgraph": {"ef_search": 200}})").value();
 </code></pre>
-<pre><code class="language-cpp">auto fast_result = index-&gt;KnnSearch(
-    query, topk,
-    R"({"hgraph": {"ef_search": 200, "enable_reorder": false}})").value();
+<h3 id="brute-force-fallback-under-highly-selective-filters-brute_force_threshold"><a class="header" href="#brute-force-fallback-under-highly-selective-filters-brute_force_threshold">Brute-force fallback under highly selective filters (<code>brute_force_threshold</code>)</a></h3>
+<p>Graph traversal is the right strategy when most candidates pass the filter — the
+graph quickly reaches the neighborhood of the query. As filter selectivity
+increases (only a tiny fraction of vectors survive), the beam has to expand far
+more nodes just to fill <code>ef_search</code> with <strong>valid</strong> candidates, and recall drops.
+At some point an exhaustive scan over the surviving ids is both faster <em>and</em>
+exact.</p>
+<p><code>brute_force_threshold</code> lets HGraph make that switch automatically on a
+per-query basis:</p>
+<pre><code class="language-cpp">// When the active filter keeps ≤ 1% of ids, run an exact scan instead.
+auto params = R"({"hgraph": {"ef_search": 200, "brute_force_threshold": 0.01}})";
+auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
 </code></pre>
+<p>How it works (<code>src/algorithm/hgraph/hgraph_search.cpp</code>):</p>
+<ul>
+<li>The fallback only fires when <strong>all</strong> of the following hold:
+<ul>
+<li><code>brute_force_threshold &gt; 0.0</code>, <strong>and</strong></li>
+<li>a filter is supplied, <strong>and</strong></li>
+<li><code>filter-&gt;ValidRatio() &lt;= brute_force_threshold</code>.</li>
+</ul>
+</li>
+<li>The accuracy of <code>Filter::ValidRatio()</code> matters — it is the user-supplied hint
+the dispatcher checks against the threshold. See
+<a href="#filtered-search">Filtered Search</a> for the API contract.</li>
+<li>The scan iterates every valid inner id and computes distances in batches of
+64 using the most precise flatten storage available (raw vectors if
+<code>store_raw_vector</code> was set, otherwise the high-precision reorder codes when
+<code>use_reorder=true</code>, otherwise the base quantized codes).</li>
+<li>Because the scan already uses precise codes when present, the post-search
+reorder pass is <strong>skipped</strong> for queries that took the brute-force branch.</li>
+<li>Applies to <code>KnnSearch</code> (the non-iterator overload, which is what
+<code>SearchWithRequest</code> and the standard <code>KnnSearch(query, k, params, filter)</code>
+call) and to <code>RangeSearch</code>. It does <strong>not</strong> apply to the iterator-style
+<code>KnnSearch(..., IteratorContext*&amp;, ...)</code>, because a single sweep cannot be
+paged across multiple iterator calls.</li>
+</ul>
+<p>Picking a value:</p>
+<ul>
+<li>Leave at <code>0.0</code> (default) for unfiltered or weakly filtered workloads.</li>
+<li>For highly selective filters, <code>0.01–0.05</code> is a reasonable starting point.
+Setting it higher than that effectively turns the index into a brute-force
+scanner whenever a filter is present.</li>
+<li>The cost of the brute-force scan is roughly <code>O(N × dim)</code> where <code>N</code> is the
+total number of indexed vectors (regardless of selectivity, because every id
+is visited to check <code>CheckValid</code>). The benefit grows when graph search would
+otherwise need a much larger <code>ef_search</code> to recover recall.</li>
+</ul>
+<p>A runnable example is
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/322_feature_hgraph_brute_force_threshold.cpp"><code>322_feature_hgraph_brute_force_threshold.cpp</code></a>.</p>
 <h2 id="when-to-use-hgraph"><a class="header" href="#when-to-use-hgraph">When to use HGraph</a></h2>
 <ul>
 <li>Dense float vectors with dimensions roughly between 64 and 4096.</li>
 <li>Latency-sensitive queries where high recall matters.</li>
-<li>Mixed workloads with incremental insertion (optionally deletion via <code>support_remove</code>).</li>
+<li>Mixed workloads with incremental insertion (optionally force removal via <code>support_force_remove</code>).</li>
 <li>Memory-constrained deployments that benefit from <code>sq8</code> / <code>sq4_uniform</code> / <code>pq</code> — often
 in combination with <code>use_reorder</code> to recover recall.</li>
 </ul>
@@ -3339,6 +3393,13 @@ filtering, see <a href="#extra-info">Extra Info</a>.</p>
 <li>The more selective the filter (smaller <code>ValidRatio</code>), the more candidates the search has
 to expand. For graph indexes, increase <code>ef_search</code> proportionally when the filter is very
 selective; otherwise recall will drop sharply below ~1% selectivity.</li>
+<li><strong>HGraph also offers a selectivity-aware brute-force fallback</strong>: set
+<code>brute_force_threshold</code> (e.g. <code>0.01–0.05</code>) in the search params so that, when
+<code>Filter::ValidRatio()</code> is small enough, HGraph automatically skips graph
+traversal and runs an exact scan over the surviving ids. This is often a
+better choice than chasing recall by raising <code>ef_search</code> to very large values.
+See the <a href="#brute-force-fallback-under-highly-selective-filters-brute_force_threshold">HGraph index page</a>
+and example <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/322_feature_hgraph_brute_force_threshold.cpp"><code>322_feature_hgraph_brute_force_threshold.cpp</code></a>.</li>
 <li>Bitset filters are fastest because <code>Test()</code> is a single bit lookup. A <code>Filter</code> object that
 performs heavy work in <code>CheckValid</code> will be called many times per query.</li>
 <li>For <code>RangeSearch</code>, set a finite <code>limited_size</code> when filters can let through millions of
@@ -4632,12 +4693,12 @@ supports it and which mode it supports.</p>
 <p><code>Remove</code> deletes vectors by id. HGraph supports two deletion modes with different requirements:</p>
 <ul>
 <li><code>RemoveMode::MARK_REMOVE</code> (the default) only writes a tombstone via the label table and works
-regardless of <code>support_remove</code>. The id is filtered out of subsequent searches, but the underlying
-graph node and vector storage are kept.</li>
+regardless of <code>support_force_remove</code>. The id is filtered out of subsequent searches, but the
+underlying graph node and vector storage are kept.</li>
 <li><code>RemoveMode::FORCE_REMOVE</code> physically rewrites the graph and reclaims the slot. This mode is
-only available when the index was built with <code>support_remove: true</code> in <code>index_param</code> (which
-causes the graph data cell to allocate the delete-tracking metadata). Calling <code>FORCE_REMOVE</code> on
-an index built without <code>support_remove: true</code> will fail.</li>
+only available when the index was built with <code>support_force_remove: true</code> in <code>index_param</code>. That
+flag enables the force-remove path and its extra synchronization; calling <code>FORCE_REMOVE</code> on an
+index built without <code>support_force_remove: true</code> will fail.</li>
 </ul>
 <pre><code class="language-json">{
     "dtype": "float32",
@@ -4647,12 +4708,12 @@ an index built without <code>support_remove: true</code> will fail.</li>
         "base_quantization_type": "sq8",
         "max_degree": 16,
         "ef_construction": 100,
-        "support_remove": true
+        "support_force_remove": true
     }
 }
 </code></pre>
 <p>The JSON snippet above is only required if you intend to use <code>FORCE_REMOVE</code>. For <code>MARK_REMOVE</code>
-alone you can omit the <code>support_remove</code> flag.</p>
+alone you can omit the <code>support_force_remove</code> flag.</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -4660,8 +4721,7 @@ alone you can omit the <code>support_remove</code> flag.</p>
     "index_param": {
         "base_quantization_type": "sq8",
         "max_degree": 16,
-        "ef_construction": 100,
-        "support_remove": true
+        "ef_construction": 100
     }
 }
 </code></pre>
@@ -4677,8 +4737,8 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2, id3});
 <tr><th>Mode</th><th>Behavior</th></tr>
 </thead>
 <tbody>
-<tr><td><code>RemoveMode::MARK_REMOVE</code> (default)</td><td>Tombstones the id; fast, no shrink or graph repair. Subsequent searches skip the id. Does not require <code>support_remove: true</code>.</td></tr>
-<tr><td><code>RemoveMode::FORCE_REMOVE</code></td><td>Physically removes the vector and repairs the graph. Heavier. Requires the index to be built with <code>support_remove: true</code>.</td></tr>
+<tr><td><code>RemoveMode::MARK_REMOVE</code> (default)</td><td>Tombstones the id; fast, no shrink or graph repair. Subsequent searches skip the id. Does not require <code>support_force_remove: true</code>.</td></tr>
+<tr><td><code>RemoveMode::FORCE_REMOVE</code></td><td>Physically removes the vector and repairs the graph. Heavier. Requires the index to be built with <code>support_force_remove: true</code>.</td></tr>
 </tbody>
 </table>
 </div>
@@ -5105,8 +5165,8 @@ documents the exact layout VSAG expects so you can prepare custom datasets or
 debug failing evaluations.</p>
 <p>The dataset layout described below is the <strong>dense</strong> layout (selected by the global
 attribute <code>type="dense"</code>, or by omitting the attribute). For <strong>sparse</strong> datasets
-(<code>type="sparse"</code>), <code>/train</code> and <code>/test</code> are 1-D <code>INT8</code> byte streams produced by VSAG’s
-sparse-vector serialization (decoded by <code>parse_sparse_vectors</code> in
+(<code>type="sparse"</code>), <code>/train</code> and <code>/test</code> are flat <code>INT8</code> byte streams of shape <code>(X,)</code>
+produced by VSAG’s sparse-vector serialization (decoded by <code>parse_sparse_vectors</code> in
 <code>tools/eval/eval_dataset.cpp</code>); all other datasets and attributes below still apply.</p>
 <h2 id="mandatory-datasets"><a class="header" href="#mandatory-datasets">Mandatory Datasets</a></h2>
 <h3 id="train-base-vectors"><a class="header" href="#train-base-vectors"><code>/train</code> (base vectors)</a></h3>
@@ -5293,17 +5353,19 @@ flat array plus the counts, then passes the full array to
 </ol>
 <h2 id="sparse-layout"><a class="header" href="#sparse-layout">Sparse layout</a></h2>
 <p>When the global attribute <code>type</code> equals <code>"sparse"</code>, <code>/train</code> and <code>/test</code> do <strong>not</strong> follow
-the <code>(N, D)</code> dense matrix layout. They are instead stored as one-dimensional <code>INT8</code>
+the <code>(N, D)</code> dense matrix layout. They are instead stored as flat <code>INT8</code>
 (<code>H5T_INTEGER</code>, size 1) datasets whose payload is a raw byte stream of packed sparse
-vectors. The <code>int8</code> storage class is a transport detail only; the bytes are not int8
-vector elements.</p>
+vectors. Calling <code>f["/train"].shape</code> from h5py returns <code>(X,)</code> where <code>X</code> is the total
+number of bytes; the <code>int8</code> storage class is a transport detail only — the bytes are
+not int8 vector elements.</p>
 <h3 id="train-test-sparse-byte-stream"><a class="header" href="#train-test-sparse-byte-stream"><code>/train</code>, <code>/test</code> (sparse byte stream)</a></h3>
 <ul>
 <li>
 <p><strong>HDF5 type</strong>: <code>H5T_INTEGER</code>, size 1 (<code>INT8</code>)</p>
 </li>
 <li>
-<p><strong>HDF5 shape</strong>: 1-D; total length equals the sum of per-vector record sizes</p>
+<p><strong>HDF5 shape</strong>: <code>(X,)</code>, where <code>X</code> is the total byte-stream length
+(sum of all per-vector record sizes)</p>
 </li>
 <li>
 <p><strong>Endianness</strong>: little-endian</p>
@@ -5331,6 +5393,88 @@ record has the following fields, concatenated with no padding or separators:</p>
 not rely on that.</p>
 </li>
 </ul>
+<h3 id="train_offsets-test_offsets-random-access-index-optional"><a class="header" href="#train_offsets-test_offsets-random-access-index-optional"><code>/train_offsets</code>, <code>/test_offsets</code> (random-access index, optional)</a></h3>
+<p>These two datasets store the per-record byte offsets into the matching
+<code>/train</code> and <code>/test</code> sparse byte streams so that the i-th sparse vector
+can be located in <strong>O(1)</strong> without scanning the stream.</p>
+<ul>
+<li><strong>HDF5 type</strong>: <code>H5T_INTEGER</code>, size 8 (<code>UINT64</code>)</li>
+<li><strong>HDF5 shape</strong>: <code>(N + 1,)</code> for <code>/train_offsets</code> and <code>(Q + 1,)</code> for
+<code>/test_offsets</code></li>
+<li><strong>Content</strong>: <code>offsets[i]</code> is the byte offset of record <code>i</code>;
+<code>offsets[N]</code> is the sentinel and equals the total byte stream length.
+The size of record <code>i</code> is <code>offsets[i + 1] - offsets[i]</code>. The array is
+non-decreasing.</li>
+</ul>
+<p>Both datasets are <strong>optional</strong>. VSAG writers always emit them when
+writing sparse files, but legacy sparse files that only contain <code>/train</code>
+and <code>/test</code> keep loading: the offsets are recomputed on load by walking
+the byte stream once. When the on-disk offsets are present, they are
+cross-checked against the recomputed offsets and the file is rejected as
+corrupted on any mismatch.</p>
+<h3 id="train_token_sequences-test_token_sequences-optional"><a class="header" href="#train_token_sequences-test_token_sequences-optional"><code>/train_token_sequences</code>, <code>/test_token_sequences</code> (optional)</a></h3>
+<p>These two datasets carry the <strong>original tokenized document</strong> that
+produced each sparse vector. They are entirely optional: sparse HDF5
+files that omit both datasets still load correctly. When present, they
+must appear in lockstep with <code>/train</code> and <code>/test</code>: the i-th record in
+<code>/train_token_sequences</code> corresponds to the i-th sparse vector in
+<code>/train</code> (same for <code>/test</code>).</p>
+<ul>
+<li>
+<p><strong>HDF5 type</strong>: <code>H5T_INTEGER</code>, size 1 (<code>INT8</code>)</p>
+</li>
+<li>
+<p><strong>HDF5 shape</strong>: <code>(X,)</code>, where <code>X</code> is the total byte-stream length
+(sum of all per-record sizes)</p>
+</li>
+<li>
+<p><strong>Endianness</strong>: little-endian</p>
+</li>
+<li>
+<p><strong>Content</strong>: a contiguous sequence of records, one per sparse vector,
+in the same order as <code>/train</code> / <code>/test</code>. Each record has the layout:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Size</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>seq_len</code></td><td><code>uint32</code></td><td>4 bytes</td><td>Number of tokens in the original document</td></tr>
+<tr><td><code>term_ids[seq_len]</code></td><td><code>uint32[]</code></td><td><code>4 * seq_len</code> bytes</td><td>Term ids in tokenization order (duplicates and order are preserved)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Records are concatenated with no padding or separators. A
+<code>seq_len == 0</code> record is allowed and occupies only the 4-byte length
+field; readers should treat it as “no original document available
+for this vector”.</p>
+</li>
+<li>
+<p><strong>Number of records</strong>: must equal the number of sparse vectors in the
+matching split. Readers raise an error if counts disagree or if the
+stream is truncated.</p>
+</li>
+<li>
+<p><strong>Ordering vs. <code>ids</code></strong>: <code>term_ids</code> are stored in the original token
+order (duplicates kept). This is intentionally <strong>different</strong> from
+<code>ids</code>, which the loader sorts ascending.</p>
+</li>
+</ul>
+<h3 id="train_token_sequences_offsets-test_token_sequences_offsets-required-when-sequences-are-present"><a class="header" href="#train_token_sequences_offsets-test_token_sequences_offsets-required-when-sequences-are-present"><code>/train_token_sequences_offsets</code>, <code>/test_token_sequences_offsets</code> (required when sequences are present)</a></h3>
+<p>Whenever <code>/train_token_sequences</code> (resp. <code>/test_token_sequences</code>) is
+present, the paired <code>UINT64</code> offset index <strong>must</strong> also be present.</p>
+<ul>
+<li><strong>HDF5 type</strong>: <code>H5T_INTEGER</code>, size 8 (<code>UINT64</code>)</li>
+<li><strong>HDF5 shape</strong>: <code>(N + 1,)</code> (resp. <code>(Q + 1,)</code>)</li>
+<li><strong>Content</strong>: same contract as <code>/train_offsets</code>, enabling O(1) random
+access to the i-th token-sequence record.</li>
+</ul>
+<p>Contract: the byte-stream dataset and its offsets dataset <strong>live or die
+together</strong>. Readers reject the file if exactly one of the pair exists
+(either a <code>*_token_sequences</code> dataset without its <code>*_offsets</code>, or vice
+versa). When both are present, the on-disk offsets are cross-checked
+against the offsets rebuilt from the byte stream; a mismatch is treated
+as corruption and aborts the load.</p>
 <h3 id="ground-truth-and-metric"><a class="header" href="#ground-truth-and-metric">Ground truth and metric</a></h3>
 <p><code>/neighbors</code> and <code>/distances</code> follow the same shape and type rules as in the dense
 layout above. Only <code>"ip"</code> (sparse inner-product distance, <code>1 - sparse_inner_product</code>)

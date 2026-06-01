@@ -166,7 +166,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-7d0a0948.js";
+            window.path_to_searchindex_js = "searchindex-78d0c8be.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-137430ab.js"></script>
@@ -726,6 +726,10 @@ for rid, rdist in zip(result_ids, result_dists):
 <p>搜索时：</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
+<p><code>hgraph</code> 搜索参数还接受 <code>brute_force_threshold</code>（<code>[0.0, 1.0]</code> 区间的 float，
+默认 <code>0.0</code>）。当取值 <code>&gt; 0</code> 且当前请求的 filter 的 <code>ValidRatio()</code> 不超过该
+阈值时，HGraph 会跳过图遍历，直接在通过过滤的 id 上做精确暴扫。详见
+<a href="#高选择性过滤下的暴搜回退brute_force_threshold">HGraph 索引文档</a>。</p>
 <h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
 <pre><code class="language-json">{
     "diskann": {
@@ -773,7 +777,6 @@ for rid, rdist in zip(result_ids, result_dists):
 <a href="#优化器tune">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h1>
-<p><img src="figures/indexes/hgraph-overview.svg" alt="HGraph：自顶向下贪心搜索的层级近邻图，支持可选精排"></p>
 <p>HGraph 是 VSAG 的旗舰 <strong>图索引</strong>。它构建的是与 HNSW 思路类似的多层近邻图，但在此基础上
 提供了更丰富的量化方案、统一的构建参数 schema（<code>index_param</code>），并原生支持精排（reorder）、
 增量更新、删除、以及基于 ELP 的运行时自动调优。</p>
@@ -840,7 +843,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>构建阶段并发线程数</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否在插入时做重复 ID 检测</td></tr>
 <tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>重复判定距离阈值。大于 <code>0</code> 时按最近候选的距离判重；等于 <code>0</code> 时退化为当前编码 <code>memcmp</code> 判重</td></tr>
-<tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>是否支持 <code>Remove()</code></td></tr>
+<tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>是否启用 mark-remove 恢复路径所需的图删除追踪元数据</td></tr>
+<tr><td><code>support_force_remove</code></td><td>bool</td><td><code>false</code></td><td>是否启用 <code>RemoveMode::FORCE_REMOVE</code> 及其额外同步</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>除量化副本外再保留原始向量（<code>cosine</code> 场景有用）</td></tr>
 <tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>构建完成后自动调优检索参数</td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>mmap_io</code>）</td></tr>
@@ -947,26 +951,65 @@ base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>参数</th><th>类型</th><th>说明</th></tr>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ef_search</code></td><td>int</td><td>搜索前沿候选集的大小，越大召回越高、查询越慢</td></tr>
-<tr><td><code>enable_reorder</code></td><td>bool</td><td>默认值为 <code>true</code>。当索引构建时启用了 reorder，也可以在单次请求里设为 <code>false</code> 跳过最终精排；这也会一并关闭 RaBitQ 的 one-bit reorder 路径。</td></tr>
+<tr><td><code>ef_search</code></td><td>int</td><td>—（必填）</td><td>搜索前沿候选集的大小，越大召回越高、查询越慢。</td></tr>
+<tr><td><code>hops_limit</code></td><td>int</td><td>不限</td><td>beam search 在返回当前前沿前允许的最大跳数。</td></tr>
+<tr><td><code>brute_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>选择率感知的暴搜回退开关。当取值 <code>&gt; 0</code> 且当前 filter 的 <code>ValidRatio()</code> 小于等于 <code>brute_force_threshold</code> 时，搜索会<strong>完全跳过图遍历</strong>，直接在通过过滤的 id 上用最佳精度的 flatten 编码做一次暴力扫描（细节见下一节）。取值范围 <code>[0.0, 1.0]</code>；默认 <code>0.0</code> 表示关闭，保持原有行为。</td></tr>
+<tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>RabitQ 一比特搜索路径，详见<a href="quantization/README.html">量化章节</a>。</td></tr>
 </tbody>
 </table>
 </div>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk, R"({"hgraph": {"ef_search": 200}})").value();
 </code></pre>
-<pre><code class="language-cpp">auto fast_result = index-&gt;KnnSearch(
-    query, topk,
-    R"({"hgraph": {"ef_search": 200, "enable_reorder": false}})").value();
+<h3 id="高选择性过滤下的暴搜回退brute_force_threshold"><a class="header" href="#高选择性过滤下的暴搜回退brute_force_threshold">高选择性过滤下的暴搜回退（<code>brute_force_threshold</code>）</a></h3>
+<p>图搜索在大多数候选都能通过过滤时是最优策略——图遍历能很快进入查询邻域。但是当
+过滤越来越严格（只有极少数向量能通过）时，beam 需要扩展非常多的节点才能凑够
+<code>ef_search</code> 个<strong>通过过滤的</strong>候选，此时召回率会下降，延迟反而上升。在某个临界点，
+对通过过滤的 id 做一次完整暴扫既更快又精确。</p>
+<p><code>brute_force_threshold</code> 允许 HGraph 在每次查询时自动按 filter 选择率做这个切换：</p>
+<pre><code class="language-cpp">// 当 filter 仅保留 ≤ 1% 的 id 时，自动改走暴力扫描。
+auto params = R"({"hgraph": {"ef_search": 200, "brute_force_threshold": 0.01}})";
+auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
 </code></pre>
+<p>工作原理（实现位于 <code>src/algorithm/hgraph/hgraph_search.cpp</code>）：</p>
+<ul>
+<li>暴搜回退仅在<strong>同时</strong>满足以下条件时触发：
+<ul>
+<li><code>brute_force_threshold &gt; 0.0</code>，<strong>并且</strong></li>
+<li>提供了 filter，<strong>并且</strong></li>
+<li><code>filter-&gt;ValidRatio() &lt;= brute_force_threshold</code>。</li>
+</ul>
+</li>
+<li><code>Filter::ValidRatio()</code> 的准确性会直接影响是否切换 —— 这是用户提供的提示值。
+详见 <a href="#带过滤的搜索">带过滤的搜索</a> 中关于该方法的约定。</li>
+<li>暴搜会遍历所有通过过滤的内部 id，并按 64 一批用当前最精确的 flatten 存储
+计算距离（顺序：若启用了 <code>store_raw_vector</code> 则用原始向量；否则若
+<code>use_reorder=true</code> 则用精排副本；否则用基础量化编码）。</li>
+<li>由于暴搜在有精排副本时本身就用了精确编码，<strong>走暴搜分支的查询不会再做精排</strong>。</li>
+<li>该机制对 <code>KnnSearch</code>（非迭代器重载，也即 <code>SearchWithRequest</code> 与标准的
+<code>KnnSearch(query, k, params, filter)</code> 走的入口）和 <code>RangeSearch</code> 生效；对
+迭代器风格的 <code>KnnSearch(..., IteratorContext*&amp;, ...)</code> <strong>不生效</strong>，因为一次
+扫描无法分页跨越多次迭代调用。</li>
+</ul>
+<p>取值建议：</p>
+<ul>
+<li>不带过滤或过滤通过率较高的场景，保持默认 <code>0.0</code>。</li>
+<li>高选择性过滤（如 <code>ValidRatio</code> ≤ 0.05）下，<code>0.01–0.05</code> 是合理起点。再往上调
+实际上等于「只要带 filter 就走暴搜」。</li>
+<li>暴搜的代价大致是 <code>O(N × dim)</code>，<code>N</code> 是索引内总向量数（与选择率无关，因为
+每个 id 都要走一次 <code>CheckValid</code>）。当原本需要把 <code>ef_search</code> 调到很大才能
+维持召回时，暴搜带来的收益最明显。</li>
+</ul>
+<p>可运行示例：
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/322_feature_hgraph_brute_force_threshold.cpp"><code>322_feature_hgraph_brute_force_threshold.cpp</code></a>。</p>
 <h2 id="何时选择-hgraph"><a class="header" href="#何时选择-hgraph">何时选择 HGraph</a></h2>
 <ul>
 <li>维度大约在 64–4096 的稠密 float 向量。</li>
 <li>对延迟敏感且要求高召回的场景。</li>
-<li>需要增量插入（可选通过 <code>support_remove</code> 打开删除）的混合负载。</li>
+<li>需要增量插入（可选通过 <code>support_force_remove</code> 打开物理删除）的混合负载。</li>
 <li>内存受限环境，可用 <code>sq8</code> / <code>sq4_uniform</code> / <code>pq</code> 压缩，再配合 <code>use_reorder</code> 弥补召回。</li>
 </ul>
 <p>如果你的业务偏向粗粒度分桶（每次查询只扫部分桶）或严重受 SSD I/O 制约，建议先对比
@@ -3181,6 +3224,12 @@ index-&gt;KnnSearch(query, topk, params, filter, ctx, /*is_last_search=*/false);
 <ul>
 <li>谓词越严格（<code>ValidRatio</code> 越小），搜索需要扩展的候选越多。对图索引而言，谓词非常严格时
 应同步增大 <code>ef_search</code>，否则当通过率低于约 1% 时召回率会显著下降。</li>
+<li><strong>HGraph 还提供选择率感知的暴搜回退</strong>：在搜索参数里设置
+<code>brute_force_threshold</code>（例如 <code>0.01–0.05</code>），当 <code>Filter::ValidRatio()</code> 足够
+小时，HGraph 会自动跳过图遍历，对通过过滤的 id 做一次精确暴扫。当谓词非常
+严格时，这通常比一味把 <code>ef_search</code> 调到很大更划算。详见
+<a href="#高选择性过滤下的暴搜回退brute_force_threshold">HGraph 索引文档</a>
+以及示例 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/322_feature_hgraph_brute_force_threshold.cpp"><code>322_feature_hgraph_brute_force_threshold.cpp</code></a>。</li>
 <li>位图过滤最快，因为 <code>Test()</code> 只是一次位查询。<code>Filter</code> 对象内若有重逻辑，需注意它会被
 调用很多次。</li>
 <li><code>RangeSearch</code> 在过滤通过率较高、范围较宽时建议设定一个合理的 <code>limited_size</code>，避免结果
@@ -4374,11 +4423,11 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
 <h2 id="删除向量"><a class="header" href="#删除向量">删除向量</a></h2>
 <p><code>Remove</code> 按 id 删除向量。HGraph 支持两种删除模式，要求不同：</p>
 <ul>
-<li><code>RemoveMode::MARK_REMOVE</code>（默认）：仅通过 label table 写入墓碑标记，<strong>不依赖</strong> <code>support_remove</code>
+<li><code>RemoveMode::MARK_REMOVE</code>（默认）：仅通过 label table 写入墓碑标记，<strong>不依赖</strong> <code>support_force_remove</code>
 即可调用。该 id 会在后续搜索中被过滤掉，但底层图节点与向量存储仍然保留。</li>
 <li><code>RemoveMode::FORCE_REMOVE</code>：物理重写图并回收存储槽。该模式仅在索引以
-<code>index_param</code> 中 <code>support_remove: true</code> 构建时可用（这会让图 datacell 分配删除追踪元数据）。
-若索引未带 <code>support_remove: true</code> 构建，调用 <code>FORCE_REMOVE</code> 会失败。</li>
+<code>index_param</code> 中 <code>support_force_remove: true</code> 构建时可用。该开关会启用 force remove 路径及其额外同步；
+若索引未带 <code>support_force_remove: true</code> 构建，调用 <code>FORCE_REMOVE</code> 会失败。</li>
 </ul>
 <pre><code class="language-json">{
     "dtype": "float32",
@@ -4388,12 +4437,12 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
         "base_quantization_type": "sq8",
         "max_degree": 16,
         "ef_construction": 100,
-        "support_remove": true
+        "support_force_remove": true
     }
 }
 </code></pre>
 <p>上述 JSON 仅在打算使用 <code>FORCE_REMOVE</code> 时是必需的。若只用 <code>MARK_REMOVE</code>，可以省略
-<code>support_remove</code> 字段。</p>
+<code>support_force_remove</code> 字段。</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -4401,8 +4450,7 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
     "index_param": {
         "base_quantization_type": "sq8",
         "max_degree": 16,
-        "ef_construction": 100,
-        "support_remove": true
+        "ef_construction": 100
     }
 }
 </code></pre>
@@ -4418,8 +4466,8 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2, id3});
 <tr><th>模式</th><th>行为</th></tr>
 </thead>
 <tbody>
-<tr><td><code>RemoveMode::MARK_REMOVE</code>（默认）</td><td>对 id 打墓碑标记；速度快，不收缩、不修图。后续搜索会跳过该 id。不要求 <code>support_remove: true</code>。</td></tr>
-<tr><td><code>RemoveMode::FORCE_REMOVE</code></td><td>物理删除向量并修复图结构。开销较大。要求索引以 <code>support_remove: true</code> 构建。</td></tr>
+<tr><td><code>RemoveMode::MARK_REMOVE</code>（默认）</td><td>对 id 打墓碑标记；速度快，不收缩、不修图。后续搜索会跳过该 id。不要求 <code>support_force_remove: true</code>。</td></tr>
+<tr><td><code>RemoveMode::FORCE_REMOVE</code></td><td>物理删除向量并修复图结构。开销较大。要求索引以 <code>support_force_remove: true</code> 构建。</td></tr>
 </tbody>
 </table>
 </div>
@@ -4804,8 +4852,8 @@ eval_case1:
 数据集格式。本页说明 VSAG 期望的具体布局，便于你准备自定义数据集或排查评测
 失败的问题。</p>
 <p>下文描述的是 <strong>dense（稠密）</strong> 布局（对应全局属性 <code>type="dense"</code>，或省略该属性）。
-对于 <strong>sparse（稀疏）</strong> 数据集（<code>type="sparse"</code>），<code>/train</code> 与 <code>/test</code> 是 1 维
-<code>INT8</code> 字节流，由 VSAG 的稀疏向量序列化接口生成（由
+对于 <strong>sparse（稀疏）</strong> 数据集（<code>type="sparse"</code>），<code>/train</code> 与 <code>/test</code> 是形状为
+<code>(X,)</code> 的扁平 <code>INT8</code> 字节流，由 VSAG 的稀疏向量序列化接口生成（由
 <code>tools/eval/eval_dataset.cpp</code> 中的 <code>parse_sparse_vectors</code> 解析）；其余数据集与
 全局属性的约束仍然适用。</p>
 <h2 id="必选数据集"><a class="header" href="#必选数据集">必选数据集</a></h2>
@@ -4985,7 +5033,8 @@ eval_case1:
 </ol>
 <h2 id="sparse-布局"><a class="header" href="#sparse-布局">Sparse 布局</a></h2>
 <p>当全局属性 <code>type</code> 取值为 <code>"sparse"</code> 时，<code>/train</code> 与 <code>/test</code> <strong>不再</strong>遵循 <code>(N, D)</code> 的
-稠密矩阵布局，而是以 1 维 <code>INT8</code>（<code>H5T_INTEGER</code>，size 1）数据集存储原始字节流。
+稠密矩阵布局，而是以扁平的 <code>INT8</code>（<code>H5T_INTEGER</code>，size 1）数据集存储原始字节流。
+通过 h5py 调用 <code>f["/train"].shape</code> 得到的形状是 <code>(X,)</code>，其中 <code>X</code> 为字节流总长度；
 此处的 <code>int8</code> 仅是传输形式，<strong>字节本身并不是 int8 向量元素</strong>。</p>
 <h3 id="traintest稀疏字节流"><a class="header" href="#traintest稀疏字节流"><code>/train</code>、<code>/test</code>（稀疏字节流）</a></h3>
 <ul>
@@ -4993,7 +5042,7 @@ eval_case1:
 <p><strong>HDF5 类型</strong>：<code>H5T_INTEGER</code>，size 1（<code>INT8</code>）</p>
 </li>
 <li>
-<p><strong>HDF5 形状</strong>：1 维；总长度等于所有向量记录大小之和</p>
+<p><strong>HDF5 形状</strong>：<code>(X,)</code>，其中 <code>X</code> 为字节流总长度（所有向量记录大小之和）</p>
 </li>
 <li>
 <p><strong>字节序</strong>：小端（little-endian）</p>
@@ -5020,6 +5069,75 @@ eval_case1:
 写入侧可以输出无序键，但读取侧不应假设无序。</p>
 </li>
 </ul>
+<h3 id="train_offsetstest_offsets随机访问索引可选"><a class="header" href="#train_offsetstest_offsets随机访问索引可选"><code>/train_offsets</code>、<code>/test_offsets</code>（随机访问索引，可选）</a></h3>
+<p>这两个数据集分别记录 <code>/train</code>、<code>/test</code> 字节流中每条记录的起始字节偏移，
+使得按下标取第 i 条稀疏向量可以做到 <strong>O(1)</strong>，无需顺序扫描整条字节流。</p>
+<ul>
+<li><strong>HDF5 类型</strong>：<code>H5T_INTEGER</code>，size 8（<code>UINT64</code>）</li>
+<li><strong>HDF5 形状</strong>：<code>/train_offsets</code> 为 <code>(N + 1,)</code>，<code>/test_offsets</code> 为 <code>(Q + 1,)</code></li>
+<li><strong>内容</strong>：<code>offsets[i]</code> 是第 i 条记录在对应字节流中的起始字节偏移，
+<code>offsets[N]</code> 是哨兵，等于字节流总长度，因此第 i 条记录的长度等于
+<code>offsets[i + 1] - offsets[i]</code>，整个数组非递减。</li>
+</ul>
+<p>两个数据集都是<strong>可选</strong>的。VSAG 写入端在产出稀疏文件时默认写入它们；
+但只包含 <code>/train</code>、<code>/test</code> 而不带 offsets 的旧版稀疏 HDF5 文件依然可以
+正常加载——读取端会顺序扫描一遍字节流并自动重建索引。文件中如果已有
+on-disk offsets，会与重建结果做交叉校验，不一致时直接报错以防止误用
+损坏的索引。</p>
+<h3 id="train_token_sequencestest_token_sequences可选"><a class="header" href="#train_token_sequencestest_token_sequences可选"><code>/train_token_sequences</code>、<code>/test_token_sequences</code>（可选）</a></h3>
+<p>这两个数据集保存生成每条稀疏向量的<strong>原始分词序列</strong>。它们是完全可选的：
+不包含这两个数据集的稀疏 HDF5 文件依然可以正常加载。当存在时，它们必须
+与 <code>/train</code>、<code>/test</code> 一一对应：<code>/train_token_sequences</code> 中的第 i 条记录对应
+<code>/train</code> 中的第 i 条稀疏向量（<code>/test</code> 同理）。</p>
+<ul>
+<li>
+<p><strong>HDF5 类型</strong>：<code>H5T_INTEGER</code>，size 1（<code>INT8</code>）</p>
+</li>
+<li>
+<p><strong>HDF5 形状</strong>：<code>(X,)</code>，其中 <code>X</code> 为字节流总长度（所有记录大小之和）</p>
+</li>
+<li>
+<p><strong>字节序</strong>：小端（little-endian）</p>
+</li>
+<li>
+<p><strong>内容</strong>：按与 <code>/train</code> / <code>/test</code> 相同的向量顺序依次首尾相接的记录序列，
+每条记录字段如下，紧密拼接，无填充、无分隔符：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>大小</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>seq_len</code></td><td><code>uint32</code></td><td>4 字节</td><td>原始文档的 token 个数</td></tr>
+<tr><td><code>term_ids[seq_len]</code></td><td><code>uint32[]</code></td><td><code>4 * seq_len</code> 字节</td><td>按原始分词顺序的 term id（保留重复与顺序）</td></tr>
+</tbody>
+</table>
+</div>
+<p>允许 <code>seq_len == 0</code> 的记录，此时仅占 4 字节的长度字段,读取端应当将其
+视为“该向量没有原始分词信息“。</p>
+</li>
+<li>
+<p><strong>记录数量</strong>：必须与对应分组（train/test）中稀疏向量的数量一致，
+否则读取端会报错。</p>
+</li>
+<li>
+<p><strong>与 <code>ids</code> 的顺序差异</strong>：<code>term_ids</code> 按原始分词顺序存储（可能包含重复），
+这与 <code>ids</code>（被读取端排序去重）<strong>不同</strong>。</p>
+</li>
+</ul>
+<h3 id="train_token_sequences_offsetstest_token_sequences_offsets在分词序列存在时必填"><a class="header" href="#train_token_sequences_offsetstest_token_sequences_offsets在分词序列存在时必填"><code>/train_token_sequences_offsets</code>、<code>/test_token_sequences_offsets</code>（在分词序列存在时必填）</a></h3>
+<p>当 <code>/train_token_sequences</code>（或 <code>/test_token_sequences</code>）存在时，对应的
+<code>UINT64</code> 偏移索引<strong>必须</strong>也存在。</p>
+<ul>
+<li><strong>HDF5 类型</strong>：<code>H5T_INTEGER</code>，size 8（<code>UINT64</code>）</li>
+<li><strong>HDF5 形状</strong>：<code>(N + 1,)</code>（或 <code>(Q + 1,)</code>）</li>
+<li><strong>内容</strong>：与 <code>/train_offsets</code> 完全相同的契约，使得按下标访问第 i 条分词
+记录可以 O(1) 完成。</li>
+</ul>
+<p>契约：分词字节流与其偏移数据集<strong>必须同时出现，缺一即视为文件损坏</strong>——
+即只要 <code>*_token_sequences</code> 与 <code>*_token_sequences_offsets</code> 中只出现了一个，
+读取端就会拒绝该文件。两者同时存在时，读取端会将磁盘上的 offsets 与从
+字节流重建的 offsets 做交叉校验，不一致即抛异常拒绝加载。</p>
 <h3 id="真值与距离"><a class="header" href="#真值与距离">真值与距离</a></h3>
 <p><code>/neighbors</code> 与 <code>/distances</code> 的形状与类型规则与上文稠密布局相同。<code>distance</code> 属性
 对稀疏向量仅支持 <code>"ip"</code>（稀疏内积距离，<code>1 - 稀疏内积</code>）。</p>

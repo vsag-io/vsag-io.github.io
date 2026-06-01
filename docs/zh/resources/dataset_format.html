@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7d0a0948.js";
+            window.path_to_searchindex_js = "../searchindex-78d0c8be.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-137430ab.js"></script>
@@ -310,8 +310,8 @@
 数据集格式。本页说明 VSAG 期望的具体布局，便于你准备自定义数据集或排查评测
 失败的问题。</p>
 <p>下文描述的是 <strong>dense（稠密）</strong> 布局（对应全局属性 <code>type="dense"</code>，或省略该属性）。
-对于 <strong>sparse（稀疏）</strong> 数据集（<code>type="sparse"</code>），<code>/train</code> 与 <code>/test</code> 是 1 维
-<code>INT8</code> 字节流，由 VSAG 的稀疏向量序列化接口生成（由
+对于 <strong>sparse（稀疏）</strong> 数据集（<code>type="sparse"</code>），<code>/train</code> 与 <code>/test</code> 是形状为
+<code>(X,)</code> 的扁平 <code>INT8</code> 字节流，由 VSAG 的稀疏向量序列化接口生成（由
 <code>tools/eval/eval_dataset.cpp</code> 中的 <code>parse_sparse_vectors</code> 解析）；其余数据集与
 全局属性的约束仍然适用。</p>
 <h2 id="必选数据集"><a class="header" href="#必选数据集">必选数据集</a></h2>
@@ -491,7 +491,8 @@
 </ol>
 <h2 id="sparse-布局"><a class="header" href="#sparse-布局">Sparse 布局</a></h2>
 <p>当全局属性 <code>type</code> 取值为 <code>"sparse"</code> 时，<code>/train</code> 与 <code>/test</code> <strong>不再</strong>遵循 <code>(N, D)</code> 的
-稠密矩阵布局，而是以 1 维 <code>INT8</code>（<code>H5T_INTEGER</code>，size 1）数据集存储原始字节流。
+稠密矩阵布局，而是以扁平的 <code>INT8</code>（<code>H5T_INTEGER</code>，size 1）数据集存储原始字节流。
+通过 h5py 调用 <code>f["/train"].shape</code> 得到的形状是 <code>(X,)</code>，其中 <code>X</code> 为字节流总长度；
 此处的 <code>int8</code> 仅是传输形式，<strong>字节本身并不是 int8 向量元素</strong>。</p>
 <h3 id="traintest稀疏字节流"><a class="header" href="#traintest稀疏字节流"><code>/train</code>、<code>/test</code>（稀疏字节流）</a></h3>
 <ul>
@@ -499,7 +500,7 @@
 <p><strong>HDF5 类型</strong>：<code>H5T_INTEGER</code>，size 1（<code>INT8</code>）</p>
 </li>
 <li>
-<p><strong>HDF5 形状</strong>：1 维；总长度等于所有向量记录大小之和</p>
+<p><strong>HDF5 形状</strong>：<code>(X,)</code>，其中 <code>X</code> 为字节流总长度（所有向量记录大小之和）</p>
 </li>
 <li>
 <p><strong>字节序</strong>：小端（little-endian）</p>
@@ -526,6 +527,75 @@
 写入侧可以输出无序键，但读取侧不应假设无序。</p>
 </li>
 </ul>
+<h3 id="train_offsetstest_offsets随机访问索引可选"><a class="header" href="#train_offsetstest_offsets随机访问索引可选"><code>/train_offsets</code>、<code>/test_offsets</code>（随机访问索引，可选）</a></h3>
+<p>这两个数据集分别记录 <code>/train</code>、<code>/test</code> 字节流中每条记录的起始字节偏移，
+使得按下标取第 i 条稀疏向量可以做到 <strong>O(1)</strong>，无需顺序扫描整条字节流。</p>
+<ul>
+<li><strong>HDF5 类型</strong>：<code>H5T_INTEGER</code>，size 8（<code>UINT64</code>）</li>
+<li><strong>HDF5 形状</strong>：<code>/train_offsets</code> 为 <code>(N + 1,)</code>，<code>/test_offsets</code> 为 <code>(Q + 1,)</code></li>
+<li><strong>内容</strong>：<code>offsets[i]</code> 是第 i 条记录在对应字节流中的起始字节偏移，
+<code>offsets[N]</code> 是哨兵，等于字节流总长度，因此第 i 条记录的长度等于
+<code>offsets[i + 1] - offsets[i]</code>，整个数组非递减。</li>
+</ul>
+<p>两个数据集都是<strong>可选</strong>的。VSAG 写入端在产出稀疏文件时默认写入它们；
+但只包含 <code>/train</code>、<code>/test</code> 而不带 offsets 的旧版稀疏 HDF5 文件依然可以
+正常加载——读取端会顺序扫描一遍字节流并自动重建索引。文件中如果已有
+on-disk offsets，会与重建结果做交叉校验，不一致时直接报错以防止误用
+损坏的索引。</p>
+<h3 id="train_token_sequencestest_token_sequences可选"><a class="header" href="#train_token_sequencestest_token_sequences可选"><code>/train_token_sequences</code>、<code>/test_token_sequences</code>（可选）</a></h3>
+<p>这两个数据集保存生成每条稀疏向量的<strong>原始分词序列</strong>。它们是完全可选的：
+不包含这两个数据集的稀疏 HDF5 文件依然可以正常加载。当存在时，它们必须
+与 <code>/train</code>、<code>/test</code> 一一对应：<code>/train_token_sequences</code> 中的第 i 条记录对应
+<code>/train</code> 中的第 i 条稀疏向量（<code>/test</code> 同理）。</p>
+<ul>
+<li>
+<p><strong>HDF5 类型</strong>：<code>H5T_INTEGER</code>，size 1（<code>INT8</code>）</p>
+</li>
+<li>
+<p><strong>HDF5 形状</strong>：<code>(X,)</code>，其中 <code>X</code> 为字节流总长度（所有记录大小之和）</p>
+</li>
+<li>
+<p><strong>字节序</strong>：小端（little-endian）</p>
+</li>
+<li>
+<p><strong>内容</strong>：按与 <code>/train</code> / <code>/test</code> 相同的向量顺序依次首尾相接的记录序列，
+每条记录字段如下，紧密拼接，无填充、无分隔符：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>大小</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>seq_len</code></td><td><code>uint32</code></td><td>4 字节</td><td>原始文档的 token 个数</td></tr>
+<tr><td><code>term_ids[seq_len]</code></td><td><code>uint32[]</code></td><td><code>4 * seq_len</code> 字节</td><td>按原始分词顺序的 term id（保留重复与顺序）</td></tr>
+</tbody>
+</table>
+</div>
+<p>允许 <code>seq_len == 0</code> 的记录，此时仅占 4 字节的长度字段,读取端应当将其
+视为“该向量没有原始分词信息“。</p>
+</li>
+<li>
+<p><strong>记录数量</strong>：必须与对应分组（train/test）中稀疏向量的数量一致，
+否则读取端会报错。</p>
+</li>
+<li>
+<p><strong>与 <code>ids</code> 的顺序差异</strong>：<code>term_ids</code> 按原始分词顺序存储（可能包含重复），
+这与 <code>ids</code>（被读取端排序去重）<strong>不同</strong>。</p>
+</li>
+</ul>
+<h3 id="train_token_sequences_offsetstest_token_sequences_offsets在分词序列存在时必填"><a class="header" href="#train_token_sequences_offsetstest_token_sequences_offsets在分词序列存在时必填"><code>/train_token_sequences_offsets</code>、<code>/test_token_sequences_offsets</code>（在分词序列存在时必填）</a></h3>
+<p>当 <code>/train_token_sequences</code>（或 <code>/test_token_sequences</code>）存在时，对应的
+<code>UINT64</code> 偏移索引<strong>必须</strong>也存在。</p>
+<ul>
+<li><strong>HDF5 类型</strong>：<code>H5T_INTEGER</code>，size 8（<code>UINT64</code>）</li>
+<li><strong>HDF5 形状</strong>：<code>(N + 1,)</code>（或 <code>(Q + 1,)</code>）</li>
+<li><strong>内容</strong>：与 <code>/train_offsets</code> 完全相同的契约，使得按下标访问第 i 条分词
+记录可以 O(1) 完成。</li>
+</ul>
+<p>契约：分词字节流与其偏移数据集<strong>必须同时出现，缺一即视为文件损坏</strong>——
+即只要 <code>*_token_sequences</code> 与 <code>*_token_sequences_offsets</code> 中只出现了一个，
+读取端就会拒绝该文件。两者同时存在时，读取端会将磁盘上的 offsets 与从
+字节流重建的 offsets 做交叉校验，不一致即抛异常拒绝加载。</p>
 <h3 id="真值与距离"><a class="header" href="#真值与距离">真值与距离</a></h3>
 <p><code>/neighbors</code> 与 <code>/distances</code> 的形状与类型规则与上文稠密布局相同。<code>distance</code> 属性
 对稀疏向量仅支持 <code>"ip"</code>（稀疏内积距离，<code>1 - 稀疏内积</code>）。</p>

@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8126364c.js";
+            window.path_to_searchindex_js = "../searchindex-f436b2d9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-641b3792.js"></script>
@@ -312,8 +312,8 @@ documents the exact layout VSAG expects so you can prepare custom datasets or
 debug failing evaluations.</p>
 <p>The dataset layout described below is the <strong>dense</strong> layout (selected by the global
 attribute <code>type="dense"</code>, or by omitting the attribute). For <strong>sparse</strong> datasets
-(<code>type="sparse"</code>), <code>/train</code> and <code>/test</code> are 1-D <code>INT8</code> byte streams produced by VSAG’s
-sparse-vector serialization (decoded by <code>parse_sparse_vectors</code> in
+(<code>type="sparse"</code>), <code>/train</code> and <code>/test</code> are flat <code>INT8</code> byte streams of shape <code>(X,)</code>
+produced by VSAG’s sparse-vector serialization (decoded by <code>parse_sparse_vectors</code> in
 <code>tools/eval/eval_dataset.cpp</code>); all other datasets and attributes below still apply.</p>
 <h2 id="mandatory-datasets"><a class="header" href="#mandatory-datasets">Mandatory Datasets</a></h2>
 <h3 id="train-base-vectors"><a class="header" href="#train-base-vectors"><code>/train</code> (base vectors)</a></h3>
@@ -500,17 +500,19 @@ flat array plus the counts, then passes the full array to
 </ol>
 <h2 id="sparse-layout"><a class="header" href="#sparse-layout">Sparse layout</a></h2>
 <p>When the global attribute <code>type</code> equals <code>"sparse"</code>, <code>/train</code> and <code>/test</code> do <strong>not</strong> follow
-the <code>(N, D)</code> dense matrix layout. They are instead stored as one-dimensional <code>INT8</code>
+the <code>(N, D)</code> dense matrix layout. They are instead stored as flat <code>INT8</code>
 (<code>H5T_INTEGER</code>, size 1) datasets whose payload is a raw byte stream of packed sparse
-vectors. The <code>int8</code> storage class is a transport detail only; the bytes are not int8
-vector elements.</p>
+vectors. Calling <code>f["/train"].shape</code> from h5py returns <code>(X,)</code> where <code>X</code> is the total
+number of bytes; the <code>int8</code> storage class is a transport detail only — the bytes are
+not int8 vector elements.</p>
 <h3 id="train-test-sparse-byte-stream"><a class="header" href="#train-test-sparse-byte-stream"><code>/train</code>, <code>/test</code> (sparse byte stream)</a></h3>
 <ul>
 <li>
 <p><strong>HDF5 type</strong>: <code>H5T_INTEGER</code>, size 1 (<code>INT8</code>)</p>
 </li>
 <li>
-<p><strong>HDF5 shape</strong>: 1-D; total length equals the sum of per-vector record sizes</p>
+<p><strong>HDF5 shape</strong>: <code>(X,)</code>, where <code>X</code> is the total byte-stream length
+(sum of all per-vector record sizes)</p>
 </li>
 <li>
 <p><strong>Endianness</strong>: little-endian</p>
@@ -538,6 +540,88 @@ record has the following fields, concatenated with no padding or separators:</p>
 not rely on that.</p>
 </li>
 </ul>
+<h3 id="train_offsets-test_offsets-random-access-index-optional"><a class="header" href="#train_offsets-test_offsets-random-access-index-optional"><code>/train_offsets</code>, <code>/test_offsets</code> (random-access index, optional)</a></h3>
+<p>These two datasets store the per-record byte offsets into the matching
+<code>/train</code> and <code>/test</code> sparse byte streams so that the i-th sparse vector
+can be located in <strong>O(1)</strong> without scanning the stream.</p>
+<ul>
+<li><strong>HDF5 type</strong>: <code>H5T_INTEGER</code>, size 8 (<code>UINT64</code>)</li>
+<li><strong>HDF5 shape</strong>: <code>(N + 1,)</code> for <code>/train_offsets</code> and <code>(Q + 1,)</code> for
+<code>/test_offsets</code></li>
+<li><strong>Content</strong>: <code>offsets[i]</code> is the byte offset of record <code>i</code>;
+<code>offsets[N]</code> is the sentinel and equals the total byte stream length.
+The size of record <code>i</code> is <code>offsets[i + 1] - offsets[i]</code>. The array is
+non-decreasing.</li>
+</ul>
+<p>Both datasets are <strong>optional</strong>. VSAG writers always emit them when
+writing sparse files, but legacy sparse files that only contain <code>/train</code>
+and <code>/test</code> keep loading: the offsets are recomputed on load by walking
+the byte stream once. When the on-disk offsets are present, they are
+cross-checked against the recomputed offsets and the file is rejected as
+corrupted on any mismatch.</p>
+<h3 id="train_token_sequences-test_token_sequences-optional"><a class="header" href="#train_token_sequences-test_token_sequences-optional"><code>/train_token_sequences</code>, <code>/test_token_sequences</code> (optional)</a></h3>
+<p>These two datasets carry the <strong>original tokenized document</strong> that
+produced each sparse vector. They are entirely optional: sparse HDF5
+files that omit both datasets still load correctly. When present, they
+must appear in lockstep with <code>/train</code> and <code>/test</code>: the i-th record in
+<code>/train_token_sequences</code> corresponds to the i-th sparse vector in
+<code>/train</code> (same for <code>/test</code>).</p>
+<ul>
+<li>
+<p><strong>HDF5 type</strong>: <code>H5T_INTEGER</code>, size 1 (<code>INT8</code>)</p>
+</li>
+<li>
+<p><strong>HDF5 shape</strong>: <code>(X,)</code>, where <code>X</code> is the total byte-stream length
+(sum of all per-record sizes)</p>
+</li>
+<li>
+<p><strong>Endianness</strong>: little-endian</p>
+</li>
+<li>
+<p><strong>Content</strong>: a contiguous sequence of records, one per sparse vector,
+in the same order as <code>/train</code> / <code>/test</code>. Each record has the layout:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Size</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>seq_len</code></td><td><code>uint32</code></td><td>4 bytes</td><td>Number of tokens in the original document</td></tr>
+<tr><td><code>term_ids[seq_len]</code></td><td><code>uint32[]</code></td><td><code>4 * seq_len</code> bytes</td><td>Term ids in tokenization order (duplicates and order are preserved)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Records are concatenated with no padding or separators. A
+<code>seq_len == 0</code> record is allowed and occupies only the 4-byte length
+field; readers should treat it as “no original document available
+for this vector”.</p>
+</li>
+<li>
+<p><strong>Number of records</strong>: must equal the number of sparse vectors in the
+matching split. Readers raise an error if counts disagree or if the
+stream is truncated.</p>
+</li>
+<li>
+<p><strong>Ordering vs. <code>ids</code></strong>: <code>term_ids</code> are stored in the original token
+order (duplicates kept). This is intentionally <strong>different</strong> from
+<code>ids</code>, which the loader sorts ascending.</p>
+</li>
+</ul>
+<h3 id="train_token_sequences_offsets-test_token_sequences_offsets-required-when-sequences-are-present"><a class="header" href="#train_token_sequences_offsets-test_token_sequences_offsets-required-when-sequences-are-present"><code>/train_token_sequences_offsets</code>, <code>/test_token_sequences_offsets</code> (required when sequences are present)</a></h3>
+<p>Whenever <code>/train_token_sequences</code> (resp. <code>/test_token_sequences</code>) is
+present, the paired <code>UINT64</code> offset index <strong>must</strong> also be present.</p>
+<ul>
+<li><strong>HDF5 type</strong>: <code>H5T_INTEGER</code>, size 8 (<code>UINT64</code>)</li>
+<li><strong>HDF5 shape</strong>: <code>(N + 1,)</code> (resp. <code>(Q + 1,)</code>)</li>
+<li><strong>Content</strong>: same contract as <code>/train_offsets</code>, enabling O(1) random
+access to the i-th token-sequence record.</li>
+</ul>
+<p>Contract: the byte-stream dataset and its offsets dataset <strong>live or die
+together</strong>. Readers reject the file if exactly one of the pair exists
+(either a <code>*_token_sequences</code> dataset without its <code>*_offsets</code>, or vice
+versa). When both are present, the on-disk offsets are cross-checked
+against the offsets rebuilt from the byte stream; a mismatch is treated
+as corruption and aborts the load.</p>
 <h3 id="ground-truth-and-metric"><a class="header" href="#ground-truth-and-metric">Ground truth and metric</a></h3>
 <p><code>/neighbors</code> and <code>/distances</code> follow the same shape and type rules as in the dense
 layout above. Only <code>"ip"</code> (sparse inner-product distance, <code>1 - sparse_inner_product</code>)

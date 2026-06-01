@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8126364c.js";
+            window.path_to_searchindex_js = "../searchindex-f436b2d9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-641b3792.js"></script>
@@ -338,12 +338,12 @@ supports it and which mode it supports.</p>
 <p><code>Remove</code> deletes vectors by id. HGraph supports two deletion modes with different requirements:</p>
 <ul>
 <li><code>RemoveMode::MARK_REMOVE</code> (the default) only writes a tombstone via the label table and works
-regardless of <code>support_remove</code>. The id is filtered out of subsequent searches, but the underlying
-graph node and vector storage are kept.</li>
+regardless of <code>support_force_remove</code>. The id is filtered out of subsequent searches, but the
+underlying graph node and vector storage are kept.</li>
 <li><code>RemoveMode::FORCE_REMOVE</code> physically rewrites the graph and reclaims the slot. This mode is
-only available when the index was built with <code>support_remove: true</code> in <code>index_param</code> (which
-causes the graph data cell to allocate the delete-tracking metadata). Calling <code>FORCE_REMOVE</code> on
-an index built without <code>support_remove: true</code> will fail.</li>
+only available when the index was built with <code>support_force_remove: true</code> in <code>index_param</code>. That
+flag enables the force-remove path and its extra synchronization; calling <code>FORCE_REMOVE</code> on an
+index built without <code>support_force_remove: true</code> will fail.</li>
 </ul>
 <pre><code class="language-json">{
     "dtype": "float32",
@@ -353,12 +353,12 @@ an index built without <code>support_remove: true</code> will fail.</li>
         "base_quantization_type": "sq8",
         "max_degree": 16,
         "ef_construction": 100,
-        "support_remove": true
+        "support_force_remove": true
     }
 }
 </code></pre>
 <p>The JSON snippet above is only required if you intend to use <code>FORCE_REMOVE</code>. For <code>MARK_REMOVE</code>
-alone you can omit the <code>support_remove</code> flag.</p>
+alone you can omit the <code>support_force_remove</code> flag.</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -366,8 +366,7 @@ alone you can omit the <code>support_remove</code> flag.</p>
     "index_param": {
         "base_quantization_type": "sq8",
         "max_degree": 16,
-        "ef_construction": 100,
-        "support_remove": true
+        "ef_construction": 100
     }
 }
 </code></pre>
@@ -383,8 +382,8 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2, id3});
 <tr><th>Mode</th><th>Behavior</th></tr>
 </thead>
 <tbody>
-<tr><td><code>RemoveMode::MARK_REMOVE</code> (default)</td><td>Tombstones the id; fast, no shrink or graph repair. Subsequent searches skip the id. Does not require <code>support_remove: true</code>.</td></tr>
-<tr><td><code>RemoveMode::FORCE_REMOVE</code></td><td>Physically removes the vector and repairs the graph. Heavier. Requires the index to be built with <code>support_remove: true</code>.</td></tr>
+<tr><td><code>RemoveMode::MARK_REMOVE</code> (default)</td><td>Tombstones the id; fast, no shrink or graph repair. Subsequent searches skip the id. Does not require <code>support_force_remove: true</code>.</td></tr>
+<tr><td><code>RemoveMode::FORCE_REMOVE</code></td><td>Physically removes the vector and repairs the graph. Heavier. Requires the index to be built with <code>support_force_remove: true</code>.</td></tr>
 </tbody>
 </table>
 </div>

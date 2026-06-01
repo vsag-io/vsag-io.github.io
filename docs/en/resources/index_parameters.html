@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8126364c.js";
+            window.path_to_searchindex_js = "../searchindex-f436b2d9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-641b3792.js"></script>
@@ -384,6 +384,12 @@ such as <code>base_quantization_type</code>.</p>
 <p>At search time:</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
+<p>The <code>hgraph</code> search-param object also accepts <code>brute_force_threshold</code> (a float
+in <code>[0.0, 1.0]</code>, default <code>0.0</code>). When set above zero and the request carries a
+filter whose <code>ValidRatio()</code> is at most this threshold, HGraph skips the graph
+traversal and runs an exact scan over the surviving ids. See the
+<a href="../indexes/hgraph.html#brute-force-fallback-under-highly-selective-filters-brute_force_threshold">HGraph index page</a>
+for details.</p>
 <h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
 <pre><code class="language-json">{
     "diskann": {

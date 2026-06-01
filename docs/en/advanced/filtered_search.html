@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8126364c.js";
+            window.path_to_searchindex_js = "../searchindex-f436b2d9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-641b3792.js"></script>
@@ -465,6 +465,13 @@ filtering, see <a href="extra_info.html">Extra Info</a>.</p>
 <li>The more selective the filter (smaller <code>ValidRatio</code>), the more candidates the search has
 to expand. For graph indexes, increase <code>ef_search</code> proportionally when the filter is very
 selective; otherwise recall will drop sharply below ~1% selectivity.</li>
+<li><strong>HGraph also offers a selectivity-aware brute-force fallback</strong>: set
+<code>brute_force_threshold</code> (e.g. <code>0.01–0.05</code>) in the search params so that, when
+<code>Filter::ValidRatio()</code> is small enough, HGraph automatically skips graph
+traversal and runs an exact scan over the surviving ids. This is often a
+better choice than chasing recall by raising <code>ef_search</code> to very large values.
+See the <a href="../indexes/hgraph.html#brute-force-fallback-under-highly-selective-filters-brute_force_threshold">HGraph index page</a>
+and example <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/322_feature_hgraph_brute_force_threshold.cpp"><code>322_feature_hgraph_brute_force_threshold.cpp</code></a>.</li>
 <li>Bitset filters are fastest because <code>Test()</code> is a single bit lookup. A <code>Filter</code> object that
 performs heavy work in <code>CheckValid</code> will be called many times per query.</li>
 <li>For <code>RangeSearch</code>, set a finite <code>limited_size</code> when filters can let through millions of
