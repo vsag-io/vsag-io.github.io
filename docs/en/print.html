@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-f436b2d9.js";
+            window.path_to_searchindex_js = "searchindex-18d5fb48.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-641b3792.js"></script>
+        <script src="toc-b8e48929.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -819,8 +819,7 @@ auto result = index-&gt;KnnSearch(
 </code></pre>
 <h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>. The table below highlights the keys
-most users need; the exhaustive list is in <a href="#index-parameters">Index Parameters</a>
-and <code>docs/hgraph.md</code> in the repository.</p>
+most users need; the exhaustive list is in <a href="#index-parameters">Index Parameters</a>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1094,8 +1093,7 @@ auto result = index-&gt;KnnSearch(
 </code></pre>
 <h2 id="build-parameters-1"><a class="header" href="#build-parameters-1">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>. See
-<a href="#index-parameters">Index Parameters</a> and <code>docs/ivf.md</code> in the
-repository for the exhaustive list.</p>
+<a href="#index-parameters">Index Parameters</a> for the exhaustive list.</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -5084,7 +5082,8 @@ cmake --build build-release -j
 </code></pre>
 <p>Useful flags include <code>--search_mode</code> (<code>knn</code> / <code>range</code> / <code>knn_filter</code> / <code>range_filter</code>),
 <code>--search-query-count</code>, <code>--delete-index-after-search</code>, and the various <code>--disable_*</code> switches that
-turn off individual metrics. See <code>tools/eval/README.md</code> for the full list.</p>
+turn off individual metrics. The reference template at <code>tools/eval/eval_template.yaml</code> shows the
+complete YAML shape.</p>
 <h3 id="2-config-file-mode-batch-comparisons"><a class="header" href="#2-config-file-mode-batch-comparisons">2. Config-file mode (batch comparisons)</a></h3>
 <p>The YAML file is passed directly as a positional argument (no <code>--config</code> flag):</p>
 <pre><code class="language-bash">./build-release/tools/eval/eval_performance my_eval.yaml
@@ -5153,7 +5152,7 @@ helpful for long-running evaluations.</p>
 <h2 id="references-1"><a class="header" href="#references-1">References</a></h2>
 <ul>
 <li>Source: <code>tools/eval/</code></li>
-<li>Detailed README: <code>tools/eval/README.md</code></li>
+<li>Local tool entry point: <code>tools/eval/README.md</code></li>
 <li>Reference numbers on standard hardware: <a href="#reference-performance">Reference Performance</a>.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -5722,8 +5721,50 @@ for indexes whose parameters are not embedded in the file.</li>
 <li>API: <code>Index::AnalyzeIndexBySearch</code> in <code>include/vsag/index.h</code></li>
 <li>Implementations: <code>src/analyzer/{analyzer,hgraph_analyzer,pyramid_analyzer}.h</code></li>
 <li>Tool source: <code>tools/analyze_index/</code></li>
-<li>Tool README: <code>tools/analyze_index/README.md</code></li>
+<li>Local tool entry point: <code>tools/analyze_index/README.md</code></li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="compatibility-check-tool-check_compatibility"><a class="header" href="#compatibility-check-tool-check_compatibility">Compatibility Check Tool (<code>check_compatibility</code>)</a></h1>
+<p><code>check_compatibility</code> verifies whether the current VSAG build can load and search index files
+created by older VSAG versions. It is mainly used in CI to catch serialization and backward
+compatibility regressions.</p>
+<h2 id="build-1"><a class="header" href="#build-1">Build</a></h2>
+<p>Using the project Makefile, enable tools with <code>VSAG_ENABLE_TOOLS=ON</code>; the underlying
+CMake options are <code>ENABLE_TOOLS=ON</code> and <code>ENABLE_CXX11_ABI=ON</code>:</p>
+<pre><code class="language-bash">VSAG_ENABLE_TOOLS=ON make release
+# Output: ./build-release/tools/check_compatibility/check_compatibility
+</code></pre>
+<p>When invoking CMake directly, pass both options explicitly:</p>
+<pre><code class="language-bash">cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release \
+  -DENABLE_TOOLS=ON -DENABLE_CXX11_ABI=ON
+cmake --build build-release -j
+</code></pre>
+<h2 id="inputs"><a class="header" href="#inputs">Inputs</a></h2>
+<p>The command accepts one positional identifier in the form <code>&lt;tag&gt;_&lt;algo_name&gt;</code>, for example
+<code>v1.0.0_hnsw</code>. For that identifier, the tool expects these files under <code>/tmp/</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>File</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>/tmp/&lt;tag&gt;_&lt;algo_name&gt;.index</code></td><td>Serialized index produced by the older VSAG version</td></tr>
+<tr><td><code>/tmp/&lt;tag&gt;_&lt;algo_name&gt;_build.json</code></td><td>Build parameters used for that index</td></tr>
+<tr><td><code>/tmp/&lt;tag&gt;_&lt;algo_name&gt;_search.json</code></td><td>Search parameters used for the sanity check</td></tr>
+<tr><td><code>/tmp/random_512d_10K.bin</code></td><td>Test vectors used by the search verification</td></tr>
+</tbody>
+</table>
+</div>
+<p>These files are usually generated by compatibility fixtures from previous releases.</p>
+<h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
+<pre><code class="language-bash">./build-release/tools/check_compatibility/check_compatibility v1.0.0_hnsw
+</code></pre>
+<p>The tool creates a current-version index instance, deserializes the old index file, then runs a
+small KNN search. It prints <code>&lt;identifier&gt; success</code> when both load and search succeed; otherwise it
+prints <code>&lt;identifier&gt; failed</code> and exits with a non-zero status.</p>
+<h2 id="local-entry-point"><a class="header" href="#local-entry-point">Local Entry Point</a></h2>
+<p>A short local pointer is kept at <code>tools/check_compatibility/README.md</code> for developers browsing the
+tool directory.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="release-notes"><a class="header" href="#release-notes">Release Notes</a></h1>
 <p>VSAG’s official release history and change notes are maintained on GitHub Releases:</p>

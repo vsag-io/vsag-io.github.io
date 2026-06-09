@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f436b2d9.js";
+            window.path_to_searchindex_js = "../searchindex-18d5fb48.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-641b3792.js"></script>
+        <script src="../toc-b8e48929.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -334,7 +334,8 @@ cmake --build build-release -j
 </code></pre>
 <p>Useful flags include <code>--search_mode</code> (<code>knn</code> / <code>range</code> / <code>knn_filter</code> / <code>range_filter</code>),
 <code>--search-query-count</code>, <code>--delete-index-after-search</code>, and the various <code>--disable_*</code> switches that
-turn off individual metrics. See <code>tools/eval/README.md</code> for the full list.</p>
+turn off individual metrics. The reference template at <code>tools/eval/eval_template.yaml</code> shows the
+complete YAML shape.</p>
 <h3 id="2-config-file-mode-batch-comparisons"><a class="header" href="#2-config-file-mode-batch-comparisons">2. Config-file mode (batch comparisons)</a></h3>
 <p>The YAML file is passed directly as a positional argument (no <code>--config</code> flag):</p>
 <pre><code class="language-bash">./build-release/tools/eval/eval_performance my_eval.yaml
@@ -403,7 +404,7 @@ helpful for long-running evaluations.</p>
 <h2 id="references"><a class="header" href="#references">References</a></h2>
 <ul>
 <li>Source: <code>tools/eval/</code></li>
-<li>Detailed README: <code>tools/eval/README.md</code></li>
+<li>Local tool entry point: <code>tools/eval/README.md</code></li>
 <li>Reference numbers on standard hardware: <a href="performance.html">Reference Performance</a>.</li>
 </ul>
 

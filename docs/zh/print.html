@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-78d0c8be.js";
+            window.path_to_searchindex_js = "searchindex-8dd976ba.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-137430ab.js"></script>
+        <script src="toc-c4211f84.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -826,7 +826,7 @@ auto result = index-&gt;KnnSearch(
 </code></pre>
 <h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
 <p>构建参数放在 <code>index_param</code> 下。下表列出最常用的配置项；完整列表请见
-<a href="#索引参数">索引参数</a> 以及仓库中的 <code>docs/hgraph.md</code>。</p>
+<a href="#索引参数">索引参数</a>。</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -1077,8 +1077,7 @@ auto result = index-&gt;KnnSearch(
     R"({"ivf": {"scan_buckets_count": 16}})").value();
 </code></pre>
 <h2 id="构建参数-1"><a class="header" href="#构建参数-1">构建参数</a></h2>
-<p>构建参数放在 <code>index_param</code> 下。完整列表请见 <a href="#索引参数">索引参数</a>
-及仓库中的 <code>docs/ivf.md</code>。</p>
+<p>构建参数放在 <code>index_param</code> 下。完整列表请见 <a href="#索引参数">索引参数</a>。</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -4775,7 +4774,7 @@ cmake --build build-release -j
 </code></pre>
 <p>常用参数还包括 <code>--search_mode</code>（<code>knn</code> / <code>range</code> / <code>knn_filter</code> / <code>range_filter</code>）、
 <code>--search-query-count</code>、<code>--delete-index-after-search</code>，以及一系列用于关闭单项指标的
-<code>--disable_*</code> 开关。完整参数列表见 <code>tools/eval/README.md</code>。</p>
+<code>--disable_*</code> 开关。参考模板 <code>tools/eval/eval_template.yaml</code> 展示了完整的 YAML 结构。</p>
 <h3 id="2-配置文件模式适合批量对比"><a class="header" href="#2-配置文件模式适合批量对比">2. 配置文件模式（适合批量对比）</a></h3>
 <p>YAML 文件作为位置参数直接传入（不需要 <code>--config</code> 标志）：</p>
 <pre><code class="language-bash">./build-release/tools/eval/eval_performance my_eval.yaml
@@ -4842,7 +4841,7 @@ eval_case1:
 <h2 id="参考-3"><a class="header" href="#参考-3">参考</a></h2>
 <ul>
 <li>源码：<code>tools/eval/</code></li>
-<li>详细说明：<code>tools/eval/README.md</code></li>
+<li>本地工具入口：<code>tools/eval/README.md</code></li>
 <li>标准机型的基准结果见 <a href="#标准环境性能参考">标准环境性能参考</a>。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -5374,8 +5373,47 @@ cmake --build build-release -j
 <li>接口：<code>include/vsag/index.h</code> 中的 <code>Index::AnalyzeIndexBySearch</code></li>
 <li>实现：<code>src/analyzer/{analyzer,hgraph_analyzer,pyramid_analyzer}.h</code></li>
 <li>工具源码：<code>tools/analyze_index/</code></li>
-<li>工具说明：<code>tools/analyze_index/README_zh.md</code></li>
+<li>本地工具入口：<code>tools/analyze_index/README_zh.md</code></li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="兼容性检查工具check_compatibility"><a class="header" href="#兼容性检查工具check_compatibility">兼容性检查工具（<code>check_compatibility</code>）</a></h1>
+<p><code>check_compatibility</code> 用于验证当前 VSAG 构建是否能够加载并搜索旧版本 VSAG 生成的索引文件。
+它主要用于 CI，帮助发现序列化格式和向后兼容性回归。</p>
+<h2 id="构建-2"><a class="header" href="#构建-2">构建</a></h2>
+<p>使用项目 Makefile 时，通过 <code>VSAG_ENABLE_TOOLS=ON</code> 开启工具构建；底层对应的 CMake
+选项是 <code>ENABLE_TOOLS=ON</code> 与 <code>ENABLE_CXX11_ABI=ON</code>：</p>
+<pre><code class="language-bash">VSAG_ENABLE_TOOLS=ON make release
+# 产物：./build-release/tools/check_compatibility/check_compatibility
+</code></pre>
+<p>如果直接调用 CMake，需要显式传入两个选项：</p>
+<pre><code class="language-bash">cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release \
+  -DENABLE_TOOLS=ON -DENABLE_CXX11_ABI=ON
+cmake --build build-release -j
+</code></pre>
+<h2 id="输入"><a class="header" href="#输入">输入</a></h2>
+<p>命令接收一个形如 <code>&lt;tag&gt;_&lt;algo_name&gt;</code> 的位置参数，例如 <code>v1.0.0_hnsw</code>。对于该标识，工具会在
+<code>/tmp/</code> 下查找以下文件：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>文件</th><th>用途</th></tr>
+</thead>
+<tbody>
+<tr><td><code>/tmp/&lt;tag&gt;_&lt;algo_name&gt;.index</code></td><td>旧版本 VSAG 生成的序列化索引</td></tr>
+<tr><td><code>/tmp/&lt;tag&gt;_&lt;algo_name&gt;_build.json</code></td><td>构建该索引时使用的参数</td></tr>
+<tr><td><code>/tmp/&lt;tag&gt;_&lt;algo_name&gt;_search.json</code></td><td>搜索校验使用的参数</td></tr>
+<tr><td><code>/tmp/random_512d_10K.bin</code></td><td>搜索校验使用的测试向量</td></tr>
+</tbody>
+</table>
+</div>
+<p>这些文件通常由旧版本兼容性 fixture 生成。</p>
+<h2 id="使用"><a class="header" href="#使用">使用</a></h2>
+<pre><code class="language-bash">./build-release/tools/check_compatibility/check_compatibility v1.0.0_hnsw
+</code></pre>
+<p>工具会创建当前版本的索引实例，反序列化旧索引文件，然后执行一次小规模 KNN 搜索。加载和搜索都成功
+时输出 <code>&lt;identifier&gt; success</code>；否则输出 <code>&lt;identifier&gt; failed</code> 并以非零状态退出。</p>
+<h2 id="本地入口"><a class="header" href="#本地入口">本地入口</a></h2>
+<p><code>tools/check_compatibility/README_zh.md</code> 保留为浏览工具目录时的简短入口。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="版本日志"><a class="header" href="#版本日志">版本日志</a></h1>
 <p>VSAG 的正式发布历史与变更说明维护在 GitHub Releases 页面：</p>

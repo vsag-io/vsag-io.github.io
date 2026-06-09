@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>属性过滤（混合搜索） - VSAG文档</title>
+        <title>兼容性检查工具 - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -304,263 +304,54 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="属性过滤混合搜索"><a class="header" href="#属性过滤混合搜索">属性过滤（混合搜索）</a></h1>
-<p>属性过滤（Attribute Filter），又称<strong>混合搜索</strong>（Hybrid Search）或<strong>带结构化谓词的近邻搜索</strong>，
-让 <code>KnnSearch</code> / <code>RangeSearch</code> 只返回结构化标签满足某个 SQL 风格表达式的向量。相比
-<a href="filtered_search.html">带过滤的搜索</a> 中基于 id 的过滤方式，它能直接表达类似下面的谓词：</p>
-<pre><code>category = "electronics" AND price &lt;= 1000 AND multi_in(tag, "promo|new", "|")
+                        <h1 id="兼容性检查工具check_compatibility"><a class="header" href="#兼容性检查工具check_compatibility">兼容性检查工具（<code>check_compatibility</code>）</a></h1>
+<p><code>check_compatibility</code> 用于验证当前 VSAG 构建是否能够加载并搜索旧版本 VSAG 生成的索引文件。
+它主要用于 CI，帮助发现序列化格式和向后兼容性回归。</p>
+<h2 id="构建"><a class="header" href="#构建">构建</a></h2>
+<p>使用项目 Makefile 时，通过 <code>VSAG_ENABLE_TOOLS=ON</code> 开启工具构建；底层对应的 CMake
+选项是 <code>ENABLE_TOOLS=ON</code> 与 <code>ENABLE_CXX11_ABI=ON</code>：</p>
+<pre><code class="language-bash">VSAG_ENABLE_TOOLS=ON make release
+# 产物：./build-release/tools/check_compatibility/check_compatibility
 </code></pre>
-<p>而无需写回调代码。VSAG 在向量索引旁额外构建一份属性倒排索引；表达式只解析一次，并在图遍历
-过程中完成判定，从而尽早剪除不可能满足条件的候选。</p>
-<blockquote>
-<p>本文中的“混合搜索”指的是<strong>向量 + 结构化属性</strong>的混合检索；DiskANN 的“<strong>内存 + 磁盘</strong>”
-存储混合请参见 <a href="hybrid_index.html">内存-磁盘混合索引</a>。</p>
-</blockquote>
-<h2 id="何时选择哪种过滤-api"><a class="header" href="#何时选择哪种过滤-api">何时选择哪种过滤 API</a></h2>
+<p>如果直接调用 CMake，需要显式传入两个选项：</p>
+<pre><code class="language-bash">cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release \
+  -DENABLE_TOOLS=ON -DENABLE_CXX11_ABI=ON
+cmake --build build-release -j
+</code></pre>
+<h2 id="输入"><a class="header" href="#输入">输入</a></h2>
+<p>命令接收一个形如 <code>&lt;tag&gt;_&lt;algo_name&gt;</code> 的位置参数，例如 <code>v1.0.0_hnsw</code>。对于该标识，工具会在
+<code>/tmp/</code> 下查找以下文件：</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>需求</th><th>推荐</th></tr>
+<tr><th>文件</th><th>用途</th></tr>
 </thead>
 <tbody>
-<tr><td>排除一组已知 id（例如墓碑）</td><td><a href="filtered_search.html">位图 / 函数过滤</a></td></tr>
-<tr><td>在 id 上跑用户自定义逻辑</td><td><a href="filtered_search.html"><code>Filter</code> 对象</a></td></tr>
-<tr><td>在图内基于每条向量的字节负载过滤</td><td><a href="extra_info.html">Extra Info</a></td></tr>
-<tr><td>在<strong>命名、有类型的字段</strong>上做 AND/OR/IN 判定</td><td><strong>本文</strong></td></tr>
+<tr><td><code>/tmp/&lt;tag&gt;_&lt;algo_name&gt;.index</code></td><td>旧版本 VSAG 生成的序列化索引</td></tr>
+<tr><td><code>/tmp/&lt;tag&gt;_&lt;algo_name&gt;_build.json</code></td><td>构建该索引时使用的参数</td></tr>
+<tr><td><code>/tmp/&lt;tag&gt;_&lt;algo_name&gt;_search.json</code></td><td>搜索校验使用的参数</td></tr>
+<tr><td><code>/tmp/random_512d_10K.bin</code></td><td>搜索校验使用的测试向量</td></tr>
 </tbody>
 </table>
 </div>
-<p>三者可以同时放进同一个 <code>SearchRequest</code>，按 AND 组合。</p>
-<h2 id="索引支持情况"><a class="header" href="#索引支持情况">索引支持情况</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>索引</th><th style="text-align: center">构建时启用 <code>use_attribute_filter</code></th><th style="text-align: center"><code>SearchWithRequest</code> + 属性表达式</th><th style="text-align: center"><code>UpdateAttribute</code></th></tr>
-</thead>
-<tbody>
-<tr><td>HGraph</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
-<tr><td>IVF</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
-<tr><td>BruteForce</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
-<tr><td>WARP（稀疏）</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
-<tr><td>HNSW / DiskANN / SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">仅支持基于 id 的过滤，详见 <a href="filtered_search.html">带过滤的搜索</a></td><td style="text-align: center">—</td></tr>
-</tbody>
-</table>
-</div>
-<p>启用 <code>use_attribute_filter</code> 后，BruteForce 暂不支持 <code>Remove</code>（如需删除请重建索引）。</p>
-<h2 id="属性数据模型"><a class="header" href="#属性数据模型">属性数据模型</a></h2>
-<p>属性按向量定义，组织成 <code>AttributeSet</code>（<code>include/vsag/attribute.h</code>）。每个属性包含：</p>
-<ul>
-<li><strong>名称</strong>（字符串）；</li>
-<li><strong>值类型</strong>（<code>AttrValueType</code> 枚举）；</li>
-<li><strong>值列表</strong>——所有字段都是多值字段，因此 <code>IN</code> 风格的成员判定能自然适用于标签类字段。</li>
-</ul>
-<p>支持的值类型：</p>
-<pre><code class="language-cpp">enum AttrValueType {
-    INT8 = 5,  INT16 = 7,  INT32 = 1,  INT64  = 3,
-    UINT8 = 6, UINT16 = 8, UINT32 = 2, UINT64 = 4,
-    STRING = 9,
-};
+<p>这些文件通常由旧版本兼容性 fixture 生成。</p>
+<h2 id="使用"><a class="header" href="#使用">使用</a></h2>
+<pre><code class="language-bash">./build-release/tools/check_compatibility/check_compatibility v1.0.0_hnsw
 </code></pre>
-<p>字段的 (名称, 类型) 在首次构建/插入时被锁定；后续插入必须保持一致。</p>
-<h3 id="构造一个-attributeset"><a class="header" href="#构造一个-attributeset">构造一个 <code>AttributeSet</code></a></h3>
-<pre><code class="language-cpp">auto* category = new vsag::AttributeValue&lt;std::string&gt;();
-category-&gt;name_ = "category";
-category-&gt;GetValue() = { "electronics" };
-
-auto* tags = new vsag::AttributeValue&lt;std::string&gt;();
-tags-&gt;name_ = "tag";
-tags-&gt;GetValue() = { "promo", "new" };       // 多值字段
-
-auto* price = new vsag::AttributeValue&lt;int32_t&gt;();
-price-&gt;name_ = "price";
-price-&gt;GetValue() = { 899 };
-
-vsag::AttributeSet set;
-set.attrs_ = { category, tags, price };
-</code></pre>
-<p><code>Attribute*</code> 的生命周期取决于承载该 <code>AttributeSet</code> 的 <code>Dataset</code> 的 <code>Owner(...)</code> 标志：</p>
-<ul>
-<li><code>Owner(true)</code>（默认）：<code>DatasetImpl</code> 析构时会 <code>delete</code> 每个 <code>Attribute*</code> 并
-<code>delete[]</code> <code>AttributeSet</code> 数组，调用方<strong>不要</strong>再自行释放。</li>
-<li><code>Owner(false)</code>（下文示例所用）：调用方保留所有权，需在 <code>Build</code> / <code>Add</code> 返回后自行释放
-<code>Attribute*</code>（以及若为堆分配的 <code>AttributeSet</code> 数组）。</li>
-</ul>
-<p>同一个 dataset 请只选一种策略，避免双重释放或泄漏。</p>
-<h2 id="构建支持属性过滤的索引"><a class="header" href="#构建支持属性过滤的索引">构建支持属性过滤的索引</a></h2>
-<p>把 <code>index_param.use_attribute_filter</code> 设为 <code>true</code>，可选地在 <code>attr_params</code> 下调整属性
-倒排索引参数。</p>
-<pre><code class="language-cpp">std::string build_params = R"(
-{
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128,
-    "index_param": {
-        "use_attribute_filter": true,
-        "attr_params": {
-            "has_buckets": false
-        }
-    }
-}
-)";
-auto index = vsag::Factory::CreateIndex("hgraph", build_params).value();
-</code></pre>
-<p><code>has_buckets</code> 控制倒排索引中倒排链的存储布局，不同索引的默认值不同：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>索引</th><th style="text-align: center"><code>has_buckets</code> 默认</th></tr>
-</thead>
-<tbody>
-<tr><td>HGraph</td><td style="text-align: center"><code>false</code></td></tr>
-<tr><td>IVF</td><td style="text-align: center"><code>true</code></td></tr>
-<tr><td>BruteForce</td><td style="text-align: center"><code>true</code></td></tr>
-</tbody>
-</table>
-</div>
-<p>如果没有性能数据明确指向需要修改，建议保留默认值。</p>
-<h2 id="在-build--add-时附加属性"><a class="header" href="#在-build--add-时附加属性">在 Build / Add 时附加属性</a></h2>
-<p><code>Dataset::AttributeSets</code> 接收一个长度等于向量数的 <code>AttributeSet</code> 数组
-（<code>include/vsag/dataset.h</code>）：</p>
-<pre><code class="language-cpp">std::vector&lt;vsag::AttributeSet&gt; sets(num_vectors);
-for (int64_t i = 0; i &lt; num_vectors; ++i) {
-    sets[i] = build_attrs_for_row(i);
-}
-
-auto base = vsag::Dataset::Make();
-base-&gt;NumElements(num_vectors)
-    -&gt;Dim(dim)
-    -&gt;Ids(ids)
-    -&gt;Float32Vectors(vectors)
-    -&gt;AttributeSets(sets.data())
-    -&gt;Owner(false);
-
-index-&gt;Build(base);     // 或 index-&gt;Add(base)
-</code></pre>
-<h2 id="通过-searchrequest-查询"><a class="header" href="#通过-searchrequest-查询">通过 <code>SearchRequest</code> 查询</a></h2>
-<p>属性过滤目前仅通过 <code>SearchWithRequest</code> 暴露
-（<code>include/vsag/search_request.h</code>）：</p>
-<pre><code class="language-cpp">vsag::SearchRequest req;
-req.query_                    = query;
-req.mode_                     = vsag::SearchMode::KNN_SEARCH;
-req.topk_                     = 10;
-req.params_str_               = R"({ "hgraph": { "ef_search": 200 } })";
-req.enable_attribute_filter_  = true;
-req.attribute_filter_str_     =
-    "category = \"electronics\" AND price &lt;= 1000 "
-    "AND multi_in(tag, \"promo|new\", \"|\")";
-
-auto result = index-&gt;SearchWithRequest(req).value();
-for (int64_t i = 0; i &lt; result-&gt;GetDim(); ++i) {
-    std::cout &lt;&lt; result-&gt;GetIds()[i] &lt;&lt; " " &lt;&lt; result-&gt;GetDistances()[i] &lt;&lt; "\n";
-}
-</code></pre>
-<p>可同时启用 <code>enable_filter_</code>（提供 <code>FilterPtr</code>）和 <code>enable_bitset_filter_</code>（提供 <code>BitsetPtr</code>），
-所有启用的过滤项按<strong>逻辑 AND</strong>组合。</p>
-<h2 id="过滤表达式语法"><a class="header" href="#过滤表达式语法">过滤表达式语法</a></h2>
-<p>文法定义见 <code>src/attr/grammar/FC.g4</code>。语法虽然紧凑，但已经能覆盖结构化过滤的常见需求。</p>
-<h3 id="逻辑运算符"><a class="header" href="#逻辑运算符">逻辑运算符</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>形式</th><th>别名</th></tr>
-</thead>
-<tbody>
-<tr><td>AND</td><td><code>AND</code>、<code>and</code>、<code>&amp;&amp;</code></td></tr>
-<tr><td>OR</td><td><code>OR</code>、<code>or</code>、<code>||</code></td></tr>
-<tr><td>NOT</td><td><code>!(expr)</code></td></tr>
-<tr><td>分组</td><td><code>(...)</code></td></tr>
-</tbody>
-</table>
-</div>
-<p><code>NOT</code> 仅支持前缀写法 <code>!(...)</code>。</p>
-<h3 id="比较运算符"><a class="header" href="#比较运算符">比较运算符</a></h3>
-<p>数值字段：<code>=</code>、<code>!=</code>、<code>&gt;</code>、<code>&lt;</code>、<code>&gt;=</code>、<code>&lt;=</code>。
-字符串字段：仅 <code>=</code> 和 <code>!=</code>。</p>
-<p>数值比较的左侧可以包含算术运算（<code>+ - * /</code>）：</p>
-<pre><code>(price - discount) &lt;= 100
-</code></pre>
-<h3 id="列表成员判定"><a class="header" href="#列表成员判定">列表成员判定</a></h3>
-<p>提供两种写法。它们使用<strong>同一组关键字</strong>（<code>IN</code> 与 <code>NOT_IN</code>，含下方别名），但<strong>参数形态不同</strong>。</p>
-<p><strong>方括号中缀形式</strong>——配合字面量列表使用：</p>
-<pre><code>id IN [1, 2, 3, 4]
-category NOT_IN ["electronics", "clothing"]
-</code></pre>
-<p>列表元素必须是 <code>INTEGER</code> 字面量或<strong>双引号</strong>字符串；文法不接受单引号。</p>
-<p><strong>函数式竖线形式</strong>——上游已经把候选值拼接成字符串时使用。第二个参数必须是单个用 <code>|</code>
-分隔的字符串字面量，第三个（可选）参数是分隔符，必须为 <code>"|"</code>：</p>
-<pre><code>multi_in(category, "electronics|clothing", "|")
-multi_notin(uid, "1961|8669|9090", "|")
-</code></pre>
-<p>函数形式<strong>不接受</strong>方括号列表（<code>multi_in(field, [...])</code> 是文法错误）；中缀形式也<strong>不接受</strong>
-竖线分隔字符串。</p>
-<p>两种形式的别名：<code>IN</code> / <code>in</code> / <code>MULTI_IN</code> / <code>multi_in</code>，
-<code>NOT_IN</code> / <code>not_in</code> / <code>NOTIN</code> / <code>notin</code> / <code>MULTI_NOTIN</code> / <code>multi_notin</code>。</p>
-<p>对多值字段而言，只要其中<strong>任一个值</strong>出现在列表中，成员谓词即为真。</p>
-<h3 id="字面量"><a class="header" href="#字面量">字面量</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>类型</th><th>示例</th></tr>
-</thead>
-<tbody>
-<tr><td>整数</td><td><code>42</code>、<code>-7</code></td></tr>
-<tr><td>浮点</td><td><code>3.14</code>、<code>1.5e-3</code></td></tr>
-<tr><td>字符串</td><td><code>"electronics"</code>、<code>"new"</code>（始终双引号）</td></tr>
-<tr><td>引号包裹的整型字符串</td><td><code>"123"</code>（在 <code>multi_in</code> 中按字符串处理）</td></tr>
-</tbody>
-</table>
-</div>
-<p>标识符匹配 <code>[a-zA-Z_][a-zA-Z0-9_]*</code>，可以含 <code>.</code>（即 <code>namespace.field</code> 视为同一个标识符）。</p>
-<p>注释以 <code>#</code> 开头，到行尾。</p>
-<h3 id="示例"><a class="header" href="#示例">示例</a></h3>
-<pre><code class="language-sql"># 等值
-category = "electronics"
-
-# 数值范围 + 多值字段
-price &gt;= 100 AND price &lt;= 1000 AND tag IN ["promo", "new"]
-
-# 取反
-!(status = "archived") AND multi_notin(region, "us-east|us-west", "|")
-
-# 比较左侧的算术运算
-(end_ts - start_ts) &gt; 3600 AND charge_type = 5
-</code></pre>
-<h2 id="更新属性"><a class="header" href="#更新属性">更新属性</a></h2>
-<p>调用 <code>index-&gt;UpdateAttribute(id, new_attrs)</code>（或同时传入旧属性的重载，可让倒排索引更新更高效）：</p>
-<pre><code class="language-cpp">vsag::AttributeSet new_attrs = build_new_attrs();
-auto status = index-&gt;UpdateAttribute(/*id=*/123, new_attrs);
-</code></pre>
-<p>向量本身不会改变，只更新倒排索引，后续搜索立即可见新属性值。</p>
-<h2 id="性能要点"><a class="header" href="#性能要点">性能要点</a></h2>
-<ul>
-<li>属性倒排索引的内存占用大致与「字段平均值数量 × 向量数」成正比；字符串字段还要额外占用
-与「不同值数量」成正比的字典空间。</li>
-<li>谓词越严格，候选越早被剪除，搜索越快；不严格的谓词大致等于无过滤搜索的成本加一个常数开销。</li>
-<li>对图索引，谓词非常严格时应同步增大 <code>ef_search</code>，否则可能因存活候选不足而无法收敛。</li>
-<li>优先使用 <code>multi_in</code> / <code>IN</code>，避免冗长的 <code>OR</code> 链——倒排索引可以一次扫描完成成员判定。</li>
-</ul>
-<h2 id="测试用例参考"><a class="header" href="#测试用例参考">测试用例参考</a></h2>
-<p>最完整的使用示例在测试套件中：</p>
-<ul>
-<li><code>tests/test_index.cpp</code> 中的 <code>TestIndex::TestWithAttr</code>：构建属性、用 <code>SearchRequest</code> 查询，
-以及 <code>UpdateAttribute</code> 后再次查询。</li>
-<li><code>tests/fixtures/data/vector_generator.cpp</code> 中的 <code>generate_attributes</code>：演示如何按程序化方式
-构造混合类型的 <code>AttributeSet*</code> 数组。</li>
-<li><code>src/attr/expression_visitor_test.cpp</code>：穷举式的语法用例，可作为 DSL 的参考实现。</li>
-</ul>
-<h2 id="python-状态"><a class="header" href="#python-状态">Python 状态</a></h2>
-<p>属性 / 混合搜索 API 目前仅 C++ 可用，<code>pyvsag</code> 暂未提供绑定，
-<code>examples/python/todo_examples/301_feature_filter.py</code> 是一个空占位文件。</p>
+<p>工具会创建当前版本的索引实例，反序列化旧索引文件，然后执行一次小规模 KNN 搜索。加载和搜索都成功
+时输出 <code>&lt;identifier&gt; success</code>；否则输出 <code>&lt;identifier&gt; failed</code> 并以非零状态退出。</p>
+<h2 id="本地入口"><a class="header" href="#本地入口">本地入口</a></h2>
+<p><code>tools/check_compatibility/README_zh.md</code> 保留为浏览工具目录时的简短入口。</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../advanced/iterator_search.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../resources/analyze_index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../advanced/serialization.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../resources/release_notes.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -570,11 +361,11 @@ auto status = index-&gt;UpdateAttribute(/*id=*/123, new_attrs);
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../advanced/iterator_search.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../resources/analyze_index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../advanced/serialization.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../resources/release_notes.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
