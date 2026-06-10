@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8dd976ba.js";
+            window.path_to_searchindex_js = "../searchindex-131124cd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-c4211f84.js"></script>
@@ -339,23 +339,24 @@
 <li><code>dim</code>：向量维度，必须与后续写入的数据一致。</li>
 </ul>
 <p>索引特有参数以嵌套对象形式提供，例如 HNSW 的 <code>hnsw</code>、HGraph 的 <code>index_param</code>。</p>
-<h2 id="示例创建-hnsw-索引"><a class="header" href="#示例创建-hnsw-索引">示例：创建 HNSW 索引</a></h2>
+<h2 id="示例创建-hgraph-索引"><a class="header" href="#示例创建-hgraph-索引">示例：创建 HGraph 索引</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
-auto hnsw_build_parameters = R"(
+auto hgraph_build_parameters = R"(
 {
     "dtype": "float32",
     "metric_type": "l2",
     "dim": 128,
-    "hnsw": {
+    "index_param": {
+        "base_quantization_type": "fp32",
         "max_degree": 16,
         "ef_construction": 100
     }
 }
 )";
-auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_parameters).value();
+auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_parameters).value();
 </code></pre>
-<h2 id="示例创建-hgraph-索引"><a class="header" href="#示例创建-hgraph-索引">示例：创建 HGraph 索引</a></h2>
+<h2 id="示例创建-hgraph-索引sq8-量化"><a class="header" href="#示例创建-hgraph-索引sq8-量化">示例：创建 HGraph 索引（SQ8 量化）</a></h2>
 <pre><code class="language-cpp">auto hgraph_build_parameters = R"(
 {
     "dtype": "float32",

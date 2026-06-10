@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8dd976ba.js";
+            window.path_to_searchindex_js = "../searchindex-131124cd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-c4211f84.js"></script>
@@ -330,8 +330,8 @@
 <h2 id="基本用法searchparam-api"><a class="header" href="#基本用法searchparam-api">基本用法（<code>SearchParam</code> API）</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
-// 1. 构造索引（以 HNSW 为例）
-auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_params).value();
+// 1. 构造索引（以 HGraph 为例）
+auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_params).value();
 index-&gt;Build(dataset);
 
 // 2. 准备查询
@@ -340,7 +340,7 @@ query-&gt;NumElements(1)-&gt;Dim(dim)-&gt;Float32Vectors(query_vec)-&gt;Owner(fa
 
 // 3. 以迭代模式配置 SearchParam
 nlohmann::json search_parameters = {
-    {"hnsw", {{"ef_search", 100}, {"skip_ratio", 0.7f}}},
+    {"hgraph", {{"ef_search", 100}}},
 };
 std::string param_str = search_parameters.dump();
 

@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-18d5fb48.js";
+            window.path_to_searchindex_js = "../searchindex-eaf47d80.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-b8e48929.js"></script>
@@ -352,7 +352,7 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
     }
 }
 
-auto search_params = R"({ "hnsw": { "ef_search": 100 } })";
+auto search_params = R"({ "hgraph": { "ef_search": 100 } })";
 auto result = index-&gt;KnnSearch(query, /*topk=*/10, search_params, invalid).value();
 </code></pre>
 <p>The bitset is indexed by vector id, but ids are masked to their low 32 bits before lookup

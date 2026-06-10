@@ -166,7 +166,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-18d5fb48.js";
+            window.path_to_searchindex_js = "searchindex-eaf47d80.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-b8e48929.js"></script>
@@ -400,7 +400,7 @@ index-specific options.</p>
 <tr><th>Name</th><th>Description</th><th>Page</th><th>Example</th></tr>
 </thead>
 <tbody>
-<tr><td><code>hgraph</code></td><td>Improved graph index with richer quantization options</td><td><a href="#hgraph-1">HGraph</a></td><td><code>examples/cpp/103_index_hgraph.cpp</code></td></tr>
+<tr><td><code>hgraph</code></td><td>Improved graph index with richer quantization options</td><td><a href="#hgraph-2">HGraph</a></td><td><code>examples/cpp/103_index_hgraph.cpp</code></td></tr>
 <tr><td><code>ivf</code></td><td>Inverted file with quantization</td><td><a href="#ivf-1">IVF</a></td><td><code>examples/cpp/106_index_ivf.cpp</code></td></tr>
 <tr><td><code>sindi</code></td><td>Sparse-vector index (e.g. BM25, SPLADE)</td><td><a href="#sindi">SINDI</a></td><td><code>examples/cpp/109_index_sindi.cpp</code></td></tr>
 <tr><td><code>pyramid</code></td><td>Multi-tenant / tag-partitioned graph index</td><td><a href="#pyramid-1">Pyramid</a></td><td><code>examples/cpp/107_index_pyramid.cpp</code></td></tr>
@@ -424,30 +424,34 @@ index-specific options.</p>
 </table>
 </div>
 <h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
-<h3 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h3>
+<h3 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h3>
+<p>HGraph uses <code>index_param</code> as the build-time sub-object (<code>hgraph</code> is reserved for search-time
+parameters like <code>ef_search</code>). See <code>examples/cpp/103_index_hgraph.cpp</code>.</p>
 <pre><code class="language-cpp">std::string params = R"(
 {
     "dim": 128,
     "dtype": "float32",
     "metric_type": "l2",
-    "hnsw": {
+    "index_param": {
+        "base_quantization_type": "fp32",
         "max_degree": 32,
         "ef_construction": 400
     }
 }
 )";
-auto index = vsag::Factory::CreateIndex("hnsw", params).value();
+auto index = vsag::Factory::CreateIndex("hgraph", params).value();
 </code></pre>
-<h3 id="hgraph-with-fp16-quantization"><a class="header" href="#hgraph-with-fp16-quantization">HGraph with FP16 quantization</a></h3>
-<p>HGraph uses <code>index_param</code> as the build-time sub-object (<code>hgraph</code> is reserved for search-time
-parameters like <code>ef_search</code>). See <code>examples/cpp/103_index_hgraph.cpp</code>.</p>
+<h3 id="hgraph-with-sq8-quantization"><a class="header" href="#hgraph-with-sq8-quantization">HGraph with SQ8 quantization</a></h3>
+<p>Switch <code>base_quantization_type</code> to <code>sq8</code> to store base vectors as 8-bit scalar-quantized codes
+(roughly a 4× reduction versus <code>fp32</code>) with minimal recall impact; other quantization types
+(<code>fp16</code>, <code>bf16</code>, <code>pq</code>, …) are selected the same way.</p>
 <pre><code class="language-cpp">std::string params = R"(
 {
     "dim": 768,
     "dtype": "float32",
     "metric_type": "ip",
     "index_param": {
-        "base_quantization_type": "fp16",
+        "base_quantization_type": "sq8",
         "max_degree": 32,
         "ef_construction": 400
     }
@@ -600,7 +604,7 @@ structures and trade-offs they use under the hood.</p>
 <tr><th>Index</th><th>Page</th><th>Best for</th></tr>
 </thead>
 <tbody>
-<tr><td><code>hgraph</code></td><td><a href="#hgraph-1">HGraph</a></td><td>General-purpose, high-recall graph with rich quantization options</td></tr>
+<tr><td><code>hgraph</code></td><td><a href="#hgraph-2">HGraph</a></td><td>General-purpose, high-recall graph with rich quantization options</td></tr>
 <tr><td><code>ivf</code></td><td><a href="#ivf-1">IVF</a></td><td>Partition-based search, high-throughput batch queries, large corpora</td></tr>
 <tr><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="#pyramid-1">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
@@ -652,7 +656,7 @@ enumeration, consult the source:</p>
 </tbody>
 </table>
 </div>
-<h2 id="hnsw-1"><a class="header" href="#hnsw-1">HNSW</a></h2>
+<h2 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h2>
 <p>HNSW uses the <code>hnsw</code> sub-object for build parameters. It does not accept HGraph-only keys
 such as <code>base_quantization_type</code>.</p>
 <pre><code class="language-json">{
@@ -681,7 +685,7 @@ such as <code>base_quantization_type</code>.</p>
 <p>At search time:</p>
 <pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
 </code></pre>
-<h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
+<h2 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h2>
 <p>HGraph places its build parameters under the generic <code>index_param</code> key (see
 <code>examples/cpp/103_index_hgraph.cpp</code>); the <code>hgraph</code> key is reserved for search-time parameters.</p>
 <pre><code class="language-json">{
@@ -763,7 +767,7 @@ for details.</p>
 <code>ef_search</code> and <code>nprobe</code>. See <a href="#optimizer-tune">Optimizer</a> and the
 <code>examples/cpp/3xx_feature_*.cpp</code> examples.</p>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h1>
+<h1 id="hgraph-2"><a class="header" href="#hgraph-2">HGraph</a></h1>
 <p>HGraph is VSAG’s flagship <strong>graph-based</strong> index. It builds a hierarchical proximity graph
 similar in spirit to HNSW, but with a richer set of quantization options, a unified
 build-parameter schema (<code>index_param</code>), and first-class support for reordering,
@@ -1152,7 +1156,7 @@ queries-per-second.</li>
 <li>Shard-friendly setups: buckets map naturally onto shards or disk blocks.</li>
 </ul>
 <p>For latency-sensitive, high-recall workloads on dense embeddings, compare against
-<a href="#hgraph-1">HGraph</a> first.</p>
+<a href="#hgraph-2">HGraph</a> first.</p>
 <h2 id="see-also-1"><a class="header" href="#see-also-1">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
@@ -1434,14 +1438,14 @@ queries always scope to a known prefix.</li>
 <li>Workloads with many small partitions: <code>no_build_levels</code> and <code>index_min_size</code>
 let you skip graph construction for partitions too small to benefit.</li>
 </ul>
-<p>If you don’t need path-based scoping, <a href="#hgraph-1">HGraph</a> is simpler and generally
+<p>If you don’t need path-based scoping, <a href="#hgraph-2">HGraph</a> is simpler and generally
 faster.</p>
 <h2 id="see-also-3"><a class="header" href="#see-also-3">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#index-parameters">Index Parameters</a></li>
 <li><a href="#graph-index-enhancement">Graph Enhancement</a></li>
-<li><a href="#hgraph-1">HGraph</a></li>
+<li><a href="#hgraph-2">HGraph</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="bruteforce"><a class="header" href="#bruteforce">BruteForce</a></h1>
@@ -1593,7 +1597,7 @@ scan is acceptable and you want to skip tuning altogether.</li>
 different <code>base_quantization_type</code> settings without the confounding effect of a graph or
 inverted-list structure.</li>
 </ul>
-<p>For anything larger, prefer <a href="#hgraph-1">HGraph</a> (latency-sensitive, high recall) or
+<p>For anything larger, prefer <a href="#hgraph-2">HGraph</a> (latency-sensitive, high recall) or
 <a href="#ivf-1">IVF</a> (throughput-oriented, memory-friendly).</p>
 <h2 id="see-also-4"><a class="header" href="#see-also-4">See also</a></h2>
 <ul>
@@ -1651,7 +1655,7 @@ it.</p>
 </code></pre>
 <p><code>use_reorder</code> and <code>precise_quantization_type</code> are not specific to any single
 quantizer — they apply whenever the index supports reordering (see
-<a href="#hgraph-1">HGraph</a>, <a href="#ivf-1">IVF</a>,
+<a href="#hgraph-2">HGraph</a>, <a href="#ivf-1">IVF</a>,
 <a href="#pyramid-1">Pyramid</a>).</p>
 <h2 id="supported-quantizers-at-a-glance"><a class="header" href="#supported-quantizers-at-a-glance">Supported quantizers at a glance</a></h2>
 <p>The factory in <code>src/datacell/flatten_interface.cpp</code> dispatches to
@@ -1798,7 +1802,7 @@ precise store on top of a base quantizer, the per-vector cost is
 <h2 id="related-pages"><a class="header" href="#related-pages">Related pages</a></h2>
 <ul>
 <li><a href="quantization/README.html">Quantization overview</a></li>
-<li><a href="#hgraph-1">HGraph index</a> — see <code>precise_quantization_type</code></li>
+<li><a href="#hgraph-2">HGraph index</a> — see <code>precise_quantization_type</code></li>
 <li><a href="#memory-management">Memory Management</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -1878,7 +1882,7 @@ normalizing inputs before storing them at 16-bit precision.</p>
 <h2 id="related-pages-1"><a class="header" href="#related-pages-1">Related pages</a></h2>
 <ul>
 <li><a href="quantization/README.html">Quantization overview</a></li>
-<li><a href="#hgraph-1">HGraph index</a> — <code>precise_quantization_type</code> table</li>
+<li><a href="#hgraph-2">HGraph index</a> — <code>precise_quantization_type</code> table</li>
 <li><a href="#memory-management">Memory Management</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -2160,7 +2164,7 @@ with a chain like <code>"rom, pq"</code>.</li>
 <ul>
 <li><a href="#pq-fastscan">PQ FastScan</a></li>
 <li><a href="#quantization-transform">Transform Quantizer</a></li>
-<li><a href="#hgraph-1">HGraph index</a></li>
+<li><a href="#hgraph-2">HGraph index</a></li>
 <li><a href="quantization/README.html">Quantization overview</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -2235,7 +2239,7 @@ match).</li>
 <h2 id="related-pages-5"><a class="header" href="#related-pages-5">Related pages</a></h2>
 <ul>
 <li><a href="#product-quantization-pq">Product Quantization (PQ)</a></li>
-<li><a href="#hgraph-1">HGraph index</a></li>
+<li><a href="#hgraph-2">HGraph index</a></li>
 <li><a href="#quantization-transform">Transform Quantizer</a></li>
 <li><a href="quantization/README.html">Quantization overview</a></li>
 </ul>
@@ -2352,7 +2356,7 @@ size of pure 1-bit.</li>
 <h2 id="related-pages-6"><a class="header" href="#related-pages-6">Related pages</a></h2>
 <ul>
 <li><a href="#quantization-transform">Transform Quantizer</a></li>
-<li><a href="#hgraph-1">HGraph index</a></li>
+<li><a href="#hgraph-2">HGraph index</a></li>
 <li>Design notes: <code>docs/rabitq_1xbit_new_repo_guide.md</code>,
 <code>docs/rabitq_split_1bit_7bit.md</code></li>
 <li><a href="quantization/README.html">Quantization overview</a></li>
@@ -2518,7 +2522,7 @@ against the precise codes (<code>hgraph.cpp:978-981</code> and surrounding sites
 </ul>
 <p><code>use_reorder</code> and <code>precise_quantization_type</code> are not specific to <code>tq</code> — they also apply when
 <code>base_quantization_type</code> is <code>sq8</code>, <code>pq</code>, <code>rabitq</code>, etc. See the table in
-<a href="#hgraph-1">HGraph index</a> for the full per-index parameter list.</p>
+<a href="#hgraph-2">HGraph index</a> for the full per-index parameter list.</p>
 <h2 id="choosing-a-chain"><a class="header" href="#choosing-a-chain">Choosing a chain</a></h2>
 <p>A pragmatic rule of thumb:</p>
 <div class="table-wrapper">
@@ -2553,7 +2557,7 @@ parameter set consistent, not just the chain string.</p>
 </blockquote>
 <h2 id="related-pages-7"><a class="header" href="#related-pages-7">Related pages</a></h2>
 <ul>
-<li><a href="#hgraph-1">HGraph index</a> — parameter reference for <code>base_quantization_type</code>,
+<li><a href="#hgraph-2">HGraph index</a> — parameter reference for <code>base_quantization_type</code>,
 <code>use_reorder</code>, <code>precise_quantization_type</code>.</li>
 <li><a href="#memory-management">Memory Management</a> — memory cost of base + precise stores.</li>
 </ul>
@@ -3019,7 +3023,7 @@ parameters (<code>ef_search</code>, <code>pq_rerank</code>, …) carry over unch
 <h2 id="see-also-5"><a class="header" href="#see-also-5">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
-<li><a href="#hgraph-1">HGraph index parameters</a></li>
+<li><a href="#hgraph-2">HGraph index parameters</a></li>
 <li><a href="#pyramid-1">Pyramid index parameters</a></li>
 <li><a href="#index-parameters">Index Parameters reference</a></li>
 </ul>
@@ -3032,8 +3036,8 @@ scenarios.</p>
 <h2 id="basic-usage"><a class="header" href="#basic-usage">Basic Usage</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
-// 1. Create an index (HNSW in this example)
-auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_params).value();
+// 1. Create an index (HGraph in this example)
+auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_params).value();
 index-&gt;Build(dataset);
 
 // 2. Prepare the query
@@ -3278,7 +3282,7 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
     }
 }
 
-auto search_params = R"({ "hnsw": { "ef_search": 100 } })";
+auto search_params = R"({ "hgraph": { "ef_search": 100 } })";
 auto result = index-&gt;KnnSearch(query, /*topk=*/10, search_params, invalid).value();
 </code></pre>
 <p>The bitset is indexed by vector id, but ids are masked to their low 32 bits before lookup
@@ -3463,8 +3467,8 @@ pass a sufficiently large <code>k</code> on the finalize call.</p>
 <h2 id="basic-usage-searchparam-api"><a class="header" href="#basic-usage-searchparam-api">Basic Usage (<code>SearchParam</code> API)</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
-// 1. Build an index (HNSW in this example)
-auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_params).value();
+// 1. Build an index (HGraph in this example)
+auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_params).value();
 index-&gt;Build(dataset);
 
 // 2. Prepare query
@@ -3473,7 +3477,7 @@ query-&gt;NumElements(1)-&gt;Dim(dim)-&gt;Float32Vectors(query_vec)-&gt;Owner(fa
 
 // 3. Configure SearchParam in iterator mode
 nlohmann::json search_parameters = {
-    {"hnsw", {{"ef_search", 100}, {"skip_ratio", 0.7f}}},
+    {"hgraph", {{"ef_search", 100}}},
 };
 std::string param_str = search_parameters.dump();
 
@@ -3878,7 +3882,7 @@ for (const auto&amp; key : bs.GetKeys()) {
 // Load
 vsag::BinarySet bs_loaded;
 // Populate bs_loaded by reading each key from storage.
-auto empty = vsag::Factory::CreateIndex("hnsw", build_params).value();
+auto empty = vsag::Factory::CreateIndex("hgraph", build_params).value();
 empty-&gt;Deserialize(bs_loaded);
 </code></pre>
 <p><code>ReaderSet</code> is similar to <code>BinarySet</code> but uses a user-supplied <code>Reader</code> to read on demand, which

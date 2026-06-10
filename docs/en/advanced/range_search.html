@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-18d5fb48.js";
+            window.path_to_searchindex_js = "../searchindex-eaf47d80.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-b8e48929.js"></script>
@@ -312,8 +312,8 @@ scenarios.</p>
 <h2 id="basic-usage"><a class="header" href="#basic-usage">Basic Usage</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
-// 1. Create an index (HNSW in this example)
-auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_params).value();
+// 1. Create an index (HGraph in this example)
+auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_params).value();
 index-&gt;Build(dataset);
 
 // 2. Prepare the query

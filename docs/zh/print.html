@@ -166,7 +166,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-8dd976ba.js";
+            window.path_to_searchindex_js = "searchindex-131124cd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-c4211f84.js"></script>
@@ -436,23 +436,24 @@
 <li><code>dim</code>：向量维度，必须与后续写入的数据一致。</li>
 </ul>
 <p>索引特有参数以嵌套对象形式提供，例如 HNSW 的 <code>hnsw</code>、HGraph 的 <code>index_param</code>。</p>
-<h2 id="示例创建-hnsw-索引"><a class="header" href="#示例创建-hnsw-索引">示例：创建 HNSW 索引</a></h2>
+<h2 id="示例创建-hgraph-索引"><a class="header" href="#示例创建-hgraph-索引">示例：创建 HGraph 索引</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
-auto hnsw_build_parameters = R"(
+auto hgraph_build_parameters = R"(
 {
     "dtype": "float32",
     "metric_type": "l2",
     "dim": 128,
-    "hnsw": {
+    "index_param": {
+        "base_quantization_type": "fp32",
         "max_degree": 16,
         "ef_construction": 100
     }
 }
 )";
-auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_parameters).value();
+auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_parameters).value();
 </code></pre>
-<h2 id="示例创建-hgraph-索引"><a class="header" href="#示例创建-hgraph-索引">示例：创建 HGraph 索引</a></h2>
+<h2 id="示例创建-hgraph-索引sq8-量化"><a class="header" href="#示例创建-hgraph-索引sq8-量化">示例：创建 HGraph 索引（SQ8 量化）</a></h2>
 <pre><code class="language-cpp">auto hgraph_build_parameters = R"(
 {
     "dtype": "float32",
@@ -584,21 +585,25 @@ index_params = json.dumps({
     "dtype": "float32",
     "metric_type": "l2",
     "dim": dim,
-    "hnsw": {"max_degree": 16, "ef_construction": 100},
+    "index_param": {
+        "base_quantization_type": "fp32",
+        "max_degree": 16,
+        "ef_construction": 100,
+    },
 })
 
-index = pyvsag.Index("hnsw", index_params)
+index = pyvsag.Index("hgraph", index_params)
 index.build(vectors=data, ids=ids, num_elements=num_elements, dim=dim)
 
 query = np.float32(np.random.random(dim))
-search_params = json.dumps({"hnsw": {"ef_search": 100}})
+search_params = json.dumps({"hgraph": {"ef_search": 100}})
 result_ids, result_dists = index.knn_search(
     vector=query, k=10, parameters=search_params,
 )
 for rid, rdist in zip(result_ids, result_dists):
     print(f"{rid}: {rdist}")
 </code></pre>
-<p>完整示例请查阅仓库中的 <a href="https://github.com/antgroup/vsag/tree/main/examples/python"><code>examples/python/</code></a> 目录，建议从 <code>example_hnsw.py</code> 开始。</p>
+<p>完整示例请查阅仓库中的 <a href="https://github.com/antgroup/vsag/tree/main/examples/python"><code>examples/python/</code></a> 目录，建议从 <code>103_index_hgraph.py</code> 开始。</p>
 <h2 id="与-c-库的关系"><a class="header" href="#与-c-库的关系">与 C++ 库的关系</a></h2>
 <p><code>pyvsag</code> 绑定的是同一份核心 C++ 实现，行为和性能特征与 C++ 版本保持一致。因此：</p>
 <ul>
@@ -2886,8 +2891,8 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
 <h2 id="基本用法"><a class="header" href="#基本用法">基本用法</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
-// 1. 构造索引（以 HNSW 为例）
-auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_params).value();
+// 1. 构造索引（以 HGraph 为例）
+auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_params).value();
 index-&gt;Build(dataset);
 
 // 2. 准备查询
@@ -3114,7 +3119,7 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
     }
 }
 
-auto search_params = R"({ "hnsw": { "ef_search": 100 } })";
+auto search_params = R"({ "hgraph": { "ef_search": 100 } })";
 auto result = index-&gt;KnnSearch(query, /*topk=*/10, search_params, invalid).value();
 </code></pre>
 <p>位图按向量 id 索引，但查询时 id 会被掩码到低 32 位
@@ -3288,8 +3293,8 @@ auto result = index-&gt;SearchWithRequest(req).value();
 <h2 id="基本用法searchparam-api"><a class="header" href="#基本用法searchparam-api">基本用法（<code>SearchParam</code> API）</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
-// 1. 构造索引（以 HNSW 为例）
-auto index = vsag::Factory::CreateIndex("hnsw", hnsw_build_params).value();
+// 1. 构造索引（以 HGraph 为例）
+auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_params).value();
 index-&gt;Build(dataset);
 
 // 2. 准备查询
@@ -3298,7 +3303,7 @@ query-&gt;NumElements(1)-&gt;Dim(dim)-&gt;Float32Vectors(query_vec)-&gt;Owner(fa
 
 // 3. 以迭代模式配置 SearchParam
 nlohmann::json search_parameters = {
-    {"hnsw", {{"ef_search", 100}, {"skip_ratio", 0.7f}}},
+    {"hgraph", {{"ef_search", 100}}},
 };
 std::string param_str = search_parameters.dump();
 
@@ -3667,7 +3672,7 @@ for (const auto&amp; key : bs.GetKeys()) {
 // 加载
 vsag::BinarySet bs_loaded;
 // 从介质中读取每个 key 对应的 Binary 放入 bs_loaded
-auto empty = vsag::Factory::CreateIndex("hnsw", build_params).value();
+auto empty = vsag::Factory::CreateIndex("hgraph", build_params).value();
 empty-&gt;Deserialize(bs_loaded);
 </code></pre>
 <p><code>ReaderSet</code> 与 <code>BinarySet</code> 类似，但通过用户自定义的 <code>Reader</code> 按需读取，避免一次性加载全部数据，

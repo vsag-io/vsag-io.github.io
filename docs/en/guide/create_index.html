@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-18d5fb48.js";
+            window.path_to_searchindex_js = "../searchindex-eaf47d80.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-b8e48929.js"></script>
@@ -339,30 +339,34 @@ index-specific options.</p>
 </table>
 </div>
 <h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
-<h3 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h3>
+<h3 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h3>
+<p>HGraph uses <code>index_param</code> as the build-time sub-object (<code>hgraph</code> is reserved for search-time
+parameters like <code>ef_search</code>). See <code>examples/cpp/103_index_hgraph.cpp</code>.</p>
 <pre><code class="language-cpp">std::string params = R"(
 {
     "dim": 128,
     "dtype": "float32",
     "metric_type": "l2",
-    "hnsw": {
+    "index_param": {
+        "base_quantization_type": "fp32",
         "max_degree": 32,
         "ef_construction": 400
     }
 }
 )";
-auto index = vsag::Factory::CreateIndex("hnsw", params).value();
+auto index = vsag::Factory::CreateIndex("hgraph", params).value();
 </code></pre>
-<h3 id="hgraph-with-fp16-quantization"><a class="header" href="#hgraph-with-fp16-quantization">HGraph with FP16 quantization</a></h3>
-<p>HGraph uses <code>index_param</code> as the build-time sub-object (<code>hgraph</code> is reserved for search-time
-parameters like <code>ef_search</code>). See <code>examples/cpp/103_index_hgraph.cpp</code>.</p>
+<h3 id="hgraph-with-sq8-quantization"><a class="header" href="#hgraph-with-sq8-quantization">HGraph with SQ8 quantization</a></h3>
+<p>Switch <code>base_quantization_type</code> to <code>sq8</code> to store base vectors as 8-bit scalar-quantized codes
+(roughly a 4× reduction versus <code>fp32</code>) with minimal recall impact; other quantization types
+(<code>fp16</code>, <code>bf16</code>, <code>pq</code>, …) are selected the same way.</p>
 <pre><code class="language-cpp">std::string params = R"(
 {
     "dim": 768,
     "dtype": "float32",
     "metric_type": "ip",
     "index_param": {
-        "base_quantization_type": "fp16",
+        "base_quantization_type": "sq8",
         "max_degree": 32,
         "ef_construction": 400
     }

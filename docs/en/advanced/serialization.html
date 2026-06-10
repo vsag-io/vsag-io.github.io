@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-18d5fb48.js";
+            window.path_to_searchindex_js = "../searchindex-eaf47d80.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-b8e48929.js"></script>
@@ -321,7 +321,7 @@ for (const auto&amp; key : bs.GetKeys()) {
 // Load
 vsag::BinarySet bs_loaded;
 // Populate bs_loaded by reading each key from storage.
-auto empty = vsag::Factory::CreateIndex("hnsw", build_params).value();
+auto empty = vsag::Factory::CreateIndex("hgraph", build_params).value();
 empty-&gt;Deserialize(bs_loaded);
 </code></pre>
 <p><code>ReaderSet</code> is similar to <code>BinarySet</code> but uses a user-supplied <code>Reader</code> to read on demand, which

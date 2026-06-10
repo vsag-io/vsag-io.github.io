@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8dd976ba.js";
+            window.path_to_searchindex_js = "../searchindex-131124cd.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-c4211f84.js"></script>
@@ -319,7 +319,7 @@ for (const auto&amp; key : bs.GetKeys()) {
 // 加载
 vsag::BinarySet bs_loaded;
 // 从介质中读取每个 key 对应的 Binary 放入 bs_loaded
-auto empty = vsag::Factory::CreateIndex("hnsw", build_params).value();
+auto empty = vsag::Factory::CreateIndex("hgraph", build_params).value();
 empty-&gt;Deserialize(bs_loaded);
 </code></pre>
 <p><code>ReaderSet</code> 与 <code>BinarySet</code> 类似，但通过用户自定义的 <code>Reader</code> 按需读取，避免一次性加载全部数据，
