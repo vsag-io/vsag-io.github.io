@@ -166,7 +166,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-131124cd.js";
+            window.path_to_searchindex_js = "searchindex-1d8ec2ff.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-c4211f84.js"></script>
@@ -1210,7 +1210,7 @@ auto result = index-&gt;KnnSearch(
 </thead>
 <tbody>
 <tr><td><code>dim</code></td><td>int</td><td>—（必填）</td><td>单条稀疏向量允许的最大非零项数量，<strong>不是</strong> 词表大小</td></tr>
-<tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>词项 ID 的上界（应 ≥ 最大词项 ID + 1）</td></tr>
+<tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>词项 ID 的上界（应 ≥ 最大词项 ID + 1，最高 50 000 000）</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>每个窗口容纳的文档数（取值范围 10 000 – 60 000）</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建阶段按文档丢弃权重最低词项的比例（0.0 – 0.9）</td></tr>
 <tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>是否量化词项权重以降低内存；开启后使用 8-bit 标量量化（SQ8）</td></tr>
@@ -5663,7 +5663,7 @@ codex
 </blockquote>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="贡献者列表"><a class="header" href="#贡献者列表">贡献者列表</a></h1>
-<p>以下是 VSAG 项目的贡献者（更新于 2026-04-21），按照第一次贡献的时间排序：</p>
+<p>以下是 VSAG 项目的贡献者（更新于 2026-06-09），按照第一次贡献的时间排序：</p>
 <ul>
 <li>2024-07-26 Xiangyu Wang (<a href="https://github.com/wxyucs/">wxyucs</a>) from AntGroup</li>
 <li>2024-08-21 Jiabao Jin (<a href="https://github.com/inabao">inabao</a>) from AntGroup</li>
@@ -5688,11 +5688,15 @@ codex
 <li>2025-10-29 <a href="https://github.com/Roxanne0321">Roxanne0321</a> from AntGroup</li>
 <li>2025-11-12 baoyuan (<a href="https://github.com/misaka0714">misaka0714</a>)</li>
 <li>2025-11-20 Zihao Wang (<a href="https://github.com/hhy3">hhy3</a>)</li>
-<li>2025-12-19 Xinger (<a href="https://github.com/Ningsir">Ningsir</a>)</li>
-<li>2026-02-05 <a href="https://github.com/stuBirdFly">stuBirdFly</a></li>
-<li>2026-04-08 Sun Jiayu (<a href="https://github.com/pkusunjy">pkusunjy</a>)</li>
-<li>2026-04-20 wei (<a href="https://github.com/jiaweizone">jiaweizone</a>)</li>
-<li>2026-04-20 <a href="https://github.com/XFMENG17">XFMENG17</a></li>
+<li>2025-12-19 Xinger (<a href="https://github.com/Ningsir">Ningsir</a>) from OceanBase</li>
+<li>2026-02-05 <a href="https://github.com/stuBirdFly">stuBirdFly</a> from OceanBase</li>
+<li>2026-04-08 Sun Jiayu (<a href="https://github.com/pkusunjy">pkusunjy</a>) from AntGroup</li>
+<li>2026-04-20 wei (<a href="https://github.com/jiaweizone">jiaweizone</a>) from AntGroup</li>
+<li>2026-04-20 <a href="https://github.com/XFMENG17">XFMENG17</a> from AntGroup</li>
+<li>2026-05-07 <a href="https://github.com/liric24">liric24</a> from AntGroup</li>
+<li>2026-05-14 <a href="https://github.com/LightWant">LightWant</a> from AntGroup</li>
+<li>2026-06-09 <a href="https://github.com/mukejane">mukejane</a></li>
+<li>2026-06-09 Jiangtian Feng (<a href="https://github.com/jfeng18">jfeng18</a>) from Alibaba</li>
 </ul>
 
                     </main>
