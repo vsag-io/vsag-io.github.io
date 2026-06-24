@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Uniform 标量量化（SQ4 / SQ8 Uniform） - VSAG文档</title>
+        <title>离线 / 内网环境构建 - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -304,122 +304,182 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform"><a class="header" href="#标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform">标量量化 Uniform（Scalar Quantization Uniform：SQ4 / SQ8 Uniform）</a></h1>
-<p><code>sq8_uniform</code> 与 <code>sq4_uniform</code> 与 <a href="sq.html"><code>sq8</code> / <code>sq4</code></a> 类似，是标量量化
-器，但它们学习的是<strong>全局唯一</strong>的 <code>[min, max]</code> 范围，对所有维度都使用同一
-份缩放参数。这一权衡——逐维自适应能力略弱，但解码路径更简单——换来了
-显著更快的 SIMD 距离计算（<code>l2</code> 与 <code>ip</code>），并保持更紧凑的码布局。</p>
-<p><img src="../figures/quantization/sq-uniform-vs-perdim.svg" alt="Uniform（全局范围）与逐维标量量化对比"></p>
-<blockquote>
-<p>实现：<code>src/quantization/scalar_quantization/sq8_uniform_quantizer.cpp</code>、
-<code>src/quantization/scalar_quantization/sq4_uniform_quantizer.cpp</code>。</p>
-</blockquote>
-<h2 id="为什么快距离计算停留在整数域"><a class="header" href="#为什么快距离计算停留在整数域">为什么快：距离计算停留在整数域</a></h2>
-<p>这是在条件允许时优先选用 <code>sq*_uniform</code> 而非 <code>sq*</code> 的核心原因。由于每个
-维度共享同一对 <code>(min, max)</code>，仿射解码
-<code>x = min + code · (max - min) / (2^b - 1)</code> 对<strong>所有坐标都使用相同的
-scale 与 offset</strong>。这在热路径上带来三点收益：</p>
-<ul>
-<li>query 用同一份全局 <code>(min, max)</code> <strong>只编码一次</strong>，存入 uint8（或打包的
-半字节）缓冲，见 <code>ProcessQueryImpl</code>
-（<code>src/quantization/scalar_quantization/sq8_uniform_quantizer.cpp:179</code>）。</li>
-<li>base 向量的 code <strong>从不解码回 fp32</strong>。kernel
-<code>SQ8UniformComputeCodesIP(uint8_t* q, uint8_t* x, dim)</code> /
-<code>SQ4UniformComputeCodesIP(...)</code> 把两个操作数都按原始整数 code 读入，
-在 uint8 / 打包半字节通道上直接用 AVX-512 / AMX（ARM 上为 NEON）做
-点积，一次处理一个 cache line。内层循环里没有任何逐元素的 fp 反量化。</li>
-<li>共享的 scale 与 offset 在整数累加完成之后<strong>对每对向量只补偿一次</strong>，
-即可还原 fp 距离。某些度量需要的额外项（每向量的 norm 或 sum）也在
-循环外加上，参见
-<code>sq8_uniform_quantizer.cpp:200</code> 的 trailing metadata 说明以及
-<code>SQ8UniformComputeCodesIPBatch</code> 批量 kernel。</li>
-</ul>
-<p>而在逐维的 <code>sq*</code> 量化器里，每个坐标都有自己的 <code>(min_i, max_i)</code>，kernel
-要么在循环内乘以逐维 scale 表，要么先把至少一边的操作数解码回 fp。
-省掉这一步，就是 uniform 变种在同等召回下显著更快的根本原因。</p>
-<h2 id="何时使用"><a class="header" href="#何时使用">何时使用</a></h2>
-<ul>
-<li><strong>HGraph / IVF / Pyramid 的热路径。</strong> 当瓶颈在基础量化器距离计算时，
-在相近召回下，<code>sq8_uniform</code> / <code>sq4_uniform</code> 几乎总是比对应的非 uniform
-变种更快。</li>
-<li><strong>维度间取值范围相近的数据。</strong> 归一化嵌入（cosine），或已通过
-<a href="../advanced/quantization_transform.html">量化变换</a> 链路（如
-<code>"rom, sq8_uniform"</code> 或 <code>"fht, sq8_uniform"</code>）旋转过的向量，都是理想
-输入。</li>
-<li><strong>作为 <code>tq</code> 链路的末端量化器。</strong> 最常见的链路是
-<code>"pca, rom, sq8_uniform"</code>，参考示例 501。</li>
-</ul>
-<h2 id="sq4-uniform-与-sq8-uniform-对比"><a class="header" href="#sq4-uniform-与-sq8-uniform-对比">SQ4 uniform 与 SQ8 uniform 对比</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>类型</th><th>每维位数</th><th>相对 fp32 内存</th><th>典型精度</th></tr>
-</thead>
-<tbody>
-<tr><td><code>sq8_uniform</code></td><td>8</td><td>~1/4</td><td>轻微召回下降</td></tr>
-<tr><td><code>sq4_uniform</code></td><td>4</td><td>~1/8</td><td>需重排以保持高召回</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="参数"><a class="header" href="#参数">参数</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Key</th><th>类型</th><th>默认</th><th>适用</th><th>含义</th></tr>
-</thead>
-<tbody>
-<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td>仅 <code>sq4_uniform</code></td><td>对离群值的对称截断比例（<code>src/quantization/scalar_quantization/sq4_uniform_quantizer_parameter.h:39</code>）。值越大，越多极端坐标被截断，从而减少主体数据的范围浪费，代价是尾部被裁掉。</td></tr>
-</tbody>
-</table>
-</div>
-<p><code>sq8_uniform</code> 没有量化器专属的 JSON 参数。</p>
-<p>在 HGraph 上，<code>sq4_uniform_trunc_rate</code> 作为顶层 key 暴露，并被映射到
-嵌套的量化参数中（<code>src/algorithm/hgraph.cpp:409-416</code>）。</p>
-<pre><code class="language-json">{
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128,
-    "index_param": {
-        "base_quantization_type": "sq4_uniform",
-        "sq4_uniform_trunc_rate": 0.05,
-        "max_degree": 32,
-        "ef_construction": 300,
-        "use_reorder": true,
-        "precise_quantization_type": "fp32"
-    }
-}
+                        <h1 id="离线--内网环境构建"><a class="header" href="#离线--内网环境构建">离线 / 内网环境构建</a></h1>
+<p>VSAG 在 CMake <strong>配置 / 构建阶段</strong>会下载一批第三方库（通过 <code>ExternalProject_Add</code>
+与 <code>FetchContent</code>）。在没有外网访问、或网络较慢 / 受限的机器上，这些下载可能失败或
+超时。本文介绍如何把每个依赖指向<strong>本地路径</strong>或<strong>内网镜像</strong>（内网 HTTP 服务、OSS
+存储桶、Artifactory 等），从而在完全离线的环境中完成编译。</p>
+<h2 id="第三方下载的解析顺序"><a class="header" href="#第三方下载的解析顺序">第三方下载的解析顺序</a></h2>
+<p>对每一个需要下载的依赖，VSAG 会构造一个候选 URL <em>列表</em>，由 CMake <strong>按顺序</strong>依次尝试，
+命中第一个成功的即停止。以 <code>antlr4</code> 为代表
+（<a href="https://github.com/antgroup/vsag/blob/main/extern/antlr4/antlr4.cmake"><code>extern/antlr4/antlr4.cmake</code></a>）：</p>
+<pre><code class="language-cmake">set (antlr4_urls
+    https://github.com/antlr/antlr4/archive/refs/tags/4.13.2.tar.gz   # 1. 上游
+    https://vsagcache.oss-rg-china-mainland.aliyuncs.com/antlr4/v4.13.2.tar.gz  # 2. 项目镜像
+)
+if (DEFINED ENV{VSAG_THIRDPARTY_ANTLR4})
+    message (STATUS "Using local path for antlr4: $ENV{VSAG_THIRDPARTY_ANTLR4}")
+    list (PREPEND antlr4_urls "$ENV{VSAG_THIRDPARTY_ANTLR4}")   # 0. 你的覆盖项（最先尝试）
+endif ()
+
+ExternalProject_Add (antlr4
+    URL ${antlr4_urls}
+    URL_HASH MD5=3b75610fc8a827119258cba09a068be5
+    ...)
 </code></pre>
-<p>若需 8 位变种，把 <code>"base_quantization_type"</code> 设为 <code>"sq8_uniform"</code> 并去掉
-<code>trunc_rate</code> key 即可。</p>
-<h2 id="训练"><a class="header" href="#训练">训练</a></h2>
-<p>设置了 <code>NEED_TRAIN</code>。训练在所有维度上估计单一的 <code>[min, max]</code>
-（<code>sq4_uniform</code> 时可附加截断）。<code>Build</code> 会内部完成训练。</p>
-<h2 id="度量兼容性"><a class="header" href="#度量兼容性">度量兼容性</a></h2>
-<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持。<code>cosine</code> 会先归一化再量化，这也使得 uniform
-缩放在该度量下接近最优。</p>
-<h2 id="uniform-与非-uniform-之间如何选"><a class="header" href="#uniform-与非-uniform-之间如何选">uniform 与非 uniform 之间如何选</a></h2>
+<p>因此解析顺序为：</p>
+<ol>
+<li><strong><code>VSAG_THIRDPARTY_&lt;LIB&gt;</code></strong> —— 你设置的覆盖项（如果该环境变量已设置为<strong>非空</strong>值）。<strong>最先尝试</strong>。</li>
+<li><strong>上游</strong> URL（GitHub / 项目发布页）。</li>
+<li>项目维护的 <strong>阿里云 OSS 镜像</strong>
+（<code>vsagcache.oss-rg-china-mainland.aliyuncs.com</code>）。该兜底地址始终存在，在中国大陆 /
+弱网环境下很有帮助，但<strong>不可由用户配置</strong>——若要使用纯内网镜像，请使用环境变量。</li>
+</ol>
+<blockquote>
+<p><strong>可用版本：</strong> <code>VSAG_THIRDPARTY_*</code> 覆盖能力在 <code>main</code> 分支以及 <code>0.15</code>、<code>0.16</code>、
+<code>0.17</code>、<code>0.18</code> 发布线上均可用——详见<a href="#版本可用性">版本可用性</a>。</p>
+</blockquote>
+<h2 id="开始前的关键事项"><a class="header" href="#开始前的关键事项">开始前的关键事项</a></h2>
 <ul>
-<li>数据已归一化（<code>cosine</code> 或预归一化 <code>l2</code>）→ 选 <strong>uniform</strong>。</li>
-<li>数据各维度取值范围差异极大（如混合特征块）→ 先尝试非 uniform 的
-<a href="sq.html"><code>sq*</code></a>，或在旋转变换后再用 uniform（<code>"rom, sq*_uniform"</code>）。</li>
-<li>吞吐比最后一点点召回更重要 → <strong>uniform</strong>。</li>
+<li><strong>取值可以是本地路径，也可以是 URL。</strong> 支持绝对文件路径
+（<code>/data/deps/fmt-10.2.1.tar.gz</code>）、<code>file://</code> URL，或任意 <code>http(s)://</code> URL——
+包括内网 HTTP 服务或 OSS / S3 存储桶。</li>
+<li><strong>依然会校验压缩包哈希。</strong> 每个依赖都声明了 <code>URL_HASH</code>（MD5 或 SHA256）。你镜像 /
+本地的压缩包必须与<strong>上游压缩包逐字节一致</strong>，否则 CMake 会因哈希不匹配而中止。最稳妥的
+做法是把上游原始文件下载一次，原封不动地重新托管。</li>
+<li><strong>覆盖项在配置阶段读取。</strong> 如果你在上一次配置之后修改了变量，请重新执行 CMake 配置或
+先运行 <code>make clean</code>，新值才会生效。</li>
+<li><strong>请使用非空值，否则就不要设置。</strong> CMake 把“已 export 但为空”的变量视为<em>已定义</em>，因此
+<code>export VSAG_THIRDPARTY_FMT=</code> 会把一个空项 prepend 到 URL 列表里，导致下载失败。若要停用
+某个覆盖项，请 <code>unset</code> 它，而不要把它设为空字符串。</li>
+<li><strong>每个依赖相互独立。</strong> 没有单一的全局镜像变量；每个需要的依赖各自设置一个
+<code>VSAG_THIRDPARTY_&lt;LIB&gt;</code>。你只需为本次构建实际拉取的依赖设置变量（见
+<a href="#我需要哪些依赖">我需要哪些依赖？</a>）。</li>
+<li><strong>日志中的确认信息。</strong> 覆盖项生效时，CMake 会打印
+<code>-- Using local path for &lt;lib&gt;: &lt;你的取值&gt;</code>。</li>
 </ul>
-<h2 id="相关页面"><a class="header" href="#相关页面">相关页面</a></h2>
+<h2 id="环境变量"><a class="header" href="#环境变量">环境变量</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>环境变量</th><th>库</th><th>需镜像的上游压缩包</th><th>何时被拉取</th></tr>
+</thead>
+<tbody>
+<tr><td><code>VSAG_THIRDPARTY_JSON</code></td><td>nlohmann/json 3.11.3</td><td><code>github.com/nlohmann/json/.../v3.11.3.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ANTLR4</code></td><td>ANTLR4 runtime 4.13.2</td><td><code>github.com/antlr/antlr4/.../4.13.2.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_BOOST</code></td><td>Boost 1.67.0（头文件）</td><td><code>archives.boost.io/.../boost_1_67_0.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.23</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.23.tar.gz</code></td><td>默认 BLAS 后端（未使用系统库 / MKL 时）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CPUINFO</code></td><td>pytorch/cpuinfo</td><td><code>github.com/pytorch/cpuinfo/archive/ca678952...tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_FMT</code></td><td>fmt 10.2.1</td><td><code>github.com/fmtlib/fmt/.../10.2.1.tar.gz</code></td><td>始终（除非使用系统 fmt）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_THREAD_POOL</code></td><td>log4cplus/ThreadPool</td><td><code>github.com/log4cplus/ThreadPool/archive/3507796e...tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TSL</code></td><td>Tessil/robin-map 1.4.0</td><td><code>github.com/Tessil/robin-map/.../v1.4.0.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ROARINGBITMAP</code></td><td>CRoaring 3.0.1</td><td><code>github.com/RoaringBitmap/CRoaring/.../v3.0.1.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CATCH2</code></td><td>Catch2 3.7.1</td><td><code>github.com/catchorg/Catch2/.../v3.7.1.tar.gz</code></td><td><code>ENABLE_TESTS=ON</code></td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HDF5</code></td><td>HDF5 1.14.4</td><td><code>github.com/HDFGroup/hdf5/.../hdf5_1.14.4.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ARGPARSE</code></td><td>p-ranav/argparse 3.1</td><td><code>github.com/p-ranav/argparse/.../v3.1.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_YAML_CPP</code></td><td>yaml-cpp 0.9.0</td><td><code>github.com/jbeder/yaml-cpp/.../yaml-cpp-0.9.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TABULATE</code></td><td>p-ranav/tabulate</td><td><code>github.com/p-ranav/tabulate/archive/3a583010...tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HTTPLIB</code></td><td>cpp-httplib 0.35.0</td><td><code>github.com/yhirose/cpp-httplib/.../v0.35.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_PYBIND11</code></td><td>pybind11 2.11.1</td><td><code>github.com/pybind/pybind11/.../v2.11.1.tar.gz</code></td><td>Python 绑定（<code>pyvsag</code> / <code>ENABLE_PYBINDS=ON</code>）</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p>每个依赖确切的上游 URL <strong>以及</strong>期望的 <code>URL_HASH</code>，其唯一权威来源是对应的
+<a href="https://github.com/antgroup/vsag/tree/main/extern"><code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code></a>
+文件。镜像时（尤其是版本升级后）请以该文件为准。</p>
+</blockquote>
+<p>此处未列出的（不下载，因此无需覆盖）：<strong>Intel MKL</strong>（通过 <code>find_path</code> 在主机上查找）与
+<strong>DiskANN</strong>（以源码内置于 <code>extern/diskann/</code>）。</p>
+<h2 id="我需要哪些依赖"><a class="header" href="#我需要哪些依赖">我需要哪些依赖？</a></h2>
+<p>你只需镜像本次构建实际会下载的依赖：</p>
 <ul>
-<li><a href="sq.html">标量量化（SQ4 / SQ8）</a></li>
-<li><a href="../advanced/quantization_transform.html">量化变换</a></li>
-<li><a href="README.html">量化总览</a></li>
+<li><strong>核心库</strong>（<code>make debug</code> / <code>make release</code>）：<code>JSON</code>、<code>ANTLR4</code>、<code>BOOST</code>、
+<code>OPENBLAS</code>、<code>CPUINFO</code>、<code>FMT</code>、<code>THREAD_POOL</code>、<code>TSL</code>、<code>ROARINGBITMAP</code>。
+其中两个是条件依赖：当 BLAS 由 Intel MKL（x86_64 且 <code>ENABLE_INTEL_MKL=ON</code>）或系统
+OpenBLAS 提供时，<code>OPENBLAS</code> <strong>不会</strong>下载；当找到系统 <code>fmt</code> 时，<code>FMT</code> 会被跳过。</li>
+<li><strong>+ 测试</strong>（<code>make test</code>，<code>ENABLE_TESTS=ON</code>）：另加 <code>CATCH2</code>。</li>
+<li><strong>+ 工具</strong>（<code>ENABLE_TOOLS=ON</code> <strong>且</strong> <code>ENABLE_CXX11_ABI=ON</code>）：另加 <code>HDF5</code>、
+<code>ARGPARSE</code>、<code>YAML_CPP</code>、<code>TABULATE</code>、<code>HTTPLIB</code>——仅当两个选项同时开启时才会下载
+（见 <a href="https://github.com/antgroup/vsag/blob/main/cmake/VSAGThirdParty.cmake"><code>cmake/VSAGThirdParty.cmake</code></a>）。</li>
+<li><strong>+ Python wheel</strong>（<code>make pyvsag</code>）：另加 <code>PYBIND11</code>。</li>
 </ul>
+<h2 id="示例"><a class="header" href="#示例">示例</a></h2>
+<h3 id="a-内网-http-服务或-oss-存储桶推荐"><a class="header" href="#a-内网-http-服务或-oss-存储桶推荐">A. 内网 HTTP 服务或 OSS 存储桶（推荐）</a></h3>
+<p>将上游压缩包原封不动地重新托管到内网地址，再让每个变量指向它。用一个基础 URL 的 shell
+变量可以让配置更简洁：</p>
+<pre><code class="language-bash"># 内网镜像，逐字节提供上游压缩包
+export VSAG_MIRROR=https://mirror.corp.example.com/vsag-thirdparty
+
+export VSAG_THIRDPARTY_JSON=$VSAG_MIRROR/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4=$VSAG_MIRROR/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_BOOST=$VSAG_MIRROR/boost_1_67_0.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_CPUINFO=$VSAG_MIRROR/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT=$VSAG_MIRROR/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL=$VSAG_MIRROR/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL=$VSAG_MIRROR/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP=$VSAG_MIRROR/CRoaring-3.0.1.tar.gz
+
+make release
+</code></pre>
+<p>OSS / S3 存储桶用法完全相同——直接使用其公网（或网络可达）的对象 URL，例如
+<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.23.tar.gz</code>。</p>
+<h3 id="b-预先下载的本地文件完全离线"><a class="header" href="#b-预先下载的本地文件完全离线">B. 预先下载的本地文件（完全离线）</a></h3>
+<p>在完全没有网络的机器上，先把压缩包拷贝到本机（例如 <code>/data/vsag-deps</code>），再让变量指向本地
+文件：</p>
+<pre><code class="language-bash">export VSAG_THIRDPARTY_JSON=/data/vsag-deps/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4=/data/vsag-deps/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_BOOST=/data/vsag-deps/boost_1_67_0.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_CPUINFO=/data/vsag-deps/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT=/data/vsag-deps/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL=/data/vsag-deps/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL=/data/vsag-deps/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP=/data/vsag-deps/CRoaring-3.0.1.tar.gz
+
+make release
+</code></pre>
+<p>使用 <code>file://</code> URL（<code>export VSAG_THIRDPARTY_FMT=file:///data/vsag-deps/fmt-10.2.1.tar.gz</code>）
+同样有效。</p>
+<h3 id="c-只覆盖单个依赖"><a class="header" href="#c-只覆盖单个依赖">C. 只覆盖单个依赖</a></h3>
+<p>如果只有某一个下载不稳定，只覆盖它即可，其余继续使用默认地址：</p>
+<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.23.tar.gz
+make release
+</code></pre>
+<h2 id="备选方案复用系统库"><a class="header" href="#备选方案复用系统库">备选方案：复用系统库</a></h2>
+<p>对于主机上已安装的依赖，你可以直接跳过下载，而不必镜像。设置
+<code>VSAG_USE_SYSTEM_DEPS=ON</code>（或按依赖设置 <code>VSAG_USE_SYSTEM_&lt;DEP&gt;=ON</code>）。当前支持系统复用的
+依赖列表见
+<a href="https://github.com/antgroup/vsag/blob/main/DEVELOPMENT.md#system-third-party-dependencies"><code>DEVELOPMENT.md</code></a>。</p>
+<h2 id="常见问题"><a class="header" href="#常见问题">常见问题</a></h2>
+<ul>
+<li><strong>哈希不匹配 / 出现 “HASH mismatch” 错误</strong> —— 你镜像或本地的压缩包与上游文件不是逐字节
+一致。请重新下载确切的上游压缩包并原样托管，或在 <code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code> 中核对期望的
+<code>URL_HASH</code>。</li>
+<li><strong>覆盖项似乎未生效</strong> —— 确认变量是在运行 <code>make</code> / <code>cmake</code> 的同一个 shell 中 <code>export</code> 的，
+然后重新执行配置（或 <code>make clean</code>），因为取值是在 CMake 配置阶段读取的。确认配置输出中出现
+<code>-- Using local path for &lt;lib&gt;: &lt;你的取值&gt;</code> 这一行。</li>
+<li><strong>仍然在访问网络</strong> —— 多半是漏掉了本次构建会拉取的某个依赖。请对照
+<a href="#我需要哪些依赖">我需要哪些依赖？</a> 与你启用的选项（<code>ENABLE_TESTS</code>、<code>ENABLE_TOOLS</code>、
+Python 绑定）逐项核对。</li>
+</ul>
+<h2 id="版本可用性"><a class="header" href="#版本可用性">版本可用性</a></h2>
+<p>按依赖配置的 <code>VSAG_THIRDPARTY_*</code> 覆盖能力在 <code>main</code> 开发线以及 <code>0.15</code>、<code>0.16</code>、<code>0.17</code>、
+<code>0.18</code> 发布线上均可用，因此本地路径与内网镜像覆盖在所有这些分支上的行为完全一致。该能力最初由
+<a href="https://github.com/antgroup/vsag/pull/1606">#1606</a> 在 <code>main</code> 引入，并已合入各发布线（跟踪于
+<a href="https://github.com/antgroup/vsag/issues/2308">#2308</a>）。内置的“上游 + 阿里云 OSS 镜像”兜底在
+每条线上依然保留；若你不想镜像某个依赖，也仍可使用<a href="#备选方案复用系统库">复用系统库</a>。</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../quantization/sq.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../development/building.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../quantization/pq.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../development/testing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -429,11 +489,11 @@ scale 与 offset</strong>。这在热路径上带来三点收益：</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../quantization/sq.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../development/building.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../quantization/pq.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../development/testing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

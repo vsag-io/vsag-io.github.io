@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="zh" class="light sidebar-visible" dir="ltr">
+<html lang="en" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Uniform 标量量化（SQ4 / SQ8 Uniform） - VSAG文档</title>
+        <title>Offline / Air-gapped Builds - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b895d736.js";
+            window.path_to_searchindex_js = "../searchindex-0ca513b3.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f216ae3f.js"></script>
+        <script src="../toc-25146046.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG文档</h1>
+                    <h1 class="menu-title">VSAG Documentation</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,122 +304,208 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform"><a class="header" href="#标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform">标量量化 Uniform（Scalar Quantization Uniform：SQ4 / SQ8 Uniform）</a></h1>
-<p><code>sq8_uniform</code> 与 <code>sq4_uniform</code> 与 <a href="sq.html"><code>sq8</code> / <code>sq4</code></a> 类似，是标量量化
-器，但它们学习的是<strong>全局唯一</strong>的 <code>[min, max]</code> 范围，对所有维度都使用同一
-份缩放参数。这一权衡——逐维自适应能力略弱，但解码路径更简单——换来了
-显著更快的 SIMD 距离计算（<code>l2</code> 与 <code>ip</code>），并保持更紧凑的码布局。</p>
-<p><img src="../figures/quantization/sq-uniform-vs-perdim.svg" alt="Uniform（全局范围）与逐维标量量化对比"></p>
-<blockquote>
-<p>实现：<code>src/quantization/scalar_quantization/sq8_uniform_quantizer.cpp</code>、
-<code>src/quantization/scalar_quantization/sq4_uniform_quantizer.cpp</code>。</p>
-</blockquote>
-<h2 id="为什么快距离计算停留在整数域"><a class="header" href="#为什么快距离计算停留在整数域">为什么快：距离计算停留在整数域</a></h2>
-<p>这是在条件允许时优先选用 <code>sq*_uniform</code> 而非 <code>sq*</code> 的核心原因。由于每个
-维度共享同一对 <code>(min, max)</code>，仿射解码
-<code>x = min + code · (max - min) / (2^b - 1)</code> 对<strong>所有坐标都使用相同的
-scale 与 offset</strong>。这在热路径上带来三点收益：</p>
-<ul>
-<li>query 用同一份全局 <code>(min, max)</code> <strong>只编码一次</strong>，存入 uint8（或打包的
-半字节）缓冲，见 <code>ProcessQueryImpl</code>
-（<code>src/quantization/scalar_quantization/sq8_uniform_quantizer.cpp:179</code>）。</li>
-<li>base 向量的 code <strong>从不解码回 fp32</strong>。kernel
-<code>SQ8UniformComputeCodesIP(uint8_t* q, uint8_t* x, dim)</code> /
-<code>SQ4UniformComputeCodesIP(...)</code> 把两个操作数都按原始整数 code 读入，
-在 uint8 / 打包半字节通道上直接用 AVX-512 / AMX（ARM 上为 NEON）做
-点积，一次处理一个 cache line。内层循环里没有任何逐元素的 fp 反量化。</li>
-<li>共享的 scale 与 offset 在整数累加完成之后<strong>对每对向量只补偿一次</strong>，
-即可还原 fp 距离。某些度量需要的额外项（每向量的 norm 或 sum）也在
-循环外加上，参见
-<code>sq8_uniform_quantizer.cpp:200</code> 的 trailing metadata 说明以及
-<code>SQ8UniformComputeCodesIPBatch</code> 批量 kernel。</li>
-</ul>
-<p>而在逐维的 <code>sq*</code> 量化器里，每个坐标都有自己的 <code>(min_i, max_i)</code>，kernel
-要么在循环内乘以逐维 scale 表，要么先把至少一边的操作数解码回 fp。
-省掉这一步，就是 uniform 变种在同等召回下显著更快的根本原因。</p>
-<h2 id="何时使用"><a class="header" href="#何时使用">何时使用</a></h2>
-<ul>
-<li><strong>HGraph / IVF / Pyramid 的热路径。</strong> 当瓶颈在基础量化器距离计算时，
-在相近召回下，<code>sq8_uniform</code> / <code>sq4_uniform</code> 几乎总是比对应的非 uniform
-变种更快。</li>
-<li><strong>维度间取值范围相近的数据。</strong> 归一化嵌入（cosine），或已通过
-<a href="../advanced/quantization_transform.html">量化变换</a> 链路（如
-<code>"rom, sq8_uniform"</code> 或 <code>"fht, sq8_uniform"</code>）旋转过的向量，都是理想
-输入。</li>
-<li><strong>作为 <code>tq</code> 链路的末端量化器。</strong> 最常见的链路是
-<code>"pca, rom, sq8_uniform"</code>，参考示例 501。</li>
-</ul>
-<h2 id="sq4-uniform-与-sq8-uniform-对比"><a class="header" href="#sq4-uniform-与-sq8-uniform-对比">SQ4 uniform 与 SQ8 uniform 对比</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>类型</th><th>每维位数</th><th>相对 fp32 内存</th><th>典型精度</th></tr>
-</thead>
-<tbody>
-<tr><td><code>sq8_uniform</code></td><td>8</td><td>~1/4</td><td>轻微召回下降</td></tr>
-<tr><td><code>sq4_uniform</code></td><td>4</td><td>~1/8</td><td>需重排以保持高召回</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="参数"><a class="header" href="#参数">参数</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Key</th><th>类型</th><th>默认</th><th>适用</th><th>含义</th></tr>
-</thead>
-<tbody>
-<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td>仅 <code>sq4_uniform</code></td><td>对离群值的对称截断比例（<code>src/quantization/scalar_quantization/sq4_uniform_quantizer_parameter.h:39</code>）。值越大，越多极端坐标被截断，从而减少主体数据的范围浪费，代价是尾部被裁掉。</td></tr>
-</tbody>
-</table>
-</div>
-<p><code>sq8_uniform</code> 没有量化器专属的 JSON 参数。</p>
-<p>在 HGraph 上，<code>sq4_uniform_trunc_rate</code> 作为顶层 key 暴露，并被映射到
-嵌套的量化参数中（<code>src/algorithm/hgraph.cpp:409-416</code>）。</p>
-<pre><code class="language-json">{
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128,
-    "index_param": {
-        "base_quantization_type": "sq4_uniform",
-        "sq4_uniform_trunc_rate": 0.05,
-        "max_degree": 32,
-        "ef_construction": 300,
-        "use_reorder": true,
-        "precise_quantization_type": "fp32"
-    }
-}
+                        <h1 id="offline--air-gapped-builds"><a class="header" href="#offline--air-gapped-builds">Offline / Air-gapped Builds</a></h1>
+<p>VSAG downloads a set of third-party libraries at CMake <strong>configure / build time</strong>
+(via <code>ExternalProject_Add</code> and <code>FetchContent</code>). On a machine without internet
+access, or behind a slow / restricted network, those downloads can fail or time
+out. This page explains how to point each dependency at a <strong>local path</strong> or an
+<strong>internal mirror</strong> (internal HTTP server, OSS bucket, Artifactory, etc.) so the
+build can complete fully offline.</p>
+<h2 id="how-third-party-downloads-are-resolved"><a class="header" href="#how-third-party-downloads-are-resolved">How third-party downloads are resolved</a></h2>
+<p>For every downloaded dependency, VSAG builds a <em>list</em> of candidate URLs and lets
+CMake try them <strong>in order</strong>, stopping at the first one that succeeds. Using
+<code>antlr4</code> as the representative example
+(<a href="https://github.com/antgroup/vsag/blob/main/extern/antlr4/antlr4.cmake"><code>extern/antlr4/antlr4.cmake</code></a>):</p>
+<pre><code class="language-cmake">set (antlr4_urls
+    https://github.com/antlr/antlr4/archive/refs/tags/4.13.2.tar.gz   # 1. upstream
+    https://vsagcache.oss-rg-china-mainland.aliyuncs.com/antlr4/v4.13.2.tar.gz  # 2. project mirror
+)
+if (DEFINED ENV{VSAG_THIRDPARTY_ANTLR4})
+    message (STATUS "Using local path for antlr4: $ENV{VSAG_THIRDPARTY_ANTLR4}")
+    list (PREPEND antlr4_urls "$ENV{VSAG_THIRDPARTY_ANTLR4}")   # 0. your override (tried first)
+endif ()
+
+ExternalProject_Add (antlr4
+    URL ${antlr4_urls}
+    URL_HASH MD5=3b75610fc8a827119258cba09a068be5
+    ...)
 </code></pre>
-<p>若需 8 位变种，把 <code>"base_quantization_type"</code> 设为 <code>"sq8_uniform"</code> 并去掉
-<code>trunc_rate</code> key 即可。</p>
-<h2 id="训练"><a class="header" href="#训练">训练</a></h2>
-<p>设置了 <code>NEED_TRAIN</code>。训练在所有维度上估计单一的 <code>[min, max]</code>
-（<code>sq4_uniform</code> 时可附加截断）。<code>Build</code> 会内部完成训练。</p>
-<h2 id="度量兼容性"><a class="header" href="#度量兼容性">度量兼容性</a></h2>
-<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持。<code>cosine</code> 会先归一化再量化，这也使得 uniform
-缩放在该度量下接近最优。</p>
-<h2 id="uniform-与非-uniform-之间如何选"><a class="header" href="#uniform-与非-uniform-之间如何选">uniform 与非 uniform 之间如何选</a></h2>
+<p>The resolution order is therefore:</p>
+<ol>
+<li><strong><code>VSAG_THIRDPARTY_&lt;LIB&gt;</code></strong> — your override, if the environment variable is
+set to a <strong>non-empty</strong> value. Tried <strong>first</strong>.</li>
+<li>The <strong>upstream</strong> URL (GitHub / project release page).</li>
+<li>The project-maintained <strong>Aliyun OSS mirror</strong>
+(<code>vsagcache.oss-rg-china-mainland.aliyuncs.com</code>). This fallback is always
+present and helps in mainland-China / poor-network environments, but it is
+<strong>not</strong> user-configurable — for a fully internal mirror, use the environment
+variable.</li>
+</ol>
+<blockquote>
+<p><strong>Availability:</strong> the <code>VSAG_THIRDPARTY_*</code> override is available on <code>main</code> and on
+the <code>0.15</code>, <code>0.16</code>, <code>0.17</code>, and <code>0.18</code> release lines — see
+<a href="#version-availability">Version availability</a>.</p>
+</blockquote>
+<h2 id="key-facts-before-you-start"><a class="header" href="#key-facts-before-you-start">Key facts before you start</a></h2>
 <ul>
-<li>数据已归一化（<code>cosine</code> 或预归一化 <code>l2</code>）→ 选 <strong>uniform</strong>。</li>
-<li>数据各维度取值范围差异极大（如混合特征块）→ 先尝试非 uniform 的
-<a href="sq.html"><code>sq*</code></a>，或在旋转变换后再用 uniform（<code>"rom, sq*_uniform"</code>）。</li>
-<li>吞吐比最后一点点召回更重要 → <strong>uniform</strong>。</li>
+<li><strong>The value may be a local path or a URL.</strong> Accepted forms include an
+absolute filesystem path (<code>/data/deps/fmt-10.2.1.tar.gz</code>), a <code>file://</code> URL, or
+any <code>http(s)://</code> URL — including an internal HTTP server or an OSS / S3 bucket.</li>
+<li><strong>The archive hash is still verified.</strong> Each dependency declares a
+<code>URL_HASH</code> (MD5 or SHA256). Your mirrored / local archive must be <strong>byte
+identical to the upstream archive</strong>, otherwise CMake aborts with a hash
+mismatch. The simplest safe approach is to download the exact upstream file
+once and re-host it unchanged.</li>
+<li><strong>Overrides are read at configure time.</strong> If you change a variable after a
+previous configure, re-run CMake configure or run <code>make clean</code> first so the
+new value takes effect.</li>
+<li><strong>Use a non-empty value, or leave it unset.</strong> CMake treats a variable that is
+exported but empty as <em>defined</em>, so <code>export VSAG_THIRDPARTY_FMT=</code> would prepend
+an empty entry to the URL list and break the download. To disable an override,
+<code>unset</code> it instead of setting it to an empty string.</li>
+<li><strong>Each dependency is independent.</strong> There is no single global mirror variable;
+set one <code>VSAG_THIRDPARTY_&lt;LIB&gt;</code> per dependency you need. You only need to set
+variables for the dependencies your build actually pulls in (see
+<a href="#which-dependencies-do-i-need">Which dependencies do I need?</a>).</li>
+<li><strong>Confirmation in the log.</strong> When an override is picked up, CMake prints
+<code>-- Using local path for &lt;lib&gt;: &lt;your value&gt;</code>.</li>
 </ul>
-<h2 id="相关页面"><a class="header" href="#相关页面">相关页面</a></h2>
+<h2 id="environment-variables"><a class="header" href="#environment-variables">Environment variables</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Environment variable</th><th>Library</th><th>Upstream archive to mirror</th><th>Pulled in when</th></tr>
+</thead>
+<tbody>
+<tr><td><code>VSAG_THIRDPARTY_JSON</code></td><td>nlohmann/json 3.11.3</td><td><code>github.com/nlohmann/json/.../v3.11.3.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ANTLR4</code></td><td>ANTLR4 runtime 4.13.2</td><td><code>github.com/antlr/antlr4/.../4.13.2.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_BOOST</code></td><td>Boost 1.67.0 (headers)</td><td><code>archives.boost.io/.../boost_1_67_0.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.23</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.23.tar.gz</code></td><td>default BLAS backend (when not using system / MKL)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CPUINFO</code></td><td>pytorch/cpuinfo</td><td><code>github.com/pytorch/cpuinfo/archive/ca678952...tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_FMT</code></td><td>fmt 10.2.1</td><td><code>github.com/fmtlib/fmt/.../10.2.1.tar.gz</code></td><td>always (unless system fmt)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_THREAD_POOL</code></td><td>log4cplus/ThreadPool</td><td><code>github.com/log4cplus/ThreadPool/archive/3507796e...tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TSL</code></td><td>Tessil/robin-map 1.4.0</td><td><code>github.com/Tessil/robin-map/.../v1.4.0.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ROARINGBITMAP</code></td><td>CRoaring 3.0.1</td><td><code>github.com/RoaringBitmap/CRoaring/.../v3.0.1.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CATCH2</code></td><td>Catch2 3.7.1</td><td><code>github.com/catchorg/Catch2/.../v3.7.1.tar.gz</code></td><td><code>ENABLE_TESTS=ON</code></td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HDF5</code></td><td>HDF5 1.14.4</td><td><code>github.com/HDFGroup/hdf5/.../hdf5_1.14.4.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ARGPARSE</code></td><td>p-ranav/argparse 3.1</td><td><code>github.com/p-ranav/argparse/.../v3.1.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_YAML_CPP</code></td><td>yaml-cpp 0.9.0</td><td><code>github.com/jbeder/yaml-cpp/.../yaml-cpp-0.9.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TABULATE</code></td><td>p-ranav/tabulate</td><td><code>github.com/p-ranav/tabulate/archive/3a583010...tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HTTPLIB</code></td><td>cpp-httplib 0.35.0</td><td><code>github.com/yhirose/cpp-httplib/.../v0.35.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_PYBIND11</code></td><td>pybind11 2.11.1</td><td><code>github.com/pybind/pybind11/.../v2.11.1.tar.gz</code></td><td>Python bindings (<code>pyvsag</code> / <code>ENABLE_PYBINDS=ON</code>)</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p>The exact upstream URL <strong>and</strong> the expected <code>URL_HASH</code> for each dependency are
+the single source of truth in the corresponding
+<a href="https://github.com/antgroup/vsag/tree/main/extern"><code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code></a>
+file. Check that file when mirroring, especially after a version bump.</p>
+</blockquote>
+<p>Not listed here (no download, so no override needed): <strong>Intel MKL</strong> (located on
+the host with <code>find_path</code>) and <strong>DiskANN</strong> (vendored in-tree under
+<code>extern/diskann/</code>).</p>
+<h2 id="which-dependencies-do-i-need"><a class="header" href="#which-dependencies-do-i-need">Which dependencies do I need?</a></h2>
+<p>You only have to mirror what your specific build actually downloads:</p>
 <ul>
-<li><a href="sq.html">标量量化（SQ4 / SQ8）</a></li>
-<li><a href="../advanced/quantization_transform.html">量化变换</a></li>
-<li><a href="README.html">量化总览</a></li>
+<li><strong>Core library</strong> (<code>make debug</code> / <code>make release</code>): <code>JSON</code>, <code>ANTLR4</code>, <code>BOOST</code>,
+<code>OPENBLAS</code>, <code>CPUINFO</code>, <code>FMT</code>, <code>THREAD_POOL</code>, <code>TSL</code>, <code>ROARINGBITMAP</code>.
+Two of these are conditional: <code>OPENBLAS</code> is <strong>not</strong> downloaded when BLAS comes
+from Intel MKL (x86_64 with <code>ENABLE_INTEL_MKL=ON</code>) or from a system OpenBLAS,
+and <code>FMT</code> is skipped when a system <code>fmt</code> is found.</li>
+<li><strong>+ Tests</strong> (<code>make test</code>, <code>ENABLE_TESTS=ON</code>): also <code>CATCH2</code>.</li>
+<li><strong>+ Tools</strong> (<code>ENABLE_TOOLS=ON</code> <strong>and</strong> <code>ENABLE_CXX11_ABI=ON</code>): also <code>HDF5</code>,
+<code>ARGPARSE</code>, <code>YAML_CPP</code>, <code>TABULATE</code>, <code>HTTPLIB</code> — downloaded only when <em>both</em>
+options are enabled (see
+<a href="https://github.com/antgroup/vsag/blob/main/cmake/VSAGThirdParty.cmake"><code>cmake/VSAGThirdParty.cmake</code></a>).</li>
+<li><strong>+ Python wheel</strong> (<code>make pyvsag</code>): also <code>PYBIND11</code>.</li>
 </ul>
+<h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
+<h3 id="a-internal-http-server-or-oss-bucket-recommended"><a class="header" href="#a-internal-http-server-or-oss-bucket-recommended">A. Internal HTTP server or OSS bucket (recommended)</a></h3>
+<p>Re-host the upstream archives unchanged on an internal endpoint, then point each
+variable at it. A base-URL shell variable keeps this compact:</p>
+<pre><code class="language-bash"># Internal mirror that serves the upstream archives byte-for-byte
+export VSAG_MIRROR=https://mirror.corp.example.com/vsag-thirdparty
+
+export VSAG_THIRDPARTY_JSON=$VSAG_MIRROR/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4=$VSAG_MIRROR/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_BOOST=$VSAG_MIRROR/boost_1_67_0.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_CPUINFO=$VSAG_MIRROR/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT=$VSAG_MIRROR/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL=$VSAG_MIRROR/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL=$VSAG_MIRROR/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP=$VSAG_MIRROR/CRoaring-3.0.1.tar.gz
+
+make release
+</code></pre>
+<p>An OSS / S3 bucket works identically — just use its public (or
+network-reachable) object URL, for example
+<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.23.tar.gz</code>.</p>
+<h3 id="b-pre-downloaded-local-files-fully-air-gapped"><a class="header" href="#b-pre-downloaded-local-files-fully-air-gapped">B. Pre-downloaded local files (fully air-gapped)</a></h3>
+<p>On a machine that has <em>no</em> network at all, copy the archives onto the box first
+(e.g. to <code>/data/vsag-deps</code>) and point the variables at the local files:</p>
+<pre><code class="language-bash">export VSAG_THIRDPARTY_JSON=/data/vsag-deps/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4=/data/vsag-deps/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_BOOST=/data/vsag-deps/boost_1_67_0.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_CPUINFO=/data/vsag-deps/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT=/data/vsag-deps/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL=/data/vsag-deps/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL=/data/vsag-deps/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP=/data/vsag-deps/CRoaring-3.0.1.tar.gz
+
+make release
+</code></pre>
+<p>A <code>file://</code> URL (<code>export VSAG_THIRDPARTY_FMT=file:///data/vsag-deps/fmt-10.2.1.tar.gz</code>)
+is equally valid.</p>
+<h3 id="c-override-a-single-dependency"><a class="header" href="#c-override-a-single-dependency">C. Override a single dependency</a></h3>
+<p>If only one download is unreliable, override just that one and let the rest use
+the defaults:</p>
+<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.23.tar.gz
+make release
+</code></pre>
+<h2 id="alternative-reuse-system-libraries"><a class="header" href="#alternative-reuse-system-libraries">Alternative: reuse system libraries</a></h2>
+<p>For dependencies that are already installed on the host, you can skip the
+download entirely instead of mirroring it. Set <code>VSAG_USE_SYSTEM_DEPS=ON</code> (or the
+per-dependency <code>VSAG_USE_SYSTEM_&lt;DEP&gt;=ON</code>). See
+<a href="https://github.com/antgroup/vsag/blob/main/DEVELOPMENT.md#system-third-party-dependencies"><code>DEVELOPMENT.md</code></a>
+for the list of dependencies that currently support system reuse.</p>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<ul>
+<li><strong>Hash mismatch / “HASH mismatch” error</strong> — your mirrored or local archive is
+not byte-identical to the upstream file. Re-download the exact upstream
+archive and re-host it unchanged, or confirm the expected <code>URL_HASH</code> in
+<code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code>.</li>
+<li><strong>Override seems ignored</strong> — make sure the variable was <code>export</code>ed in the same
+shell that runs <code>make</code> / <code>cmake</code>, then re-run configure (or <code>make clean</code>),
+because the value is read at CMake configure time. Confirm the
+<code>-- Using local path for &lt;lib&gt;: &lt;your value&gt;</code> line appears in the configure output.</li>
+<li><strong>Still hitting the network</strong> — you probably missed a dependency that your
+build pulls in. Cross-check the list in
+<a href="#which-dependencies-do-i-need">Which dependencies do I need?</a> against your
+enabled options (<code>ENABLE_TESTS</code>, <code>ENABLE_TOOLS</code>, Python bindings).</li>
+</ul>
+<h2 id="version-availability"><a class="header" href="#version-availability">Version availability</a></h2>
+<p>The per-dependency <code>VSAG_THIRDPARTY_*</code> override is available on the <code>main</code>
+development line and on the <code>0.15</code>, <code>0.16</code>, <code>0.17</code>, and <code>0.18</code> release lines, so
+local-path and internal-mirror overrides behave the same way across all of them.
+It was introduced on <code>main</code> by
+<a href="https://github.com/antgroup/vsag/pull/1606">#1606</a> and backported to the release
+lines (tracked in <a href="https://github.com/antgroup/vsag/issues/2308">#2308</a>). The
+built-in upstream + Aliyun OSS mirror fallback remains present on every line, and
+<a href="#alternative-reuse-system-libraries">system-library reuse</a> is still available when
+you would rather not mirror a dependency at all.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../quantization/sq.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../development/building.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../quantization/pq.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../development/testing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -429,11 +515,11 @@ scale 与 offset</strong>。这在热路径上带来三点收益：</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../quantization/sq.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../development/building.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../quantization/pq.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../development/testing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

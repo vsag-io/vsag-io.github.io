@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-38be4c22.js";
+            window.path_to_searchindex_js = "../searchindex-0ca513b3.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-b8e48929.js"></script>
+        <script src="../toc-25146046.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -350,6 +350,8 @@ exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBy
 <tr><td><code>proximity_recall_neighbor</code></td><td>Recall of graph neighbor lists against true nearest neighbors</td></tr>
 <tr><td><code>quantization_bias_ratio</code></td><td>Quantized-distance bias against exact distance</td></tr>
 <tr><td><code>quantization_inversion_count_rate</code></td><td>Rate of distance-order inversions caused by quantization</td></tr>
+<tr><td><code>build_cache_hit_rate</code></td><td>Fraction of nodes warm-started from an imported cache during the last <code>Build()</code>; emits a <code>skipped_reason</code> when the index was not built from a cache imported via <code>ImportCache()</code></td></tr>
+<tr><td><code>build_cache_hit_nodes</code> / <code>build_cache_missed_nodes</code></td><td>Node counts behind <code>build_cache_hit_rate</code> (only present when the index was built from an imported cache)</td></tr>
 </tbody>
 </table>
 </div>

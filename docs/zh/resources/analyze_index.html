@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1d8ec2ff.js";
+            window.path_to_searchindex_js = "../searchindex-b895d736.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c4211f84.js"></script>
+        <script src="../toc-f216ae3f.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -347,6 +347,8 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 <tr><td><code>proximity_recall_neighbor</code></td><td>邻居列表相对真实最近邻的召回率</td></tr>
 <tr><td><code>quantization_bias_ratio</code></td><td>量化距离相对精确距离的偏差比率</td></tr>
 <tr><td><code>quantization_inversion_count_rate</code></td><td>量化导致的距离顺序倒置比率</td></tr>
+<tr><td><code>build_cache_hit_rate</code></td><td>上一次 <code>Build()</code> 中从导入缓存完成 warm-start 的节点占比；当索引并非由 <code>ImportCache()</code> 导入的缓存构建时，输出 <code>skipped_reason</code></td></tr>
+<tr><td><code>build_cache_hit_nodes</code> / <code>build_cache_missed_nodes</code></td><td><code>build_cache_hit_rate</code> 背后的命中 / 未命中节点数（仅在索引由导入缓存构建时存在）</td></tr>
 </tbody>
 </table>
 </div>

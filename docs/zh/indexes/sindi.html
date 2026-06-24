@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-1d8ec2ff.js";
+            window.path_to_searchindex_js = "../searchindex-b895d736.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c4211f84.js"></script>
+        <script src="../toc-f216ae3f.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -435,6 +435,12 @@ SPLADE。</li>
 这样可以避免管理大量空倒排列表带来的内存浪费，也能降低触达 <code>term_id_limit</code>
 上限的风险。</li>
 </ol>
+<h2 id="标记删除"><a class="header" href="#标记删除">标记删除</a></h2>
+<p>SINDI 支持 <code>RemoveMode::MARK_REMOVE</code>。调用 <code>Remove(ids)</code>（默认模式）会为给定的 id
+打上删除标记：它们不再出现在检索结果中，<code>GetNumElements()</code> 相应减少，
+<code>GetNumberRemoved()</code> 返回累计删除数量。删除不存在或已删除的 id 不会有任何效果。
+<code>RemoveMode::FORCE_REMOVE</code> 不支持，调用会返回错误。</p>
+<p>被标记删除的文档在索引重建前仍占用内存，空间不会被物理回收。</p>
 <h2 id="相关文档"><a class="header" href="#相关文档">相关文档</a></h2>
 <ul>
 <li><a href="../guide/create_index.html">创建索引</a></li>

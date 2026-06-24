@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-38be4c22.js";
+            window.path_to_searchindex_js = "searchindex-0ca513b3.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-b8e48929.js"></script>
+        <script src="toc-25146046.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1308,6 +1308,14 @@ range, such as hash-based tokenizers, external vocabulary IDs, or vocabularies
 with large gaps, enable <code>remap_term_ids: true</code>. This avoids managing many
 empty posting lists and helps stay below the <code>term_id_limit</code> ceiling.</li>
 </ol>
+<h2 id="mark-remove"><a class="header" href="#mark-remove">Mark remove</a></h2>
+<p>SINDI supports <code>RemoveMode::MARK_REMOVE</code>. Calling <code>Remove(ids)</code> (the default mode)
+tombstones the given ids so they no longer appear in search results;
+<code>GetNumElements()</code> drops accordingly and <code>GetNumberRemoved()</code> reports the running
+total. Removing an id that is absent or already removed is a no-op.
+<code>RemoveMode::FORCE_REMOVE</code> is not supported and returns an error.</p>
+<p>Mark-removed documents still occupy memory until the index is rebuilt; the space
+is not physically reclaimed.</p>
 <h2 id="see-also-2"><a class="header" href="#see-also-2">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
@@ -1326,7 +1334,8 @@ scenario where one logical index serves many groups that must not cross-contamin
 results.</p>
 <ul>
 <li>Source: <code>src/algorithm/pyramid.{h,cpp}</code>, <code>src/algorithm/pyramid_zparameters.{h,cpp}</code></li>
-<li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
+<li>Example (single hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
+<li>Example (multi-hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/112_index_pyramid_multi_hierarchy.cpp"><code>examples/cpp/112_index_pyramid_multi_hierarchy.cpp</code></a></li>
 </ul>
 <h2 id="how-it-works-3"><a class="header" href="#how-it-works-3">How it works</a></h2>
 <ol>
@@ -1409,6 +1418,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>Minimum sub-index size; smaller groups fall back to scan.</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Allow duplicate ids.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>Threads used for parallel build.</td></tr>
+<tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>Named hierarchy definitions. Each element is either a string (inherits all top-level params) or an object with <code>name</code> and optional overrides (<code>max_degree</code>, <code>ef_construction</code>, <code>alpha</code>, <code>no_build_levels</code>, <code>index_min_size</code>). When present, multi-hierarchy mode is activated and each hierarchy maintains its own independent path tree.</td></tr>
 </tbody>
 </table>
 </div>
@@ -1422,12 +1432,110 @@ auto result = index-&gt;KnnSearch(
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>Candidate list size for the leaf-level graph search.</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>Candidate list size used when traversing intermediate sub-graphs on the path.</td></tr>
+<tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>Select which hierarchy to search. Empty means use the default (unnamed) hierarchy.</td></tr>
+<tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>How to combine results across hierarchies: <code>single</code> (search one hierarchy), <code>union</code>, or <code>intersection</code>. <strong>Note:</strong> <code>union</code> and <code>intersection</code> are not yet implemented — setting them will cause <code>KnnSearch</code>/<code>RangeSearch</code> to return an error.</td></tr>
 </tbody>
 </table>
 </div>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"pyramid": {"ef_search": 200, "subindex_ef_search": 80}})").value();
+</code></pre>
+<h2 id="multi-hierarchy-support"><a class="header" href="#multi-hierarchy-support">Multi-Hierarchy Support</a></h2>
+<p>A single Pyramid index can maintain <strong>multiple independent path trees</strong>, each
+identified by a name (e.g. <code>"site"</code>, <code>"category"</code>). Vectors share IDs and data
+across all hierarchies — only the paths differ. Each hierarchy can optionally
+override graph construction parameters.</p>
+<p>This is useful when the same set of vectors needs to be partitioned along
+different dimensions simultaneously. For example, an e-commerce platform might
+partition products by <strong>site</strong> (<code>site-a/lang-en</code>) and by <strong>category</strong>
+(<code>electronics/phones</code>) at the same time, and search can target either hierarchy
+independently.</p>
+<h3 id="build-configuration"><a class="header" href="#build-configuration">Build configuration</a></h3>
+<p>Add a <code>hierarchies</code> array inside <code>index_param</code>. Each element is either:</p>
+<ul>
+<li>A <strong>string</strong> (inherits all top-level params): <code>"site"</code></li>
+<li>An <strong>object</strong> with <code>name</code> and optional per-hierarchy overrides:
+<code>{"name": "category", "max_degree": 64, "no_build_levels": [0]}</code></li>
+</ul>
+<p>Overridable per-hierarchy parameters: <code>max_degree</code>, <code>ef_construction</code>, <code>alpha</code>,
+<code>no_build_levels</code>, <code>index_min_size</code>.</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 32,
+        "alpha": 1.2,
+        "graph_type": "odescent",
+        "graph_iter_turn": 15,
+        "neighbor_sample_rate": 0.2,
+        "no_build_levels": [0, 1],
+        "use_reorder": true,
+        "build_thread_count": 16,
+        "hierarchies": [
+            "site",
+            {"name": "category", "max_degree": 64, "no_build_levels": [0]}
+        ]
+    }
+}
+</code></pre>
+<h3 id="dataset-api-for-named-hierarchies"><a class="header" href="#dataset-api-for-named-hierarchies">Dataset API for named hierarchies</a></h3>
+<p>Use the overloaded <code>Paths(hierarchy_name, paths)</code> method to assign paths per
+hierarchy. The same <code>Ids()</code> and <code>Float32Vectors()</code> are shared across all
+hierarchies:</p>
+<pre><code class="language-cpp">auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)
+    -&gt;Dim(128)
+    -&gt;Ids(ids)
+    -&gt;Float32Vectors(data)
+    -&gt;Paths("site", site_paths)         // std::string* of length n
+    -&gt;Paths("category", category_paths) // independent paths for 2nd hierarchy
+    -&gt;Owner(false);
+index-&gt;Build(base);
+</code></pre>
+<h3 id="searching-a-specific-hierarchy"><a class="header" href="#searching-a-specific-hierarchy">Searching a specific hierarchy</a></h3>
+<p>Specify which hierarchy to search via <code>"hierarchies"</code> in the search parameters.
+The query dataset must also set its path on the matching hierarchy name:</p>
+<pre><code class="language-cpp">auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)
+    -&gt;Dim(128)
+    -&gt;Float32Vectors(q)
+    -&gt;Paths("site", &amp;query_path)   // target the "site" hierarchy
+    -&gt;Owner(false);
+
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10,
+    R"({"pyramid": {"ef_search": 100, "hierarchies": ["site"]}})").value();
+</code></pre>
+<h3 id="incremental-insertion-add"><a class="header" href="#incremental-insertion-add">Incremental insertion (Add)</a></h3>
+<p><code>Add()</code> works the same as <code>Build()</code> — provide named paths and the index inserts
+into all matching hierarchies:</p>
+<pre><code class="language-cpp">auto new_data = vsag::Dataset::Make();
+new_data-&gt;NumElements(count)
+    -&gt;Dim(128)
+    -&gt;Ids(new_ids)
+    -&gt;Float32Vectors(new_vectors)
+    -&gt;Paths("site", new_site_paths)
+    -&gt;Paths("category", new_cat_paths);
+index-&gt;Add(new_data);
+</code></pre>
+<h3 id="rangesearch"><a class="header" href="#rangesearch">RangeSearch</a></h3>
+<p>RangeSearch also supports hierarchy selection via the same search parameters:</p>
+<pre><code class="language-cpp">auto result = index-&gt;RangeSearch(
+    query, /*radius=*/20.0f,
+    R"({"pyramid": {"ef_search": 100, "hierarchies": ["category"]}})").value();
+</code></pre>
+<h3 id="serialize--deserialize"><a class="header" href="#serialize--deserialize">Serialize &amp; Deserialize</a></h3>
+<p>Multi-hierarchy indexes serialize and deserialize transparently. The serialized
+format includes all hierarchy names and their graph structures:</p>
+<pre><code class="language-cpp">// Serialize
+auto binary_set = index-&gt;Serialize().value();
+
+// Deserialize into a new index (must use the same build params)
+auto new_index = vsag::Factory::CreateIndex("pyramid", build_params).value();
+new_index-&gt;Deserialize(binary_set);
 </code></pre>
 <h2 id="when-to-use-pyramid"><a class="header" href="#when-to-use-pyramid">When to use Pyramid</a></h2>
 <ul>
@@ -1440,6 +1548,14 @@ let you skip graph construction for partitions too small to benefit.</li>
 </ul>
 <p>If you don’t need path-based scoping, <a href="#hgraph-2">HGraph</a> is simpler and generally
 faster.</p>
+<h2 id="mark-remove-1"><a class="header" href="#mark-remove-1">Mark remove</a></h2>
+<p>Pyramid supports <code>RemoveMode::MARK_REMOVE</code>. Calling <code>Remove(ids)</code> (the default
+mode) tombstones the given ids: they are excluded from subsequent search results,
+<code>GetNumElements()</code> drops by the number removed, and <code>GetNumberRemoved()</code> reports
+the running total. Removing an id that is absent or already removed is a no-op.
+<code>RemoveMode::FORCE_REMOVE</code> is not supported and returns an error.</p>
+<p>Mark-removed vectors still occupy memory until the index is rebuilt; the space is
+not physically reclaimed.</p>
 <h2 id="see-also-3"><a class="header" href="#see-also-3">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
@@ -2675,6 +2791,13 @@ cache options (<code>ENABLE_*</code>). Defaults below reflect a plain <code>make
 <pre><code class="language-bash">cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_INTEL_MKL=ON
 cmake --build build-release -j
 </code></pre>
+<h2 id="offline--air-gapped-builds"><a class="header" href="#offline--air-gapped-builds">Offline / Air-gapped Builds</a></h2>
+<p>VSAG downloads its third-party libraries at configure/build time. In offline or
+restricted-network environments, set the per-dependency <code>VSAG_THIRDPARTY_*</code>
+environment variables to fetch each archive from a local path or an internal
+mirror (internal HTTP server, OSS bucket, etc.). See
+<a href="#offline--air-gapped-builds-1">Offline / Air-gapped Builds</a> for the full list of variables
+and worked examples.</p>
 <h2 id="python-wheel-pyvsag"><a class="header" href="#python-wheel-pyvsag">Python Wheel (pyvsag)</a></h2>
 <pre><code class="language-bash">make pyvsag PY_VERSION=3.10
 # Or build all supported versions in parallel:
@@ -2701,6 +2824,199 @@ Actions tab and run it manually with:</p>
 </code></pre>
 <p>You can increase <code>COMPILE_JOBS</code> if your machine has enough memory, but the default is conservative
 to avoid out-of-memory failures in CI runners.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="offline--air-gapped-builds-1"><a class="header" href="#offline--air-gapped-builds-1">Offline / Air-gapped Builds</a></h1>
+<p>VSAG downloads a set of third-party libraries at CMake <strong>configure / build time</strong>
+(via <code>ExternalProject_Add</code> and <code>FetchContent</code>). On a machine without internet
+access, or behind a slow / restricted network, those downloads can fail or time
+out. This page explains how to point each dependency at a <strong>local path</strong> or an
+<strong>internal mirror</strong> (internal HTTP server, OSS bucket, Artifactory, etc.) so the
+build can complete fully offline.</p>
+<h2 id="how-third-party-downloads-are-resolved"><a class="header" href="#how-third-party-downloads-are-resolved">How third-party downloads are resolved</a></h2>
+<p>For every downloaded dependency, VSAG builds a <em>list</em> of candidate URLs and lets
+CMake try them <strong>in order</strong>, stopping at the first one that succeeds. Using
+<code>antlr4</code> as the representative example
+(<a href="https://github.com/antgroup/vsag/blob/main/extern/antlr4/antlr4.cmake"><code>extern/antlr4/antlr4.cmake</code></a>):</p>
+<pre><code class="language-cmake">set (antlr4_urls
+    https://github.com/antlr/antlr4/archive/refs/tags/4.13.2.tar.gz   # 1. upstream
+    https://vsagcache.oss-rg-china-mainland.aliyuncs.com/antlr4/v4.13.2.tar.gz  # 2. project mirror
+)
+if (DEFINED ENV{VSAG_THIRDPARTY_ANTLR4})
+    message (STATUS "Using local path for antlr4: $ENV{VSAG_THIRDPARTY_ANTLR4}")
+    list (PREPEND antlr4_urls "$ENV{VSAG_THIRDPARTY_ANTLR4}")   # 0. your override (tried first)
+endif ()
+
+ExternalProject_Add (antlr4
+    URL ${antlr4_urls}
+    URL_HASH MD5=3b75610fc8a827119258cba09a068be5
+    ...)
+</code></pre>
+<p>The resolution order is therefore:</p>
+<ol>
+<li><strong><code>VSAG_THIRDPARTY_&lt;LIB&gt;</code></strong> — your override, if the environment variable is
+set to a <strong>non-empty</strong> value. Tried <strong>first</strong>.</li>
+<li>The <strong>upstream</strong> URL (GitHub / project release page).</li>
+<li>The project-maintained <strong>Aliyun OSS mirror</strong>
+(<code>vsagcache.oss-rg-china-mainland.aliyuncs.com</code>). This fallback is always
+present and helps in mainland-China / poor-network environments, but it is
+<strong>not</strong> user-configurable — for a fully internal mirror, use the environment
+variable.</li>
+</ol>
+<blockquote>
+<p><strong>Availability:</strong> the <code>VSAG_THIRDPARTY_*</code> override is available on <code>main</code> and on
+the <code>0.15</code>, <code>0.16</code>, <code>0.17</code>, and <code>0.18</code> release lines — see
+<a href="#version-availability">Version availability</a>.</p>
+</blockquote>
+<h2 id="key-facts-before-you-start"><a class="header" href="#key-facts-before-you-start">Key facts before you start</a></h2>
+<ul>
+<li><strong>The value may be a local path or a URL.</strong> Accepted forms include an
+absolute filesystem path (<code>/data/deps/fmt-10.2.1.tar.gz</code>), a <code>file://</code> URL, or
+any <code>http(s)://</code> URL — including an internal HTTP server or an OSS / S3 bucket.</li>
+<li><strong>The archive hash is still verified.</strong> Each dependency declares a
+<code>URL_HASH</code> (MD5 or SHA256). Your mirrored / local archive must be <strong>byte
+identical to the upstream archive</strong>, otherwise CMake aborts with a hash
+mismatch. The simplest safe approach is to download the exact upstream file
+once and re-host it unchanged.</li>
+<li><strong>Overrides are read at configure time.</strong> If you change a variable after a
+previous configure, re-run CMake configure or run <code>make clean</code> first so the
+new value takes effect.</li>
+<li><strong>Use a non-empty value, or leave it unset.</strong> CMake treats a variable that is
+exported but empty as <em>defined</em>, so <code>export VSAG_THIRDPARTY_FMT=</code> would prepend
+an empty entry to the URL list and break the download. To disable an override,
+<code>unset</code> it instead of setting it to an empty string.</li>
+<li><strong>Each dependency is independent.</strong> There is no single global mirror variable;
+set one <code>VSAG_THIRDPARTY_&lt;LIB&gt;</code> per dependency you need. You only need to set
+variables for the dependencies your build actually pulls in (see
+<a href="#which-dependencies-do-i-need">Which dependencies do I need?</a>).</li>
+<li><strong>Confirmation in the log.</strong> When an override is picked up, CMake prints
+<code>-- Using local path for &lt;lib&gt;: &lt;your value&gt;</code>.</li>
+</ul>
+<h2 id="environment-variables"><a class="header" href="#environment-variables">Environment variables</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Environment variable</th><th>Library</th><th>Upstream archive to mirror</th><th>Pulled in when</th></tr>
+</thead>
+<tbody>
+<tr><td><code>VSAG_THIRDPARTY_JSON</code></td><td>nlohmann/json 3.11.3</td><td><code>github.com/nlohmann/json/.../v3.11.3.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ANTLR4</code></td><td>ANTLR4 runtime 4.13.2</td><td><code>github.com/antlr/antlr4/.../4.13.2.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_BOOST</code></td><td>Boost 1.67.0 (headers)</td><td><code>archives.boost.io/.../boost_1_67_0.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.23</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.23.tar.gz</code></td><td>default BLAS backend (when not using system / MKL)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CPUINFO</code></td><td>pytorch/cpuinfo</td><td><code>github.com/pytorch/cpuinfo/archive/ca678952...tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_FMT</code></td><td>fmt 10.2.1</td><td><code>github.com/fmtlib/fmt/.../10.2.1.tar.gz</code></td><td>always (unless system fmt)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_THREAD_POOL</code></td><td>log4cplus/ThreadPool</td><td><code>github.com/log4cplus/ThreadPool/archive/3507796e...tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TSL</code></td><td>Tessil/robin-map 1.4.0</td><td><code>github.com/Tessil/robin-map/.../v1.4.0.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ROARINGBITMAP</code></td><td>CRoaring 3.0.1</td><td><code>github.com/RoaringBitmap/CRoaring/.../v3.0.1.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CATCH2</code></td><td>Catch2 3.7.1</td><td><code>github.com/catchorg/Catch2/.../v3.7.1.tar.gz</code></td><td><code>ENABLE_TESTS=ON</code></td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HDF5</code></td><td>HDF5 1.14.4</td><td><code>github.com/HDFGroup/hdf5/.../hdf5_1.14.4.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ARGPARSE</code></td><td>p-ranav/argparse 3.1</td><td><code>github.com/p-ranav/argparse/.../v3.1.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_YAML_CPP</code></td><td>yaml-cpp 0.9.0</td><td><code>github.com/jbeder/yaml-cpp/.../yaml-cpp-0.9.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TABULATE</code></td><td>p-ranav/tabulate</td><td><code>github.com/p-ranav/tabulate/archive/3a583010...tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HTTPLIB</code></td><td>cpp-httplib 0.35.0</td><td><code>github.com/yhirose/cpp-httplib/.../v0.35.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_PYBIND11</code></td><td>pybind11 2.11.1</td><td><code>github.com/pybind/pybind11/.../v2.11.1.tar.gz</code></td><td>Python bindings (<code>pyvsag</code> / <code>ENABLE_PYBINDS=ON</code>)</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p>The exact upstream URL <strong>and</strong> the expected <code>URL_HASH</code> for each dependency are
+the single source of truth in the corresponding
+<a href="https://github.com/antgroup/vsag/tree/main/extern"><code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code></a>
+file. Check that file when mirroring, especially after a version bump.</p>
+</blockquote>
+<p>Not listed here (no download, so no override needed): <strong>Intel MKL</strong> (located on
+the host with <code>find_path</code>) and <strong>DiskANN</strong> (vendored in-tree under
+<code>extern/diskann/</code>).</p>
+<h2 id="which-dependencies-do-i-need"><a class="header" href="#which-dependencies-do-i-need">Which dependencies do I need?</a></h2>
+<p>You only have to mirror what your specific build actually downloads:</p>
+<ul>
+<li><strong>Core library</strong> (<code>make debug</code> / <code>make release</code>): <code>JSON</code>, <code>ANTLR4</code>, <code>BOOST</code>,
+<code>OPENBLAS</code>, <code>CPUINFO</code>, <code>FMT</code>, <code>THREAD_POOL</code>, <code>TSL</code>, <code>ROARINGBITMAP</code>.
+Two of these are conditional: <code>OPENBLAS</code> is <strong>not</strong> downloaded when BLAS comes
+from Intel MKL (x86_64 with <code>ENABLE_INTEL_MKL=ON</code>) or from a system OpenBLAS,
+and <code>FMT</code> is skipped when a system <code>fmt</code> is found.</li>
+<li><strong>+ Tests</strong> (<code>make test</code>, <code>ENABLE_TESTS=ON</code>): also <code>CATCH2</code>.</li>
+<li><strong>+ Tools</strong> (<code>ENABLE_TOOLS=ON</code> <strong>and</strong> <code>ENABLE_CXX11_ABI=ON</code>): also <code>HDF5</code>,
+<code>ARGPARSE</code>, <code>YAML_CPP</code>, <code>TABULATE</code>, <code>HTTPLIB</code> — downloaded only when <em>both</em>
+options are enabled (see
+<a href="https://github.com/antgroup/vsag/blob/main/cmake/VSAGThirdParty.cmake"><code>cmake/VSAGThirdParty.cmake</code></a>).</li>
+<li><strong>+ Python wheel</strong> (<code>make pyvsag</code>): also <code>PYBIND11</code>.</li>
+</ul>
+<h2 id="examples-1"><a class="header" href="#examples-1">Examples</a></h2>
+<h3 id="a-internal-http-server-or-oss-bucket-recommended"><a class="header" href="#a-internal-http-server-or-oss-bucket-recommended">A. Internal HTTP server or OSS bucket (recommended)</a></h3>
+<p>Re-host the upstream archives unchanged on an internal endpoint, then point each
+variable at it. A base-URL shell variable keeps this compact:</p>
+<pre><code class="language-bash"># Internal mirror that serves the upstream archives byte-for-byte
+export VSAG_MIRROR=https://mirror.corp.example.com/vsag-thirdparty
+
+export VSAG_THIRDPARTY_JSON=$VSAG_MIRROR/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4=$VSAG_MIRROR/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_BOOST=$VSAG_MIRROR/boost_1_67_0.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_CPUINFO=$VSAG_MIRROR/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT=$VSAG_MIRROR/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL=$VSAG_MIRROR/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL=$VSAG_MIRROR/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP=$VSAG_MIRROR/CRoaring-3.0.1.tar.gz
+
+make release
+</code></pre>
+<p>An OSS / S3 bucket works identically — just use its public (or
+network-reachable) object URL, for example
+<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.23.tar.gz</code>.</p>
+<h3 id="b-pre-downloaded-local-files-fully-air-gapped"><a class="header" href="#b-pre-downloaded-local-files-fully-air-gapped">B. Pre-downloaded local files (fully air-gapped)</a></h3>
+<p>On a machine that has <em>no</em> network at all, copy the archives onto the box first
+(e.g. to <code>/data/vsag-deps</code>) and point the variables at the local files:</p>
+<pre><code class="language-bash">export VSAG_THIRDPARTY_JSON=/data/vsag-deps/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4=/data/vsag-deps/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_BOOST=/data/vsag-deps/boost_1_67_0.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_CPUINFO=/data/vsag-deps/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT=/data/vsag-deps/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL=/data/vsag-deps/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL=/data/vsag-deps/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP=/data/vsag-deps/CRoaring-3.0.1.tar.gz
+
+make release
+</code></pre>
+<p>A <code>file://</code> URL (<code>export VSAG_THIRDPARTY_FMT=file:///data/vsag-deps/fmt-10.2.1.tar.gz</code>)
+is equally valid.</p>
+<h3 id="c-override-a-single-dependency"><a class="header" href="#c-override-a-single-dependency">C. Override a single dependency</a></h3>
+<p>If only one download is unreliable, override just that one and let the rest use
+the defaults:</p>
+<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.23.tar.gz
+make release
+</code></pre>
+<h2 id="alternative-reuse-system-libraries"><a class="header" href="#alternative-reuse-system-libraries">Alternative: reuse system libraries</a></h2>
+<p>For dependencies that are already installed on the host, you can skip the
+download entirely instead of mirroring it. Set <code>VSAG_USE_SYSTEM_DEPS=ON</code> (or the
+per-dependency <code>VSAG_USE_SYSTEM_&lt;DEP&gt;=ON</code>). See
+<a href="https://github.com/antgroup/vsag/blob/main/DEVELOPMENT.md#system-third-party-dependencies"><code>DEVELOPMENT.md</code></a>
+for the list of dependencies that currently support system reuse.</p>
+<h2 id="troubleshooting"><a class="header" href="#troubleshooting">Troubleshooting</a></h2>
+<ul>
+<li><strong>Hash mismatch / “HASH mismatch” error</strong> — your mirrored or local archive is
+not byte-identical to the upstream file. Re-download the exact upstream
+archive and re-host it unchanged, or confirm the expected <code>URL_HASH</code> in
+<code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code>.</li>
+<li><strong>Override seems ignored</strong> — make sure the variable was <code>export</code>ed in the same
+shell that runs <code>make</code> / <code>cmake</code>, then re-run configure (or <code>make clean</code>),
+because the value is read at CMake configure time. Confirm the
+<code>-- Using local path for &lt;lib&gt;: &lt;your value&gt;</code> line appears in the configure output.</li>
+<li><strong>Still hitting the network</strong> — you probably missed a dependency that your
+build pulls in. Cross-check the list in
+<a href="#which-dependencies-do-i-need">Which dependencies do I need?</a> against your
+enabled options (<code>ENABLE_TESTS</code>, <code>ENABLE_TOOLS</code>, Python bindings).</li>
+</ul>
+<h2 id="version-availability"><a class="header" href="#version-availability">Version availability</a></h2>
+<p>The per-dependency <code>VSAG_THIRDPARTY_*</code> override is available on the <code>main</code>
+development line and on the <code>0.15</code>, <code>0.16</code>, <code>0.17</code>, and <code>0.18</code> release lines, so
+local-path and internal-mirror overrides behave the same way across all of them.
+It was introduced on <code>main</code> by
+<a href="https://github.com/antgroup/vsag/pull/1606">#1606</a> and backported to the release
+lines (tracked in <a href="https://github.com/antgroup/vsag/issues/2308">#2308</a>). The
+built-in upstream + Aliyun OSS mirror fallback remains present on every line, and
+<a href="#alternative-reuse-system-libraries">system-library reuse</a> is still available when
+you would rather not mirror a dependency at all.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h1>
 <p>VSAG uses <a href="https://github.com/catchorg/Catch2">Catch2</a> for testing, organized in two layers:</p>
@@ -3425,7 +3741,7 @@ req.bitset_filter_        = invalid;
 auto result = index-&gt;SearchWithRequest(req).value();
 </code></pre>
 <p>See <a href="#attribute-filter-hybrid-search">Attribute Filter</a> for the <code>attribute_filter_str_</code> field.</p>
-<h2 id="examples-1"><a class="header" href="#examples-1">Examples</a></h2>
+<h2 id="examples-2"><a class="header" href="#examples-2">Examples</a></h2>
 <ul>
 <li>C++: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/301_feature_filter.cpp"><code>examples/cpp/301_feature_filter.cpp</code></a>
 — bitset, function, and <code>Filter</code>-object styles on HNSW.</li>
@@ -3817,7 +4133,7 @@ contained in the literal list.</p>
 <p>Identifiers match <code>[a-zA-Z_][a-zA-Z0-9_]*</code> and may contain dots
 (<code>namespace.field</code> is one identifier).</p>
 <p>Comments start with <code>#</code> and run to end of line.</p>
-<h3 id="examples-2"><a class="header" href="#examples-2">Examples</a></h3>
+<h3 id="examples-3"><a class="header" href="#examples-3">Examples</a></h3>
 <pre><code class="language-sql"># simple equality
 category = "electronics"
 
@@ -5554,6 +5870,8 @@ exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBy
 <tr><td><code>proximity_recall_neighbor</code></td><td>Recall of graph neighbor lists against true nearest neighbors</td></tr>
 <tr><td><code>quantization_bias_ratio</code></td><td>Quantized-distance bias against exact distance</td></tr>
 <tr><td><code>quantization_inversion_count_rate</code></td><td>Rate of distance-order inversions caused by quantization</td></tr>
+<tr><td><code>build_cache_hit_rate</code></td><td>Fraction of nodes warm-started from an imported cache during the last <code>Build()</code>; emits a <code>skipped_reason</code> when the index was not built from a cache imported via <code>ImportCache()</code></td></tr>
+<tr><td><code>build_cache_hit_nodes</code> / <code>build_cache_missed_nodes</code></td><td>Node counts behind <code>build_cache_hit_rate</code> (only present when the index was built from an imported cache)</td></tr>
 </tbody>
 </table>
 </div>

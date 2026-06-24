@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-38be4c22.js";
+            window.path_to_searchindex_js = "../searchindex-0ca513b3.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-b8e48929.js"></script>
+        <script src="../toc-25146046.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -315,7 +315,8 @@ scenario where one logical index serves many groups that must not cross-contamin
 results.</p>
 <ul>
 <li>Source: <code>src/algorithm/pyramid.{h,cpp}</code>, <code>src/algorithm/pyramid_zparameters.{h,cpp}</code></li>
-<li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
+<li>Example (single hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
+<li>Example (multi-hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/112_index_pyramid_multi_hierarchy.cpp"><code>examples/cpp/112_index_pyramid_multi_hierarchy.cpp</code></a></li>
 </ul>
 <h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
 <ol>
@@ -398,6 +399,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>Minimum sub-index size; smaller groups fall back to scan.</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Allow duplicate ids.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>Threads used for parallel build.</td></tr>
+<tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>Named hierarchy definitions. Each element is either a string (inherits all top-level params) or an object with <code>name</code> and optional overrides (<code>max_degree</code>, <code>ef_construction</code>, <code>alpha</code>, <code>no_build_levels</code>, <code>index_min_size</code>). When present, multi-hierarchy mode is activated and each hierarchy maintains its own independent path tree.</td></tr>
 </tbody>
 </table>
 </div>
@@ -411,12 +413,110 @@ auto result = index-&gt;KnnSearch(
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>Candidate list size for the leaf-level graph search.</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>Candidate list size used when traversing intermediate sub-graphs on the path.</td></tr>
+<tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>Select which hierarchy to search. Empty means use the default (unnamed) hierarchy.</td></tr>
+<tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>How to combine results across hierarchies: <code>single</code> (search one hierarchy), <code>union</code>, or <code>intersection</code>. <strong>Note:</strong> <code>union</code> and <code>intersection</code> are not yet implemented — setting them will cause <code>KnnSearch</code>/<code>RangeSearch</code> to return an error.</td></tr>
 </tbody>
 </table>
 </div>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"pyramid": {"ef_search": 200, "subindex_ef_search": 80}})").value();
+</code></pre>
+<h2 id="multi-hierarchy-support"><a class="header" href="#multi-hierarchy-support">Multi-Hierarchy Support</a></h2>
+<p>A single Pyramid index can maintain <strong>multiple independent path trees</strong>, each
+identified by a name (e.g. <code>"site"</code>, <code>"category"</code>). Vectors share IDs and data
+across all hierarchies — only the paths differ. Each hierarchy can optionally
+override graph construction parameters.</p>
+<p>This is useful when the same set of vectors needs to be partitioned along
+different dimensions simultaneously. For example, an e-commerce platform might
+partition products by <strong>site</strong> (<code>site-a/lang-en</code>) and by <strong>category</strong>
+(<code>electronics/phones</code>) at the same time, and search can target either hierarchy
+independently.</p>
+<h3 id="build-configuration"><a class="header" href="#build-configuration">Build configuration</a></h3>
+<p>Add a <code>hierarchies</code> array inside <code>index_param</code>. Each element is either:</p>
+<ul>
+<li>A <strong>string</strong> (inherits all top-level params): <code>"site"</code></li>
+<li>An <strong>object</strong> with <code>name</code> and optional per-hierarchy overrides:
+<code>{"name": "category", "max_degree": 64, "no_build_levels": [0]}</code></li>
+</ul>
+<p>Overridable per-hierarchy parameters: <code>max_degree</code>, <code>ef_construction</code>, <code>alpha</code>,
+<code>no_build_levels</code>, <code>index_min_size</code>.</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 32,
+        "alpha": 1.2,
+        "graph_type": "odescent",
+        "graph_iter_turn": 15,
+        "neighbor_sample_rate": 0.2,
+        "no_build_levels": [0, 1],
+        "use_reorder": true,
+        "build_thread_count": 16,
+        "hierarchies": [
+            "site",
+            {"name": "category", "max_degree": 64, "no_build_levels": [0]}
+        ]
+    }
+}
+</code></pre>
+<h3 id="dataset-api-for-named-hierarchies"><a class="header" href="#dataset-api-for-named-hierarchies">Dataset API for named hierarchies</a></h3>
+<p>Use the overloaded <code>Paths(hierarchy_name, paths)</code> method to assign paths per
+hierarchy. The same <code>Ids()</code> and <code>Float32Vectors()</code> are shared across all
+hierarchies:</p>
+<pre><code class="language-cpp">auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)
+    -&gt;Dim(128)
+    -&gt;Ids(ids)
+    -&gt;Float32Vectors(data)
+    -&gt;Paths("site", site_paths)         // std::string* of length n
+    -&gt;Paths("category", category_paths) // independent paths for 2nd hierarchy
+    -&gt;Owner(false);
+index-&gt;Build(base);
+</code></pre>
+<h3 id="searching-a-specific-hierarchy"><a class="header" href="#searching-a-specific-hierarchy">Searching a specific hierarchy</a></h3>
+<p>Specify which hierarchy to search via <code>"hierarchies"</code> in the search parameters.
+The query dataset must also set its path on the matching hierarchy name:</p>
+<pre><code class="language-cpp">auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)
+    -&gt;Dim(128)
+    -&gt;Float32Vectors(q)
+    -&gt;Paths("site", &amp;query_path)   // target the "site" hierarchy
+    -&gt;Owner(false);
+
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10,
+    R"({"pyramid": {"ef_search": 100, "hierarchies": ["site"]}})").value();
+</code></pre>
+<h3 id="incremental-insertion-add"><a class="header" href="#incremental-insertion-add">Incremental insertion (Add)</a></h3>
+<p><code>Add()</code> works the same as <code>Build()</code> — provide named paths and the index inserts
+into all matching hierarchies:</p>
+<pre><code class="language-cpp">auto new_data = vsag::Dataset::Make();
+new_data-&gt;NumElements(count)
+    -&gt;Dim(128)
+    -&gt;Ids(new_ids)
+    -&gt;Float32Vectors(new_vectors)
+    -&gt;Paths("site", new_site_paths)
+    -&gt;Paths("category", new_cat_paths);
+index-&gt;Add(new_data);
+</code></pre>
+<h3 id="rangesearch"><a class="header" href="#rangesearch">RangeSearch</a></h3>
+<p>RangeSearch also supports hierarchy selection via the same search parameters:</p>
+<pre><code class="language-cpp">auto result = index-&gt;RangeSearch(
+    query, /*radius=*/20.0f,
+    R"({"pyramid": {"ef_search": 100, "hierarchies": ["category"]}})").value();
+</code></pre>
+<h3 id="serialize--deserialize"><a class="header" href="#serialize--deserialize">Serialize &amp; Deserialize</a></h3>
+<p>Multi-hierarchy indexes serialize and deserialize transparently. The serialized
+format includes all hierarchy names and their graph structures:</p>
+<pre><code class="language-cpp">// Serialize
+auto binary_set = index-&gt;Serialize().value();
+
+// Deserialize into a new index (must use the same build params)
+auto new_index = vsag::Factory::CreateIndex("pyramid", build_params).value();
+new_index-&gt;Deserialize(binary_set);
 </code></pre>
 <h2 id="when-to-use-pyramid"><a class="header" href="#when-to-use-pyramid">When to use Pyramid</a></h2>
 <ul>
@@ -429,6 +529,14 @@ let you skip graph construction for partitions too small to benefit.</li>
 </ul>
 <p>If you don’t need path-based scoping, <a href="hgraph.html">HGraph</a> is simpler and generally
 faster.</p>
+<h2 id="mark-remove"><a class="header" href="#mark-remove">Mark remove</a></h2>
+<p>Pyramid supports <code>RemoveMode::MARK_REMOVE</code>. Calling <code>Remove(ids)</code> (the default
+mode) tombstones the given ids: they are excluded from subsequent search results,
+<code>GetNumElements()</code> drops by the number removed, and <code>GetNumberRemoved()</code> reports
+the running total. Removing an id that is absent or already removed is a no-op.
+<code>RemoveMode::FORCE_REMOVE</code> is not supported and returns an error.</p>
+<p>Mark-removed vectors still occupy memory until the index is rebuilt; the space is
+not physically reclaimed.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="../guide/create_index.html">Creating an Index</a></li>

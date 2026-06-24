@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-1d8ec2ff.js";
+            window.path_to_searchindex_js = "searchindex-b895d736.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-c4211f84.js"></script>
+        <script src="toc-f216ae3f.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1277,6 +1277,12 @@ SPLADE。</li>
 这样可以避免管理大量空倒排列表带来的内存浪费，也能降低触达 <code>term_id_limit</code>
 上限的风险。</li>
 </ol>
+<h2 id="标记删除"><a class="header" href="#标记删除">标记删除</a></h2>
+<p>SINDI 支持 <code>RemoveMode::MARK_REMOVE</code>。调用 <code>Remove(ids)</code>（默认模式）会为给定的 id
+打上删除标记：它们不再出现在检索结果中，<code>GetNumElements()</code> 相应减少，
+<code>GetNumberRemoved()</code> 返回累计删除数量。删除不存在或已删除的 id 不会有任何效果。
+<code>RemoveMode::FORCE_REMOVE</code> 不支持，调用会返回错误。</p>
+<p>被标记删除的文档在索引重建前仍占用内存，空间不会被物理回收。</p>
 <h2 id="相关文档-2"><a class="header" href="#相关文档-2">相关文档</a></h2>
 <ul>
 <li><a href="#创建索引">创建索引</a></li>
@@ -1293,7 +1299,8 @@ SPLADE。</li>
 群体之间不允许结果交叉”的场景。</p>
 <ul>
 <li>源码：<code>src/algorithm/pyramid.{h,cpp}</code>、<code>src/algorithm/pyramid_zparameters.{h,cpp}</code></li>
-<li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
+<li>示例（单层级）：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
+<li>示例（多层级）：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/112_index_pyramid_multi_hierarchy.cpp"><code>examples/cpp/112_index_pyramid_multi_hierarchy.cpp</code></a></li>
 </ul>
 <h2 id="工作原理-3"><a class="header" href="#工作原理-3">工作原理</a></h2>
 <ol>
@@ -1373,6 +1380,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>子索引的最小规模；小于该值的分区会退化为线性扫描</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否允许重复 ID</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>构建阶段并发线程数</td></tr>
+<tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>命名层级定义。每个元素可以是字符串（继承全部顶层参数）或对象（含 <code>name</code> 及可选覆盖参数：<code>max_degree</code>、<code>ef_construction</code>、<code>alpha</code>、<code>no_build_levels</code>、<code>index_min_size</code>）。设置后激活多层级模式，每个层级维护独立的路径树。</td></tr>
 </tbody>
 </table>
 </div>
@@ -1386,12 +1394,104 @@ auto result = index-&gt;KnnSearch(
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>叶子层子图检索的候选集大小</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>沿路径向下遍历中间子图时的候选集大小</td></tr>
+<tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>指定检索哪个层级。空数组表示使用默认（匿名）层级。</td></tr>
+<tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>多层级结果合并方式：<code>single</code>（检索单个层级）、<code>union</code>、<code>intersection</code>。<strong>注意：</strong> <code>union</code> 和 <code>intersection</code> 尚未实现——设置后 <code>KnnSearch</code>/<code>RangeSearch</code> 会返回错误。</td></tr>
 </tbody>
 </table>
 </div>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"pyramid": {"ef_search": 200, "subindex_ef_search": 80}})").value();
+</code></pre>
+<h2 id="多层级支持-multi-hierarchy"><a class="header" href="#多层级支持-multi-hierarchy">多层级支持 (Multi-Hierarchy)</a></h2>
+<p>一个 Pyramid 索引可以同时维护<strong>多棵独立的路径树</strong>，每棵树由名称标识（如
+<code>"site"</code>、<code>"category"</code>）。所有层级共享向量 ID 和数据——只有路径不同。每个层级可以
+选择性地覆盖图构建参数。</p>
+<p>当同一组向量需要沿多个维度同时分区时，这个特性非常有用。例如，一个电商平台可能
+需要按<strong>站点</strong>（<code>site-a/lang-en</code>）和按<strong>品类</strong>（<code>electronics/phones</code>）同时分区，
+检索时可以独立选择任一层级。</p>
+<h3 id="构建配置"><a class="header" href="#构建配置">构建配置</a></h3>
+<p>在 <code>index_param</code> 中添加 <code>hierarchies</code> 数组。每个元素可以是：</p>
+<ul>
+<li><strong>字符串</strong>（继承全部顶层参数）：<code>"site"</code></li>
+<li><strong>对象</strong>（含 <code>name</code> 和可选的参数覆盖）：
+<code>{"name": "category", "max_degree": 64, "no_build_levels": [0]}</code></li>
+</ul>
+<p>可按层级覆盖的参数：<code>max_degree</code>、<code>ef_construction</code>、<code>alpha</code>、<code>no_build_levels</code>、
+<code>index_min_size</code>。</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 32,
+        "alpha": 1.2,
+        "graph_type": "odescent",
+        "graph_iter_turn": 15,
+        "neighbor_sample_rate": 0.2,
+        "no_build_levels": [0, 1],
+        "use_reorder": true,
+        "build_thread_count": 16,
+        "hierarchies": [
+            "site",
+            {"name": "category", "max_degree": 64, "no_build_levels": [0]}
+        ]
+    }
+}
+</code></pre>
+<h3 id="命名层级的-dataset-api"><a class="header" href="#命名层级的-dataset-api">命名层级的 Dataset API</a></h3>
+<p>使用重载方法 <code>Paths(hierarchy_name, paths)</code> 为每个层级设置路径。所有层级共享同一份
+<code>Ids()</code> 和 <code>Float32Vectors()</code>：</p>
+<pre><code class="language-cpp">auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)
+    -&gt;Dim(128)
+    -&gt;Ids(ids)
+    -&gt;Float32Vectors(data)
+    -&gt;Paths("site", site_paths)         // std::string* 长度为 n
+    -&gt;Paths("category", category_paths) // 第二个层级的独立路径
+    -&gt;Owner(false);
+index-&gt;Build(base);
+</code></pre>
+<h3 id="检索指定层级"><a class="header" href="#检索指定层级">检索指定层级</a></h3>
+<p>通过检索参数中的 <code>"hierarchies"</code> 指定要检索的层级。查询 Dataset 也需要在对应的
+层级名称上设置路径：</p>
+<pre><code class="language-cpp">auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)
+    -&gt;Dim(128)
+    -&gt;Float32Vectors(q)
+    -&gt;Paths("site", &amp;query_path)   // 指向 "site" 层级
+    -&gt;Owner(false);
+
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10,
+    R"({"pyramid": {"ef_search": 100, "hierarchies": ["site"]}})").value();
+</code></pre>
+<h3 id="增量插入-add"><a class="header" href="#增量插入-add">增量插入 (Add)</a></h3>
+<p><code>Add()</code> 的用法与 <code>Build()</code> 一致——提供命名路径，索引会自动插入到所有匹配的层级：</p>
+<pre><code class="language-cpp">auto new_data = vsag::Dataset::Make();
+new_data-&gt;NumElements(count)
+    -&gt;Dim(128)
+    -&gt;Ids(new_ids)
+    -&gt;Float32Vectors(new_vectors)
+    -&gt;Paths("site", new_site_paths)
+    -&gt;Paths("category", new_cat_paths);
+index-&gt;Add(new_data);
+</code></pre>
+<h3 id="范围检索-rangesearch"><a class="header" href="#范围检索-rangesearch">范围检索 (RangeSearch)</a></h3>
+<p>RangeSearch 同样支持通过检索参数选择层级：</p>
+<pre><code class="language-cpp">auto result = index-&gt;RangeSearch(
+    query, /*radius=*/20.0f,
+    R"({"pyramid": {"ef_search": 100, "hierarchies": ["category"]}})").value();
+</code></pre>
+<h3 id="序列化与反序列化"><a class="header" href="#序列化与反序列化">序列化与反序列化</a></h3>
+<p>多层级索引的序列化和反序列化完全透明。序列化格式包含所有层级名称及其图结构：</p>
+<pre><code class="language-cpp">// 序列化
+auto binary_set = index-&gt;Serialize().value();
+
+// 反序列化到新索引（必须使用相同的构建参数）
+auto new_index = vsag::Factory::CreateIndex("pyramid", build_params).value();
+new_index-&gt;Deserialize(binary_set);
 </code></pre>
 <h2 id="何时选择-pyramid"><a class="header" href="#何时选择-pyramid">何时选择 Pyramid</a></h2>
 <ul>
@@ -1401,6 +1501,12 @@ auto result = index-&gt;KnnSearch(
 构图的分区。</li>
 </ul>
 <p>如果不需要按路径限定查询范围，<a href="#hgraph-1">HGraph</a> 更简洁，性能通常也更高。</p>
+<h2 id="标记删除-1"><a class="header" href="#标记删除-1">标记删除</a></h2>
+<p>Pyramid 支持 <code>RemoveMode::MARK_REMOVE</code>。调用 <code>Remove(ids)</code>（默认模式）会为给定的 id
+打上删除标记：它们会从后续检索结果中排除，<code>GetNumElements()</code> 相应减少，
+<code>GetNumberRemoved()</code> 返回累计删除数量。删除不存在或已删除的 id 不会有任何效果。
+<code>RemoveMode::FORCE_REMOVE</code> 不支持，调用会返回错误。</p>
+<p>被标记删除的向量在索引重建前仍占用内存，空间不会被物理回收。</p>
 <h2 id="相关文档-3"><a class="header" href="#相关文档-3">相关文档</a></h2>
 <ul>
 <li><a href="#创建索引">创建索引</a></li>
@@ -2572,6 +2678,10 @@ install:                 ## Build and install the release version of vsag.
 <li><code>VSAG_ENABLE_INTEL_MKL</code>：是否启用 Intel MKL 作为 BLAS 后端，默认 <code>OFF</code>；关闭时使用 OpenBLAS；</li>
 <li><code>VSAG_ENABLE_LIBAIO</code>：是否启用 <code>libaio</code>，默认 <code>ON</code>。</li>
 </ul>
+<h2 id="离线--内网环境构建"><a class="header" href="#离线--内网环境构建">离线 / 内网环境构建</a></h2>
+<p>VSAG 会在配置 / 构建阶段下载第三方库。在离线或网络受限的环境中，可以设置按依赖的
+<code>VSAG_THIRDPARTY_*</code> 环境变量，从本地路径或内网镜像（内网 HTTP 服务、OSS 存储桶等）获取每个
+压缩包。完整的变量列表与示例见<a href="#离线--内网环境构建-1">离线 / 内网环境构建</a>。</p>
 <h2 id="发布流程"><a class="header" href="#发布流程">发布流程</a></h2>
 <p>如果要在 GitHub 上手动发布 Release，请到 GitHub Actions 页面运行 <code>Build and Publish Release</code> 工作流，并填写以下参数：</p>
 <ul>
@@ -2584,6 +2694,173 @@ install:                 ## Build and install the release version of vsag.
 </code></pre>
 <p>如果机器内存足够，可以适当调大 <code>COMPILE_JOBS</code>；默认值会比较保守，以避免 CI 里再次触发
 内存不足。</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="离线--内网环境构建-1"><a class="header" href="#离线--内网环境构建-1">离线 / 内网环境构建</a></h1>
+<p>VSAG 在 CMake <strong>配置 / 构建阶段</strong>会下载一批第三方库（通过 <code>ExternalProject_Add</code>
+与 <code>FetchContent</code>）。在没有外网访问、或网络较慢 / 受限的机器上，这些下载可能失败或
+超时。本文介绍如何把每个依赖指向<strong>本地路径</strong>或<strong>内网镜像</strong>（内网 HTTP 服务、OSS
+存储桶、Artifactory 等），从而在完全离线的环境中完成编译。</p>
+<h2 id="第三方下载的解析顺序"><a class="header" href="#第三方下载的解析顺序">第三方下载的解析顺序</a></h2>
+<p>对每一个需要下载的依赖，VSAG 会构造一个候选 URL <em>列表</em>，由 CMake <strong>按顺序</strong>依次尝试，
+命中第一个成功的即停止。以 <code>antlr4</code> 为代表
+（<a href="https://github.com/antgroup/vsag/blob/main/extern/antlr4/antlr4.cmake"><code>extern/antlr4/antlr4.cmake</code></a>）：</p>
+<pre><code class="language-cmake">set (antlr4_urls
+    https://github.com/antlr/antlr4/archive/refs/tags/4.13.2.tar.gz   # 1. 上游
+    https://vsagcache.oss-rg-china-mainland.aliyuncs.com/antlr4/v4.13.2.tar.gz  # 2. 项目镜像
+)
+if (DEFINED ENV{VSAG_THIRDPARTY_ANTLR4})
+    message (STATUS "Using local path for antlr4: $ENV{VSAG_THIRDPARTY_ANTLR4}")
+    list (PREPEND antlr4_urls "$ENV{VSAG_THIRDPARTY_ANTLR4}")   # 0. 你的覆盖项（最先尝试）
+endif ()
+
+ExternalProject_Add (antlr4
+    URL ${antlr4_urls}
+    URL_HASH MD5=3b75610fc8a827119258cba09a068be5
+    ...)
+</code></pre>
+<p>因此解析顺序为：</p>
+<ol>
+<li><strong><code>VSAG_THIRDPARTY_&lt;LIB&gt;</code></strong> —— 你设置的覆盖项（如果该环境变量已设置为<strong>非空</strong>值）。<strong>最先尝试</strong>。</li>
+<li><strong>上游</strong> URL（GitHub / 项目发布页）。</li>
+<li>项目维护的 <strong>阿里云 OSS 镜像</strong>
+（<code>vsagcache.oss-rg-china-mainland.aliyuncs.com</code>）。该兜底地址始终存在，在中国大陆 /
+弱网环境下很有帮助，但<strong>不可由用户配置</strong>——若要使用纯内网镜像，请使用环境变量。</li>
+</ol>
+<blockquote>
+<p><strong>可用版本：</strong> <code>VSAG_THIRDPARTY_*</code> 覆盖能力在 <code>main</code> 分支以及 <code>0.15</code>、<code>0.16</code>、
+<code>0.17</code>、<code>0.18</code> 发布线上均可用——详见<a href="#版本可用性">版本可用性</a>。</p>
+</blockquote>
+<h2 id="开始前的关键事项"><a class="header" href="#开始前的关键事项">开始前的关键事项</a></h2>
+<ul>
+<li><strong>取值可以是本地路径，也可以是 URL。</strong> 支持绝对文件路径
+（<code>/data/deps/fmt-10.2.1.tar.gz</code>）、<code>file://</code> URL，或任意 <code>http(s)://</code> URL——
+包括内网 HTTP 服务或 OSS / S3 存储桶。</li>
+<li><strong>依然会校验压缩包哈希。</strong> 每个依赖都声明了 <code>URL_HASH</code>（MD5 或 SHA256）。你镜像 /
+本地的压缩包必须与<strong>上游压缩包逐字节一致</strong>，否则 CMake 会因哈希不匹配而中止。最稳妥的
+做法是把上游原始文件下载一次，原封不动地重新托管。</li>
+<li><strong>覆盖项在配置阶段读取。</strong> 如果你在上一次配置之后修改了变量，请重新执行 CMake 配置或
+先运行 <code>make clean</code>，新值才会生效。</li>
+<li><strong>请使用非空值，否则就不要设置。</strong> CMake 把“已 export 但为空”的变量视为<em>已定义</em>，因此
+<code>export VSAG_THIRDPARTY_FMT=</code> 会把一个空项 prepend 到 URL 列表里，导致下载失败。若要停用
+某个覆盖项，请 <code>unset</code> 它，而不要把它设为空字符串。</li>
+<li><strong>每个依赖相互独立。</strong> 没有单一的全局镜像变量；每个需要的依赖各自设置一个
+<code>VSAG_THIRDPARTY_&lt;LIB&gt;</code>。你只需为本次构建实际拉取的依赖设置变量（见
+<a href="#我需要哪些依赖">我需要哪些依赖？</a>）。</li>
+<li><strong>日志中的确认信息。</strong> 覆盖项生效时，CMake 会打印
+<code>-- Using local path for &lt;lib&gt;: &lt;你的取值&gt;</code>。</li>
+</ul>
+<h2 id="环境变量-1"><a class="header" href="#环境变量-1">环境变量</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>环境变量</th><th>库</th><th>需镜像的上游压缩包</th><th>何时被拉取</th></tr>
+</thead>
+<tbody>
+<tr><td><code>VSAG_THIRDPARTY_JSON</code></td><td>nlohmann/json 3.11.3</td><td><code>github.com/nlohmann/json/.../v3.11.3.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ANTLR4</code></td><td>ANTLR4 runtime 4.13.2</td><td><code>github.com/antlr/antlr4/.../4.13.2.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_BOOST</code></td><td>Boost 1.67.0（头文件）</td><td><code>archives.boost.io/.../boost_1_67_0.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.23</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.23.tar.gz</code></td><td>默认 BLAS 后端（未使用系统库 / MKL 时）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CPUINFO</code></td><td>pytorch/cpuinfo</td><td><code>github.com/pytorch/cpuinfo/archive/ca678952...tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_FMT</code></td><td>fmt 10.2.1</td><td><code>github.com/fmtlib/fmt/.../10.2.1.tar.gz</code></td><td>始终（除非使用系统 fmt）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_THREAD_POOL</code></td><td>log4cplus/ThreadPool</td><td><code>github.com/log4cplus/ThreadPool/archive/3507796e...tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TSL</code></td><td>Tessil/robin-map 1.4.0</td><td><code>github.com/Tessil/robin-map/.../v1.4.0.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ROARINGBITMAP</code></td><td>CRoaring 3.0.1</td><td><code>github.com/RoaringBitmap/CRoaring/.../v3.0.1.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CATCH2</code></td><td>Catch2 3.7.1</td><td><code>github.com/catchorg/Catch2/.../v3.7.1.tar.gz</code></td><td><code>ENABLE_TESTS=ON</code></td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HDF5</code></td><td>HDF5 1.14.4</td><td><code>github.com/HDFGroup/hdf5/.../hdf5_1.14.4.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ARGPARSE</code></td><td>p-ranav/argparse 3.1</td><td><code>github.com/p-ranav/argparse/.../v3.1.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_YAML_CPP</code></td><td>yaml-cpp 0.9.0</td><td><code>github.com/jbeder/yaml-cpp/.../yaml-cpp-0.9.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TABULATE</code></td><td>p-ranav/tabulate</td><td><code>github.com/p-ranav/tabulate/archive/3a583010...tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HTTPLIB</code></td><td>cpp-httplib 0.35.0</td><td><code>github.com/yhirose/cpp-httplib/.../v0.35.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_PYBIND11</code></td><td>pybind11 2.11.1</td><td><code>github.com/pybind/pybind11/.../v2.11.1.tar.gz</code></td><td>Python 绑定（<code>pyvsag</code> / <code>ENABLE_PYBINDS=ON</code>）</td></tr>
+</tbody>
+</table>
+</div>
+<blockquote>
+<p>每个依赖确切的上游 URL <strong>以及</strong>期望的 <code>URL_HASH</code>，其唯一权威来源是对应的
+<a href="https://github.com/antgroup/vsag/tree/main/extern"><code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code></a>
+文件。镜像时（尤其是版本升级后）请以该文件为准。</p>
+</blockquote>
+<p>此处未列出的（不下载，因此无需覆盖）：<strong>Intel MKL</strong>（通过 <code>find_path</code> 在主机上查找）与
+<strong>DiskANN</strong>（以源码内置于 <code>extern/diskann/</code>）。</p>
+<h2 id="我需要哪些依赖"><a class="header" href="#我需要哪些依赖">我需要哪些依赖？</a></h2>
+<p>你只需镜像本次构建实际会下载的依赖：</p>
+<ul>
+<li><strong>核心库</strong>（<code>make debug</code> / <code>make release</code>）：<code>JSON</code>、<code>ANTLR4</code>、<code>BOOST</code>、
+<code>OPENBLAS</code>、<code>CPUINFO</code>、<code>FMT</code>、<code>THREAD_POOL</code>、<code>TSL</code>、<code>ROARINGBITMAP</code>。
+其中两个是条件依赖：当 BLAS 由 Intel MKL（x86_64 且 <code>ENABLE_INTEL_MKL=ON</code>）或系统
+OpenBLAS 提供时，<code>OPENBLAS</code> <strong>不会</strong>下载；当找到系统 <code>fmt</code> 时，<code>FMT</code> 会被跳过。</li>
+<li><strong>+ 测试</strong>（<code>make test</code>，<code>ENABLE_TESTS=ON</code>）：另加 <code>CATCH2</code>。</li>
+<li><strong>+ 工具</strong>（<code>ENABLE_TOOLS=ON</code> <strong>且</strong> <code>ENABLE_CXX11_ABI=ON</code>）：另加 <code>HDF5</code>、
+<code>ARGPARSE</code>、<code>YAML_CPP</code>、<code>TABULATE</code>、<code>HTTPLIB</code>——仅当两个选项同时开启时才会下载
+（见 <a href="https://github.com/antgroup/vsag/blob/main/cmake/VSAGThirdParty.cmake"><code>cmake/VSAGThirdParty.cmake</code></a>）。</li>
+<li><strong>+ Python wheel</strong>（<code>make pyvsag</code>）：另加 <code>PYBIND11</code>。</li>
+</ul>
+<h2 id="示例"><a class="header" href="#示例">示例</a></h2>
+<h3 id="a-内网-http-服务或-oss-存储桶推荐"><a class="header" href="#a-内网-http-服务或-oss-存储桶推荐">A. 内网 HTTP 服务或 OSS 存储桶（推荐）</a></h3>
+<p>将上游压缩包原封不动地重新托管到内网地址，再让每个变量指向它。用一个基础 URL 的 shell
+变量可以让配置更简洁：</p>
+<pre><code class="language-bash"># 内网镜像，逐字节提供上游压缩包
+export VSAG_MIRROR=https://mirror.corp.example.com/vsag-thirdparty
+
+export VSAG_THIRDPARTY_JSON=$VSAG_MIRROR/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4=$VSAG_MIRROR/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_BOOST=$VSAG_MIRROR/boost_1_67_0.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_CPUINFO=$VSAG_MIRROR/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT=$VSAG_MIRROR/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL=$VSAG_MIRROR/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL=$VSAG_MIRROR/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP=$VSAG_MIRROR/CRoaring-3.0.1.tar.gz
+
+make release
+</code></pre>
+<p>OSS / S3 存储桶用法完全相同——直接使用其公网（或网络可达）的对象 URL，例如
+<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.23.tar.gz</code>。</p>
+<h3 id="b-预先下载的本地文件完全离线"><a class="header" href="#b-预先下载的本地文件完全离线">B. 预先下载的本地文件（完全离线）</a></h3>
+<p>在完全没有网络的机器上，先把压缩包拷贝到本机（例如 <code>/data/vsag-deps</code>），再让变量指向本地
+文件：</p>
+<pre><code class="language-bash">export VSAG_THIRDPARTY_JSON=/data/vsag-deps/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4=/data/vsag-deps/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_BOOST=/data/vsag-deps/boost_1_67_0.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_CPUINFO=/data/vsag-deps/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT=/data/vsag-deps/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL=/data/vsag-deps/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL=/data/vsag-deps/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP=/data/vsag-deps/CRoaring-3.0.1.tar.gz
+
+make release
+</code></pre>
+<p>使用 <code>file://</code> URL（<code>export VSAG_THIRDPARTY_FMT=file:///data/vsag-deps/fmt-10.2.1.tar.gz</code>）
+同样有效。</p>
+<h3 id="c-只覆盖单个依赖"><a class="header" href="#c-只覆盖单个依赖">C. 只覆盖单个依赖</a></h3>
+<p>如果只有某一个下载不稳定，只覆盖它即可，其余继续使用默认地址：</p>
+<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.23.tar.gz
+make release
+</code></pre>
+<h2 id="备选方案复用系统库"><a class="header" href="#备选方案复用系统库">备选方案：复用系统库</a></h2>
+<p>对于主机上已安装的依赖，你可以直接跳过下载，而不必镜像。设置
+<code>VSAG_USE_SYSTEM_DEPS=ON</code>（或按依赖设置 <code>VSAG_USE_SYSTEM_&lt;DEP&gt;=ON</code>）。当前支持系统复用的
+依赖列表见
+<a href="https://github.com/antgroup/vsag/blob/main/DEVELOPMENT.md#system-third-party-dependencies"><code>DEVELOPMENT.md</code></a>。</p>
+<h2 id="常见问题"><a class="header" href="#常见问题">常见问题</a></h2>
+<ul>
+<li><strong>哈希不匹配 / 出现 “HASH mismatch” 错误</strong> —— 你镜像或本地的压缩包与上游文件不是逐字节
+一致。请重新下载确切的上游压缩包并原样托管，或在 <code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code> 中核对期望的
+<code>URL_HASH</code>。</li>
+<li><strong>覆盖项似乎未生效</strong> —— 确认变量是在运行 <code>make</code> / <code>cmake</code> 的同一个 shell 中 <code>export</code> 的，
+然后重新执行配置（或 <code>make clean</code>），因为取值是在 CMake 配置阶段读取的。确认配置输出中出现
+<code>-- Using local path for &lt;lib&gt;: &lt;你的取值&gt;</code> 这一行。</li>
+<li><strong>仍然在访问网络</strong> —— 多半是漏掉了本次构建会拉取的某个依赖。请对照
+<a href="#我需要哪些依赖">我需要哪些依赖？</a> 与你启用的选项（<code>ENABLE_TESTS</code>、<code>ENABLE_TOOLS</code>、
+Python 绑定）逐项核对。</li>
+</ul>
+<h2 id="版本可用性"><a class="header" href="#版本可用性">版本可用性</a></h2>
+<p>按依赖配置的 <code>VSAG_THIRDPARTY_*</code> 覆盖能力在 <code>main</code> 开发线以及 <code>0.15</code>、<code>0.16</code>、<code>0.17</code>、
+<code>0.18</code> 发布线上均可用，因此本地路径与内网镜像覆盖在所有这些分支上的行为完全一致。该能力最初由
+<a href="https://github.com/antgroup/vsag/pull/1606">#1606</a> 在 <code>main</code> 引入，并已合入各发布线（跟踪于
+<a href="https://github.com/antgroup/vsag/issues/2308">#2308</a>）。内置的“上游 + 阿里云 OSS 镜像”兜底在
+每条线上依然保留；若你不想镜像某个依赖，也仍可使用<a href="#备选方案复用系统库">复用系统库</a>。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="运行测试"><a class="header" href="#运行测试">运行测试</a></h1>
 <p>VSAG 采用 <a href="https://github.com/catchorg/Catch2">Catch2</a> 作为测试框架，测试分为两类：</p>
@@ -3256,7 +3533,7 @@ req.bitset_filter_        = invalid;
 auto result = index-&gt;SearchWithRequest(req).value();
 </code></pre>
 <p><code>attribute_filter_str_</code> 字段的语法见 <a href="#属性过滤混合搜索">属性过滤</a>。</p>
-<h2 id="示例"><a class="header" href="#示例">示例</a></h2>
+<h2 id="示例-1"><a class="header" href="#示例-1">示例</a></h2>
 <ul>
 <li>C++：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/301_feature_filter.cpp"><code>examples/cpp/301_feature_filter.cpp</code></a>
 ——同时演示三种过滤方式（HNSW 上）。</li>
@@ -3617,7 +3894,7 @@ multi_notin(uid, "1961|8669|9090", "|")
 </div>
 <p>标识符匹配 <code>[a-zA-Z_][a-zA-Z0-9_]*</code>，可以含 <code>.</code>（即 <code>namespace.field</code> 视为同一个标识符）。</p>
 <p>注释以 <code>#</code> 开头，到行尾。</p>
-<h3 id="示例-1"><a class="header" href="#示例-1">示例</a></h3>
+<h3 id="示例-2"><a class="header" href="#示例-2">示例</a></h3>
 <pre><code class="language-sql"># 等值
 category = "electronics"
 
@@ -4184,7 +4461,7 @@ auto result = index-&gt;KnnSearch(query, k, search_param_json);
 <h2 id="工作原理-6"><a class="header" href="#工作原理-6">工作原理</a></h2>
 <p>共轭图由原图在训练数据上的“失败路径“反向构建而成，在搜索时作为补充的候选边参与贪心扩展。
 它相当于对主图的一层轻量索引补丁，典型体积 &lt; 主图 10%。</p>
-<h2 id="示例-2"><a class="header" href="#示例-2">示例</a></h2>
+<h2 id="示例-3"><a class="header" href="#示例-3">示例</a></h2>
 <p><code>examples/cpp/304_feature_enhance_graph.cpp</code> 给出了从构建、训练到对比召回率的完整流程。</p>
 <h2 id="适用场景-1"><a class="header" href="#适用场景-1">适用场景</a></h2>
 <ul>
@@ -4392,7 +4669,7 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
 <li>请尽量保持负载紧凑——它会驻留内存，并在图内过滤时被反复读取。</li>
 <li>该特性目前仅提供 C++ 接口，未提供 Python 绑定。</li>
 </ul>
-<h2 id="示例-3"><a class="header" href="#示例-3">示例</a></h2>
+<h2 id="示例-4"><a class="header" href="#示例-4">示例</a></h2>
 <p>完整的可运行示例位于 <code>examples/cpp/320_feature_extra_info.cpp</code>，演示了在 HGraph 上启用
 <code>extra_info</code>、按 id 获取、图内过滤搜索以及原地更新等用法。</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -4688,7 +4965,7 @@ auto ret = index-&gt;Tune(tune_params);
 </tbody>
 </table>
 </div>
-<h2 id="示例-4"><a class="header" href="#示例-4">示例</a></h2>
+<h2 id="示例-5"><a class="header" href="#示例-5">示例</a></h2>
 <p><code>examples/cpp/318_feature_tune.cpp</code> 给出了端到端的调优流程：</p>
 <ol>
 <li>构造索引并 <code>Build</code>；</li>
@@ -5214,6 +5491,8 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 <tr><td><code>proximity_recall_neighbor</code></td><td>邻居列表相对真实最近邻的召回率</td></tr>
 <tr><td><code>quantization_bias_ratio</code></td><td>量化距离相对精确距离的偏差比率</td></tr>
 <tr><td><code>quantization_inversion_count_rate</code></td><td>量化导致的距离顺序倒置比率</td></tr>
+<tr><td><code>build_cache_hit_rate</code></td><td>上一次 <code>Build()</code> 中从导入缓存完成 warm-start 的节点占比；当索引并非由 <code>ImportCache()</code> 导入的缓存构建时，输出 <code>skipped_reason</code></td></tr>
+<tr><td><code>build_cache_hit_nodes</code> / <code>build_cache_missed_nodes</code></td><td><code>build_cache_hit_rate</code> 背后的命中 / 未命中节点数（仅在索引由导入缓存构建时存在）</td></tr>
 </tbody>
 </table>
 </div>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-38be4c22.js";
+            window.path_to_searchindex_js = "../searchindex-0ca513b3.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-b8e48929.js"></script>
+        <script src="../toc-25146046.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -447,6 +447,14 @@ range, such as hash-based tokenizers, external vocabulary IDs, or vocabularies
 with large gaps, enable <code>remap_term_ids: true</code>. This avoids managing many
 empty posting lists and helps stay below the <code>term_id_limit</code> ceiling.</li>
 </ol>
+<h2 id="mark-remove"><a class="header" href="#mark-remove">Mark remove</a></h2>
+<p>SINDI supports <code>RemoveMode::MARK_REMOVE</code>. Calling <code>Remove(ids)</code> (the default mode)
+tombstones the given ids so they no longer appear in search results;
+<code>GetNumElements()</code> drops accordingly and <code>GetNumberRemoved()</code> reports the running
+total. Removing an id that is absent or already removed is a no-op.
+<code>RemoveMode::FORCE_REMOVE</code> is not supported and returns an error.</p>
+<p>Mark-removed documents still occupy memory until the index is rebuilt; the space
+is not physically reclaimed.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="../guide/create_index.html">Creating an Index</a></li>
