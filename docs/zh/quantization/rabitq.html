@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b895d736.js";
+            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f216ae3f.js"></script>
+        <script src="../toc-95ea7952.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -306,15 +306,15 @@
                     <main>
                         <h1 id="rabitq"><a class="header" href="#rabitq">RaBitQ</a></h1>
 <p><code>rabitq</code> 是 VSAG 的二值 / 低比特量化器。默认模式下每个坐标用 <strong>1 比特</strong>
-编码，给出所有内建量化器中最高的压缩率。另一种模式
-（<code>rabitq_version = "split_1bit_7bit"</code>）把表示拆分为 1 比特基础 + 7 比特
-精化，在保留 1 比特快速距离内核的同时，以约 8 比特/维换回大部分精度。</p>
+编码，给出所有内建量化器中最高的压缩率。在 HGraph 上，<code>x+y</code> split 模式把
+底库码拆成 <code>x</code> 个过滤 bit 和 <code>y</code> 个 supplement bit：图遍历只使用 filter code，
+重排 / full-distance 阶段只额外读取 supplement bits。</p>
 <p><img src="../figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ：按坐标相对随机超平面的符号进行编码"></p>
 <blockquote>
 <p>实现：<code>src/quantization/rabitq_quantization/rabitq_quantizer.cpp</code>，
 参数文件 <code>rabitq_quantizer_parameter.cpp</code>。
-设计说明：<code>docs/rabitq_1xbit_new_repo_guide.md</code>、
-<code>docs/rabitq_split_1bit_7bit.md</code>。</p>
+HGraph split 的完整存储布局、lower bound 公式和 IO 模式见
+<a href="rabitq_split.html">RaBitQ x+y Split</a>。</p>
 </blockquote>
 <h2 id="何时使用"><a class="header" href="#何时使用">何时使用</a></h2>
 <ul>
@@ -330,8 +330,10 @@
 <ul>
 <li><code>rabitq_bits_per_dim_base = 1</code>：每向量 <code>ceil(dim / 8)</code> 字节。<code>dim = 768</code>
 时为 96 字节（对比 fp32 的 3072 → 小 32×）。</li>
-<li><code>rabitq_bits_per_dim_base = 8</code>（split 1+7 模式存储更多比特）：每向量
-约 <code>dim</code> 字节。</li>
+<li>HGraph 上 <code>rabitq_bits_per_dim_base = x</code> 且
+<code>rabitq_bits_per_dim_precise = y</code>：split 模式约存储
+<code>(x + y) * dim / 8</code> 字节的 RaBitQ code。例如 <code>3+5</code> 约为每向量 <code>dim</code>
+字节。</li>
 </ul>
 <h2 id="参数"><a class="header" href="#参数">参数</a></h2>
 <div class="table-wrapper">
@@ -342,16 +344,17 @@
 <tbody>
 <tr><td><code>pca_dim</code></td><td>int</td><td><code>0</code>（= 输入维度）</td><td>RaBitQ 内部可选的 PCA 预处理维度。<code>0</code> 表示不做 PCA 降维（<code>rabitq_quantizer_parameter.cpp:30-32</code>）。</td></tr>
 <tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>搜索时<strong>查询</strong>的每维位数。允许值：<code>4</code> 或 <code>32</code>（<code>rabitq_quantizer_parameter.cpp:38-43</code>）。</td></tr>
-<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td><strong>底库</strong>（存储）码的每维位数。范围 <code>[1, 8]</code>（<code>rabitq_quantizer_parameter.cpp:45-54</code>）。纯 1 比特 RaBitQ 取 <code>1</code>。</td></tr>
-<tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td>取值：<code>"standard"</code>（1 比特）或 <code>"split_1bit_7bit"</code>。split 模式要求 <code>rabitq_bits_per_dim_query = 32</code>（<code>rabitq_quantizer_parameter.cpp:55-67</code>）。</td></tr>
-<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>控制编码器误差预算；必须为有限正数（<code>rabitq_quantizer_parameter.cpp:68-75</code>）。</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>standard RaBitQ 下表示底库码每维位数；HGraph <code>x+y</code> split 下，这个外部 key 表示 <code>x</code>，即图遍历过滤阶段使用的 filter bits。范围 <code>[1, 8]</code>。</td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>未设置</td><td>HGraph-only split 模式 key。和 <code>base_quantization_type: "rabitq"</code>、<code>precise_quantization_type: "rabitq"</code> 一起出现时表示 <code>y</code>，即重排 / full-distance 阶段读取的 supplement bits。要求 <code>x + y &lt;= 8</code>。</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>HGraph split 搜索的默认 lower-bound 误差倍率；必须为有限正数，也可以在 <code>hgraph</code> 搜索参数中按次覆盖。</td></tr>
 <tr><td><code>use_fht</code></td><td>bool</td><td><code>false</code></td><td><code>true</code> 时在二值化前应用快速 Hadamard 变换旋转。以 O(dim log dim) 的廉价代价提升各向异性数据上的精度（<code>rabitq_quantizer_parameter.cpp:76-78</code>）。</td></tr>
 </tbody>
 </table>
 </div>
 <p>在 HGraph 上，这些以顶层 key 暴露：<code>rabitq_pca_dim</code>、
-<code>rabitq_bits_per_dim_query</code>、<code>rabitq_bits_per_dim_base</code>、<code>rabitq_version</code>、
-<code>rabitq_error_rate</code>、<code>rabitq_use_fht</code>。其中 <code>rabitq_use_fht</code> 是 HGraph
+<code>rabitq_bits_per_dim_query</code>、<code>rabitq_bits_per_dim_base</code>、
+<code>rabitq_bits_per_dim_precise</code>、<code>rabitq_error_rate</code>、
+<code>rabitq_use_fht</code>。其中 <code>rabitq_use_fht</code> 是 HGraph
 对量化器内部 <code>use_fht</code> key 的别名，由索引层重写（<code>src/algorithm/hgraph.cpp:473-480</code>，
 名称定义见 <code>src/constants.cpp:142-148</code>）。Pyramid 同样暴露相应的 <code>rabitq_*</code> key
 （<code>src/algorithm/pyramid.cpp:698-699</code>）。</p>
@@ -372,17 +375,15 @@
     }
 }
 </code></pre>
-<p>切换到高精度的 split 模式。split 布局由两个 key 共同决定：
-<code>rabitq_version: "split_1bit_7bit"</code> 选择 1+7 RaBitQ 编码，
-<code>base_codes_type: "rabitq_split"</code> 切换存储 datacell。仅设置
-<code>rabitq_version</code> <strong>不会</strong>走 split datacell 路径，二者必须同时设置（详见
-<code>docs/rabitq_split_1bit_7bit.md</code>）：</p>
+<p>切换到高精度的 <code>x+y</code> split 模式：把 base 和 precise 量化都设置为 RaBitQ，
+并提供 <code>rabitq_bits_per_dim_precise</code>。HGraph 会自动选择 split datacell。
+下面例子中，图遍历使用 <code>x = 3</code> 个 filter bits，重排只读取 <code>y = 5</code> 个
+supplement bits：</p>
 <pre><code class="language-json">{
     "base_quantization_type": "rabitq",
-    "base_codes_type": "rabitq_split",
-    "rabitq_version": "split_1bit_7bit",
-    "rabitq_bits_per_dim_base": 8,
-    "rabitq_bits_per_dim_query": 32,
+    "precise_quantization_type": "rabitq",
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5,
     "rabitq_use_fht": true
 }
 </code></pre>
@@ -401,16 +402,15 @@ FHT 旋转是固定的（无需学习），因此不增加训练代价；PCA 预
 <code>use_reorder: true</code> + <code>precise_quantization_type: "fp32"</code> 是稳妥默认。</li>
 <li><strong>先旋转。</strong> 对未归一化数据，设 <code>rabitq_use_fht: true</code>，或在 <code>tq</code> 链路
 中包含 <code>rom</code> / <code>fht</code>。</li>
-<li><strong>精度优先时用 split 模式。</strong> <code>rabitq_version: "split_1bit_7bit"</code> 保留
-图遍历的 1 比特快速路径，再添加 7 比特精化用于重排；相对纯 1 比特，
-代价约为 8× 码大小，召回明显更高。</li>
+<li><strong>精度优先时用 split 模式。</strong> HGraph <code>x+y</code> split 保留 <code>x</code> bit 快速
+过滤路径，再添加 <code>y</code> 个 supplement bits 用于重排；相对纯 1 比特，使用
+更多总 bit 时召回明显更高。</li>
 </ul>
 <h2 id="相关页面"><a class="header" href="#相关页面">相关页面</a></h2>
 <ul>
 <li><a href="../advanced/quantization_transform.html">量化变换</a></li>
 <li><a href="../indexes/hgraph.html">HGraph 索引</a></li>
-<li>设计说明：<code>docs/rabitq_1xbit_new_repo_guide.md</code>、
-<code>docs/rabitq_split_1bit_7bit.md</code></li>
+<li><a href="rabitq_split.html">RaBitQ x+y Split</a></li>
 <li><a href="README.html">量化总览</a></li>
 </ul>
 
@@ -422,7 +422,7 @@ FHT 旋转是固定的（无需学习），因此不增加训练代价；PCA 预
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../advanced/quantization_transform.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../quantization/rabitq_split.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -436,7 +436,7 @@ FHT 旋转是固定的（无需学习），因此不增加训练代价；PCA 预
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../advanced/quantization_transform.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../quantization/rabitq_split.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

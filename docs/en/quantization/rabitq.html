@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0ca513b3.js";
+            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-25146046.js"></script>
+        <script src="../toc-3f7543e2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -307,15 +307,15 @@
                         <h1 id="rabitq"><a class="header" href="#rabitq">RaBitQ</a></h1>
 <p><code>rabitq</code> is VSAG’s binary / low-bit quantizer. In its default mode each
 coordinate is encoded with <strong>1 bit</strong>, giving the highest compression ratio
-of any built-in quantizer. A second mode (<code>rabitq_version = "split_1bit_7bit"</code>) splits the representation into a 1-bit base and a
-7-bit refinement to recover much of the accuracy at ~8 bits/dim, while
-preserving the 1-bit fast distance kernel.</p>
+of any built-in quantizer. On HGraph, an <code>x+y</code> split mode stores low-bit base
+codes as <code>x</code> filter bits plus <code>y</code> supplement bits, so graph traversal can use
+only the filter code and re-ranking can fetch only the supplement bits it needs.</p>
 <p><img src="../figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ: encode each coordinate by its sign relative to a random hyperplane"></p>
 <blockquote>
 <p>Implementation: <code>src/quantization/rabitq_quantization/rabitq_quantizer.cpp</code>,
 parameter file <code>rabitq_quantizer_parameter.cpp</code>.
-Design notes: <code>docs/rabitq_1xbit_new_repo_guide.md</code>,
-<code>docs/rabitq_split_1bit_7bit.md</code>.</p>
+For the complete HGraph split layout, lower-bound formula, and IO modes,
+see <a href="rabitq_split.html">RaBitQ x+y Split</a>.</p>
 </blockquote>
 <h2 id="when-to-use-it"><a class="header" href="#when-to-use-it">When to use it</a></h2>
 <ul>
@@ -334,8 +334,10 @@ as <code>"pca, rom, rabitq"</code>.</p>
 <ul>
 <li><code>rabitq_bits_per_dim_base = 1</code>: <code>ceil(dim / 8)</code> bytes per vector. With
 <code>dim = 768</code> that is 96 bytes (vs 3072 for fp32 → 32× smaller).</li>
-<li><code>rabitq_bits_per_dim_base = 8</code> (split-1+7 mode stores additional bits):
-~<code>dim</code> bytes per vector.</li>
+<li><code>rabitq_bits_per_dim_base = x</code> plus <code>rabitq_bits_per_dim_precise = y</code>
+on HGraph: split mode stores roughly <code>(x + y) * dim / 8</code> bytes per vector
+for the RaBitQ code bytes. For example, <code>3+5</code> is about <code>dim</code> bytes per
+vector.</li>
 </ul>
 <h2 id="parameters"><a class="header" href="#parameters">Parameters</a></h2>
 <div class="table-wrapper">
@@ -346,16 +348,17 @@ as <code>"pca, rom, rabitq"</code>.</p>
 <tbody>
 <tr><td><code>pca_dim</code></td><td>int</td><td><code>0</code> (= input dim)</td><td>Optional PCA preprocessing dimension applied inside RaBitQ. <code>0</code> means no PCA reduction (<code>rabitq_quantizer_parameter.cpp:30-32</code>).</td></tr>
 <tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>Bits per dimension used to encode the <strong>query</strong> during search. Allowed values: <code>4</code> or <code>32</code> (<code>rabitq_quantizer_parameter.cpp:38-43</code>).</td></tr>
-<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>Bits per dimension for the <strong>base</strong> (stored) codes. Allowed range <code>[1, 8]</code> (<code>rabitq_quantizer_parameter.cpp:45-54</code>). Use <code>1</code> for pure 1-bit RaBitQ.</td></tr>
-<tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td>One of <code>"standard"</code> (1-bit) or <code>"split_1bit_7bit"</code>. The split version requires <code>rabitq_bits_per_dim_query = 32</code> (<code>rabitq_quantizer_parameter.cpp:55-67</code>).</td></tr>
-<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Controls the error budget of the encoder; must be finite and positive (<code>rabitq_quantizer_parameter.cpp:68-75</code>).</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>In standard RaBitQ, bits per dimension for the stored base code. In HGraph <code>x+y</code> split mode, this external key means <code>x</code>, the filter bits used during graph traversal. Allowed range <code>[1, 8]</code>.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>HGraph-only split-mode key. When present with <code>base_quantization_type: "rabitq"</code> and <code>precise_quantization_type: "rabitq"</code>, this means <code>y</code>, the supplement bits used for reorder/full-distance refinement. The sum <code>x + y</code> must be <code>&lt;= 8</code>.</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Default lower-bound error multiplier for HGraph split search; must be finite and positive. It can be overridden per search under the <code>hgraph</code> object.</td></tr>
 <tr><td><code>use_fht</code></td><td>bool</td><td><code>false</code></td><td>If <code>true</code>, applies a Fast Hadamard Transform rotation before binarization. Improves accuracy on anisotropic data with cheap O(dim log dim) cost (<code>rabitq_quantizer_parameter.cpp:76-78</code>).</td></tr>
 </tbody>
 </table>
 </div>
 <p>On HGraph these are exposed as the top-level keys <code>rabitq_pca_dim</code>,
-<code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>, <code>rabitq_version</code>,
-<code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code> — the last one is the HGraph
+<code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>,
+<code>rabitq_bits_per_dim_precise</code>, <code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code> —
+the last one is the HGraph
 alias for the quantizer’s <code>use_fht</code> key and is rewritten by the index
 layer (<code>src/algorithm/hgraph.cpp:473-480</code>, names defined in
 <code>src/constants.cpp:142-148</code>). Pyramid exposes the same <code>rabitq_*</code> keys
@@ -377,18 +380,15 @@ layer (<code>src/algorithm/hgraph.cpp:473-480</code>, names defined in
     }
 }
 </code></pre>
-<p>Swap to the higher-accuracy split mode. The split layout is selected by a
-combination of two keys — <code>rabitq_version: "split_1bit_7bit"</code> selects the
-1+7 RaBitQ encoding, and <code>base_codes_type: "rabitq_split"</code> switches the
-storage datacell. Setting <code>rabitq_version</code> alone does <strong>not</strong> activate the
-split datacell path; both keys must be set together (see
-<code>docs/rabitq_split_1bit_7bit.md</code>):</p>
+<p>Swap to the higher-accuracy <code>x+y</code> split mode by setting both base and precise
+quantization to RaBitQ and providing <code>rabitq_bits_per_dim_precise</code>. HGraph then
+automatically selects the split datacell. In the example below, traversal uses
+<code>x = 3</code> filter bits and reorder reads only <code>y = 5</code> supplement bits:</p>
 <pre><code class="language-json">{
     "base_quantization_type": "rabitq",
-    "base_codes_type": "rabitq_split",
-    "rabitq_version": "split_1bit_7bit",
-    "rabitq_bits_per_dim_base": 8,
-    "rabitq_bits_per_dim_query": 32,
+    "precise_quantization_type": "rabitq",
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5,
     "rabitq_use_fht": true
 }
 </code></pre>
@@ -408,17 +408,15 @@ is acceptable on your data. <code>use_reorder: true</code> +
 <code>precise_quantization_type: "fp32"</code> is the safe default.</li>
 <li><strong>Rotate first.</strong> For un-normalized data, set <code>rabitq_use_fht: true</code> or
 use a <code>tq</code> chain that includes <code>rom</code> / <code>fht</code>.</li>
-<li><strong>Split mode for accuracy.</strong> <code>rabitq_version: "split_1bit_7bit"</code> keeps
-the 1-bit fast path for graph traversal and adds a 7-bit refinement
-for re-ranking; expect significantly higher recall at ~8× the code
-size of pure 1-bit.</li>
+<li><strong>Split mode for accuracy.</strong> HGraph <code>x+y</code> split keeps an <code>x</code>-bit fast path
+for graph traversal and adds <code>y</code> supplement bits for re-ranking; expect
+significantly higher recall than pure 1-bit when using more total bits.</li>
 </ul>
 <h2 id="related-pages"><a class="header" href="#related-pages">Related pages</a></h2>
 <ul>
 <li><a href="../advanced/quantization_transform.html">Transform Quantizer</a></li>
 <li><a href="../indexes/hgraph.html">HGraph index</a></li>
-<li>Design notes: <code>docs/rabitq_1xbit_new_repo_guide.md</code>,
-<code>docs/rabitq_split_1bit_7bit.md</code></li>
+<li><a href="rabitq_split.html">RaBitQ x+y Split</a></li>
 <li><a href="README.html">Quantization overview</a></li>
 </ul>
 
@@ -430,7 +428,7 @@ size of pure 1-bit.</li>
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../advanced/quantization_transform.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../quantization/rabitq_split.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -444,7 +442,7 @@ size of pure 1-bit.</li>
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../advanced/quantization_transform.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../quantization/rabitq_split.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

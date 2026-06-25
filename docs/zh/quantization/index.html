@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b895d736.js";
+            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f216ae3f.js"></script>
+        <script src="../toc-95ea7952.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -368,7 +368,7 @@
 <tr><td><code>sq4_uniform</code></td><td>4</td><td><strong>是</strong></td><td>否</td><td>SIMD 友好的 SQ4；支持 <code>sq4_uniform_trunc_rate</code></td></tr>
 <tr><td><code>pq</code></td><td>~<code>pq_bits</code> × <code>pq_dim</code> / <code>dim</code></td><td><strong>是</strong></td><td>否</td><td>基于码本，非常紧凑</td></tr>
 <tr><td><code>pqfs</code></td><td>4 × <code>pq_dim</code> / <code>dim</code></td><td><strong>是</strong></td><td>否</td><td>PQ FastScan——SIMD 加速版 PQ</td></tr>
-<tr><td><code>rabitq</code></td><td>1（可选额外 7）</td><td><strong>是</strong></td><td>否</td><td>1 比特 / 1+7 比特二值量化，最强压缩</td></tr>
+<tr><td><code>rabitq</code></td><td>1 或 HGraph x+y</td><td><strong>是</strong></td><td>否</td><td>1 比特 / 低比特 split 二值量化，最强压缩</td></tr>
 <tr><td><code>tq</code></td><td>取决于链路</td><td>取决于末端量化器</td><td>否</td><td><a href="../advanced/quantization_transform.html">量化变换</a>：在另一个量化器之前串接旋转 / PCA</td></tr>
 </tbody>
 </table>
@@ -419,8 +419,8 @@
 <li><strong>HGraph</strong> 暴露最完整的集合：<code>base_quantization_type</code>、
 <code>precise_quantization_type</code>、<code>use_reorder</code>、<code>base_pq_dim</code>、
 <code>rabitq_pca_dim</code>、<code>rabitq_bits_per_dim_query</code>、
-<code>rabitq_bits_per_dim_base</code>、<code>rabitq_version</code>、<code>rabitq_error_rate</code>、
-<code>rabitq_use_fht</code>、<code>sq4_uniform_trunc_rate</code>、<code>tq_chain</code>
+<code>rabitq_bits_per_dim_base</code>、<code>rabitq_bits_per_dim_precise</code>、
+<code>rabitq_error_rate</code>、<code>rabitq_use_fht</code>、<code>sq4_uniform_trunc_rate</code>、<code>tq_chain</code>
 （见 <code>src/algorithm/hgraph.cpp</code>）。</li>
 <li><strong>IVF</strong>、<strong>Pyramid</strong>、<strong>BruteForce</strong> 暴露 <code>base_quantization_type</code>
 与通用的重排相关 key；部分可调项（如 <code>tq_chain</code>）目前在内部接好但未作
@@ -436,6 +436,7 @@
 <li><a href="pq.html">乘积量化（PQ）</a></li>
 <li><a href="pqfs.html">PQ FastScan</a></li>
 <li><a href="rabitq.html">RaBitQ</a></li>
+<li><a href="rabitq_split.html">RaBitQ x+y Split</a></li>
 <li><a href="../advanced/quantization_transform.html">量化变换（TQ）</a></li>
 </ul>
 

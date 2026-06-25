@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-b895d736.js";
+            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f216ae3f.js"></script>
+        <script src="../toc-95ea7952.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -485,7 +485,8 @@ base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
 <tr><td><code>ef_search</code></td><td>int</td><td>—（必填）</td><td>搜索前沿候选集的大小，越大召回越高、查询越慢。</td></tr>
 <tr><td><code>hops_limit</code></td><td>int</td><td>不限</td><td>beam search 在返回当前前沿前允许的最大跳数。</td></tr>
 <tr><td><code>brute_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>选择率感知的暴搜回退开关。当取值 <code>&gt; 0</code> 且当前 filter 的 <code>ValidRatio()</code> 小于等于 <code>brute_force_threshold</code> 时，搜索会<strong>完全跳过图遍历</strong>，直接在通过过滤的 id 上用最佳精度的 flatten 编码做一次暴力扫描（细节见下一节）。取值范围 <code>[0.0, 1.0]</code>；默认 <code>0.0</code> 表示关闭，保持原有行为。</td></tr>
-<tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>RabitQ 一比特搜索路径，详见<a href="../quantization/README.html">量化章节</a>。</td></tr>
+<tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>启用 RaBitQ filter/lower-bound 路径；对 x+y split 索引会使用全部 x 个 filter bits，详见 <a href="../quantization/rabitq_split.html">RaBitQ x+y Split</a>。</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td>索引默认值</td><td>本次搜索使用的正数 lower-bound 误差倍率；调整它不需要重建 split 索引。</td></tr>
 </tbody>
 </table>
 </div>

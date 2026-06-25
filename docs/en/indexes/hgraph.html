@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0ca513b3.js";
+            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-25146046.js"></script>
+        <script src="../toc-3f7543e2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -498,7 +498,8 @@ still controlled by <code>base_quantization_type</code> (and optionally <code>pr
 <tr><td><code>ef_search</code></td><td>int</td><td>— (required)</td><td>Size of the search frontier. Larger = higher recall, slower query.</td></tr>
 <tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Hard cap on the number of hops the beam search performs before returning the current frontier.</td></tr>
 <tr><td><code>brute_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Selectivity-aware brute-force fallback. When <code>&gt; 0</code> and the supplied filter’s <code>ValidRatio()</code> is <code>≤ brute_force_threshold</code>, the search <strong>bypasses the graph traversal entirely</strong> and runs an exact scan over the valid ids using the best available flatten codes (see the section below). Must lie in <code>[0.0, 1.0]</code>; the default <code>0.0</code> disables the feature and preserves legacy behavior.</td></tr>
-<tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>RabitQ one-bit search path; see the <a href="../quantization/README.html">Quantization chapter</a>.</td></tr>
+<tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>Enables the RaBitQ filter/lower-bound path. On an x+y split index it uses all x filter bits; see <a href="../quantization/rabitq_split.html">RaBitQ x+y Split</a>.</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td>index default</td><td>Positive lower-bound error multiplier for this search. It can be tuned without rebuilding the split index.</td></tr>
 </tbody>
 </table>
 </div>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0ca513b3.js";
+            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-25146046.js"></script>
+        <script src="../toc-3f7543e2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -371,7 +371,7 @@ the concrete quantizer based on the JSON <code>type</code> field.</p>
 <tr><td><code>sq4_uniform</code></td><td>4</td><td><strong>yes</strong></td><td>no</td><td>SIMD-friendly SQ4; supports <code>sq4_uniform_trunc_rate</code></td></tr>
 <tr><td><code>pq</code></td><td>~<code>pq_bits</code> × <code>pq_dim</code> / <code>dim</code></td><td><strong>yes</strong></td><td>no</td><td>Codebook-based, very compact</td></tr>
 <tr><td><code>pqfs</code></td><td>4 × <code>pq_dim</code> / <code>dim</code></td><td><strong>yes</strong></td><td>no</td><td>PQ FastScan — SIMD-accelerated PQ</td></tr>
-<tr><td><code>rabitq</code></td><td>1 (+ optional 7)</td><td><strong>yes</strong></td><td>no</td><td>1-bit / 1+7-bit binary quantization, strongest compression</td></tr>
+<tr><td><code>rabitq</code></td><td>1 or HGraph x+y</td><td><strong>yes</strong></td><td>no</td><td>1-bit / low-bit split binary quantization, strongest compression</td></tr>
 <tr><td><code>tq</code></td><td>depends on chain</td><td>depends on terminal quantizer</td><td>no</td><td><a href="../advanced/quantization_transform.html">Transform Quantizer</a>: prepend rotations / PCA before another quantizer</td></tr>
 </tbody>
 </table>
@@ -430,8 +430,8 @@ for the exact behavior.</p>
 <li><strong>HGraph</strong> exposes the richest set: <code>base_quantization_type</code>,
 <code>precise_quantization_type</code>, <code>use_reorder</code>, <code>base_pq_dim</code>,
 <code>rabitq_pca_dim</code>, <code>rabitq_bits_per_dim_query</code>,
-<code>rabitq_bits_per_dim_base</code>, <code>rabitq_version</code>, <code>rabitq_error_rate</code>,
-<code>rabitq_use_fht</code>, <code>sq4_uniform_trunc_rate</code>, <code>tq_chain</code>
+<code>rabitq_bits_per_dim_base</code>, <code>rabitq_bits_per_dim_precise</code>,
+<code>rabitq_error_rate</code>, <code>rabitq_use_fht</code>, <code>sq4_uniform_trunc_rate</code>, <code>tq_chain</code>
 (see <code>src/algorithm/hgraph.cpp</code>).</li>
 <li><strong>IVF</strong>, <strong>Pyramid</strong>, <strong>BruteForce</strong> expose <code>base_quantization_type</code> and
 the common reorder keys; some tunables (e.g. <code>tq_chain</code>) are wired
@@ -447,6 +447,7 @@ internally but not exposed as external keys today.</li>
 <li><a href="pq.html">Product Quantization (PQ)</a></li>
 <li><a href="pqfs.html">PQ FastScan</a></li>
 <li><a href="rabitq.html">RaBitQ</a></li>
+<li><a href="rabitq_split.html">RaBitQ x+y Split</a></li>
 <li><a href="../advanced/quantization_transform.html">Transform Quantizer (TQ)</a></li>
 </ul>
 

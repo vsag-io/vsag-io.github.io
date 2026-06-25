@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Introduction - VSAG Documentation</title>
+        <title>RaBitQ x+y Split - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -142,33 +142,33 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon-de23e50b.svg">
-        <link rel="shortcut icon" href="favicon-8114d1fc.png">
-        <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-0392ca55.css">
-        <link rel="stylesheet" href="css/chrome-fc474251.css">
-        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-0392ca55.css">
+        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
-        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
-        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
 
         <!-- Provide site root and default themes to javascript -->
         <script>
-            const path_to_root = "";
+            const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-3f7543e2.js"></script>
+        <script src="../toc-3f7543e2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -235,7 +235,7 @@
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
-                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
             </noscript>
             <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
@@ -270,7 +270,7 @@
                     <h1 class="menu-title">VSAG Documentation</h1>
 
                     <div class="right-buttons">
-                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
                             <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
 
@@ -304,44 +304,299 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="vsag-documentation"><a class="header" href="#vsag-documentation">VSAG Documentation</a></h1>
-<p>VSAG is a high-performance, production-grade vector indexing library for similarity search. It
-powers vector retrieval in OceanBase and other projects at Ant Group, and is released under the
-Apache 2.0 license.</p>
-<h2 id="features"><a class="header" href="#features">Features</a></h2>
+                        <h1 id="rabitq-xy-split"><a class="header" href="#rabitq-xy-split">RaBitQ x+y Split</a></h1>
+<p>RaBitQ x+y split is an HGraph storage and search mode for low-bit base codes.
+Each vector is divided into two records:</p>
 <ul>
-<li><strong>Multiple index types</strong>: <code>hnsw</code>, <code>hgraph</code>, <code>diskann</code>, <code>ivf</code>, <code>pyramid</code>, <code>sindi</code>, <code>brute_force</code>,
-covering in-memory, memory-disk hybrid, sparse and multi-tenant scenarios.</li>
-<li><strong>Rich quantization</strong>: fp32 / fp16 / bf16 / int8 / sq8 / sq4 / pq, with SIMD dispatch on x86_64
-and AArch64.</li>
-<li><strong>Advanced capabilities</strong>: range search, filtered search, serialization, conjugate graph
-enhancement, online <code>Tune</code>-based optimization, custom allocator / thread pool.</li>
-<li><strong>Language bindings</strong>: native C++, Python via <code>pyvsag</code>, Node.js / TypeScript via the npm package
-<code>vsag</code>.</li>
+<li><code>x</code> filter bits are read during graph traversal and lower-bound filtering.</li>
+<li><code>y</code> supplement bits are fetched only for candidates that reach reorder.</li>
+<li>The final reorder distance uses all <code>x+y</code> bits.</li>
 </ul>
-<h2 id="how-to-read-this-documentation"><a class="header" href="#how-to-read-this-documentation">How to Read This Documentation</a></h2>
+<p>This layout keeps the traversal record small while retaining a higher-precision
+RaBitQ distance for final ranking. It also allows the filter record to stay in
+memory while the colder supplement record is stored on disk.</p>
+<h2 id="enable-split-mode"><a class="header" href="#enable-split-mode">Enable split mode</a></h2>
+<p>HGraph selects split mode when both quantization types are <code>rabitq</code> and
+<code>rabitq_bits_per_dim_precise</code> is present:</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 960,
+    "index_param": {
+        "base_quantization_type": "rabitq",
+        "precise_quantization_type": "rabitq",
+        "use_reorder": true,
+        "rabitq_bits_per_dim_query": 32,
+        "rabitq_bits_per_dim_base": 3,
+        "rabitq_bits_per_dim_precise": 5,
+        "rabitq_error_rate": 1.9,
+        "max_degree": 64,
+        "ef_construction": 400
+    }
+}
+</code></pre>
+<p>The relevant parameters are:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>base_quantization_type</code></td><td>Must be <code>"rabitq"</code>.</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>Must also be <code>"rabitq"</code> to select split mode.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td><code>x</code>, the number of filter bits read during traversal.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td><code>y</code>, the number of supplement bits fetched during reorder.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_query</code></td><td>Must be <code>32</code> for split storage.</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>Default positive multiplier applied to the lower-bound error term.</td></tr>
+<tr><td><code>use_reorder</code></td><td>Should be <code>true</code> so candidates are ranked with the <code>x+y</code> distance.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The constraints are:</p>
+<pre><code class="language-text">1 &lt;= x &lt;= 8
+1 &lt;= y &lt;= 8
+x + y &lt;= 8
+</code></pre>
+<p>If <code>rabitq_bits_per_dim_precise</code> is omitted, HGraph uses the standard RaBitQ
+path instead of split storage.</p>
+<p>Enable the filter/lower-bound search path with:</p>
+<pre><code class="language-json">{
+    "hgraph": {
+        "ef_search": 200,
+        "parallelism": 4,
+        "rabitq_one_bit_search": true,
+        "rabitq_error_rate": 1.9
+    }
+}
+</code></pre>
+<p>The external search key is named <code>rabitq_one_bit_search</code>, but on a split index
+it uses all <code>x</code> filter bits configured by <code>rabitq_bits_per_dim_base</code>.
+<code>hgraph.rabitq_error_rate</code> overrides the index default for that search. It can
+be swept without rebuilding because the stored record contains the geometric
+error scale before this multiplier is applied.</p>
+<h2 id="search-pipeline"><a class="header" href="#search-pipeline">Search pipeline</a></h2>
+<p>The split search path has four stages:</p>
+<ol>
+<li>The query is transformed and normalized once. For supported filter widths,
+a byte lookup table is also built once per query.</li>
+<li>Graph traversal reads only the filter record. It computes an x-bit distance
+estimate and a conservative lower bound for each visited vector.</li>
+<li>Reorder discards candidates whose lower bound cannot enter the result set.
+It fetches the y-bit supplement record only for the remaining candidates.</li>
+<li>The final distance combines the filter contribution and supplement
+contribution into one <code>x+y</code>-bit RaBitQ estimate.</li>
+</ol>
+<p>The HGraph heap is therefore not populated with an <code>x+y</code> distance for every
+visited vector. The inexpensive x-bit distance drives traversal; the more
+accurate distance is evaluated only during candidate reorder.</p>
+<h2 id="encoding-and-bit-planes"><a class="header" href="#encoding-and-bit-planes">Encoding and bit planes</a></h2>
+<p>Let:</p>
+<pre><code class="language-text">d       = transformed dimension
+x       = filter bits per dimension
+y       = supplement bits per dimension
+B       = x + y
+P       = ceil(d / 8), bytes in one bit plane
+q_i     = transformed and normalized query coordinate
+u_i     = unsigned B-bit base code, 0 &lt;= u_i &lt; 2^B
+</code></pre>
+<p>The centered full code is:</p>
+<pre><code class="language-text">c_B = (2^B - 1) / 2
+z_i = u_i - c_B
+N_B = sqrt(sum_i z_i^2)
+</code></pre>
+<p><code>PackIntoPlanes</code> stores each logical bit of <code>u_i</code> in a separate bit plane.
+The split is defined by:</p>
+<pre><code class="language-text">f_i = floor(u_i / 2^y)    # top x bits
+s_i = u_i mod 2^y         # low y bits
+u_i = 2^y * f_i + s_i
+</code></pre>
+<p>The physical order keeps the most significant filter planes contiguous:</p>
+<pre><code class="language-text">filter record:     logical B-1, B-2, ..., B-x
+supplement record: logical 0, 1, ..., y-1
+</code></pre>
+<p>This order lets traversal scan exactly <code>x * P</code> plane bytes and lets reorder
+fetch exactly <code>y * P</code> additional plane bytes, excluding metadata and alignment.</p>
+<h2 id="datacell-layout"><a class="header" href="#datacell-layout">Datacell layout</a></h2>
+<p><code>RaBitQSplitDataCell</code> owns two <code>RaBitQSplitCodeStorage</code> instances.</p>
+<h3 id="filter-record"><a class="header" href="#filter-record">Filter record</a></h3>
+<p>The filter record in <code>x_bit_cell_</code> contains:</p>
+<pre><code class="language-text">x high bit planes
+base norm
+filter-code norm when x &gt; 1
+optional MRQ residual norm
+optional raw norm for IP/cosine
+lower-bound error
+filter approximation error
+</code></pre>
+<p>For one vector, its plane payload is:</p>
+<pre><code class="language-text">FilterPlanesSize = x * ceil(d / 8)
+</code></pre>
+<p>The filter record is the hot traversal record. Graph search and prefetch do
+not need the supplement record while the x-bit estimate is valid.</p>
+<h3 id="supplement-record"><a class="header" href="#supplement-record">Supplement record</a></h3>
+<p>The supplement record in <code>supplement_cell_</code> contains:</p>
+<pre><code class="language-text">y low bit planes
+full-code norm
+full-code approximation error
+remaining metadata required by the selected metric and transforms
+</code></pre>
+<p>Its plane payload is:</p>
+<pre><code class="language-text">SupplementPlanesSize = y * ceil(d / 8)
+</code></pre>
+<p>The complete code payload is approximately <code>(x+y) * d / 8</code> bytes per vector,
+plus aligned norms, errors, and optional transform metadata.</p>
+<h2 id="x-bit-filter-estimate-and-lower-bound"><a class="header" href="#x-bit-filter-estimate-and-lower-bound">X-bit filter estimate and lower bound</a></h2>
+<p>The filter code for coordinate <code>i</code> is <code>f_i</code> in <code>[0, 2^x - 1]</code>. Define:</p>
+<pre><code class="language-text">c_x   = (2^x - 1) / 2
+N_x   = sqrt(sum_i (f_i - c_x)^2)
+S_x   = sum_i q_i * f_i
+Q_sum = sum_i q_i
+rho_x = (S_x - c_x * Q_sum) / N_x
+</code></pre>
+<p>During index construction, RaBitQ stores the absolute filter approximation
+error <code>E_x</code> and the geometric error scale:</p>
+<pre><code class="language-text">E_safe    = clamp(abs(E_x), 1e-5, 1)
+epsilon_x = sqrt(max(0, 1 - E_safe^2) / max(1, d - 1))
+</code></pre>
+<p>The corrected filter inner-product estimate is:</p>
+<pre><code class="language-text">rho_hat_x = rho_x / abs(E_x)
+</code></pre>
+<p>For L2, with base norm <code>N_o</code> and query norm <code>N_q</code>, the x-bit distance and
+lower bound are:</p>
+<pre><code class="language-text">D_x = N_o^2 + N_q^2 - 2 * N_o * N_q * rho_hat_x
+
+LB = D_x
+     - 2 * N_o * N_q * rabitq_error_rate * epsilon_x / abs(E_x)
+</code></pre>
+<p>The implementation subtracts a small floating-point guard from <code>LB</code>. IP and
+cosine apply the corresponding metric conversion to the error term.</p>
+<p>The lower bound is used only to reject candidates safely. <code>D_x</code> remains the
+traversal estimate, while the final ranking uses the <code>x+y</code> distance.</p>
+<h2 id="query-lookup-table-and-simd"><a class="header" href="#query-lookup-table-and-simd">Query lookup table and SIMD</a></h2>
+<p>For <code>x = 2</code> and <code>x = 3</code>, the query computer builds a FastScan-style byte
+lookup table. Each table row corresponds to eight query coordinates and has
+256 entries:</p>
+<pre><code class="language-text">LUT[block][byte_value]
+    = sum of q_i for the set bits in byte_value within that 8-D block
+</code></pre>
+<p>Each filter plane then contributes one lookup per byte instead of decoding
+eight coordinates separately. Binary weights combine the x planes into
+<code>S_x</code>.</p>
+<p>The AVX2 and AVX512 kernels gather multiple lookup entries at once and also
+provide a batch-of-four path. The scalar implementation is kept as the
+portable fallback. The relevant entry points are:</p>
 <ul>
-<li><strong>User Guide</strong> — start here if you are new to VSAG: install, create an index, and run search.</li>
-<li><strong>Indexes</strong> — compare supported index types and look up their parameters.</li>
-<li><strong>Advanced Features</strong> — deep dives into specific search, serialization, memory, and hybrid-index capabilities.</li>
-<li><strong>Performance and Tuning</strong> — best practices, <code>Tune</code>, benchmarks, and evaluation tooling.</li>
-<li><strong>Developer Guide</strong> — building from source, running tests, and contributing.</li>
-<li><strong>Resources</strong> — release notes, roadmap, community links, related projects, papers, and contributors.</li>
+<li><code>RaBitQFloatMultiBitIPByLookup</code></li>
+<li><code>RaBitQFloatMultiBitIPBatch4ByLookup</code></li>
+<li><code>RaBitQFloatBuildByteIPLookupTable</code></li>
 </ul>
-<p>The Chinese version of the same documentation is available under <code>docs/docs/zh/</code>.</p>
-<h2 id="project-links"><a class="header" href="#project-links">Project Links</a></h2>
+<p>An x-bit width outside the specialized set remains supported through the
+generic bit-plane computation path.</p>
+<h2 id="reorder-scans-only-y-supplement-bits"><a class="header" href="#reorder-scans-only-y-supplement-bits">Reorder scans only y supplement bits</a></h2>
+<p>The full unsigned code satisfies:</p>
+<pre><code class="language-text">sum_i q_i * u_i
+    = 2^y * sum_i q_i * f_i
+      + sum_i q_i * s_i
+</code></pre>
+<p>For L2 with an x-bit lookup filter, HGraph passes the previously computed
+filter distance to reorder as a hint. <code>ComputeDistWithSplitCodeAndFilterDist</code>
+recovers the first term from that hint and computes only the second term from
+the y supplement planes:</p>
+<pre><code class="language-text">full contribution = shifted filter contribution + supplement contribution
+</code></pre>
+<p>Thus a <code>3+5</code> index reuses the 3-bit filter result and scans only 5 new bit
+planes for each reordered candidate. If the hint is unavailable or cannot be
+used, the code falls back to <code>ComputeDistWithSplitCode</code>, which computes the
+same final distance directly from both split records.</p>
+<h2 id="memory-disk-and-hybrid-io"><a class="header" href="#memory-disk-and-hybrid-io">Memory, disk, and hybrid IO</a></h2>
+<p>Both records use the base IO type unless a separate supplement IO type is
+configured.</p>
+<h3 id="both-records-in-memory"><a class="header" href="#both-records-in-memory">Both records in memory</a></h3>
+<pre><code class="language-json">{
+    "base_io_type": "block_memory_io"
+}
+</code></pre>
+<h3 id="both-records-on-disk"><a class="header" href="#both-records-on-disk">Both records on disk</a></h3>
+<pre><code class="language-json">{
+    "base_io_type": "async_io",
+    "base_file_path": "/data/hgraph_rabitq_split"
+}
+</code></pre>
+<p>VSAG creates separate backing paths for the filter and supplement records.</p>
+<h3 id="filter-in-memory-supplement-on-disk"><a class="header" href="#filter-in-memory-supplement-on-disk">Filter in memory, supplement on disk</a></h3>
+<pre><code class="language-json">{
+    "base_io_type": "block_memory_io",
+    "base_supplement_io_type": "async_io",
+    "base_file_path": "/data/hgraph_rabitq_split"
+}
+</code></pre>
+<p>The supported mixed-IO combination keeps <code>x_bit_cell_</code> in block memory and
+places <code>supplement_cell_</code> in async IO. During batched reorder, the filter
+record is read by direct pointer while <code>MultiRead</code> fetches only supplement
+records. <code>base_supplement_file_path</code> may be set explicitly; otherwise VSAG
+derives a supplement path from <code>base_file_path</code>.</p>
+<h2 id="serialization-and-loading"><a class="header" href="#serialization-and-loading">Serialization and loading</a></h2>
+<p>Use the normal index-level serialization API. Applications do not need to
+persist the two records independently.</p>
+<pre><code class="language-cpp">std::ofstream out("/path/to/index.bin", std::ios::binary);
+auto serialized = index-&gt;Serialize(out);
+
+auto loaded = vsag::Factory::CreateIndex("hgraph", index_params).value();
+std::ifstream in("/path/to/index.bin", std::ios::binary);
+auto deserialized = loaded-&gt;Deserialize(in);
+</code></pre>
+<p>The split datacell serializes, in order:</p>
+<ol>
+<li>Base datacell state and supplement IO type.</li>
+<li>Filter storage.</li>
+<li>Supplement storage.</li>
+<li>RaBitQ quantizer state.</li>
+</ol>
+<p>Create the destination index with parameters compatible with the serialized
+index, especially <code>dim</code>, <code>metric_type</code>, x/y bit widths, and query bits.
+Changing an encoded parameter requires rebuilding the index. Tuning only the
+search-time <code>hgraph.rabitq_error_rate</code> does not.</p>
+<h2 id="implementation-map"><a class="header" href="#implementation-map">Implementation map</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Area</th><th>File / entry point</th></tr>
+</thead>
+<tbody>
+<tr><td>External x/y parameter mapping</td><td><code>src/algorithm/hgraph/hgraph_param_mapping.cpp</code></td></tr>
+<tr><td>Split record ownership and IO</td><td><code>src/datacell/rabitq_split_datacell.h</code></td></tr>
+<tr><td>Plane layout and code splitting</td><td><code>RaBitQuantizer::StoredPlaneIndex</code>, <code>SplitCode</code></td></tr>
+<tr><td>Filter estimate and lower bound</td><td><code>ComputeDistWithOneBitLowerBound</code></td></tr>
+<tr><td>Direct split distance</td><td><code>ComputeDistWithSplitCode</code></td></tr>
+<tr><td>Reorder using the filter hint</td><td><code>ComputeDistWithSplitCodeAndFilterDist</code></td></tr>
+<tr><td>SIMD dispatch</td><td><code>src/simd/rabitq_simd.cpp</code></td></tr>
+<tr><td>AVX2 / AVX512 lookup kernels</td><td><code>src/simd/avx2.cpp</code>, <code>src/simd/avx512.cpp</code></td></tr>
+<tr><td>Runnable memory/disk/hybrid example</td><td><code>examples/cpp/323_index_hgraph_rabitq_split.cpp</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="operational-notes"><a class="header" href="#operational-notes">Operational notes</a></h2>
 <ul>
-<li>Source: <a href="https://github.com/antgroup/vsag">https://github.com/antgroup/vsag</a></li>
-<li>Issues: <a href="https://github.com/antgroup/vsag/issues">https://github.com/antgroup/vsag/issues</a></li>
-<li>Releases: <a href="https://github.com/antgroup/vsag/releases">https://github.com/antgroup/vsag/releases</a></li>
+<li>Split storage is currently an HGraph feature and requires fp32 query codes.</li>
+<li><code>l2</code>, <code>ip</code>, and <code>cosine</code> are supported. The filter-hint reorder shortcut is
+currently specialized for L2.</li>
+<li>Keep <code>use_reorder: true</code> unless x-bit traversal accuracy alone has been
+validated for the dataset.</li>
+<li>Changing x, y, metric, or transform parameters requires rebuilding the
+index. A search-time <code>hgraph.rabitq_error_rate</code> override does not.</li>
+<li>Use <a href="rabitq.html">RaBitQ</a> for the general quantizer description and
+<a href="../indexes/hgraph.html">HGraph</a> for the complete index parameter table.</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../quantization/rabitq.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
 
-                            <a rel="next prefetch" href="guide/installation.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/quantization_transform.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -351,8 +606,11 @@ enhancement, online <code>Tune</code>-based optimization, custom allocator / thr
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../quantization/rabitq.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
 
-                    <a rel="next prefetch" href="guide/installation.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/quantization_transform.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
@@ -372,13 +630,13 @@ enhancement, online <code>Tune</code>-based optimization, custom allocator / thr
         </script>
 
 
-        <script src="elasticlunr-ef4e11c1.min.js"></script>
-        <script src="mark-09e88c2c.min.js"></script>
-        <script src="searcher-09f2665d.js"></script>
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
 
-        <script src="clipboard-1626706a.min.js"></script>
-        <script src="highlight-abc7f01d.js"></script>
-        <script src="book-c22b7243.js"></script>
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-c22b7243.js"></script>
 
         <!-- Custom JS scripts -->
 
