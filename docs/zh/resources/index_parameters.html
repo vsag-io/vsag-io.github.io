@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -309,7 +309,7 @@
 <ul>
 <li>构建参数键：<code>src/constants.cpp</code></li>
 <li>公开常量：<code>include/vsag/constants.h</code></li>
-<li>每个索引的示例：<code>examples/cpp/101_index_hnsw.cpp</code> 等</li>
+<li>每个索引的示例：<code>examples/cpp/*_index_*.cpp</code>（例如 <code>103_index_hgraph.cpp</code>）</li>
 </ul>
 <h2 id="通用参数"><a class="header" href="#通用参数">通用参数</a></h2>
 <p>所有索引在构建时都需要提供以下顶层字段：</p>
@@ -325,34 +325,6 @@
 </tbody>
 </table>
 </div>
-<h2 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h2>
-<p>HNSW 使用 <code>hnsw</code> 子对象承载构建参数，并不支持 HGraph 专有参数（如 <code>base_quantization_type</code>）。</p>
-<pre><code class="language-json">{
-    "dim": 128,
-    "dtype": "float32",
-    "metric_type": "l2",
-    "hnsw": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "use_conjugate_graph": false
-    }
-}
-</code></pre>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>字段</th><th>典型值</th><th>说明</th></tr>
-</thead>
-<tbody>
-<tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
-<tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
-<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td>是否构建 <a href="../advanced/enhance_graph.html">共轭图</a></td></tr>
-</tbody>
-</table>
-</div>
-<p>搜索时：</p>
-<pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
-</code></pre>
 <h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
 <p>HGraph 的构建参数使用通用的 <code>index_param</code> 键（参见 <code>examples/cpp/103_index_hgraph.cpp</code>）；
 <code>hgraph</code> 键则保留给搜索期参数。</p>
@@ -386,17 +358,6 @@
 默认 <code>0.0</code>）。当取值 <code>&gt; 0</code> 且当前请求的 filter 的 <code>ValidRatio()</code> 不超过该
 阈值时，HGraph 会跳过图遍历，直接在通过过滤的 id 上做精确暴扫。详见
 <a href="../indexes/hgraph.html#高选择性过滤下的暴搜回退brute_force_threshold">HGraph 索引文档</a>。</p>
-<h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
-<pre><code class="language-json">{
-    "diskann": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "pq_sample_rate": 0.1,
-        "pq_dims": 32,
-        "use_async_io": true
-    }
-}
-</code></pre>
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {

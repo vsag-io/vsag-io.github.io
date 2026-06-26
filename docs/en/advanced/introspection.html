@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f7543e2.js"></script>
+        <script src="../toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -336,7 +336,7 @@ enumeration.</p>
 <strong>already stored in the index</strong>, without running a search. This is useful for re-ranking, A/B
 evaluation, ground-truth checks, or computing pairwise distances to a known shortlist.</p>
 <p>Two overloads are provided:</p>
-<pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF, DiskANN, HNSW)
+<pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF)
 auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
 
 // Sparse vector indexes (SINDI, SparseIndex) — wrap the query in a Dataset
@@ -368,8 +368,7 @@ a <code>type</code> enum that selects the right typed accessor on <code>DetailDa
 <code>Index</code> base class throws <code>std::runtime_error("Index doesn't support ...")</code> by default
 (<code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> in <code>include/vsag/index.h:658,674</code>);
 HGraph / IVF / BruteForce / Pyramid / SINDI / WARP implement them through
-<code>InnerIndexInterface</code>, while <code>HNSW</code> only overrides <code>GetDetailDataByName</code> and DiskANN does not
-override either. Always handle the <code>tl::expected</code> error path when calling these APIs.</p>
+<code>InnerIndexInterface</code>. Always handle the <code>tl::expected</code> error path when calling these APIs.</p>
 <pre><code class="language-cpp">auto infos = index-&gt;GetIndexDetailInfos().value();
 for (const auto&amp; info : infos) {
     std::cout &lt;&lt; info.name &lt;&lt; " : " &lt;&lt; info.description &lt;&lt; '\n';

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,8 +305,8 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h1>
-<p>HGraph 是 VSAG 的旗舰 <strong>图索引</strong>。它构建的是与 HNSW 思路类似的多层近邻图，但在此基础上
-提供了更丰富的量化方案、统一的构建参数 schema（<code>index_param</code>），并原生支持精排（reorder）、
+<p>HGraph 是 VSAG 的旗舰 <strong>图索引</strong>。它构建的是多层近邻图，
+提供了丰富的量化方案、统一的构建参数 schema（<code>index_param</code>），并原生支持精排（reorder）、
 增量更新、删除、以及基于 ELP 的运行时自动调优。</p>
 <p>对于大多数稠密向量场景（文本 / 图像 / 多模态 embedding，维度 64–4096，规模从数千到数亿），
 HGraph 都是推荐的默认索引。</p>

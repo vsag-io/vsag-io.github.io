@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-3f7543e2.js"></script>
+        <script src="toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -311,8 +311,8 @@ powers vector retrieval in OceanBase and other projects at Ant Group, and is rel
 Apache 2.0 license.</p>
 <h2 id="features"><a class="header" href="#features">Features</a></h2>
 <ul>
-<li><strong>Multiple index types</strong>: <code>hnsw</code>, <code>hgraph</code>, <code>diskann</code>, <code>ivf</code>, <code>pyramid</code>, <code>sindi</code>, <code>brute_force</code>,
-covering in-memory, memory-disk hybrid, sparse and multi-tenant scenarios.</li>
+<li><strong>Multiple index types</strong>: <code>hgraph</code>, <code>ivf</code>, <code>pyramid</code>, <code>sindi</code>, <code>brute_force</code>,
+covering in-memory, sparse and multi-tenant scenarios.</li>
 <li><strong>Rich quantization</strong>: fp32 / fp16 / bf16 / int8 / sq8 / sq4 / pq, with SIMD dispatch on x86_64
 and AArch64.</li>
 <li><strong>Advanced capabilities</strong>: range search, filtered search, serialization, conjugate graph
@@ -405,8 +405,6 @@ index-specific options.</p>
 <tr><td><code>sindi</code></td><td>Sparse-vector index (e.g. BM25, SPLADE)</td><td><a href="#sindi">SINDI</a></td><td><code>examples/cpp/109_index_sindi.cpp</code></td></tr>
 <tr><td><code>pyramid</code></td><td>Multi-tenant / tag-partitioned graph index</td><td><a href="#pyramid-1">Pyramid</a></td><td><code>examples/cpp/107_index_pyramid.cpp</code></td></tr>
 <tr><td><code>brute_force</code></td><td>Exact exhaustive search; useful as baseline</td><td>—</td><td><code>examples/cpp/105_index_brute_force.cpp</code></td></tr>
-<tr><td><code>hnsw</code></td><td>Classic HNSW graph index (<strong>deprecated</strong> — prefer <code>hgraph</code>)</td><td>—</td><td><code>examples/cpp/101_index_hnsw.cpp</code></td></tr>
-<tr><td><code>diskann</code></td><td>Memory-disk hybrid (<strong>deprecated</strong> — prefer <code>ivf</code>)</td><td>—</td><td><code>examples/cpp/102_index_diskann.cpp</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -613,8 +611,6 @@ structures and trade-offs they use under the hood.</p>
 </div>
 <p><code>brute_force</code> is also available as an exact-search baseline (see
 <a href="#creating-an-index">Creating an Index</a> and <code>examples/cpp/105_index_brute_force.cpp</code>).</p>
-<p><code>hnsw</code> and <code>diskann</code> are retained for backward compatibility but are <strong>deprecated</strong>; new
-deployments should prefer <code>hgraph</code> (graph-based) or <code>ivf</code> (partition-based) instead.</p>
 <h2 id="parameter-conventions"><a class="header" href="#parameter-conventions">Parameter conventions</a></h2>
 <p>All indexes share the same top-level build fields:</p>
 <div class="table-wrapper">
@@ -640,7 +636,7 @@ enumeration, consult the source:</p>
 <ul>
 <li>Build parameter keys: <code>src/constants.cpp</code></li>
 <li>Public constants: <code>include/vsag/constants.h</code></li>
-<li>Per-index examples: <code>examples/cpp/101_index_hnsw.cpp</code> and friends.</li>
+<li>Per-index examples: the <code>examples/cpp/*_index_*.cpp</code> files (e.g. <code>103_index_hgraph.cpp</code>).</li>
 </ul>
 <h2 id="common-fields"><a class="header" href="#common-fields">Common Fields</a></h2>
 <p>Every index requires these top-level fields at build time:</p>
@@ -656,35 +652,6 @@ enumeration, consult the source:</p>
 </tbody>
 </table>
 </div>
-<h2 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h2>
-<p>HNSW uses the <code>hnsw</code> sub-object for build parameters. It does not accept HGraph-only keys
-such as <code>base_quantization_type</code>.</p>
-<pre><code class="language-json">{
-    "dim": 128,
-    "dtype": "float32",
-    "metric_type": "l2",
-    "hnsw": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "use_conjugate_graph": false
-    }
-}
-</code></pre>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Typical</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
-<tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
-<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td>Build the <a href="#graph-index-enhancement">conjugate graph</a></td></tr>
-</tbody>
-</table>
-</div>
-<p>At search time:</p>
-<pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
-</code></pre>
 <h2 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h2>
 <p>HGraph places its build parameters under the generic <code>index_param</code> key (see
 <code>examples/cpp/103_index_hgraph.cpp</code>); the <code>hgraph</code> key is reserved for search-time parameters.</p>
@@ -720,17 +687,6 @@ filter whose <code>ValidRatio()</code> is at most this threshold, HGraph skips t
 traversal and runs an exact scan over the surviving ids. See the
 <a href="#brute-force-fallback-under-highly-selective-filters-brute_force_threshold">HGraph index page</a>
 for details.</p>
-<h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
-<pre><code class="language-json">{
-    "diskann": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "pq_sample_rate": 0.1,
-        "pq_dims": 32,
-        "use_async_io": true
-    }
-}
-</code></pre>
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {
@@ -769,7 +725,7 @@ for details.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="hgraph-2"><a class="header" href="#hgraph-2">HGraph</a></h1>
 <p>HGraph is VSAG’s flagship <strong>graph-based</strong> index. It builds a hierarchical proximity graph
-similar in spirit to HNSW, but with a richer set of quantization options, a unified
+and offers a rich set of quantization options, a unified
 build-parameter schema (<code>index_param</code>), and first-class support for reordering,
 incremental updates, deletion, and ELP-based runtime tuning.</p>
 <p>For most dense-vector workloads (text / image / multimodal embeddings, 64–4096 dims,
@@ -1162,7 +1118,6 @@ queries-per-second.</li>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#index-parameters">Index Parameters</a></li>
-<li><a href="#memory--disk-hybrid-index-diskann">Hybrid Memory-Disk Index</a></li>
 <li><a href="#serialization">Serialization</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -2988,9 +2943,9 @@ parameter set consistent, not just the chain string.</p>
 </div>
 <h2 id="core-subsystems-inside-src"><a class="header" href="#core-subsystems-inside-src">Core Subsystems (inside <code>src/</code>)</a></h2>
 <ul>
-<li><strong>index</strong>: concrete index implementations (HNSW, HGraph, DiskANN, IVF, Pyramid, SINDI, …).</li>
+<li><strong>index</strong>: concrete index implementations (HGraph, IVF, Pyramid, SINDI, …; legacy: HNSW, DiskANN).</li>
 <li><strong>quantization</strong>: FP32 / FP16 / BF16 / SQ4 / SQ8 / PQ quantizers with SIMD dispatch.</li>
-<li><strong>graph</strong>: shared graph data structures used by HNSW/HGraph/DiskANN.</li>
+<li><strong>graph</strong>: shared graph data structures used by HGraph and other graph-based indexes.</li>
 <li><strong>storage</strong>: binary/reader sets, streaming serialization.</li>
 <li><strong>allocator / thread pool</strong>: user-pluggable resource management.</li>
 <li><strong>simd</strong>: cascaded SIMD dispatch for x86_64 and AArch64.</li>
@@ -3571,8 +3526,7 @@ entire dataset and then iteratively refines edges using sampled candidate exchan
 batches, because the refinement loop parallelizes cleanly over the data and avoids per-insert
 search.</p>
 <p>ODescent is implemented in <code>src/impl/odescent/odescent_graph_builder.{h,cpp}</code> and is currently
-used by <strong>HGraph</strong>, <strong>Pyramid</strong>, <strong>DiskANN</strong> (build path), and internally by HNSW’s <code>Merge</code>
-implementation.</p>
+used by <strong>HGraph</strong> and <strong>Pyramid</strong> (build path).</p>
 <h3 id="enabling-odescent-on-hgraph"><a class="header" href="#enabling-odescent-on-hgraph">Enabling ODescent on HGraph</a></h3>
 <p>Add <code>graph_type: "odescent"</code> to the HGraph <code>index_param</code>:</p>
 <pre><code class="language-json">{
@@ -3679,9 +3633,7 @@ which is more efficient than post-filtering.</p>
 <tr><th>Index type</th><th>Supports RangeSearch</th></tr>
 </thead>
 <tbody>
-<tr><td>hnsw</td><td>yes</td></tr>
 <tr><td>hgraph</td><td>yes</td></tr>
-<tr><td>diskann</td><td>yes</td></tr>
 <tr><td>ivf</td><td>yes</td></tr>
 <tr><td>brute_force</td><td>yes</td></tr>
 <tr><td>sindi</td><td>yes (sparse vectors)</td></tr>
@@ -3694,7 +3646,7 @@ which is more efficient than post-filtering.</p>
 the <code>metric_type</code> specified at index creation.</li>
 <li>If <code>radius</code> is very large, the result set can be huge; combine with <code>limited_size</code> to avoid
 unbounded memory usage.</li>
-<li>For graph-based indexes (HNSW / HGraph), runtime parameters like <code>ef</code> share the same meaning
+<li>For graph-based indexes (HGraph), runtime parameters like <code>ef</code> share the same meaning
 between <code>RangeSearch</code> and <code>KnnSearch</code>.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -3753,8 +3705,8 @@ CalDistanceById(const DatasetPtr&amp; query,
 <h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
 <ul>
 <li><code>true</code> (default): the implementation tries to use the <strong>high-precision</strong> representation
-of the stored vector (e.g. full-precision float32). For DiskANN this may require reading
-the original vector from disk and therefore incurs I/O.</li>
+of the stored vector (e.g. full-precision float32). When the index only retains quantized
+codes, obtaining the precise value can be more expensive.</li>
 <li><code>false</code>: the implementation may use the <strong>quantized / approximate</strong> representation that
 the index already keeps in memory. Faster, but the returned distance is approximate.</li>
 </ul>
@@ -3813,10 +3765,8 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 </thead>
 <tbody>
 <tr><td>hgraph</td><td>yes</td><td>yes</td><td>Honors <code>calculate_precise_distance</code>.</td></tr>
-<tr><td>hnsw</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
 <tr><td>ivf</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
 <tr><td>brute_force</td><td>yes</td><td>yes (default loop)</td><td>Always precise (no quantization).</td></tr>
-<tr><td>diskann</td><td>yes</td><td>yes (default loop)</td><td><code>calculate_precise_distance=true</code> may incur disk I/O.</td></tr>
 <tr><td>pyramid</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
 <tr><td>sindi</td><td>no</td><td>yes</td><td>Sparse vectors only.</td></tr>
 <tr><td>sparse_index</td><td>no</td><td>yes</td><td>Sparse vectors only.</td></tr>
@@ -3849,10 +3799,6 @@ distribution) to the search algorithm.</li>
 <p>For attribute / “hybrid” search where the predicate is an SQL-like expression over typed
 fields, see <a href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a>. For filtering against an
 opaque per-vector byte payload during graph traversal, see <a href="#extra-info">Extra Info</a>.</p>
-<blockquote>
-<p>Note: this page is unrelated to the <a href="#memory--disk-hybrid-index-diskann">Memory + Disk Hybrid Index</a>, which
-is about DiskANN’s storage layout, not search-time filtering.</p>
-</blockquote>
 <h2 id="truth-value-conventions"><a class="header" href="#truth-value-conventions">Truth-value Conventions</a></h2>
 <p>The three APIs disagree on how to spell “exclude this id”. Read this table carefully before
 mixing them.</p>
@@ -3976,10 +3922,8 @@ which is what runtime feature checks return.</p>
 </thead>
 <tbody>
 <tr><td>HGraph</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
-<tr><td>HNSW</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
 <tr><td>IVF</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
 <tr><td>BruteForce</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
-<tr><td>DiskANN</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
 <tr><td>Pyramid</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
 <tr><td>SINDI / WARP</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
 </tbody>
@@ -4028,7 +3972,7 @@ auto result = index-&gt;SearchWithRequest(req).value();
 <h2 id="examples-2"><a class="header" href="#examples-2">Examples</a></h2>
 <ul>
 <li>C++: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/301_feature_filter.cpp"><code>examples/cpp/301_feature_filter.cpp</code></a>
-— bitset, function, and <code>Filter</code>-object styles on HNSW.</li>
+— bitset, function, and <code>Filter</code>-object styles.</li>
 <li>C++: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/320_feature_extra_info.cpp"><code>examples/cpp/320_feature_extra_info.cpp</code></a>
 — in-graph filtering using the <code>CheckValid(const char*)</code> byte-buffer overload.</li>
 </ul>
@@ -4151,9 +4095,9 @@ while (kept.size() &lt; needed) {
 // add one only if you also want the candidates still buffered in `ctx`.
 delete ctx;
 </code></pre>
-<p>The HNSW graph supports an additional runtime parameter — <code>skip_ratio</code> — that controls how
-aggressively the iterator skips already-explored regions during continuation. See the
-HNSW section in <code>examples/cpp/313_feature_search_allocator.cpp</code>.</p>
+<p>The HGraph index supports an additional runtime parameter — <code>skip_ratio</code> — that controls how
+aggressively the iterator skips already-explored regions during continuation. See
+<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>.</p>
 <h2 id="support-matrix-2"><a class="header" href="#support-matrix-2">Support Matrix</a></h2>
 <p>Indexes that advertise the <code>SUPPORT_KNN_ITERATOR_FILTER_SEARCH</code> feature (queryable via
 <code>Index::CheckFeature</code>):</p>
@@ -4163,10 +4107,8 @@ HNSW section in <code>examples/cpp/313_feature_search_allocator.cpp</code>.</p>
 <tr><th>Index type</th><th>Supports iterator search</th></tr>
 </thead>
 <tbody>
-<tr><td>hnsw</td><td>yes</td></tr>
 <tr><td>hgraph</td><td>yes</td></tr>
 <tr><td>ivf</td><td>no</td></tr>
-<tr><td>diskann</td><td>no</td></tr>
 <tr><td>brute_force</td><td>no</td></tr>
 <tr><td>sindi</td><td>no</td></tr>
 </tbody>
@@ -4204,8 +4146,8 @@ satisfy an SQL-like expression. Compared to the id-based filters in
 index; the predicate is parsed once and evaluated during graph traversal, so candidates that
 cannot satisfy the predicate are pruned early.</p>
 <blockquote>
-<p>“Hybrid search” on this page means <strong>vector + structured attributes</strong>. For DiskANN’s
-memory + disk <em>index</em> hybrid, see <a href="#memory--disk-hybrid-index-diskann">Memory + Disk Hybrid Index</a>.</p>
+<p>“Hybrid search” on this page means <strong>vector + structured attributes</strong> (not a
+storage-layout hybrid).</p>
 </blockquote>
 <h2 id="when-to-use-each-filter-api"><a class="header" href="#when-to-use-each-filter-api">When to Use Each Filter API</a></h2>
 <div class="table-wrapper">
@@ -4233,7 +4175,7 @@ memory + disk <em>index</em> hybrid, see <a href="#memory--disk-hybrid-index-dis
 <tr><td>IVF</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
 <tr><td>BruteForce</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
 <tr><td>WARP (sparse)</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
-<tr><td>HNSW / DiskANN / SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">id-based filters only (see <a href="#filtered-search">Filtered Search</a>)</td><td style="text-align: center">—</td></tr>
+<tr><td>SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">id-based filters only (see <a href="#filtered-search">Filtered Search</a>)</td><td style="text-align: center">—</td></tr>
 </tbody>
 </table>
 </div>
@@ -4487,7 +4429,7 @@ empty-&gt;Deserialize(bs_loaded);
 </code></pre>
 <p><code>ReaderSet</code> is similar to <code>BinarySet</code> but uses a user-supplied <code>Reader</code> to read on demand, which
 avoids loading everything at once. This is useful for memory-constrained or partial-deserialization
-scenarios (for example, the on-disk portion of DiskANN).</p>
+scenarios.</p>
 <h3 id="2-file-streams-stdostream--stdistream"><a class="header" href="#2-file-streams-stdostream--stdistream">2. File Streams (<code>std::ostream</code> / <code>std::istream</code>)</a></h3>
 <p>The simplest option — serialize the whole index to a file or memory stream:</p>
 <pre><code class="language-cpp">std::ofstream out("index.bin", std::ios::binary);
@@ -4508,7 +4450,6 @@ empty-&gt;Deserialize(in);
 matches the one used at serialization time.</li>
 <li>When upgrading across major versions, check the compatibility notes in the
 <a href="#release-notes">release notes</a>.</li>
-<li>DiskANN’s disk files are managed independently; <code>Serialize</code> returns the in-memory metadata side.</li>
 <li>References:
 <code>examples/cpp/318_feature_tune.cpp</code>, <code>examples/cpp/401_persistent_kv.cpp</code>,
 <code>examples/cpp/402_persistent_streaming.cpp</code>.</li>
@@ -4647,7 +4588,7 @@ index falls back to the allocator that was attached to its owning <code>Resource
 <p><strong>Availability.</strong> <code>Index::SearchWithRequest</code> has a default implementation that returns an
 <em>unsupported</em> error. Only HGraph, IVF, BruteForce and WARP implement it today
 (<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>). For indexes that do not yet override
-<code>SearchWithRequest</code> (HNSW, DiskANN, SINDI, Pyramid, SparseIndex), use the legacy <code>SearchParam</code>
+<code>SearchWithRequest</code> (SINDI, Pyramid, SparseIndex), use the legacy <code>SearchParam</code>
 path described below.</p>
 </blockquote>
 <h2 id="legacy-api--searchparamallocator-deprecated"><a class="header" href="#legacy-api--searchparamallocator-deprecated">Legacy API — <code>SearchParam::allocator</code> <em>(deprecated)</em></a></h2>
@@ -4667,8 +4608,7 @@ instead”) and remains only for source compatibility. The wording is currently 
 the struct itself does not carry the C++ <code>[[deprecated]]</code> attribute, so the compiler will not
 emit deprecation warnings, but new code should still target <code>SearchRequest</code> /
 <code>SearchWithRequest</code> on indexes that support it. The example
-<code>examples/cpp/313_feature_search_allocator.cpp</code> (HNSW) and
-<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> (HGraph) demonstrate the legacy form.</p>
+<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> (HGraph) demonstrates the legacy form.</p>
 <h2 id="result-ownership"><a class="header" href="#result-ownership">Result Ownership</a></h2>
 <p>The result-<code>Dataset</code> ownership contract depends on which index implements <code>SearchWithRequest</code>:</p>
 <ul>
@@ -4721,7 +4661,7 @@ arena.reset();              // drops every per-query buffer at once
 <tr><td><code>HGraph::SearchWithRequest</code> scratch + result <code>Dataset</code></td><td><code>search_allocator_</code> if set, otherwise the <code>Resource</code>’s allocator. HGraph is the only index that plumbs <code>search_allocator_</code> into the result.</td></tr>
 <tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> result <code>Dataset</code></td><td>Always the index’s own allocator (<code>allocator_</code>). <code>search_allocator_</code> is <em>not</em> consulted for result buffers today.</td></tr>
 <tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> scratch state</td><td>Uses <code>search_allocator_</code> for some intermediate buffers when set; otherwise the index’s allocator.</td></tr>
-<tr><td><code>KnnSearch(query, k, SearchParam)</code> (legacy)</td><td>Uses <code>SearchParam::allocator</code> if set, on indexes whose <code>KnnSearch</code> honors it (e.g. HNSW, HGraph examples). Otherwise the <code>Resource</code> allocator.</td></tr>
+<tr><td><code>KnnSearch(query, k, SearchParam)</code> (legacy)</td><td>Uses <code>SearchParam::allocator</code> if set, on indexes whose <code>KnnSearch</code> honors it (e.g. HGraph examples). Otherwise the <code>Resource</code> allocator.</td></tr>
 <tr><td><code>KnnSearch(query, k, parameters_str)</code></td><td>No per-search allocator hook — uses the <code>Resource</code> allocator.</td></tr>
 <tr><td><code>RangeSearch(...)</code> (all forms)</td><td>Uses the <code>Resource</code> allocator; no per-search allocator hook.</td></tr>
 </tbody>
@@ -4740,8 +4680,6 @@ its internal containers.</li>
 </ul>
 <h2 id="runnable-examples"><a class="header" href="#runnable-examples">Runnable Examples</a></h2>
 <ul>
-<li><code>examples/cpp/313_feature_search_allocator.cpp</code> — HNSW + custom allocator (legacy
-<code>SearchParam</code>).</li>
 <li><code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> — HGraph (<code>sq8</code>) + custom allocator.</li>
 </ul>
 <p>See also <a href="#memory-management">Memory Management</a> for the index-level <code>Allocator</code> / <code>Resource</code> setup, and
@@ -4780,7 +4718,7 @@ enumeration.</p>
 <strong>already stored in the index</strong>, without running a search. This is useful for re-ranking, A/B
 evaluation, ground-truth checks, or computing pairwise distances to a known shortlist.</p>
 <p>Two overloads are provided:</p>
-<pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF, DiskANN, HNSW)
+<pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF)
 auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
 
 // Sparse vector indexes (SINDI, SparseIndex) — wrap the query in a Dataset
@@ -4812,8 +4750,7 @@ a <code>type</code> enum that selects the right typed accessor on <code>DetailDa
 <code>Index</code> base class throws <code>std::runtime_error("Index doesn't support ...")</code> by default
 (<code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> in <code>include/vsag/index.h:658,674</code>);
 HGraph / IVF / BruteForce / Pyramid / SINDI / WARP implement them through
-<code>InnerIndexInterface</code>, while <code>HNSW</code> only overrides <code>GetDetailDataByName</code> and DiskANN does not
-override either. Always handle the <code>tl::expected</code> error path when calling these APIs.</p>
+<code>InnerIndexInterface</code>. Always handle the <code>tl::expected</code> error path when calling these APIs.</p>
 <pre><code class="language-cpp">auto infos = index-&gt;GetIndexDetailInfos().value();
 for (const auto&amp; info : infos) {
     std::cout &lt;&lt; info.name &lt;&lt; " : " &lt;&lt; info.description &lt;&lt; '\n';
@@ -5007,7 +4944,7 @@ applications.</p>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="graph-index-enhancement"><a class="header" href="#graph-index-enhancement">Graph Index Enhancement</a></h1>
-<p>Graph-based indexes (HNSW, HGraph) may see recall drops on “hard queries” — queries that are
+<p>Graph-based indexes may see recall drops on “hard queries” — queries that are
 poorly connected to their true nearest neighbors. VSAG patches these queries online or offline
 using a <strong>conjugate graph</strong>, noticeably improving tail recall at almost zero index-size cost.</p>
 <h2 id="enabling-the-conjugate-graph"><a class="header" href="#enabling-the-conjugate-graph">Enabling the Conjugate Graph</a></h2>
@@ -5048,61 +4985,6 @@ recall end-to-end.</p>
 <li>Build time increases slightly when enabled.</li>
 <li>Conjugate-graph data is serialized together with the index.</li>
 <li>It can be combined with <code>Tune</code> — they target route quality and runtime parameters respectively.</li>
-</ul>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="memory--disk-hybrid-index-diskann"><a class="header" href="#memory--disk-hybrid-index-diskann">Memory + Disk Hybrid Index (DiskANN)</a></h1>
-<blockquote>
-<p>“Hybrid index” on this page refers to <strong>memory + disk storage</strong>. If you are looking for
-<strong>vector + structured-attribute</strong> hybrid search (sometimes called <em>hybrid search</em> in the
-literature), see <a href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a>. For id-based
-filtering during search, see <a href="#filtered-search">Filtered Search</a>.</p>
-</blockquote>
-<p>For billion-scale vector datasets, fitting the full graph index in memory is expensive and
-wasteful. VSAG’s <code>diskann</code> index splits storage:</p>
-<ul>
-<li><strong>Compressed vectors (PQ)</strong> are kept in memory for fast pruning.</li>
-<li><strong>Full-precision vectors</strong> and the <strong>graph structure</strong> live on disk and are fetched
-asynchronously along the search path.</li>
-</ul>
-<p>This lets a single machine serve billion-scale nearest-neighbor queries under a limited memory
-budget.</p>
-<h2 id="building-diskann"><a class="header" href="#building-diskann">Building DiskANN</a></h2>
-<pre><code class="language-cpp">std::string build_params = R"(
-{
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128,
-    "diskann": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "pq_sample_rate": 0.1,
-        "pq_dims": 32,
-        "use_async_io": true
-    }
-}
-)";
-auto index = vsag::Factory::CreateIndex("diskann", build_params).value();
-index-&gt;Build(dataset);
-</code></pre>
-<p>Complete example: <code>examples/cpp/102_index_diskann.cpp</code>.</p>
-<h2 id="asynchronous-io-libaio"><a class="header" href="#asynchronous-io-libaio">Asynchronous IO (libaio)</a></h2>
-<p>On Linux, set <code>use_async_io</code> in the build parameters to dispatch concurrent reads through libaio.
-This requires compiling with <code>VSAG_ENABLE_LIBAIO=ON</code> (see <a href="#building">Building</a>).</p>
-<h2 id="file-layout"><a class="header" href="#file-layout">File Layout</a></h2>
-<p><code>diskann</code> produces two file kinds on disk:</p>
-<ul>
-<li><code>*.index</code> — the graph structure.</li>
-<li><code>*.data</code> — the full-precision vectors.</li>
-</ul>
-<p>Both files must be reachable at deserialization time.</p>
-<h2 id="notes-5"><a class="header" href="#notes-5">Notes</a></h2>
-<ul>
-<li>Prefer NVMe SSDs; on HDDs query latency degrades dramatically.</li>
-<li>The compression ratio and accuracy of the in-memory PQ depend on <code>pq_dims</code>; setting it too low
-hurts recall.</li>
-<li>Warm up the index files on cold start (read a few MB at random) to populate the page cache.</li>
-<li>DiskANN does not currently support online insert/delete; rebuild the index when updates are
-needed.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="extra-info"><a class="header" href="#extra-info">Extra Info</a></h1>
@@ -5436,8 +5318,6 @@ parameter reference and performance tuning guide.</p>
 </thead>
 <tbody>
 <tr><td>Medium scale (≤ 10M), in-memory, recall/latency critical</td><td><code>hgraph</code></td><td>Unified high-quality graph index with multiple quantizations and Tune support</td></tr>
-<tr><td>Compatibility with existing HNSW deployments</td><td><code>hnsw</code></td><td>Interface/parameters closest to hnswlib</td></tr>
-<tr><td>Billion-scale vectors under limited memory</td><td><code>diskann</code></td><td>PQ in memory, full vectors on disk</td></tr>
 <tr><td>Coarse recall / candidate layer</td><td><code>ivf</code></td><td>Trains once, parallelizes widely</td></tr>
 <tr><td>Small scale, 100% precision required</td><td><code>brute_force</code></td><td>Exhaustive search; useful as a recall baseline</td></tr>
 <tr><td>Multi-tenant or partitioned data</td><td><code>pyramid</code></td><td>Multiple subgraphs inside one index, supports tag-based retrieval</td></tr>
@@ -5480,7 +5360,6 @@ allocator; see <a href="#memory-management">Memory Management</a>.</li>
 <li>For production binaries, pick the distribution matching your ABI:
 <code>dist-pre-cxx11-abi</code>, <code>dist-cxx11-abi</code>, or <code>dist-libcxx</code> (see <a href="#building">Building</a>).</li>
 <li>Enable <code>VSAG_ENABLE_INTEL_MKL=ON</code> on Intel CPUs for additional acceleration.</li>
-<li>For DiskANN, use NVMe SSDs and compile with <code>VSAG_ENABLE_LIBAIO=ON</code>.</li>
 </ul>
 <h2 id="observability"><a class="header" href="#observability">Observability</a></h2>
 <ul>
@@ -5548,7 +5427,7 @@ or a similarity convention.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="optimizer-tune"><a class="header" href="#optimizer-tune">Optimizer (Tune)</a></h1>
-<p>For graph-based indexes (HNSW, HGraph), VSAG exposes the <code>Tune</code> interface, which automatically
+<p>For graph-based indexes (HGraph), VSAG exposes the <code>Tune</code> interface, which automatically
 adjusts runtime parameters based on a representative query set to get a better trade-off between
 <strong>recall</strong> and <strong>latency</strong>. Internally this is the historical “ELP Optimizer”.</p>
 <h2 id="basic-usage-2"><a class="header" href="#basic-usage-2">Basic Usage</a></h2>
@@ -5579,9 +5458,7 @@ Optimizer”. Its implementation key is <code>use_elp_optimizer</code>, which no
 <tr><th>Index type</th><th>Supports Tune</th></tr>
 </thead>
 <tbody>
-<tr><td>hnsw</td><td>yes</td></tr>
 <tr><td>hgraph</td><td>yes</td></tr>
-<tr><td>diskann</td><td>partial</td></tr>
 <tr><td>ivf / sindi / brute_force</td><td>no</td></tr>
 </tbody>
 </table>
@@ -5593,7 +5470,7 @@ Optimizer”. Its implementation key is <code>use_elp_optimizer</code>, which no
 <li>Call <code>Tune</code> with a representative query set.</li>
 <li>Serialize the tuned index for production use.</li>
 </ol>
-<h2 id="notes-6"><a class="header" href="#notes-6">Notes</a></h2>
+<h2 id="notes-5"><a class="header" href="#notes-5">Notes</a></h2>
 <ul>
 <li>Tuning is sensitive to the query distribution — use samples that reflect real traffic.</li>
 <li>Tuned parameters are persisted together with the index metadata via <code>Serialize</code>/<code>Deserialize</code>
@@ -5610,7 +5487,6 @@ release):</p>
 <ul>
 <li><strong>CPU</strong>: mainstream x86_64 server CPUs (with AVX2 / AVX-512)</li>
 <li><strong>Memory</strong>: enough DDR4/DDR5 to cover the index plus OS page cache</li>
-<li><strong>Disk</strong>: NVMe SSD (for DiskANN scenarios)</li>
 <li><strong>OS</strong>: Ubuntu 20.04 / 22.04 or CentOS 7 / 8</li>
 <li><strong>Build</strong>: <code>make release</code> by default; MKL is <strong>off</strong> by default (<code>VSAG_ENABLE_INTEL_MKL=OFF</code>).
 To enable it explicitly, use <code>VSAG_ENABLE_INTEL_MKL=ON make release</code> (or
@@ -6594,14 +6470,10 @@ PR to list it here.</li>
 </ul>
 <h2 id="dependencies-and-inspirations"><a class="header" href="#dependencies-and-inspirations">Dependencies and Inspirations</a></h2>
 <ul>
-<li><strong><a href="https://github.com/nmslib/hnswlib">hnswlib</a></strong> — the canonical HNSW implementation; VSAG’s
-HNSW interface and algorithms were influenced by it.</li>
-<li><strong><a href="https://github.com/microsoft/DiskANN">DiskANN</a></strong> — Microsoft Research’s large-scale on-disk
-vector search work; VSAG’s <code>diskann</code> index is based on this approach.</li>
 <li><strong><a href="https://github.com/facebookresearch/faiss">Faiss</a></strong> — Meta’s vector search library; VSAG
 borrows ideas in IVF and quantization.</li>
 <li><strong><a href="https://github.com/microsoft/SPTAG">SPANN / SPTAG</a></strong> — Microsoft’s large-scale retrieval
-system; shaped our hybrid-index approach.</li>
+system; an inspiration for VSAG’s large-scale search design.</li>
 </ul>
 <h2 id="ecosystem-tooling"><a class="header" href="#ecosystem-tooling">Ecosystem Tooling</a></h2>
 <ul>
@@ -6662,7 +6534,7 @@ Experiments on public and real industrial datasets show EnhanceGraph significant
 accuracy without sacrificing search efficiency, with recall gains reaching from 41.74% to 93.42%.
 EnhanceGraph has been integrated into VSAG.</p>
 <blockquote>
-<p>Integrated into VSAG on HNSW-like indexes; enable via the
+<p>Available in VSAG via the
 <a href="#graph-index-enhancement"><code>use_conjugate_graph</code></a> parameter.</p>
 </blockquote>
 <h2 id="4-sindi-an-efficient-index-for-approximate-maximum-inner-product-search-on-sparse-vectors-arxiv"><a class="header" href="#4-sindi-an-efficient-index-for-approximate-maximum-inner-product-search-on-sparse-vectors-arxiv">4. SINDI: an Efficient Index for Approximate Maximum Inner Product Search on Sparse Vectors <a href="https://arxiv.org/abs/2509.08395">[arxiv]</a></a></h2>

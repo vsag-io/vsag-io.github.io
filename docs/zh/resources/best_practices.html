@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -314,8 +314,6 @@
 </thead>
 <tbody>
 <tr><td>中等规模（≤ 1000 万）纯内存、对召回/延迟要求极高</td><td><code>hgraph</code></td><td>统一的高质量图索引，支持多种量化与 Tune</td></tr>
-<tr><td>兼容既有 HNSW 部署</td><td><code>hnsw</code></td><td>接口与参数最贴近 hnswlib</td></tr>
-<tr><td>10 亿级向量、内存受限</td><td><code>diskann</code></td><td>内存只放 PQ，完整向量在磁盘</td></tr>
 <tr><td>候选召回层 / 粗排</td><td><code>ivf</code></td><td>训练后即可大规模并行</td></tr>
 <tr><td>小规模、需要 100% 精度</td><td><code>brute_force</code></td><td>暴力搜索，作为召回率 baseline</td></tr>
 <tr><td>多租户 / 分区数据</td><td><code>pyramid</code></td><td>一个索引内部多棵子图，支持按 tag 检索</td></tr>
@@ -349,8 +347,7 @@
 <ul>
 <li>推荐使用官方 Docker 镜像，详见 <a href="../guide/installation.html">安装</a>。</li>
 <li>生产二进制建议选择对应 ABI 的发布包：<code>dist-pre-cxx11-abi</code>、<code>dist-cxx11-abi</code>、<code>dist-libcxx</code>（见 <a href="../development/building.html">编译构建</a>）。</li>
-<li>开启 <code>VSAG_ENABLE_INTEL_MKL=ON</code> 可在 Intel CPU 上获得额外加速；</li>
-<li>DiskANN 建议使用 NVMe SSD，并配合 <code>VSAG_ENABLE_LIBAIO=ON</code>。</li>
+<li>开启 <code>VSAG_ENABLE_INTEL_MKL=ON</code> 可在 Intel CPU 上获得额外加速。</li>
 </ul>
 <h2 id="可观测"><a class="header" href="#可观测">可观测</a></h2>
 <ul>

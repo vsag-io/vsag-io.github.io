@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -339,7 +339,7 @@ auto result = index-&gt;SearchWithRequest(req).value();
 <blockquote>
 <p><strong>可用性。</strong> <code>Index::SearchWithRequest</code> 默认实现会返回 <em>不支持</em> 错误。目前只有 HGraph、
 IVF、BruteForce、WARP 实现了它（<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>）。对于
-尚未 override 的索引（HNSW、DiskANN、SINDI、Pyramid、SparseIndex），请使用下文的旧版
+尚未 override 的索引（SINDI、Pyramid、SparseIndex），请使用下文的旧版
 <code>SearchParam</code> 路径。</p>
 </blockquote>
 <h2 id="旧版-api--searchparamallocator已弃用"><a class="header" href="#旧版-api--searchparamallocator已弃用">旧版 API —— <code>SearchParam::allocator</code>（已弃用）</a></h2>
@@ -358,7 +358,6 @@ auto result = index-&gt;KnnSearch(query, /*k=*/10, search_param).value();
 （“Use SearchRequest instead”），仅为源码兼容保留。注意当前只是注释层面的弃用 —— struct
 本身并没有 C++ <code>[[deprecated]]</code> 属性，编译器不会发出弃用告警；但新代码如果所用索引已支持
 <code>SearchRequest</code>/<code>SearchWithRequest</code>，仍应优先使用该路径。
-<code>examples/cpp/313_feature_search_allocator.cpp</code>（HNSW）与
 <code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>（HGraph）展示了旧版形式。</p>
 <h2 id="结果所有权"><a class="header" href="#结果所有权">结果所有权</a></h2>
 <p>结果 <code>Dataset</code> 的所有权契约取决于具体实现 <code>SearchWithRequest</code> 的索引：</p>
@@ -407,7 +406,7 @@ arena.reset();              // 一次性回收本批所有 per-query 缓冲
 <tr><td><code>HGraph::SearchWithRequest</code> 的临时缓冲与结果 <code>Dataset</code></td><td>已设置 <code>search_allocator_</code> 时使用它，否则使用 <code>Resource</code> 的 allocator。HGraph 是目前唯一把 <code>search_allocator_</code> 贯通到结果的索引。</td></tr>
 <tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> 的结果 <code>Dataset</code></td><td>始终使用索引自身的 allocator（<code>allocator_</code>）。目前<strong>不</strong>消费 <code>search_allocator_</code>。</td></tr>
 <tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> 的部分临时状态</td><td>设置 <code>search_allocator_</code> 时会用它分配部分临时缓冲，否则使用索引 allocator。</td></tr>
-<tr><td><code>KnnSearch(query, k, SearchParam)</code>（旧版）</td><td>在认 <code>SearchParam::allocator</code> 的索引上（如 HNSW、HGraph 示例）使用该 allocator，否则使用 <code>Resource</code> allocator。</td></tr>
+<tr><td><code>KnnSearch(query, k, SearchParam)</code>（旧版）</td><td>在支持 <code>SearchParam::allocator</code> 的索引上（如 HGraph 示例）使用该 allocator，否则使用 <code>Resource</code> allocator。</td></tr>
 <tr><td><code>KnnSearch(query, k, parameters_str)</code></td><td>无 per-search Allocator 入口，统一使用 <code>Resource</code> 的 allocator。</td></tr>
 <tr><td><code>RangeSearch(...)</code>（所有形态）</td><td>使用 <code>Resource</code> 的 allocator；没有 per-search Allocator 入口。</td></tr>
 </tbody>
@@ -423,8 +422,6 @@ arena.reset();              // 一次性回收本批所有 per-query 缓冲
 </ul>
 <h2 id="可运行示例"><a class="header" href="#可运行示例">可运行示例</a></h2>
 <ul>
-<li><code>examples/cpp/313_feature_search_allocator.cpp</code> —— HNSW + 自定义 allocator（旧版
-<code>SearchParam</code>）。</li>
 <li><code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> —— HGraph（<code>sq8</code>）+ 自定义 allocator。</li>
 </ul>
 <p>参见 <a href="memory.html">内存管理</a> 了解索引级 <code>Allocator</code> / <code>Resource</code> 的设置，以及

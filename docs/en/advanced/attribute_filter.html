@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f7543e2.js"></script>
+        <script src="../toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -315,8 +315,8 @@ satisfy an SQL-like expression. Compared to the id-based filters in
 index; the predicate is parsed once and evaluated during graph traversal, so candidates that
 cannot satisfy the predicate are pruned early.</p>
 <blockquote>
-<p>“Hybrid search” on this page means <strong>vector + structured attributes</strong>. For DiskANN’s
-memory + disk <em>index</em> hybrid, see <a href="hybrid_index.html">Memory + Disk Hybrid Index</a>.</p>
+<p>“Hybrid search” on this page means <strong>vector + structured attributes</strong> (not a
+storage-layout hybrid).</p>
 </blockquote>
 <h2 id="when-to-use-each-filter-api"><a class="header" href="#when-to-use-each-filter-api">When to Use Each Filter API</a></h2>
 <div class="table-wrapper">
@@ -344,7 +344,7 @@ memory + disk <em>index</em> hybrid, see <a href="hybrid_index.html">Memory + Di
 <tr><td>IVF</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
 <tr><td>BruteForce</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
 <tr><td>WARP (sparse)</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
-<tr><td>HNSW / DiskANN / SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">id-based filters only (see <a href="filtered_search.html">Filtered Search</a>)</td><td style="text-align: center">—</td></tr>
+<tr><td>SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">id-based filters only (see <a href="filtered_search.html">Filtered Search</a>)</td><td style="text-align: center">—</td></tr>
 </tbody>
 </table>
 </div>

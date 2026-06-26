@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f7543e2.js"></script>
+        <script src="../toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -345,7 +345,7 @@ index falls back to the allocator that was attached to its owning <code>Resource
 <p><strong>Availability.</strong> <code>Index::SearchWithRequest</code> has a default implementation that returns an
 <em>unsupported</em> error. Only HGraph, IVF, BruteForce and WARP implement it today
 (<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>). For indexes that do not yet override
-<code>SearchWithRequest</code> (HNSW, DiskANN, SINDI, Pyramid, SparseIndex), use the legacy <code>SearchParam</code>
+<code>SearchWithRequest</code> (SINDI, Pyramid, SparseIndex), use the legacy <code>SearchParam</code>
 path described below.</p>
 </blockquote>
 <h2 id="legacy-api--searchparamallocator-deprecated"><a class="header" href="#legacy-api--searchparamallocator-deprecated">Legacy API — <code>SearchParam::allocator</code> <em>(deprecated)</em></a></h2>
@@ -365,8 +365,7 @@ instead”) and remains only for source compatibility. The wording is currently 
 the struct itself does not carry the C++ <code>[[deprecated]]</code> attribute, so the compiler will not
 emit deprecation warnings, but new code should still target <code>SearchRequest</code> /
 <code>SearchWithRequest</code> on indexes that support it. The example
-<code>examples/cpp/313_feature_search_allocator.cpp</code> (HNSW) and
-<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> (HGraph) demonstrate the legacy form.</p>
+<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> (HGraph) demonstrates the legacy form.</p>
 <h2 id="result-ownership"><a class="header" href="#result-ownership">Result Ownership</a></h2>
 <p>The result-<code>Dataset</code> ownership contract depends on which index implements <code>SearchWithRequest</code>:</p>
 <ul>
@@ -419,7 +418,7 @@ arena.reset();              // drops every per-query buffer at once
 <tr><td><code>HGraph::SearchWithRequest</code> scratch + result <code>Dataset</code></td><td><code>search_allocator_</code> if set, otherwise the <code>Resource</code>’s allocator. HGraph is the only index that plumbs <code>search_allocator_</code> into the result.</td></tr>
 <tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> result <code>Dataset</code></td><td>Always the index’s own allocator (<code>allocator_</code>). <code>search_allocator_</code> is <em>not</em> consulted for result buffers today.</td></tr>
 <tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> scratch state</td><td>Uses <code>search_allocator_</code> for some intermediate buffers when set; otherwise the index’s allocator.</td></tr>
-<tr><td><code>KnnSearch(query, k, SearchParam)</code> (legacy)</td><td>Uses <code>SearchParam::allocator</code> if set, on indexes whose <code>KnnSearch</code> honors it (e.g. HNSW, HGraph examples). Otherwise the <code>Resource</code> allocator.</td></tr>
+<tr><td><code>KnnSearch(query, k, SearchParam)</code> (legacy)</td><td>Uses <code>SearchParam::allocator</code> if set, on indexes whose <code>KnnSearch</code> honors it (e.g. HGraph examples). Otherwise the <code>Resource</code> allocator.</td></tr>
 <tr><td><code>KnnSearch(query, k, parameters_str)</code></td><td>No per-search allocator hook — uses the <code>Resource</code> allocator.</td></tr>
 <tr><td><code>RangeSearch(...)</code> (all forms)</td><td>Uses the <code>Resource</code> allocator; no per-search allocator hook.</td></tr>
 </tbody>
@@ -438,8 +437,6 @@ its internal containers.</li>
 </ul>
 <h2 id="runnable-examples"><a class="header" href="#runnable-examples">Runnable Examples</a></h2>
 <ul>
-<li><code>examples/cpp/313_feature_search_allocator.cpp</code> — HNSW + custom allocator (legacy
-<code>SearchParam</code>).</li>
 <li><code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> — HGraph (<code>sq8</code>) + custom allocator.</li>
 </ul>
 <p>See also <a href="memory.html">Memory Management</a> for the index-level <code>Allocator</code> / <code>Resource</code> setup, and

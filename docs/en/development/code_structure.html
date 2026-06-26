@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f7543e2.js"></script>
+        <script src="../toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -330,9 +330,9 @@
 </div>
 <h2 id="core-subsystems-inside-src"><a class="header" href="#core-subsystems-inside-src">Core Subsystems (inside <code>src/</code>)</a></h2>
 <ul>
-<li><strong>index</strong>: concrete index implementations (HNSW, HGraph, DiskANN, IVF, Pyramid, SINDI, …).</li>
+<li><strong>index</strong>: concrete index implementations (HGraph, IVF, Pyramid, SINDI, …; legacy: HNSW, DiskANN).</li>
 <li><strong>quantization</strong>: FP32 / FP16 / BF16 / SQ4 / SQ8 / PQ quantizers with SIMD dispatch.</li>
-<li><strong>graph</strong>: shared graph data structures used by HNSW/HGraph/DiskANN.</li>
+<li><strong>graph</strong>: shared graph data structures used by HGraph and other graph-based indexes.</li>
 <li><strong>storage</strong>: binary/reader sets, streaming serialization.</li>
 <li><strong>allocator / thread pool</strong>: user-pluggable resource management.</li>
 <li><strong>simd</strong>: cascaded SIMD dispatch for x86_64 and AArch64.</li>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f7543e2.js"></script>
+        <script src="../toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -316,14 +316,10 @@ PR to list it here.</li>
 </ul>
 <h2 id="dependencies-and-inspirations"><a class="header" href="#dependencies-and-inspirations">Dependencies and Inspirations</a></h2>
 <ul>
-<li><strong><a href="https://github.com/nmslib/hnswlib">hnswlib</a></strong> — the canonical HNSW implementation; VSAG’s
-HNSW interface and algorithms were influenced by it.</li>
-<li><strong><a href="https://github.com/microsoft/DiskANN">DiskANN</a></strong> — Microsoft Research’s large-scale on-disk
-vector search work; VSAG’s <code>diskann</code> index is based on this approach.</li>
 <li><strong><a href="https://github.com/facebookresearch/faiss">Faiss</a></strong> — Meta’s vector search library; VSAG
 borrows ideas in IVF and quantization.</li>
 <li><strong><a href="https://github.com/microsoft/SPTAG">SPANN / SPTAG</a></strong> — Microsoft’s large-scale retrieval
-system; shaped our hybrid-index approach.</li>
+system; an inspiration for VSAG’s large-scale search design.</li>
 </ul>
 <h2 id="ecosystem-tooling"><a class="header" href="#ecosystem-tooling">Ecosystem Tooling</a></h2>
 <ul>

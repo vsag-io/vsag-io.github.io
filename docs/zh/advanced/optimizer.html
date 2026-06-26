@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,7 +305,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="优化器tune"><a class="header" href="#优化器tune">优化器（Tune）</a></h1>
-<p>对于图类索引（HNSW、HGraph），VSAG 提供 <code>Tune</code> 接口，根据给定查询集自动调整运行期参数以在<strong>召回率</strong>
+<p>对于图类索引（HGraph），VSAG 提供 <code>Tune</code> 接口，根据给定查询集自动调整运行期参数以在<strong>召回率</strong>
 与<strong>延迟</strong>之间取得更好的权衡。其底层实现即历史版本中的 ELP Optimizer。</p>
 <h2 id="基本用法"><a class="header" href="#基本用法">基本用法</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
@@ -333,9 +333,7 @@ auto ret = index-&gt;Tune(tune_params);
 <tr><th>索引类型</th><th>支持 Tune</th></tr>
 </thead>
 <tbody>
-<tr><td>hnsw</td><td>是</td></tr>
 <tr><td>hgraph</td><td>是</td></tr>
-<tr><td>diskann</td><td>部分参数</td></tr>
 <tr><td>ivf / sindi / brute_force</td><td>否</td></tr>
 </tbody>
 </table>

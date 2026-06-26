@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f7543e2.js"></script>
+        <script src="../toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -325,8 +325,6 @@ structures and trade-offs they use under the hood.</p>
 </div>
 <p><code>brute_force</code> is also available as an exact-search baseline (see
 <a href="../guide/create_index.html">Creating an Index</a> and <code>examples/cpp/105_index_brute_force.cpp</code>).</p>
-<p><code>hnsw</code> and <code>diskann</code> are retained for backward compatibility but are <strong>deprecated</strong>; new
-deployments should prefer <code>hgraph</code> (graph-based) or <code>ivf</code> (partition-based) instead.</p>
 <h2 id="parameter-conventions"><a class="header" href="#parameter-conventions">Parameter conventions</a></h2>
 <p>All indexes share the same top-level build fields:</p>
 <div class="table-wrapper">

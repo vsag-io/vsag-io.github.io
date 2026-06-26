@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -322,8 +322,6 @@
 <tr><td>SINDI</td><td><code>sindi</code></td><td><a href="../indexes/sindi.html">SINDI</a></td><td>稀疏向量上的倒排索引</td></tr>
 <tr><td>Pyramid</td><td><code>pyramid</code></td><td><a href="../indexes/pyramid.html">Pyramid</a></td><td>多层级 / 按路径分区的索引结构</td></tr>
 <tr><td>BruteForce</td><td><code>brute_force</code></td><td>—</td><td>暴力搜索，用作基准或小数据集</td></tr>
-<tr><td>HNSW</td><td><code>hnsw</code></td><td>—</td><td>纯内存图索引（<strong>已弃用</strong>，新部署请改用 <code>hgraph</code>）</td></tr>
-<tr><td>DiskANN</td><td><code>diskann</code></td><td>—</td><td>内存-磁盘混合索引（<strong>已弃用</strong>，新部署请改用 <code>ivf</code>）</td></tr>
 <tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>—</td><td>基于 GNO-IMI 的倒排索引变体（作为 <code>ivf</code> 的 <code>partition_strategy_type</code>）</td></tr>
 </tbody>
 </table>
@@ -338,7 +336,7 @@
 <li><code>metric_type</code>：距离度量方式，支持 <code>"l2"</code>、<code>"ip"</code>、<code>"cosine"</code>；</li>
 <li><code>dim</code>：向量维度，必须与后续写入的数据一致。</li>
 </ul>
-<p>索引特有参数以嵌套对象形式提供，例如 HNSW 的 <code>hnsw</code>、HGraph 的 <code>index_param</code>。</p>
+<p>索引特有参数以嵌套对象形式提供，例如 HGraph 在构建期使用 <code>index_param</code> 子对象（<code>hgraph</code> 保留给 <code>ef_search</code> 等查询期参数）。</p>
 <h2 id="示例创建-hgraph-索引"><a class="header" href="#示例创建-hgraph-索引">示例：创建 HGraph 索引</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 

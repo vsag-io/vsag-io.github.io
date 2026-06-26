@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -352,9 +352,7 @@ auto result = index-&gt;RangeSearch(query, radius, search_params, /*limited_size
 <tr><th>索引类型</th><th>支持 RangeSearch</th></tr>
 </thead>
 <tbody>
-<tr><td>hnsw</td><td>是</td></tr>
 <tr><td>hgraph</td><td>是</td></tr>
-<tr><td>diskann</td><td>是</td></tr>
 <tr><td>ivf</td><td>是</td></tr>
 <tr><td>brute_force</td><td>是</td></tr>
 <tr><td>sindi</td><td>稀疏向量场景支持</td></tr>
@@ -365,7 +363,7 @@ auto result = index-&gt;RangeSearch(query, radius, search_params, /*limited_size
 <ul>
 <li>距离度量（内积 / L2 / 余弦）会影响 <code>radius</code> 的语义。请与索引创建时的 <code>metric_type</code> 保持一致。</li>
 <li>当 <code>radius</code> 过大时结果集可能巨大，建议配合 <code>limited_size</code> 使用。</li>
-<li>HNSW / HGraph 类图索引下，<code>RangeSearch</code> 的 <code>ef</code> 等运行期参数与 <code>KnnSearch</code> 共享含义。</li>
+<li>对于图类索引（HGraph），<code>RangeSearch</code> 的 <code>ef</code> 等运行期参数与 <code>KnnSearch</code> 共享含义。</li>
 </ul>
 
                     </main>

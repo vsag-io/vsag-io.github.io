@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -402,7 +402,7 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
 <p>在大批量构建场景下，ODescent 通常能在召回率相当的情况下显著降低构图开销，因为精修循环可以
 在数据维度上整齐并行，避免了逐条插入时的单点搜索。</p>
 <p>ODescent 的实现位于 <code>src/impl/odescent/odescent_graph_builder.{h,cpp}</code>，目前被
-<strong>HGraph</strong>、<strong>Pyramid</strong>、<strong>DiskANN</strong>（构图路径）使用，HNSW 的 <code>Merge</code> 内部也复用它。</p>
+<strong>HGraph</strong>、<strong>Pyramid</strong>（构图路径）使用。</p>
 <h3 id="在-hgraph-中启用-odescent"><a class="header" href="#在-hgraph-中启用-odescent">在 HGraph 中启用 ODescent</a></h3>
 <p>在 HGraph 的 <code>index_param</code> 中加入 <code>graph_type: "odescent"</code>：</p>
 <pre><code class="language-json">{

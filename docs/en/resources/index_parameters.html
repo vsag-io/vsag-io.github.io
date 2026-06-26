@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f7543e2.js"></script>
+        <script src="../toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -310,7 +310,7 @@ enumeration, consult the source:</p>
 <ul>
 <li>Build parameter keys: <code>src/constants.cpp</code></li>
 <li>Public constants: <code>include/vsag/constants.h</code></li>
-<li>Per-index examples: <code>examples/cpp/101_index_hnsw.cpp</code> and friends.</li>
+<li>Per-index examples: the <code>examples/cpp/*_index_*.cpp</code> files (e.g. <code>103_index_hgraph.cpp</code>).</li>
 </ul>
 <h2 id="common-fields"><a class="header" href="#common-fields">Common Fields</a></h2>
 <p>Every index requires these top-level fields at build time:</p>
@@ -326,35 +326,6 @@ enumeration, consult the source:</p>
 </tbody>
 </table>
 </div>
-<h2 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h2>
-<p>HNSW uses the <code>hnsw</code> sub-object for build parameters. It does not accept HGraph-only keys
-such as <code>base_quantization_type</code>.</p>
-<pre><code class="language-json">{
-    "dim": 128,
-    "dtype": "float32",
-    "metric_type": "l2",
-    "hnsw": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "use_conjugate_graph": false
-    }
-}
-</code></pre>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Typical</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
-<tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
-<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td>Build the <a href="../advanced/enhance_graph.html">conjugate graph</a></td></tr>
-</tbody>
-</table>
-</div>
-<p>At search time:</p>
-<pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
-</code></pre>
 <h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
 <p>HGraph places its build parameters under the generic <code>index_param</code> key (see
 <code>examples/cpp/103_index_hgraph.cpp</code>); the <code>hgraph</code> key is reserved for search-time parameters.</p>
@@ -390,17 +361,6 @@ filter whose <code>ValidRatio()</code> is at most this threshold, HGraph skips t
 traversal and runs an exact scan over the surviving ids. See the
 <a href="../indexes/hgraph.html#brute-force-fallback-under-highly-selective-filters-brute_force_threshold">HGraph index page</a>
 for details.</p>
-<h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
-<pre><code class="language-json">{
-    "diskann": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "pq_sample_rate": 0.1,
-        "pq_dims": 32,
-        "use_async_io": true
-    }
-}
-</code></pre>
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -313,8 +313,7 @@
 <p>而无需写回调代码。VSAG 在向量索引旁额外构建一份属性倒排索引；表达式只解析一次，并在图遍历
 过程中完成判定，从而尽早剪除不可能满足条件的候选。</p>
 <blockquote>
-<p>本文中的“混合搜索”指的是<strong>向量 + 结构化属性</strong>的混合检索；DiskANN 的“<strong>内存 + 磁盘</strong>”
-存储混合请参见 <a href="hybrid_index.html">内存-磁盘混合索引</a>。</p>
+<p>本文中的“混合搜索”指的是<strong>向量 + 结构化属性</strong>的混合检索，而非存储布局上的混合。</p>
 </blockquote>
 <h2 id="何时选择哪种过滤-api"><a class="header" href="#何时选择哪种过滤-api">何时选择哪种过滤 API</a></h2>
 <div class="table-wrapper">
@@ -342,7 +341,7 @@
 <tr><td>IVF</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
 <tr><td>BruteForce</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
 <tr><td>WARP（稀疏）</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
-<tr><td>HNSW / DiskANN / SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">仅支持基于 id 的过滤，详见 <a href="filtered_search.html">带过滤的搜索</a></td><td style="text-align: center">—</td></tr>
+<tr><td>SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">仅支持基于 id 的过滤，详见 <a href="filtered_search.html">带过滤的搜索</a></td><td style="text-align: center">—</td></tr>
 </tbody>
 </table>
 </div>

@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-95ea7952.js"></script>
+        <script src="toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -315,9 +315,9 @@
 <p>该项目由蚂蚁集团发起并主导开发，目前以开源社区的方式维护。</p>
 <h2 id="主要特性"><a class="header" href="#主要特性">主要特性</a></h2>
 <ul>
-<li><strong>低内存占用</strong>：通过量化（RaBitQ、PQ、SQ4/SQ8）与内存-磁盘混合索引降低使用成本；</li>
+<li><strong>低内存占用</strong>：通过量化（RaBitQ、PQ、SQ4/SQ8）降低使用成本；</li>
 <li><strong>高性能检索</strong>：针对 x86_64（SSE/AVX/AVX2/AVX512/AMX）和 ARM（Neon/SVE）做了指令集适配；</li>
-<li><strong>丰富的索引类型</strong>：HGraph、HNSW、DiskANN、IVF、Pyramid、BruteForce、SINDI（稀疏）等；</li>
+<li><strong>丰富的索引类型</strong>：HGraph、IVF、Pyramid、BruteForce、SINDI（稀疏）等；</li>
 <li><strong>灵活的过滤与混合搜索</strong>：支持 bitmap 与 callback 两种过滤方式，以及混合 <code>(data vector, attribute)</code> 查询；</li>
 <li><strong>易于集成</strong>：提供基于 CMake 的集成方式，详见 <a href="https://github.com/antgroup/vsag/blob/main/README.md#integrate-with-cmake">README</a>。</li>
 </ul>
@@ -419,8 +419,6 @@
 <tr><td>SINDI</td><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>稀疏向量上的倒排索引</td></tr>
 <tr><td>Pyramid</td><td><code>pyramid</code></td><td><a href="#pyramid-1">Pyramid</a></td><td>多层级 / 按路径分区的索引结构</td></tr>
 <tr><td>BruteForce</td><td><code>brute_force</code></td><td>—</td><td>暴力搜索，用作基准或小数据集</td></tr>
-<tr><td>HNSW</td><td><code>hnsw</code></td><td>—</td><td>纯内存图索引（<strong>已弃用</strong>，新部署请改用 <code>hgraph</code>）</td></tr>
-<tr><td>DiskANN</td><td><code>diskann</code></td><td>—</td><td>内存-磁盘混合索引（<strong>已弃用</strong>，新部署请改用 <code>ivf</code>）</td></tr>
 <tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>—</td><td>基于 GNO-IMI 的倒排索引变体（作为 <code>ivf</code> 的 <code>partition_strategy_type</code>）</td></tr>
 </tbody>
 </table>
@@ -435,7 +433,7 @@
 <li><code>metric_type</code>：距离度量方式，支持 <code>"l2"</code>、<code>"ip"</code>、<code>"cosine"</code>；</li>
 <li><code>dim</code>：向量维度，必须与后续写入的数据一致。</li>
 </ul>
-<p>索引特有参数以嵌套对象形式提供，例如 HNSW 的 <code>hnsw</code>、HGraph 的 <code>index_param</code>。</p>
+<p>索引特有参数以嵌套对象形式提供，例如 HGraph 在构建期使用 <code>index_param</code> 子对象（<code>hgraph</code> 保留给 <code>ef_search</code> 等查询期参数）。</p>
 <h2 id="示例创建-hgraph-索引"><a class="header" href="#示例创建-hgraph-索引">示例：创建 HGraph 索引</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
@@ -633,8 +631,6 @@ for rid, rdist in zip(result_ids, result_dists):
 </div>
 <p><code>brute_force</code> 作为精确检索基线也可使用（见
 <a href="#创建索引">创建索引</a> 与 <code>examples/cpp/105_index_brute_force.cpp</code>）。</p>
-<p><code>hnsw</code> 与 <code>diskann</code> 保留用于向后兼容，但已 <strong>弃用</strong>；新部署请优先选择 <code>hgraph</code>（图索引）
-或 <code>ivf</code>（分桶索引）。</p>
 <h2 id="参数约定"><a class="header" href="#参数约定">参数约定</a></h2>
 <p>所有索引共享以下顶层构建字段：</p>
 <div class="table-wrapper">
@@ -658,7 +654,7 @@ for rid, rdist in zip(result_ids, result_dists):
 <ul>
 <li>构建参数键：<code>src/constants.cpp</code></li>
 <li>公开常量：<code>include/vsag/constants.h</code></li>
-<li>每个索引的示例：<code>examples/cpp/101_index_hnsw.cpp</code> 等</li>
+<li>每个索引的示例：<code>examples/cpp/*_index_*.cpp</code>（例如 <code>103_index_hgraph.cpp</code>）</li>
 </ul>
 <h2 id="通用参数"><a class="header" href="#通用参数">通用参数</a></h2>
 <p>所有索引在构建时都需要提供以下顶层字段：</p>
@@ -674,34 +670,6 @@ for rid, rdist in zip(result_ids, result_dists):
 </tbody>
 </table>
 </div>
-<h2 id="hnsw"><a class="header" href="#hnsw">HNSW</a></h2>
-<p>HNSW 使用 <code>hnsw</code> 子对象承载构建参数，并不支持 HGraph 专有参数（如 <code>base_quantization_type</code>）。</p>
-<pre><code class="language-json">{
-    "dim": 128,
-    "dtype": "float32",
-    "metric_type": "l2",
-    "hnsw": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "use_conjugate_graph": false
-    }
-}
-</code></pre>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>字段</th><th>典型值</th><th>说明</th></tr>
-</thead>
-<tbody>
-<tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
-<tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
-<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td>是否构建 <a href="#图索引增强">共轭图</a></td></tr>
-</tbody>
-</table>
-</div>
-<p>搜索时：</p>
-<pre><code class="language-json">{"hnsw": {"ef_search": 100, "use_conjugate_graph_search": false}}
-</code></pre>
 <h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
 <p>HGraph 的构建参数使用通用的 <code>index_param</code> 键（参见 <code>examples/cpp/103_index_hgraph.cpp</code>）；
 <code>hgraph</code> 键则保留给搜索期参数。</p>
@@ -735,17 +703,6 @@ for rid, rdist in zip(result_ids, result_dists):
 默认 <code>0.0</code>）。当取值 <code>&gt; 0</code> 且当前请求的 filter 的 <code>ValidRatio()</code> 不超过该
 阈值时，HGraph 会跳过图遍历，直接在通过过滤的 id 上做精确暴扫。详见
 <a href="#高选择性过滤下的暴搜回退brute_force_threshold">HGraph 索引文档</a>。</p>
-<h2 id="diskann"><a class="header" href="#diskann">DiskANN</a></h2>
-<pre><code class="language-json">{
-    "diskann": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "pq_sample_rate": 0.1,
-        "pq_dims": 32,
-        "use_async_io": true
-    }
-}
-</code></pre>
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {
@@ -782,8 +739,8 @@ for rid, rdist in zip(result_ids, result_dists):
 <a href="#优化器tune">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="hgraph-1"><a class="header" href="#hgraph-1">HGraph</a></h1>
-<p>HGraph 是 VSAG 的旗舰 <strong>图索引</strong>。它构建的是与 HNSW 思路类似的多层近邻图，但在此基础上
-提供了更丰富的量化方案、统一的构建参数 schema（<code>index_param</code>），并原生支持精排（reorder）、
+<p>HGraph 是 VSAG 的旗舰 <strong>图索引</strong>。它构建的是多层近邻图，
+提供了丰富的量化方案、统一的构建参数 schema（<code>index_param</code>），并原生支持精排（reorder）、
 增量更新、删除、以及基于 ELP 的运行时自动调优。</p>
 <p>对于大多数稠密向量场景（文本 / 图像 / 多模态 embedding，维度 64–4096，规模从数千到数亿），
 HGraph 都是推荐的默认索引。</p>
@@ -1143,7 +1100,6 @@ auto result = index-&gt;KnnSearch(
 <ul>
 <li><a href="#创建索引">创建索引</a></li>
 <li><a href="#索引参数">索引参数</a></li>
-<li><a href="#内存-磁盘混合索引diskann">内存-磁盘混合索引</a></li>
 <li><a href="#序列化格式">序列化格式</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -3378,7 +3334,7 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
 <p>在大批量构建场景下，ODescent 通常能在召回率相当的情况下显著降低构图开销，因为精修循环可以
 在数据维度上整齐并行，避免了逐条插入时的单点搜索。</p>
 <p>ODescent 的实现位于 <code>src/impl/odescent/odescent_graph_builder.{h,cpp}</code>，目前被
-<strong>HGraph</strong>、<strong>Pyramid</strong>、<strong>DiskANN</strong>（构图路径）使用，HNSW 的 <code>Merge</code> 内部也复用它。</p>
+<strong>HGraph</strong>、<strong>Pyramid</strong>（构图路径）使用。</p>
 <h3 id="在-hgraph-中启用-odescent"><a class="header" href="#在-hgraph-中启用-odescent">在 HGraph 中启用 ODescent</a></h3>
 <p>在 HGraph 的 <code>index_param</code> 中加入 <code>graph_type: "odescent"</code>：</p>
 <pre><code class="language-json">{
@@ -3481,9 +3437,7 @@ auto result = index-&gt;RangeSearch(query, radius, search_params, /*limited_size
 <tr><th>索引类型</th><th>支持 RangeSearch</th></tr>
 </thead>
 <tbody>
-<tr><td>hnsw</td><td>是</td></tr>
 <tr><td>hgraph</td><td>是</td></tr>
-<tr><td>diskann</td><td>是</td></tr>
 <tr><td>ivf</td><td>是</td></tr>
 <tr><td>brute_force</td><td>是</td></tr>
 <tr><td>sindi</td><td>稀疏向量场景支持</td></tr>
@@ -3494,7 +3448,7 @@ auto result = index-&gt;RangeSearch(query, radius, search_params, /*limited_size
 <ul>
 <li>距离度量（内积 / L2 / 余弦）会影响 <code>radius</code> 的语义。请与索引创建时的 <code>metric_type</code> 保持一致。</li>
 <li>当 <code>radius</code> 过大时结果集可能巨大，建议配合 <code>limited_size</code> 使用。</li>
-<li>HNSW / HGraph 类图索引下，<code>RangeSearch</code> 的 <code>ef</code> 等运行期参数与 <code>KnnSearch</code> 共享含义。</li>
+<li>对于图类索引（HGraph），<code>RangeSearch</code> 的 <code>ef</code> 等运行期参数与 <code>KnnSearch</code> 共享含义。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="按-id-计算距离"><a class="header" href="#按-id-计算距离">按 ID 计算距离</a></h1>
@@ -3546,8 +3500,8 @@ CalDistanceById(const DatasetPtr&amp; query,
 <a href="https://github.com/antgroup/vsag/blob/main/include/vsag/index.h"><code>include/vsag/index.h</code></a>。</p>
 <h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
 <ul>
-<li><code>true</code>（默认）：尽量使用<strong>高精度</strong>向量表示（如完整 float32）来计算距离。对 DiskANN 而言
-可能需要从磁盘读取原始向量，会带来 I/O 开销。</li>
+<li><code>true</code>（默认）：尽量使用<strong>高精度</strong>向量表示（如完整 float32）来计算距离。当索引仅保留
+量化编码时，获取精确值可能开销更大。</li>
 <li><code>false</code>：可以使用索引内存中已有的<strong>量化 / 近似</strong>表示，速度更快但距离是近似值。</li>
 </ul>
 <h3 id="返回值含义"><a class="header" href="#返回值含义">返回值含义</a></h3>
@@ -3603,10 +3557,8 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 </thead>
 <tbody>
 <tr><td>hgraph</td><td>支持</td><td>支持</td><td>遵循 <code>calculate_precise_distance</code>。</td></tr>
-<tr><td>hnsw</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
 <tr><td>ivf</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
 <tr><td>brute_force</td><td>支持</td><td>支持（默认循环）</td><td>总是精确（无量化）。</td></tr>
-<tr><td>diskann</td><td>支持</td><td>支持（默认循环）</td><td><code>calculate_precise_distance=true</code> 可能触发磁盘 I/O。</td></tr>
 <tr><td>pyramid</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
 <tr><td>sindi</td><td>不支持</td><td>支持</td><td>仅稀疏向量。</td></tr>
 <tr><td>sparse_index</td><td>不支持</td><td>支持</td><td>仅稀疏向量。</td></tr>
@@ -3635,10 +3587,6 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 <p>如果谓词是结构化字段上的 SQL 风格表达式，请阅读
 <a href="#属性过滤混合搜索">属性过滤（混合搜索）</a>；如果是基于每条向量的不透明字节负载在图内过滤，
 请阅读 <a href="#extra-info附加信息">Extra Info</a>。</p>
-<blockquote>
-<p>注意：本文与 <a href="#内存-磁盘混合索引diskann">内存-磁盘混合索引</a> 无关，后者描述的是 DiskANN 的存储布局，
-而非搜索阶段的过滤。</p>
-</blockquote>
 <h2 id="真值约定"><a class="header" href="#真值约定">真值约定</a></h2>
 <p>三种 API 关于「这个 id 是否被排除」的语义并不一致，混用前请仔细对照下表。</p>
 <div class="table-wrapper">
@@ -3758,10 +3706,8 @@ index-&gt;KnnSearch(query, topk, params, filter, ctx, /*is_last_search=*/false);
 </thead>
 <tbody>
 <tr><td>HGraph</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
-<tr><td>HNSW</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
 <tr><td>IVF</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
 <tr><td>BruteForce</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
-<tr><td>DiskANN</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
 <tr><td>Pyramid</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
 <tr><td>SINDI / WARP</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
 </tbody>
@@ -3807,7 +3753,7 @@ auto result = index-&gt;SearchWithRequest(req).value();
 <h2 id="示例-1"><a class="header" href="#示例-1">示例</a></h2>
 <ul>
 <li>C++：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/301_feature_filter.cpp"><code>examples/cpp/301_feature_filter.cpp</code></a>
-——同时演示三种过滤方式（HNSW 上）。</li>
+——同时演示三种过滤方式。</li>
 <li>C++：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/320_feature_extra_info.cpp"><code>examples/cpp/320_feature_extra_info.cpp</code></a>
 ——基于 <code>CheckValid(const char*)</code> 字节负载重载的图内过滤。</li>
 </ul>
@@ -3922,8 +3868,8 @@ while (kept.size() &lt; needed) {
 // 仅当还想取出上下文里仍缓存的候选时，再加一次 is_last_search=true 的调用。
 delete ctx;
 </code></pre>
-<p>HNSW 图索引在迭代模式下还支持一个额外的运行期参数 <code>skip_ratio</code>，用于控制延续搜索时跳过已探索区域
-的力度，详见 <code>examples/cpp/313_feature_search_allocator.cpp</code> 中的 HNSW 部分。</p>
+<p>HGraph 图索引在迭代模式下还支持一个额外的运行期参数 <code>skip_ratio</code>，用于控制延续搜索时跳过已探索区域
+的力度，详见 <code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>。</p>
 <h2 id="支持情况-1"><a class="header" href="#支持情况-1">支持情况</a></h2>
 <p>通过 <code>Index::CheckFeature</code> 查询 <code>SUPPORT_KNN_ITERATOR_FILTER_SEARCH</code> 是否被支持：</p>
 <div class="table-wrapper">
@@ -3932,10 +3878,8 @@ delete ctx;
 <tr><th>索引类型</th><th>是否支持迭代搜索</th></tr>
 </thead>
 <tbody>
-<tr><td>hnsw</td><td>是</td></tr>
 <tr><td>hgraph</td><td>是</td></tr>
 <tr><td>ivf</td><td>否</td></tr>
-<tr><td>diskann</td><td>否</td></tr>
 <tr><td>brute_force</td><td>否</td></tr>
 <tr><td>sindi</td><td>否</td></tr>
 </tbody>
@@ -3966,8 +3910,7 @@ allocator 临时分配）。资源释放完全依赖 <code>delete</code>，与 <
 <p>而无需写回调代码。VSAG 在向量索引旁额外构建一份属性倒排索引；表达式只解析一次，并在图遍历
 过程中完成判定，从而尽早剪除不可能满足条件的候选。</p>
 <blockquote>
-<p>本文中的“混合搜索”指的是<strong>向量 + 结构化属性</strong>的混合检索；DiskANN 的“<strong>内存 + 磁盘</strong>”
-存储混合请参见 <a href="#内存-磁盘混合索引diskann">内存-磁盘混合索引</a>。</p>
+<p>本文中的“混合搜索”指的是<strong>向量 + 结构化属性</strong>的混合检索，而非存储布局上的混合。</p>
 </blockquote>
 <h2 id="何时选择哪种过滤-api"><a class="header" href="#何时选择哪种过滤-api">何时选择哪种过滤 API</a></h2>
 <div class="table-wrapper">
@@ -3995,7 +3938,7 @@ allocator 临时分配）。资源释放完全依赖 <code>delete</code>，与 <
 <tr><td>IVF</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
 <tr><td>BruteForce</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
 <tr><td>WARP（稀疏）</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
-<tr><td>HNSW / DiskANN / SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">仅支持基于 id 的过滤，详见 <a href="#带过滤的搜索">带过滤的搜索</a></td><td style="text-align: center">—</td></tr>
+<tr><td>SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">仅支持基于 id 的过滤，详见 <a href="#带过滤的搜索">带过滤的搜索</a></td><td style="text-align: center">—</td></tr>
 </tbody>
 </table>
 </div>
@@ -4224,7 +4167,7 @@ auto empty = vsag::Factory::CreateIndex("hgraph", build_params).value();
 empty-&gt;Deserialize(bs_loaded);
 </code></pre>
 <p><code>ReaderSet</code> 与 <code>BinarySet</code> 类似，但通过用户自定义的 <code>Reader</code> 按需读取，避免一次性加载全部数据，
-常用于内存受限或部分反序列化场景（例如 DiskANN 的磁盘部分）。</p>
+常用于内存受限或部分反序列化场景。</p>
 <h3 id="2-文件流stdostream--stdistream"><a class="header" href="#2-文件流stdostream--stdistream">2. 文件流（<code>std::ostream</code> / <code>std::istream</code>）</a></h3>
 <p>最简单的方式，将索引整体写入文件或内存流：</p>
 <pre><code class="language-cpp">std::ofstream out("index.bin", std::ios::binary);
@@ -4243,7 +4186,6 @@ empty-&gt;Deserialize(in);
 <ul>
 <li><code>Deserialize</code> 要求目标索引为<strong>空</strong>索引，并且参数配置与序列化时一致（如 <code>dim</code>、<code>metric_type</code>）。</li>
 <li>跨大版本升级时请关注 <a href="#版本日志">版本日志</a> 中的兼容性说明。</li>
-<li>DiskANN 的磁盘索引文件独立管理，<code>Serialize</code> 返回的是内存侧元信息。</li>
 <li>示例参考：<code>examples/cpp/318_feature_tune.cpp</code>、<code>examples/cpp/401_persistent_kv.cpp</code>、
 <code>examples/cpp/402_persistent_streaming.cpp</code>。</li>
 </ul>
@@ -4368,7 +4310,7 @@ auto result = index-&gt;SearchWithRequest(req).value();
 <blockquote>
 <p><strong>可用性。</strong> <code>Index::SearchWithRequest</code> 默认实现会返回 <em>不支持</em> 错误。目前只有 HGraph、
 IVF、BruteForce、WARP 实现了它（<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>）。对于
-尚未 override 的索引（HNSW、DiskANN、SINDI、Pyramid、SparseIndex），请使用下文的旧版
+尚未 override 的索引（SINDI、Pyramid、SparseIndex），请使用下文的旧版
 <code>SearchParam</code> 路径。</p>
 </blockquote>
 <h2 id="旧版-api--searchparamallocator已弃用"><a class="header" href="#旧版-api--searchparamallocator已弃用">旧版 API —— <code>SearchParam::allocator</code>（已弃用）</a></h2>
@@ -4387,7 +4329,6 @@ auto result = index-&gt;KnnSearch(query, /*k=*/10, search_param).value();
 （“Use SearchRequest instead”），仅为源码兼容保留。注意当前只是注释层面的弃用 —— struct
 本身并没有 C++ <code>[[deprecated]]</code> 属性，编译器不会发出弃用告警；但新代码如果所用索引已支持
 <code>SearchRequest</code>/<code>SearchWithRequest</code>，仍应优先使用该路径。
-<code>examples/cpp/313_feature_search_allocator.cpp</code>（HNSW）与
 <code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>（HGraph）展示了旧版形式。</p>
 <h2 id="结果所有权"><a class="header" href="#结果所有权">结果所有权</a></h2>
 <p>结果 <code>Dataset</code> 的所有权契约取决于具体实现 <code>SearchWithRequest</code> 的索引：</p>
@@ -4436,7 +4377,7 @@ arena.reset();              // 一次性回收本批所有 per-query 缓冲
 <tr><td><code>HGraph::SearchWithRequest</code> 的临时缓冲与结果 <code>Dataset</code></td><td>已设置 <code>search_allocator_</code> 时使用它，否则使用 <code>Resource</code> 的 allocator。HGraph 是目前唯一把 <code>search_allocator_</code> 贯通到结果的索引。</td></tr>
 <tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> 的结果 <code>Dataset</code></td><td>始终使用索引自身的 allocator（<code>allocator_</code>）。目前<strong>不</strong>消费 <code>search_allocator_</code>。</td></tr>
 <tr><td><code>IVF</code> / <code>BruteForce</code> / <code>WARP</code> <code>SearchWithRequest</code> 的部分临时状态</td><td>设置 <code>search_allocator_</code> 时会用它分配部分临时缓冲，否则使用索引 allocator。</td></tr>
-<tr><td><code>KnnSearch(query, k, SearchParam)</code>（旧版）</td><td>在认 <code>SearchParam::allocator</code> 的索引上（如 HNSW、HGraph 示例）使用该 allocator，否则使用 <code>Resource</code> allocator。</td></tr>
+<tr><td><code>KnnSearch(query, k, SearchParam)</code>（旧版）</td><td>在支持 <code>SearchParam::allocator</code> 的索引上（如 HGraph 示例）使用该 allocator，否则使用 <code>Resource</code> allocator。</td></tr>
 <tr><td><code>KnnSearch(query, k, parameters_str)</code></td><td>无 per-search Allocator 入口，统一使用 <code>Resource</code> 的 allocator。</td></tr>
 <tr><td><code>RangeSearch(...)</code>（所有形态）</td><td>使用 <code>Resource</code> 的 allocator；没有 per-search Allocator 入口。</td></tr>
 </tbody>
@@ -4452,8 +4393,6 @@ arena.reset();              // 一次性回收本批所有 per-query 缓冲
 </ul>
 <h2 id="可运行示例"><a class="header" href="#可运行示例">可运行示例</a></h2>
 <ul>
-<li><code>examples/cpp/313_feature_search_allocator.cpp</code> —— HNSW + 自定义 allocator（旧版
-<code>SearchParam</code>）。</li>
 <li><code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code> —— HGraph（<code>sq8</code>）+ 自定义 allocator。</li>
 </ul>
 <p>参见 <a href="#内存管理">内存管理</a> 了解索引级 <code>Allocator</code> / <code>Resource</code> 的设置，以及
@@ -4488,7 +4427,7 @@ if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
 <p><code>CalDistanceById</code> 计算 query 与索引中<strong>已存在</strong>的一个或多个向量之间的距离，<strong>无需</strong>执行一次
 搜索。它适用于 re-rank、A/B 评估、ground-truth 校验，或对已知候选集合做成对距离计算。</p>
 <p>提供两个重载：</p>
-<pre><code class="language-cpp">// 稠密向量索引（HGraph、BruteForce、IVF、DiskANN、HNSW）
+<pre><code class="language-cpp">// 稠密向量索引（HGraph、BruteForce、IVF）
 auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
 
 // 稀疏向量索引（SINDI、SparseIndex）—— 用 Dataset 封装查询
@@ -4519,8 +4458,7 @@ auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_dis
 <p>是否支持取决于索引类型 —— 这两个 API 没有专门的 <code>SUPPORT_*</code> flag。<code>Index</code> 基类默认抛
 <code>std::runtime_error("Index doesn't support ...")</code>（<code>GetIndexDetailInfos</code> 与
 <code>GetDetailDataByName</code>，见 <code>include/vsag/index.h:658,674</code>）；HGraph / IVF / BruteForce /
-Pyramid / SINDI / WARP 通过 <code>InnerIndexInterface</code> 提供了实现，而 <code>HNSW</code> 仅 override 了
-<code>GetDetailDataByName</code>，DiskANN 两者都没有 override。调用时请始终处理 <code>tl::expected</code>
+Pyramid / SINDI / WARP 通过 <code>InnerIndexInterface</code> 提供了实现。调用时请始终处理 <code>tl::expected</code>
 的 error 分支。</p>
 <pre><code class="language-cpp">auto infos = index-&gt;GetIndexDetailInfos().value();
 for (const auto&amp; info : infos) {
@@ -4706,7 +4644,7 @@ C++ 应用应直接使用标准的 <code>vsag::Index</code> API。</p>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="图索引增强"><a class="header" href="#图索引增强">图索引增强</a></h1>
-<p>图类索引（HNSW、HGraph）在“困难查询“（与真实近邻连通性较弱）下可能出现召回率下降。
+<p>图类索引在“困难查询“（与真实近邻连通性较弱）下可能出现召回率下降。
 VSAG 通过 <strong>Conjugate Graph</strong>（共轭图）机制对这类查询进行在线/离线修补，在几乎不增加索引体积的
 情况下显著改善尾部召回。</p>
 <h2 id="启用共轭图"><a class="header" href="#启用共轭图">启用共轭图</a></h2>
@@ -4745,56 +4683,6 @@ auto result = index-&gt;KnnSearch(query, k, search_param_json);
 <li>启用后构建时间会略有增加。</li>
 <li>共轭图数据会随索引一并序列化。</li>
 <li>与 <code>Tune</code> 可以叠加使用，分别作用于路由质量与运行期参数。</li>
-</ul>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="内存-磁盘混合索引diskann"><a class="header" href="#内存-磁盘混合索引diskann">内存-磁盘混合索引（DiskANN）</a></h1>
-<blockquote>
-<p>本文中的“混合索引”特指<strong>内存 + 磁盘</strong>的存储结构。如果你想了解的是
-<strong>向量 + 结构化属性</strong>混合检索（即文献中的 hybrid search），请参见
-<a href="#属性过滤混合搜索">属性过滤（混合搜索）</a>；基于 id 的搜索过滤请参见
-<a href="#带过滤的搜索">带过滤的搜索</a>。</p>
-</blockquote>
-<p>在海量向量场景下，将整个图索引放入内存既昂贵又浪费。VSAG 提供的 <code>diskann</code> 索引将：</p>
-<ul>
-<li>**压缩后的向量（PQ）**保留在内存中，用于快速剪枝；</li>
-<li><strong>完整向量</strong>与<strong>图结构</strong>存储在磁盘，按查询路径异步读取。</li>
-</ul>
-<p>从而在有限内存预算下支撑 10 亿级向量的近邻查询。</p>
-<h2 id="构建-diskann"><a class="header" href="#构建-diskann">构建 DiskANN</a></h2>
-<pre><code class="language-cpp">std::string build_params = R"(
-{
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128,
-    "diskann": {
-        "max_degree": 32,
-        "ef_construction": 400,
-        "pq_sample_rate": 0.1,
-        "pq_dims": 32,
-        "use_async_io": true
-    }
-}
-)";
-auto index = vsag::Factory::CreateIndex("diskann", build_params).value();
-index-&gt;Build(dataset);
-</code></pre>
-<p>完整例子：<code>examples/cpp/102_index_diskann.cpp</code>。</p>
-<h2 id="异步-iolibaio"><a class="header" href="#异步-iolibaio">异步 IO（libaio）</a></h2>
-<p>Linux 下可在构建参数中开启 <code>use_async_io</code>，搜索路径会通过 libaio 并发发起读请求。
-需要在编译时打开 <code>VSAG_ENABLE_LIBAIO=ON</code>（详见 <a href="#编译构建">编译构建</a>）。</p>
-<h2 id="文件布局"><a class="header" href="#文件布局">文件布局</a></h2>
-<p><code>diskann</code> 在磁盘上产生两类文件：</p>
-<ul>
-<li><code>*.index</code>：图结构；</li>
-<li><code>*.data</code>：完整精度向量。</li>
-</ul>
-<p>反序列化时需要同时可访问这两份数据。</p>
-<h2 id="注意事项-6"><a class="header" href="#注意事项-6">注意事项</a></h2>
-<ul>
-<li>磁盘介质建议使用 NVMe SSD；HDD 下查询延迟会显著退化。</li>
-<li>内存中 PQ 的压缩率与精度由 <code>pq_dims</code> 控制，过小会导致召回下降。</li>
-<li>冷启动时建议对索引文件做预热（随机读几兆）以建立 page cache。</li>
-<li>当前 DiskANN 不支持在线插入 / 删除；如需增删请重建。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="extra-info附加信息"><a class="header" href="#extra-info附加信息">Extra Info（附加信息）</a></h1>
@@ -5105,8 +4993,6 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
 </thead>
 <tbody>
 <tr><td>中等规模（≤ 1000 万）纯内存、对召回/延迟要求极高</td><td><code>hgraph</code></td><td>统一的高质量图索引，支持多种量化与 Tune</td></tr>
-<tr><td>兼容既有 HNSW 部署</td><td><code>hnsw</code></td><td>接口与参数最贴近 hnswlib</td></tr>
-<tr><td>10 亿级向量、内存受限</td><td><code>diskann</code></td><td>内存只放 PQ，完整向量在磁盘</td></tr>
 <tr><td>候选召回层 / 粗排</td><td><code>ivf</code></td><td>训练后即可大规模并行</td></tr>
 <tr><td>小规模、需要 100% 精度</td><td><code>brute_force</code></td><td>暴力搜索，作为召回率 baseline</td></tr>
 <tr><td>多租户 / 分区数据</td><td><code>pyramid</code></td><td>一个索引内部多棵子图，支持按 tag 检索</td></tr>
@@ -5140,8 +5026,7 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
 <ul>
 <li>推荐使用官方 Docker 镜像，详见 <a href="#安装">安装</a>。</li>
 <li>生产二进制建议选择对应 ABI 的发布包：<code>dist-pre-cxx11-abi</code>、<code>dist-cxx11-abi</code>、<code>dist-libcxx</code>（见 <a href="#编译构建">编译构建</a>）。</li>
-<li>开启 <code>VSAG_ENABLE_INTEL_MKL=ON</code> 可在 Intel CPU 上获得额外加速；</li>
-<li>DiskANN 建议使用 NVMe SSD，并配合 <code>VSAG_ENABLE_LIBAIO=ON</code>。</li>
+<li>开启 <code>VSAG_ENABLE_INTEL_MKL=ON</code> 可在 Intel CPU 上获得额外加速。</li>
 </ul>
 <h2 id="可观测"><a class="header" href="#可观测">可观测</a></h2>
 <ul>
@@ -5201,7 +5086,7 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="优化器tune"><a class="header" href="#优化器tune">优化器（Tune）</a></h1>
-<p>对于图类索引（HNSW、HGraph），VSAG 提供 <code>Tune</code> 接口，根据给定查询集自动调整运行期参数以在<strong>召回率</strong>
+<p>对于图类索引（HGraph），VSAG 提供 <code>Tune</code> 接口，根据给定查询集自动调整运行期参数以在<strong>召回率</strong>
 与<strong>延迟</strong>之间取得更好的权衡。其底层实现即历史版本中的 ELP Optimizer。</p>
 <h2 id="基本用法-2"><a class="header" href="#基本用法-2">基本用法</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
@@ -5229,9 +5114,7 @@ auto ret = index-&gt;Tune(tune_params);
 <tr><th>索引类型</th><th>支持 Tune</th></tr>
 </thead>
 <tbody>
-<tr><td>hnsw</td><td>是</td></tr>
 <tr><td>hgraph</td><td>是</td></tr>
-<tr><td>diskann</td><td>部分参数</td></tr>
 <tr><td>ivf / sindi / brute_force</td><td>否</td></tr>
 </tbody>
 </table>
@@ -5243,7 +5126,7 @@ auto ret = index-&gt;Tune(tune_params);
 <li>使用一份代表性查询集调用 <code>Tune</code>；</li>
 <li>序列化调优后的索引供生产环境使用。</li>
 </ol>
-<h2 id="注意事项-7"><a class="header" href="#注意事项-7">注意事项</a></h2>
+<h2 id="注意事项-6"><a class="header" href="#注意事项-6">注意事项</a></h2>
 <ul>
 <li>调优依赖查询集的分布，建议使用真实业务分布下的样本。</li>
 <li>调优后的参数会随索引元信息一起 <code>Serialize</code> / <code>Deserialize</code>，部署后仍然生效。</li>
@@ -5257,7 +5140,6 @@ auto ret = index-&gt;Tune(tune_params);
 <ul>
 <li><strong>CPU</strong>：主流 x86_64 服务器 CPU（支持 AVX2 / AVX-512）</li>
 <li><strong>内存</strong>：足够覆盖索引 + 操作系统 page cache 的 DDR4/DDR5</li>
-<li><strong>磁盘</strong>：NVMe SSD（DiskANN 场景）</li>
 <li><strong>操作系统</strong>：Ubuntu 20.04 / 22.04 或 CentOS 7 / 8</li>
 <li><strong>编译</strong>：<code>make release</code>，MKL 默认<strong>关闭</strong>（<code>VSAG_ENABLE_INTEL_MKL=OFF</code>）。
 如需启用请显式设置 <code>VSAG_ENABLE_INTEL_MKL=ON make release</code>
@@ -6167,10 +6049,8 @@ codex
 </ul>
 <h2 id="vsag-的依赖与灵感来源"><a class="header" href="#vsag-的依赖与灵感来源">VSAG 的依赖与灵感来源</a></h2>
 <ul>
-<li><strong><a href="https://github.com/nmslib/hnswlib">hnswlib</a></strong>：HNSW 的经典实现，VSAG 中的 HNSW 索引在接口与算法上受其影响。</li>
-<li><strong><a href="https://github.com/microsoft/DiskANN">DiskANN</a></strong>：微软研究院的大规模磁盘向量检索工作，VSAG 的 <code>diskann</code> 索引基于该思路实现。</li>
 <li><strong><a href="https://github.com/facebookresearch/faiss">Faiss</a></strong>：Meta 的向量检索库；VSAG 在 IVF / 量化思路上有所借鉴。</li>
-<li><strong><a href="https://github.com/microsoft/SPTAG">SPANN / SPTAG</a></strong>：微软的大规模向量检索工程，提供了混合索引的思路。</li>
+<li><strong><a href="https://github.com/microsoft/SPTAG">SPANN / SPTAG</a></strong>：微软的大规模向量检索工程，为 VSAG 的大规模检索设计提供了灵感。</li>
 </ul>
 <h2 id="生态工具"><a class="header" href="#生态工具">生态工具</a></h2>
 <ul>
@@ -6201,7 +6081,7 @@ codex
 <h2 id="3-enhancegraph-a-continuously-enhanced-graph-based-index-for-high-dimensional-approximate-nearest-neighbor-search-arxiv"><a class="header" href="#3-enhancegraph-a-continuously-enhanced-graph-based-index-for-high-dimensional-approximate-nearest-neighbor-search-arxiv">3. EnhanceGraph: A Continuously Enhanced Graph-based Index for High-dimensional Approximate Nearest Neighbor Search <a href="https://arxiv.org/abs/2506.13144">[arxiv]</a></a></h2>
 <p>摘要（翻译）：随着深度学习技术的飞速发展，高维向量空间中的近似最近邻搜索近年来受到了广泛关注。我们观察到，在基于图的索引的整个生命周期中，会产生大量的搜索日志与构建日志。然而，由于现有索引具有静态特性，这两类有价值的日志并未得到充分利用。本文提出了EnhanceGraph框架，该框架将这两类日志整合到一种名为“共轭图”（conjugate graph）的新型结构中，并利用该共轭图来提升搜索质量。通过对基于图的索引的局限性进行理论分析与观察，我们提出了若干优化方法。针对搜索日志，共轭图存储从局部最优解到全局最优解的边，以增强路由至最近邻的能力；针对构建日志，共轭图存储从邻近图（proximity graph）中被剪除的边，以增强对k最近邻的检索能力。我们在多个公开及真实的工业数据集上的实验结果表明，EnhanceGraph在不牺牲搜索效率的前提下，显著提升了搜索精度，其中召回率（recall）的最大提升幅度达到了从41.74%至93.42%。此外，我们的EnhanceGraph算法已被集成到蚂蚁集团的开源向量库VSAG中。</p>
 <blockquote>
-<p>该功能集成在 VSAG 库的 HNSW 索引上，可通过 <code>use_conjugate_graph</code> 参数启用。</p>
+<p>该功能已集成到 VSAG 库中，可通过 <code>use_conjugate_graph</code> 参数启用。</p>
 </blockquote>
 <h2 id="4-sindi-an-efficient-index-for-approximate-maximum-inner-product-search-on-sparse-vectors-arxiv"><a class="header" href="#4-sindi-an-efficient-index-for-approximate-maximum-inner-product-search-on-sparse-vectors-arxiv">4. SINDI: an Efficient Index for Approximate Maximum Inner Product Search on Sparse Vectors <a href="https://arxiv.org/abs/2509.08395">[arxiv]</a></a></h2>
 <blockquote>

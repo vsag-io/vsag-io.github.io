@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -353,8 +353,8 @@ CalDistanceById(const DatasetPtr&amp; query,
 <a href="https://github.com/antgroup/vsag/blob/main/include/vsag/index.h"><code>include/vsag/index.h</code></a>。</p>
 <h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
 <ul>
-<li><code>true</code>（默认）：尽量使用<strong>高精度</strong>向量表示（如完整 float32）来计算距离。对 DiskANN 而言
-可能需要从磁盘读取原始向量，会带来 I/O 开销。</li>
+<li><code>true</code>（默认）：尽量使用<strong>高精度</strong>向量表示（如完整 float32）来计算距离。当索引仅保留
+量化编码时，获取精确值可能开销更大。</li>
 <li><code>false</code>：可以使用索引内存中已有的<strong>量化 / 近似</strong>表示，速度更快但距离是近似值。</li>
 </ul>
 <h3 id="返回值含义"><a class="header" href="#返回值含义">返回值含义</a></h3>
@@ -410,10 +410,8 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 </thead>
 <tbody>
 <tr><td>hgraph</td><td>支持</td><td>支持</td><td>遵循 <code>calculate_precise_distance</code>。</td></tr>
-<tr><td>hnsw</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
 <tr><td>ivf</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
 <tr><td>brute_force</td><td>支持</td><td>支持（默认循环）</td><td>总是精确（无量化）。</td></tr>
-<tr><td>diskann</td><td>支持</td><td>支持（默认循环）</td><td><code>calculate_precise_distance=true</code> 可能触发磁盘 I/O。</td></tr>
 <tr><td>pyramid</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
 <tr><td>sindi</td><td>不支持</td><td>支持</td><td>仅稀疏向量。</td></tr>
 <tr><td>sparse_index</td><td>不支持</td><td>支持</td><td>仅稀疏向量。</td></tr>

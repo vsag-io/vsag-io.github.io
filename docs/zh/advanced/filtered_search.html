@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -318,10 +318,6 @@
 <p>如果谓词是结构化字段上的 SQL 风格表达式，请阅读
 <a href="attribute_filter.html">属性过滤（混合搜索）</a>；如果是基于每条向量的不透明字节负载在图内过滤，
 请阅读 <a href="extra_info.html">Extra Info</a>。</p>
-<blockquote>
-<p>注意：本文与 <a href="hybrid_index.html">内存-磁盘混合索引</a> 无关，后者描述的是 DiskANN 的存储布局，
-而非搜索阶段的过滤。</p>
-</blockquote>
 <h2 id="真值约定"><a class="header" href="#真值约定">真值约定</a></h2>
 <p>三种 API 关于「这个 id 是否被排除」的语义并不一致，混用前请仔细对照下表。</p>
 <div class="table-wrapper">
@@ -441,10 +437,8 @@ index-&gt;KnnSearch(query, topk, params, filter, ctx, /*is_last_search=*/false);
 </thead>
 <tbody>
 <tr><td>HGraph</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
-<tr><td>HNSW</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
 <tr><td>IVF</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
 <tr><td>BruteForce</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
-<tr><td>DiskANN</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
 <tr><td>Pyramid</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
 <tr><td>SINDI / WARP</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">—</td></tr>
 </tbody>
@@ -490,7 +484,7 @@ auto result = index-&gt;SearchWithRequest(req).value();
 <h2 id="示例"><a class="header" href="#示例">示例</a></h2>
 <ul>
 <li>C++：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/301_feature_filter.cpp"><code>examples/cpp/301_feature_filter.cpp</code></a>
-——同时演示三种过滤方式（HNSW 上）。</li>
+——同时演示三种过滤方式。</li>
 <li>C++：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/320_feature_extra_info.cpp"><code>examples/cpp/320_feature_extra_info.cpp</code></a>
 ——基于 <code>CheckValid(const char*)</code> 字节负载重载的图内过滤。</li>
 </ul>

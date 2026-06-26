@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f7543e2.js"></script>
+        <script src="../toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -359,8 +359,8 @@ CalDistanceById(const DatasetPtr&amp; query,
 <h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
 <ul>
 <li><code>true</code> (default): the implementation tries to use the <strong>high-precision</strong> representation
-of the stored vector (e.g. full-precision float32). For DiskANN this may require reading
-the original vector from disk and therefore incurs I/O.</li>
+of the stored vector (e.g. full-precision float32). When the index only retains quantized
+codes, obtaining the precise value can be more expensive.</li>
 <li><code>false</code>: the implementation may use the <strong>quantized / approximate</strong> representation that
 the index already keeps in memory. Faster, but the returned distance is approximate.</li>
 </ul>
@@ -419,10 +419,8 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 </thead>
 <tbody>
 <tr><td>hgraph</td><td>yes</td><td>yes</td><td>Honors <code>calculate_precise_distance</code>.</td></tr>
-<tr><td>hnsw</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
 <tr><td>ivf</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
 <tr><td>brute_force</td><td>yes</td><td>yes (default loop)</td><td>Always precise (no quantization).</td></tr>
-<tr><td>diskann</td><td>yes</td><td>yes (default loop)</td><td><code>calculate_precise_distance=true</code> may incur disk I/O.</td></tr>
 <tr><td>pyramid</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
 <tr><td>sindi</td><td>no</td><td>yes</td><td>Sparse vectors only.</td></tr>
 <tr><td>sparse_index</td><td>no</td><td>yes</td><td>Sparse vectors only.</td></tr>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -411,8 +411,8 @@ while (kept.size() &lt; needed) {
 // 仅当还想取出上下文里仍缓存的候选时，再加一次 is_last_search=true 的调用。
 delete ctx;
 </code></pre>
-<p>HNSW 图索引在迭代模式下还支持一个额外的运行期参数 <code>skip_ratio</code>，用于控制延续搜索时跳过已探索区域
-的力度，详见 <code>examples/cpp/313_feature_search_allocator.cpp</code> 中的 HNSW 部分。</p>
+<p>HGraph 图索引在迭代模式下还支持一个额外的运行期参数 <code>skip_ratio</code>，用于控制延续搜索时跳过已探索区域
+的力度，详见 <code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>。</p>
 <h2 id="支持情况"><a class="header" href="#支持情况">支持情况</a></h2>
 <p>通过 <code>Index::CheckFeature</code> 查询 <code>SUPPORT_KNN_ITERATOR_FILTER_SEARCH</code> 是否被支持：</p>
 <div class="table-wrapper">
@@ -421,10 +421,8 @@ delete ctx;
 <tr><th>索引类型</th><th>是否支持迭代搜索</th></tr>
 </thead>
 <tbody>
-<tr><td>hnsw</td><td>是</td></tr>
 <tr><td>hgraph</td><td>是</td></tr>
 <tr><td>ivf</td><td>否</td></tr>
-<tr><td>diskann</td><td>否</td></tr>
 <tr><td>brute_force</td><td>否</td></tr>
 <tr><td>sindi</td><td>否</td></tr>
 </tbody>

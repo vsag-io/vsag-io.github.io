@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -332,7 +332,7 @@ if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
 <p><code>CalDistanceById</code> 计算 query 与索引中<strong>已存在</strong>的一个或多个向量之间的距离，<strong>无需</strong>执行一次
 搜索。它适用于 re-rank、A/B 评估、ground-truth 校验，或对已知候选集合做成对距离计算。</p>
 <p>提供两个重载：</p>
-<pre><code class="language-cpp">// 稠密向量索引（HGraph、BruteForce、IVF、DiskANN、HNSW）
+<pre><code class="language-cpp">// 稠密向量索引（HGraph、BruteForce、IVF）
 auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
 
 // 稀疏向量索引（SINDI、SparseIndex）—— 用 Dataset 封装查询
@@ -363,8 +363,7 @@ auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_dis
 <p>是否支持取决于索引类型 —— 这两个 API 没有专门的 <code>SUPPORT_*</code> flag。<code>Index</code> 基类默认抛
 <code>std::runtime_error("Index doesn't support ...")</code>（<code>GetIndexDetailInfos</code> 与
 <code>GetDetailDataByName</code>，见 <code>include/vsag/index.h:658,674</code>）；HGraph / IVF / BruteForce /
-Pyramid / SINDI / WARP 通过 <code>InnerIndexInterface</code> 提供了实现，而 <code>HNSW</code> 仅 override 了
-<code>GetDetailDataByName</code>，DiskANN 两者都没有 override。调用时请始终处理 <code>tl::expected</code>
+Pyramid / SINDI / WARP 通过 <code>InnerIndexInterface</code> 提供了实现。调用时请始终处理 <code>tl::expected</code>
 的 error 分支。</p>
 <pre><code class="language-cpp">auto infos = index-&gt;GetIndexDetailInfos().value();
 for (const auto&amp; info : infos) {

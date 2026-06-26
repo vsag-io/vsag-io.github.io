@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f7543e2.js"></script>
+        <script src="../toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -326,7 +326,7 @@ empty-&gt;Deserialize(bs_loaded);
 </code></pre>
 <p><code>ReaderSet</code> is similar to <code>BinarySet</code> but uses a user-supplied <code>Reader</code> to read on demand, which
 avoids loading everything at once. This is useful for memory-constrained or partial-deserialization
-scenarios (for example, the on-disk portion of DiskANN).</p>
+scenarios.</p>
 <h3 id="2-file-streams-stdostream--stdistream"><a class="header" href="#2-file-streams-stdostream--stdistream">2. File Streams (<code>std::ostream</code> / <code>std::istream</code>)</a></h3>
 <p>The simplest option — serialize the whole index to a file or memory stream:</p>
 <pre><code class="language-cpp">std::ofstream out("index.bin", std::ios::binary);
@@ -347,7 +347,6 @@ empty-&gt;Deserialize(in);
 matches the one used at serialization time.</li>
 <li>When upgrading across major versions, check the compatibility notes in the
 <a href="../resources/release_notes.html">release notes</a>.</li>
-<li>DiskANN’s disk files are managed independently; <code>Serialize</code> returns the in-memory metadata side.</li>
 <li>References:
 <code>examples/cpp/318_feature_tune.cpp</code>, <code>examples/cpp/401_persistent_kv.cpp</code>,
 <code>examples/cpp/402_persistent_streaming.cpp</code>.</li>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f7543e2.js"></script>
+        <script src="../toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -418,9 +418,9 @@ while (kept.size() &lt; needed) {
 // add one only if you also want the candidates still buffered in `ctx`.
 delete ctx;
 </code></pre>
-<p>The HNSW graph supports an additional runtime parameter — <code>skip_ratio</code> — that controls how
-aggressively the iterator skips already-explored regions during continuation. See the
-HNSW section in <code>examples/cpp/313_feature_search_allocator.cpp</code>.</p>
+<p>The HGraph index supports an additional runtime parameter — <code>skip_ratio</code> — that controls how
+aggressively the iterator skips already-explored regions during continuation. See
+<code>examples/cpp/314_feature_hgraph_search_allocator.cpp</code>.</p>
 <h2 id="support-matrix"><a class="header" href="#support-matrix">Support Matrix</a></h2>
 <p>Indexes that advertise the <code>SUPPORT_KNN_ITERATOR_FILTER_SEARCH</code> feature (queryable via
 <code>Index::CheckFeature</code>):</p>
@@ -430,10 +430,8 @@ HNSW section in <code>examples/cpp/313_feature_search_allocator.cpp</code>.</p>
 <tr><th>Index type</th><th>Supports iterator search</th></tr>
 </thead>
 <tbody>
-<tr><td>hnsw</td><td>yes</td></tr>
 <tr><td>hgraph</td><td>yes</td></tr>
 <tr><td>ivf</td><td>no</td></tr>
-<tr><td>diskann</td><td>no</td></tr>
 <tr><td>brute_force</td><td>no</td></tr>
 <tr><td>sindi</td><td>no</td></tr>
 </tbody>

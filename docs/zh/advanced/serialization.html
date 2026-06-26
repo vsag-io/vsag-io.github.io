@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-9e5979c5.js";
+            window.path_to_searchindex_js = "../searchindex-c29be628.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-95ea7952.js"></script>
+        <script src="../toc-b11c2f0d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -323,7 +323,7 @@ auto empty = vsag::Factory::CreateIndex("hgraph", build_params).value();
 empty-&gt;Deserialize(bs_loaded);
 </code></pre>
 <p><code>ReaderSet</code> 与 <code>BinarySet</code> 类似，但通过用户自定义的 <code>Reader</code> 按需读取，避免一次性加载全部数据，
-常用于内存受限或部分反序列化场景（例如 DiskANN 的磁盘部分）。</p>
+常用于内存受限或部分反序列化场景。</p>
 <h3 id="2-文件流stdostream--stdistream"><a class="header" href="#2-文件流stdostream--stdistream">2. 文件流（<code>std::ostream</code> / <code>std::istream</code>）</a></h3>
 <p>最简单的方式，将索引整体写入文件或内存流：</p>
 <pre><code class="language-cpp">std::ofstream out("index.bin", std::ios::binary);
@@ -342,7 +342,6 @@ empty-&gt;Deserialize(in);
 <ul>
 <li><code>Deserialize</code> 要求目标索引为<strong>空</strong>索引，并且参数配置与序列化时一致（如 <code>dim</code>、<code>metric_type</code>）。</li>
 <li>跨大版本升级时请关注 <a href="../resources/release_notes.html">版本日志</a> 中的兼容性说明。</li>
-<li>DiskANN 的磁盘索引文件独立管理，<code>Serialize</code> 返回的是内存侧元信息。</li>
 <li>示例参考：<code>examples/cpp/318_feature_tune.cpp</code>、<code>examples/cpp/401_persistent_kv.cpp</code>、
 <code>examples/cpp/402_persistent_streaming.cpp</code>。</li>
 </ul>

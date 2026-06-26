@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fddd8b5b.js";
+            window.path_to_searchindex_js = "../searchindex-4e75b382.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f7543e2.js"></script>
+        <script src="../toc-3c35e719.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -407,8 +407,7 @@ entire dataset and then iteratively refines edges using sampled candidate exchan
 batches, because the refinement loop parallelizes cleanly over the data and avoids per-insert
 search.</p>
 <p>ODescent is implemented in <code>src/impl/odescent/odescent_graph_builder.{h,cpp}</code> and is currently
-used by <strong>HGraph</strong>, <strong>Pyramid</strong>, <strong>DiskANN</strong> (build path), and internally by HNSW’s <code>Merge</code>
-implementation.</p>
+used by <strong>HGraph</strong> and <strong>Pyramid</strong> (build path).</p>
 <h3 id="enabling-odescent-on-hgraph"><a class="header" href="#enabling-odescent-on-hgraph">Enabling ODescent on HGraph</a></h3>
 <p>Add <code>graph_type: "odescent"</code> to the HGraph <code>index_param</code>:</p>
 <pre><code class="language-json">{
