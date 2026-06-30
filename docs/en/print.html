@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4e75b382.js";
+            window.path_to_searchindex_js = "searchindex-782c2bc5.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-3c35e719.js"></script>
+        <script src="toc-732d3dbc.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -6247,6 +6247,288 @@ prints <code>&lt;identifier&gt; failed</code> and exits with a non-zero status.<
 <h2 id="local-entry-point"><a class="header" href="#local-entry-point">Local Entry Point</a></h2>
 <p>A short local pointer is kept at <code>tools/check_compatibility/README.md</code> for developers browsing the
 tool directory.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="faq"><a class="header" href="#faq">FAQ</a></h1>
+<p>This page collects common questions that VSAG users hit while choosing indexes,
+tuning performance, and integrating APIs. Follow the linked pages for details.</p>
+<h2 id="which-index-should-i-choose"><a class="header" href="#which-index-should-i-choose">Which index should I choose?</a></h2>
+<p>Common VSAG indexes target different workloads. Choose by data type, scale,
+and recall / latency target.</p>
+<p><code>hgraph</code> is the default choice for dense vectors. It fits text, image, and
+multimodal embeddings in online search systems that need high recall and low
+latency. It supports multiple quantizers, incremental insertion, deletion,
+reranking, and automatic tuning.</p>
+<p><code>ivf</code> fits large-scale or high-throughput workloads where memory is tight and
+queries can tolerate bucket-based recall tradeoffs. It reduces scanning by
+partitioning vectors into buckets.</p>
+<p><code>sindi</code> is for sparse vector retrieval, such as BM25, SPLADE, or BGE-M3 sparse
+outputs. It only accepts <code>dtype: "sparse"</code> and primarily uses
+<code>metric_type: "ip"</code>.</p>
+<p><code>pyramid</code> fits multi-tenant, partitioned, or tag-path workloads. It keeps
+multiple subgraphs inside one index and supports tag / path based retrieval.</p>
+<p><code>brute_force</code> is for small datasets, functional validation, and exact-recall
+baselines. It is exact, but latency and throughput usually do not scale to large
+datasets.</p>
+<p>Practical guidance:</p>
+<ul>
+<li>If you are unsure and your vectors are dense, start with <code>hgraph</code>.</li>
+<li>Use <code>sindi</code> for sparse vectors.</li>
+<li>Use <code>brute_force</code> for small datasets or recall baselines.</li>
+<li>Compare <code>ivf</code> when throughput and memory matter more than single-query latency.</li>
+<li>Consider <code>pyramid</code> when your data has clear partition, tenant, or path structure.</li>
+</ul>
+<p>Related pages: <a href="indexes/README.html">Index Overview</a>, <a href="#best-practices">Best Practices</a>.</p>
+<h2 id="why-does-the-same-parameter-set-perform-very-differently-on-different-datasets"><a class="header" href="#why-does-the-same-parameter-set-perform-very-differently-on-different-datasets">Why does the same parameter set perform very differently on different datasets?</a></h2>
+<p>This is common in vector search. Even if the vector count, dimensionality, and
+index parameters are identical, different datasets can have very different
+search difficulty.</p>
+<p>The root cause is data distribution:</p>
+<ul>
+<li>Some datasets have clear neighbor structure, so graph search reaches the right
+region quickly.</li>
+<li>Some datasets have ambiguous neighbor boundaries, so search must expand more
+candidates for the same recall.</li>
+<li>Embedding normalization, clustering, per-dimension distribution, and noise all
+affect search difficulty.</li>
+</ul>
+<p>For HGraph-like graph indexes, <code>ef_search</code> is a key search-time parameter for
+recall and latency. It controls how many candidates the search keeps and
+expands:</p>
+<ul>
+<li>Larger <code>ef_search</code> usually improves recall.</li>
+<li>Larger <code>ef_search</code> usually increases per-query latency.</li>
+<li>When other factors are similar, query latency is often approximately linear in
+<code>ef_search</code>.</li>
+</ul>
+<p>Therefore, do not compare datasets only by QPS at the same <code>ef_search</code>. A more
+meaningful process is:</p>
+<ol>
+<li>Tune <code>ef_search</code> separately on each dataset.</li>
+<li>Make each dataset reach the same target recall, such as 95% or 98% recall.</li>
+<li>Compare P50 / P95 / P99 latency and QPS at that target recall.</li>
+</ol>
+<p>If dataset A reaches 95% recall with <code>ef_search = 80</code>, while dataset B needs
+<code>ef_search = 300</code>, B being much slower is expected. It means B is harder to
+search; it does not necessarily mean the index degraded.</p>
+<p>When reporting performance, record:</p>
+<ul>
+<li>Dataset name and scale.</li>
+<li>Dimensionality.</li>
+<li>Index parameters.</li>
+<li>Target recall and actual recall.</li>
+<li><code>ef_search</code>.</li>
+<li>QPS.</li>
+<li>P50 / P95 / P99 latency.</li>
+</ul>
+<p>Related pages: <a href="#hgraph-2">HGraph</a>, <a href="#performance-evaluation-tool-eval_performance">Evaluation Tool</a>.</p>
+<h2 id="why-is-sq8_uniform-usually-faster-than-sq8-when-should-i-enable-use_reorder"><a class="header" href="#why-is-sq8_uniform-usually-faster-than-sq8-when-should-i-enable-use_reorder">Why is <code>sq8_uniform</code> usually faster than <code>sq8</code>? When should I enable <code>use_reorder</code>?</a></h2>
+<p>Both <code>sq8</code> and <code>sq8_uniform</code> are 8-bit scalar quantizers, but they use different
+scaling strategies.</p>
+<p><code>sq8</code> is per-dimension quantization:</p>
+<ul>
+<li>Each dimension has its own <code>min_i</code> / <code>max_i</code> / <code>scale_i</code>.</li>
+<li>This adapts better to each dimension’s value range.</li>
+<li>Distance computation has to handle per-dimension scales, so the hot path is
+more complex.</li>
+</ul>
+<p><code>sq8_uniform</code> is global uniform quantization:</p>
+<ul>
+<li>All dimensions share one <code>min</code> / <code>max</code> / <code>scale</code>.</li>
+<li>Query and base codes can more easily be computed directly in the integer domain.</li>
+<li>SIMD, AVX-512, AMX, and NEON paths are more efficient.</li>
+<li>Distance computation can avoid per-element dequantization and per-dimension
+scale handling.</li>
+</ul>
+<p>When the data distribution fits this assumption, <code>sq8_uniform</code> is often faster
+than <code>sq8</code>.</p>
+<p>Good use cases for <code>sq8_uniform</code>:</p>
+<ul>
+<li>Normalized vectors, especially <code>cosine</code> workloads.</li>
+<li>Dimensions have similar value ranges.</li>
+<li>Distance computation is the query bottleneck.</li>
+<li>Throughput and latency matter more than the last bit of recall.</li>
+<li>You can use <code>use_reorder</code> to fix coarse-ranking errors.</li>
+</ul>
+<p>Less suitable cases:</p>
+<ul>
+<li>Different dimensions have very different value ranges.</li>
+<li>Vectors concatenate heterogeneous feature blocks.</li>
+<li>Some dimensions have heavy tails or strong outliers.</li>
+<li>You do not plan to enable reorder and are very sensitive to recall.</li>
+</ul>
+<p><code>use_reorder</code> first uses the compressed base quantizer for coarse ranking, then
+reranks candidates with a higher-precision precise quantizer.</p>
+<p>Common configuration:</p>
+<pre><code class="language-json">{
+    "index_param": {
+        "base_quantization_type": "sq8_uniform",
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>Enable <code>use_reorder</code> when:</p>
+<ul>
+<li>You use lossy quantizers such as <code>sq4</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, or <code>rabitq</code>.</li>
+<li>Recall is not stable enough with <code>sq8</code> or <code>sq8_uniform</code>.</li>
+<li><code>topk</code> is small but final ranking quality is important.</li>
+<li>You can afford an additional higher-precision representation.</li>
+<li>Production recall stability matters more than maximum compression.</li>
+</ul>
+<p>You can skip <code>use_reorder</code> when:</p>
+<ul>
+<li><code>fp32</code> or <code>fp16</code> already meets recall.</li>
+<li><code>sq8_uniform</code> reaches recall targets without reorder.</li>
+<li>Memory budget is very tight.</li>
+<li>Latency is extremely sensitive and reranking overhead is unacceptable.</li>
+</ul>
+<p>Simple guidance:</p>
+<ul>
+<li>Throughput first: try <code>sq8_uniform</code> without reorder and measure recall.</li>
+<li>Safer default: <code>sq8_uniform</code> + <code>use_reorder: true</code> +
+<code>precise_quantization_type: "fp32"</code>.</li>
+<li>Strong compression: <code>sq4_uniform</code> / <code>pq</code> / <code>rabitq</code> usually need reorder.</li>
+</ul>
+<p>Related pages: <a href="#scalar-quantization-uniform-sq4--sq8-uniform">Scalar Uniform Quantization</a>,
+<a href="#scalar-quantization-sq4--sq8">Scalar Quantization</a>.</p>
+<h2 id="what-are-the-distance-semantics-of-l2-ip-and-cosine"><a class="header" href="#what-are-the-distance-semantics-of-l2-ip-and-cosine">What are the distance semantics of <code>l2</code>, <code>ip</code>, and <code>cosine</code>?</a></h2>
+<p>VSAG search results are always sorted by smaller distance first. Even when the
+underlying metric is inner product or cosine similarity, VSAG converts the score
+into distance semantics.</p>
+<p>Specific semantics:</p>
+<ul>
+<li><code>l2</code> returns <code>L2Sqr</code>, the squared L2 distance.</li>
+<li><code>ip</code> returns <code>1 - inner_product</code>.</li>
+<li><code>cosine</code> returns <code>1 - cosine_similarity</code>.</li>
+</ul>
+<p>Why does <code>l2</code> return squared distance? Squared L2 distance has the same ordering
+as L2 distance, and avoiding the square root improves performance. VSAG
+therefore commonly uses <code>L2Sqr</code> internally and in returned distances.</p>
+<p>This affects <code>RangeSearch</code> radius settings:</p>
+<ul>
+<li>If you want L2 distance smaller than <code>2.0</code>, pass radius <code>4.0</code>.</li>
+<li>For <code>ip</code>, radius means <code>1 - inner_product</code>.</li>
+<li>For <code>cosine</code>, radius means <code>1 - cosine_similarity</code>.</li>
+</ul>
+<p>For example, if you want cosine similarity at least <code>0.8</code>:</p>
+<pre><code class="language-text">distance = 1 - cosine_similarity
+radius = 1 - 0.8 = 0.2
+</code></pre>
+<p>Notes:</p>
+<ul>
+<li>Different systems may return similarity or distance.</li>
+<li>Before comparing with another library or ground truth, confirm the scoring semantics.</li>
+<li>After an index is created, <code>metric_type</code> cannot be changed at search time.</li>
+</ul>
+<p>Related pages: <a href="#metric-semantics-in-vsag">Metric Semantics</a>,
+<a href="#range-search">Range Search</a>.</p>
+<h2 id="what-is-the-difference-between-base_quantization_type-and-precise_quantization_type"><a class="header" href="#what-is-the-difference-between-base_quantization_type-and-precise_quantization_type">What is the difference between <code>base_quantization_type</code> and <code>precise_quantization_type</code>?</a></h2>
+<p>These two parameters control coarse storage and rerank storage.</p>
+<p><code>base_quantization_type</code> is the main storage quantizer:</p>
+<ul>
+<li>It stores the main vectors inside the index.</li>
+<li>It is used for coarse distance computation during graph search or inverted-list scanning.</li>
+<li>It directly affects memory usage, search speed, and coarse-ranking recall.</li>
+<li>Common values include <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_uniform</code>, and <code>pq</code>.</li>
+</ul>
+<p><code>precise_quantization_type</code> is the higher-precision quantizer for reranking:</p>
+<ul>
+<li>It only takes effect when <code>use_reorder: true</code>.</li>
+<li>It reranks coarse candidates.</li>
+<li>It corrects distance errors introduced by lossy quantization.</li>
+<li>The common choice is <code>fp32</code>; depending on memory budget, <code>fp16</code>, <code>bf16</code>, or
+<code>sq8</code> may also be used.</li>
+</ul>
+<p>A useful mental model:</p>
+<pre><code class="language-text">base_quantization_type    = format used to quickly find candidates
+precise_quantization_type = format used to recompute candidate distances
+</code></pre>
+<p>High-recall baseline:</p>
+<pre><code class="language-json">{
+    "index_param": {
+        "base_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>Memory / recall tradeoff:</p>
+<pre><code class="language-json">{
+    "index_param": {
+        "base_quantization_type": "sq8_uniform",
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>Lower memory:</p>
+<pre><code class="language-json">{
+    "index_param": {
+        "base_quantization_type": "sq4_uniform",
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>More aggressive compression:</p>
+<pre><code class="language-json">{
+    "index_param": {
+        "base_quantization_type": "pq",
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>Setting guidance:</p>
+<ul>
+<li>Recall first, enough memory: <code>base_quantization_type: "fp32"</code>.</li>
+<li>General production choice: <code>base_quantization_type: "sq8_uniform"</code>.</li>
+<li>Data distribution does not fit uniform scaling: try <code>sq8</code>.</li>
+<li>Tight memory: try <code>sq4_uniform</code>, <code>pq</code>, or <code>rabitq</code>, and enable reorder.</li>
+<li>If <code>use_reorder</code> is enabled, start with <code>precise_quantization_type: "fp32"</code>.</li>
+</ul>
+<p>Note that <code>dtype</code> is the input data type, while <code>base_quantization_type</code> is the
+internal storage / computation format. They are not the same. For example, input
+can be <code>dtype: "float32"</code> while the index stores vectors with
+<code>base_quantization_type: "sq8_uniform"</code>.</p>
+<p>Related pages: <a href="quantization/README.html">Quantization Overview</a>,
+<a href="#hgraph-2">HGraph</a>, <a href="#ivf-1">IVF</a>.</p>
+<h2 id="should-i-use-bitset-lambda-filter-attribute-filtering-or-extra_info"><a class="header" href="#should-i-use-bitset-lambda-filter-attribute-filtering-or-extra_info">Should I use Bitset, lambda, <code>Filter</code>, attribute filtering, or <code>extra_info</code>?</a></h2>
+<p>VSAG provides multiple filtering APIs for different workloads.</p>
+<p>Bitset filtering fits a known set of ids to exclude, such as tombstones,
+blacklists, or permission-denied ids. <code>Bitset::Test(id) == true</code> means the id is
+filtered out.</p>
+<p>Lambda or <code>std::function&lt;bool(int64_t)&gt;</code> fits simple filtering logic. Returning
+<code>true</code> means the id is filtered out.</p>
+<p>A <code>Filter</code> object fits more complex filtering logic, or cases where you can
+provide hints such as <code>ValidRatio()</code>. <code>Filter::CheckValid(id) == true</code> means the
+id is kept.</p>
+<p>Attribute filtering fits structured predicates, such as
+<code>category = "book" AND price &lt;= 100</code>. It is used through <code>SearchRequest</code> and fits
+vector + structured field hybrid search.</p>
+<p><code>extra_info</code> filtering fits fixed-size byte payloads stored beside each vector.
+HGraph can filter on those bytes during graph traversal.
+<code>Filter::CheckValid(const char*) == true</code> means the vector is kept.</p>
+<p>How to choose:</p>
+<ul>
+<li>Use Bitset if you only need to exclude a known id set.</li>
+<li>Use lambda for simple ad hoc logic.</li>
+<li>Use a <code>Filter</code> object for complex logic and when you can estimate pass ratio.</li>
+<li>Use attribute filtering for named, typed structured fields.</li>
+<li>Use <code>extra_info</code> when metadata is a fixed-size byte payload stored with vectors.</li>
+</ul>
+<p>The most confusing part is true / false semantics:</p>
+<ul>
+<li><code>Bitset::Test(id)</code> returns <code>true</code> to filter out this id.</li>
+<li>A lambda returns <code>true</code> to filter out this id.</li>
+<li><code>Filter::CheckValid(id)</code> returns <code>true</code> to keep this id.</li>
+<li><code>Filter::CheckValid(const char*)</code> returns <code>true</code> to keep the vector.</li>
+</ul>
+<p>When using bitset filtering, keep ids in <code>[0, 2^32)</code> when possible to avoid
+low-32-bit collisions. If the predicate is very selective, graph search may need
+to expand more candidates to collect enough valid results. For HGraph, consider
+<code>brute_force_threshold</code> so highly selective filters can automatically fall back
+to brute-force scanning.</p>
+<p>Related pages: <a href="#filtered-search">Filtered Search</a>,
+<a href="#attribute-filter-hybrid-search">Attribute Filter</a>, <a href="#extra-info">Extra Info</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="release-notes"><a class="header" href="#release-notes">Release Notes</a></h1>
 <p>VSAG’s official release history and change notes are maintained on GitHub Releases:</p>
