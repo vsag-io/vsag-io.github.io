@@ -14,6 +14,7 @@
 - [Overview](indexes/README.md)
 - [Index Parameters](resources/index_parameters.md)
 - [HGraph](indexes/hgraph.md)
+- [LazyHGraph](indexes/lazy_hgraph.md)
 - [IVF](indexes/ivf.md)
 - [SINDI](indexes/sindi.md)
 - [Pyramid](indexes/pyramid.md)
@@ -60,6 +61,7 @@
 # Performance and Tuning
 
 - [Best Practices](resources/best_practices.md)
+- [Disk-Based Index Best Practices](resources/disk_index.md)
 - [Metric Semantics](resources/metric_semantics.md)
 - [Optimizer (Tune)](advanced/optimizer.md)
 - [Benchmarks](resources/performance.md)

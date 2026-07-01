@@ -14,6 +14,7 @@
 - [总览](indexes/README.md)
 - [索引参数](resources/index_parameters.md)
 - [HGraph](indexes/hgraph.md)
+- [LazyHGraph](indexes/lazy_hgraph.md)
 - [IVF](indexes/ivf.md)
 - [SINDI](indexes/sindi.md)
 - [Pyramid](indexes/pyramid.md)
@@ -60,6 +61,7 @@
 # 性能与调优
 
 - [最佳实践](resources/best_practices.md)
+- [磁盘索引最佳实践](resources/disk_index.md)
 - [度量语义](resources/metric_semantics.md)
 - [优化器](advanced/optimizer.md)
 - [标准环境性能参考](resources/performance.md)
