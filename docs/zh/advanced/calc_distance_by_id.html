@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0b5325f1.js";
+            window.path_to_searchindex_js = "../searchindex-fe62fd3d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-75afec7d.js"></script>
+        <script src="../toc-bf1b6517.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -395,8 +395,8 @@ if (result.has_value()) {
 <p>可运行的完整示例见
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/306_feature_calculate_distance_by_id.cpp"><code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code></a>。</p>
 <h2 id="稀疏向量"><a class="header" href="#稀疏向量">稀疏向量</a></h2>
-<p>对于稀疏向量索引（SINDI、SparseIndex），<code>const float*</code> 重载不适用。需要通过
-<code>SparseVectors(...)</code> 把查询封装为 <code>DatasetPtr</code>，并调用 <code>DatasetPtr</code> 重载：</p>
+<p>对于 SINDI 等稀疏向量索引，<code>const float*</code> 重载不适用。需要通过 <code>SparseVectors(...)</code> 把查询
+封装为 <code>DatasetPtr</code>，并调用 <code>DatasetPtr</code> 重载：</p>
 <pre><code class="language-cpp">auto query = vsag::Dataset::Make();
 query-&gt;NumElements(1)-&gt;SparseVectors(&amp;sparse_query)-&gt;Owner(false);
 
@@ -414,7 +414,6 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 <tr><td>brute_force</td><td>支持</td><td>支持（默认循环）</td><td>总是精确（无量化）。</td></tr>
 <tr><td>pyramid</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
 <tr><td>sindi</td><td>不支持</td><td>支持</td><td>仅稀疏向量。</td></tr>
-<tr><td>sparse_index</td><td>不支持</td><td>支持</td><td>仅稀疏向量。</td></tr>
 </tbody>
 </table>
 </div>

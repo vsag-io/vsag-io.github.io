@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-782c2bc5.js";
+            window.path_to_searchindex_js = "searchindex-003fd777.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-732d3dbc.js"></script>
+        <script src="toc-f8140cc2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -603,6 +603,7 @@ structures and trade-offs they use under the hood.</p>
 </thead>
 <tbody>
 <tr><td><code>hgraph</code></td><td><a href="#hgraph-2">HGraph</a></td><td>General-purpose, high-recall graph with rich quantization options</td></tr>
+<tr><td><code>lazy_hgraph</code></td><td><a href="#lazyhgraph-1">LazyHGraph</a></td><td>Small-to-growing FP32 collections that start exact and later convert to HGraph</td></tr>
 <tr><td><code>ivf</code></td><td><a href="#ivf-1">IVF</a></td><td>Partition-based search, high-throughput batch queries, large corpora</td></tr>
 <tr><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="#pyramid-1">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
@@ -627,7 +628,8 @@ structures and trade-offs they use under the hood.</p>
 </div>
 <p>Index-specific build parameters live under the <code>index_param</code> sub-object; search-time
 parameters live under a sub-object named after the index (e.g. <code>hgraph</code>, <code>ivf</code>,
-<code>sindi</code>, <code>pyramid</code>). Concrete schemas are documented on each page and enumerated in
+<code>sindi</code>, <code>pyramid</code>). LazyHGraph also uses the <code>hgraph</code> search object after it
+converts to graph phase. Concrete schemas are documented on each page and enumerated in
 <a href="#index-parameters">Index Parameters</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="index-parameters"><a class="header" href="#index-parameters">Index Parameters</a></h1>
@@ -687,6 +689,38 @@ filter whose <code>ValidRatio()</code> is at most this threshold, HGraph skips t
 traversal and runs an exact scan over the surviving ids. See the
 <a href="#brute-force-fallback-under-highly-selective-filters-brute_force_threshold">HGraph index page</a>
 for details.</p>
+<h2 id="lazyhgraph"><a class="header" href="#lazyhgraph">LazyHGraph</a></h2>
+<p>LazyHGraph can take its build parameters in a top-level <code>lazy_hgraph</code> object
+(preferred for clarity) or in the generic <code>index_param</code> object. The <code>hgraph</code>
+sub-object is forwarded to the internal HGraph used after transition.</p>
+<pre><code class="language-json">{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "lazy_hgraph": {
+        "transition_threshold": 1000,
+        "hgraph": {
+            "base_quantization_type": "sq8",
+            "max_degree": 26,
+            "ef_construction": 100
+        }
+    }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Typical</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>transition_threshold</code></td><td><code>1000</code> or workload-specific</td><td>Positive vector count at which the index converts from exact flat search to HGraph</td></tr>
+<tr><td><code>hgraph</code></td><td>HGraph build object</td><td>Parameters for the graph phase; see <a href="#hgraph-2">HGraph</a></td></tr>
+</tbody>
+</table>
+</div>
+<p>LazyHGraph only supports <code>dtype: "float32"</code>. Search parameters use the <code>hgraph</code>
+object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
+<a href="#lazyhgraph-1">LazyHGraph index page</a> for details.</p>
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {
@@ -993,6 +1027,110 @@ strongly I/O-bound on a SSD, compare against <a href="#ivf-1">IVF</a> before com
 <li><a href="#serialization">Serialization</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="lazyhgraph-1"><a class="header" href="#lazyhgraph-1">LazyHGraph</a></h1>
+<p>LazyHGraph is an adaptive dense-vector index that starts as an exact
+BruteForce index and automatically converts to HGraph after the collection
+reaches a configurable <code>transition_threshold</code>. It is useful when a dataset
+starts small but is expected to grow: early searches stay exact and avoid graph
+build overhead, while larger collections get HGraph’s approximate-search
+latency and quantization options.</p>
+<ul>
+<li>Source: <code>src/algorithm/lazy_hgraph.{h,cpp}</code></li>
+<li>Example:
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/111_index_lazy_hgraph.cpp"><code>examples/cpp/111_index_lazy_hgraph.cpp</code></a></li>
+</ul>
+<h2 id="how-it-works-1"><a class="header" href="#how-it-works-1">How it works</a></h2>
+<ol>
+<li><strong>Flat phase.</strong> Before the threshold is reached, data is stored in an
+internal BruteForce index using FP32 vectors. Search is exact.</li>
+<li><strong>Transition.</strong> When <code>Build</code> receives at least <code>transition_threshold</code>
+vectors, or <code>Add</code> grows the flat phase to that size, LazyHGraph builds an
+internal HGraph from the flat data.</li>
+<li><strong>Graph phase.</strong> After transition, new data and search requests are handled
+by the internal HGraph. Search parameters keep using the <code>hgraph</code> search
+object.</li>
+</ol>
+<h2 id="quick-start-2"><a class="header" href="#quick-start-2">Quick start</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "lazy_hgraph": {
+        "transition_threshold": 1000,
+        "hgraph": {
+            "base_quantization_type": "sq8",
+            "max_degree": 26,
+            "ef_construction": 100,
+            "build_thread_count": 4
+        }
+    }
+})";
+auto index = vsag::Factory::CreateIndex("lazy_hgraph", params).value();
+
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
+index-&gt;Add(base);
+
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
+auto result = index-&gt;KnnSearch(
+    query, /*topk=*/10, R"({"hgraph": {"ef_search": 100}})").value();
+</code></pre>
+<h2 id="build-parameters-1"><a class="header" href="#build-parameters-1">Build parameters</a></h2>
+<p>LazyHGraph accepts its build parameters in a top-level <code>lazy_hgraph</code> object.
+For compatibility with the generic factory shape, the same object may also be
+provided as <code>index_param</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>transition_threshold</code></td><td>uint64</td><td><code>1000</code></td><td>Number of vectors at which LazyHGraph converts from the flat phase to HGraph. Must be positive.</td></tr>
+<tr><td><code>hgraph</code></td><td>object</td><td><code>{}</code></td><td>HGraph build parameters used after transition. See <a href="#build-parameters">HGraph</a>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>LazyHGraph only supports top-level <code>dtype: "float32"</code>. The flat phase is fixed
+to FP32 BruteForce storage and does not accept separate flat quantization
+parameters.</p>
+<h2 id="search-parameters-1"><a class="header" href="#search-parameters-1">Search parameters</a></h2>
+<p>Search parameters use the same <code>hgraph</code> object as HGraph:</p>
+<pre><code class="language-json">{"hgraph": {"ef_search": 100}}
+</code></pre>
+<p>In the flat phase, search is exact. In the graph phase, the internal HGraph uses
+the supplied HGraph search parameters such as <code>ef_search</code>.</p>
+<h2 id="lifecycle-notes"><a class="header" href="#lifecycle-notes">Lifecycle notes</a></h2>
+<ul>
+<li><code>Build</code> chooses the initial phase from the input size: below
+<code>transition_threshold</code> stays flat; at or above the threshold builds HGraph
+directly.</li>
+<li><code>Add</code> can trigger the one-way transition from flat to graph.</li>
+<li>Flat-phase <code>Remove</code> always performs physical removal, even if the caller
+passes <code>RemoveMode::MARK_REMOVE</code>, so graph transition does not carry
+tombstones.</li>
+<li><code>GetExtraInfoByIds</code>, <code>UpdateExtraInfo</code>, and extra-info filtering are
+supported in both phases. See <a href="#extra-info">Extra Info</a>.</li>
+</ul>
+<h2 id="when-to-use-lazyhgraph"><a class="header" href="#when-to-use-lazyhgraph">When to use LazyHGraph</a></h2>
+<ul>
+<li>A dense FP32 collection starts small and grows over time.</li>
+<li>Exact results are preferred while the collection is small.</li>
+<li>The same index should automatically switch to HGraph once approximate graph
+search becomes worthwhile.</li>
+</ul>
+<p>Use <a href="#hgraph-2">HGraph</a> directly when the dataset is already large at build
+time, when you need non-FP32 input types, or when you want graph behavior from
+the first insertion.</p>
+<h2 id="see-also-1"><a class="header" href="#see-also-1">See also</a></h2>
+<ul>
+<li><a href="#hgraph-2">HGraph</a></li>
+<li><a href="#extra-info">Extra Info</a></li>
+<li><a href="#creating-an-index">Creating an Index</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="ivf-1"><a class="header" href="#ivf-1">IVF</a></h1>
 <p><img src="figures/indexes/ivf-overview.svg" alt="IVF: Voronoi partition over k-means centroids; only the scan_buckets_count buckets closest to the query are scanned, with an optional precise rerank"></p>
 <p>IVF (Inverted File) is VSAG’s <strong>partition-based</strong> index. It clusters the corpus into
@@ -1007,7 +1145,7 @@ tight, or when queries are naturally parallelizable.</p>
 <li>Source: <code>src/algorithm/ivf.{h,cpp}</code>, <code>src/algorithm/ivf_parameter.{h,cpp}</code></li>
 <li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/106_index_ivf.cpp"><code>examples/cpp/106_index_ivf.cpp</code></a></li>
 </ul>
-<h2 id="how-it-works-1"><a class="header" href="#how-it-works-1">How it works</a></h2>
+<h2 id="how-it-works-2"><a class="header" href="#how-it-works-2">How it works</a></h2>
 <ol>
 <li><strong>Clustering.</strong> A sample of the dataset is clustered with k-means (or sampled
 randomly, <code>ivf_train_type: "random"</code>) to produce <code>buckets_count</code> centroids.</li>
@@ -1024,7 +1162,7 @@ stage before being re-scored with the precise quantizer.</li>
 splits the space into two orthogonal sets of centroids
 (<code>first_order_buckets_count</code> × <code>second_order_buckets_count</code>) for even finer
 partitioning on very large corpora.</p>
-<h2 id="quick-start-2"><a class="header" href="#quick-start-2">Quick start</a></h2>
+<h2 id="quick-start-3"><a class="header" href="#quick-start-3">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string params = R"({
@@ -1052,7 +1190,7 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"ivf": {"scan_buckets_count": 16}})").value();
 </code></pre>
-<h2 id="build-parameters-1"><a class="header" href="#build-parameters-1">Build parameters</a></h2>
+<h2 id="build-parameters-2"><a class="header" href="#build-parameters-2">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>. See
 <a href="#index-parameters">Index Parameters</a> for the exhaustive list.</p>
 <div class="table-wrapper">
@@ -1078,7 +1216,7 @@ auto result = index-&gt;KnnSearch(
 </div>
 <p>A rule of thumb for <code>buckets_count</code> is <code>sqrt(N)</code> to <code>4 * sqrt(N)</code> where <code>N</code> is the
 corpus size.</p>
-<h2 id="search-parameters-1"><a class="header" href="#search-parameters-1">Search parameters</a></h2>
+<h2 id="search-parameters-2"><a class="header" href="#search-parameters-2">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>ivf</code> sub-object:</p>
 <div class="table-wrapper">
 <table>
@@ -1114,7 +1252,7 @@ queries-per-second.</li>
 </ul>
 <p>For latency-sensitive, high-recall workloads on dense embeddings, compare against
 <a href="#hgraph-2">HGraph</a> first.</p>
-<h2 id="see-also-1"><a class="header" href="#see-also-1">See also</a></h2>
+<h2 id="see-also-2"><a class="header" href="#see-also-2">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#index-parameters">Index Parameters</a></li>
@@ -1131,7 +1269,7 @@ pairs and is the only VSAG index that accepts <code>dtype: "sparse"</code>.</p>
 <li>Source: <code>src/algorithm/sindi/</code></li>
 <li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/109_index_sindi.cpp"><code>examples/cpp/109_index_sindi.cpp</code></a></li>
 </ul>
-<h2 id="how-it-works-2"><a class="header" href="#how-it-works-2">How it works</a></h2>
+<h2 id="how-it-works-3"><a class="header" href="#how-it-works-3">How it works</a></h2>
 <ol>
 <li><strong>Window-based inverted lists.</strong> Documents are grouped into fixed-size windows
 (<code>window_size</code>). Within each window, an inverted list per term maps a term id
@@ -1146,7 +1284,7 @@ is enabled, the candidates are re-scored against a high-precision flat copy.</li
 </ol>
 <p>Distance is returned as <code>1 - inner_product</code> so results sort ascending as in the
 dense indexes.</p>
-<h2 id="quick-start-3"><a class="header" href="#quick-start-3">Quick start</a></h2>
+<h2 id="quick-start-4"><a class="header" href="#quick-start-4">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string params = R"({
@@ -1179,7 +1317,7 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"sindi": {"n_candidate": 100}})").value();
 </code></pre>
-<h2 id="build-parameters-2"><a class="header" href="#build-parameters-2">Build parameters</a></h2>
+<h2 id="build-parameters-3"><a class="header" href="#build-parameters-3">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>. <code>dtype</code> <strong>must</strong> be <code>"sparse"</code>
 and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
 <div class="table-wrapper">
@@ -1205,7 +1343,7 @@ and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
 (largest term id + 1). Sizing <code>term_id_limit</code> to your vocabulary is the most
 common first-time mistake.</p>
 </blockquote>
-<h2 id="search-parameters-2"><a class="header" href="#search-parameters-2">Search parameters</a></h2>
+<h2 id="search-parameters-3"><a class="header" href="#search-parameters-3">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>sindi</code> sub-object:</p>
 <div class="table-wrapper">
 <table>
@@ -1216,10 +1354,16 @@ common first-time mistake.</p>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Candidate heap size. When <code>0</code>, defaults to <code>SPARSE_AMPLIFICATION_FACTOR · topk</code> (500×). If set, must satisfy <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code>.</td></tr>
 <tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight query terms skipped (0.0 – 0.9).</td></tr>
 <tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of term-list entries skipped (0.0 – 0.9).</td></tr>
-<tr><td><code>use_term_lists_heap_insert</code></td><td>bool</td><td><code>true</code></td><td>Term-list-ordered heap insertion; usually faster.</td></tr>
 </tbody>
 </table>
 </div>
+<p>SINDI chooses the heap-insertion strategy automatically from the build-time
+<code>doc_prune_ratio</code> and search-time <code>query_prune_ratio</code>. With the current <code>0.1</code>
+threshold, SINDI uses the distance-array insertion path when both ratios are
+<code>&lt;= 0.1</code>; if either ratio is greater than <code>0.1</code>, it uses term-list heap
+insertion. The legacy
+<code>use_term_lists_heap_insert</code> search parameter is ignored; configure pruning
+ratios instead.</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"sindi": {"n_candidate": 200, "query_prune_ratio": 0.1}})").value();
@@ -1272,7 +1416,7 @@ total. Removing an id that is absent or already removed is a no-op.
 <code>RemoveMode::FORCE_REMOVE</code> is not supported and returns an error.</p>
 <p>Mark-removed documents still occupy memory until the index is rebuilt; the space
 is not physically reclaimed.</p>
-<h2 id="see-also-2"><a class="header" href="#see-also-2">See also</a></h2>
+<h2 id="see-also-3"><a class="header" href="#see-also-3">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#index-parameters">Index Parameters</a></li>
@@ -1293,7 +1437,7 @@ results.</p>
 <li>Example (single hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
 <li>Example (multi-hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/112_index_pyramid_multi_hierarchy.cpp"><code>examples/cpp/112_index_pyramid_multi_hierarchy.cpp</code></a></li>
 </ul>
-<h2 id="how-it-works-3"><a class="header" href="#how-it-works-3">How it works</a></h2>
+<h2 id="how-it-works-4"><a class="header" href="#how-it-works-4">How it works</a></h2>
 <ol>
 <li><strong>Path tree.</strong> Each vector carries a <code>path</code> in addition to its id. Paths use
 <code>/</code> as separator (e.g. <code>"tenant_a/lang_en/topic_news"</code>). Pyramid builds one
@@ -1310,7 +1454,7 @@ HGraph: <code>nsw</code> insertion or <code>odescent</code> with <code>graph_ite
 to the most specific sub-graph matching the query path and runs a graph search
 there with <code>ef_search</code> (and <code>subindex_ef_search</code> for intermediate levels).</li>
 </ol>
-<h2 id="quick-start-4"><a class="header" href="#quick-start-4">Quick start</a></h2>
+<h2 id="quick-start-5"><a class="header" href="#quick-start-5">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string params = R"({
@@ -1353,7 +1497,7 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"pyramid": {"ef_search": 100}})").value();
 </code></pre>
-<h2 id="build-parameters-3"><a class="header" href="#build-parameters-3">Build parameters</a></h2>
+<h2 id="build-parameters-4"><a class="header" href="#build-parameters-4">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>.</p>
 <div class="table-wrapper">
 <table>
@@ -1378,7 +1522,7 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
-<h2 id="search-parameters-3"><a class="header" href="#search-parameters-3">Search parameters</a></h2>
+<h2 id="search-parameters-4"><a class="header" href="#search-parameters-4">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>pyramid</code> sub-object:</p>
 <div class="table-wrapper">
 <table>
@@ -1512,7 +1656,7 @@ the running total. Removing an id that is absent or already removed is a no-op.
 <code>RemoveMode::FORCE_REMOVE</code> is not supported and returns an error.</p>
 <p>Mark-removed vectors still occupy memory until the index is rebuilt; the space is
 not physically reclaimed.</p>
-<h2 id="see-also-3"><a class="header" href="#see-also-3">See also</a></h2>
+<h2 id="see-also-4"><a class="header" href="#see-also-4">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#index-parameters">Index Parameters</a></li>
@@ -1531,7 +1675,7 @@ corpora or for workloads where 100% recall is mandatory.</p>
 <li>Source: <code>src/algorithm/brute_force.{h,cpp}</code></li>
 <li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a></li>
 </ul>
-<h2 id="how-it-works-4"><a class="header" href="#how-it-works-4">How it works</a></h2>
+<h2 id="how-it-works-5"><a class="header" href="#how-it-works-5">How it works</a></h2>
 <ol>
 <li><strong>Build.</strong> Vectors are stored in a single flat data cell encoded by <code>base_quantization_type</code>
 (default <code>fp32</code> — i.e. raw). No graph, no clustering, no training is performed for the
@@ -1547,7 +1691,7 @@ be split across multiple threads via the <code>parallelism</code> search paramet
 <p>Because the index keeps every vector verbatim (modulo the chosen quantizer), the result is
 <strong>exact</strong> when <code>base_quantization_type</code> is <code>fp32</code> and is the standard reference used to compute
 ground truth in the <code>eval_performance</code> tool.</p>
-<h2 id="quick-start-5"><a class="header" href="#quick-start-5">Quick start</a></h2>
+<h2 id="quick-start-6"><a class="header" href="#quick-start-6">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string params = R"({
@@ -1569,7 +1713,7 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 </code></pre>
 <p>A full runnable program is at
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>.</p>
-<h2 id="build-parameters-4"><a class="header" href="#build-parameters-4">Build parameters</a></h2>
+<h2 id="build-parameters-5"><a class="header" href="#build-parameters-5">Build parameters</a></h2>
 <p>The minimal config consists of the three top-level fields (<code>dtype</code>, <code>metric_type</code>, <code>dim</code>).
 For most uses no <code>index_param</code> is needed — that is the form shown in
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp">example 105</a>.
@@ -1610,7 +1754,7 @@ capability flags — use HGraph or IVF if you need a quantized index that still 
 the supplied dataset before adding vectors; the resulting recall is no longer 100%. Only
 <code>fp32</code>, <code>fp16</code>, and <code>bf16</code> skip training and preserve exact distances (modulo numeric
 precision).</p>
-<h2 id="search-parameters-4"><a class="header" href="#search-parameters-4">Search parameters</a></h2>
+<h2 id="search-parameters-5"><a class="header" href="#search-parameters-5">Search parameters</a></h2>
 <p>BruteForce does not expose any index-specific search knobs (no <code>ef</code>, <code>nprobe</code>, etc.), but the
 generic <code>IndexSearchParameter</code> fields are honored:</p>
 <div class="table-wrapper">
@@ -1671,7 +1815,7 @@ inverted-list structure.</li>
 </ul>
 <p>For anything larger, prefer <a href="#hgraph-2">HGraph</a> (latency-sensitive, high recall) or
 <a href="#ivf-1">IVF</a> (throughput-oriented, memory-friendly).</p>
-<h2 id="see-also-4"><a class="header" href="#see-also-4">See also</a></h2>
+<h2 id="see-also-5"><a class="header" href="#see-also-5">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a></li>
@@ -2741,7 +2885,7 @@ proportionally.</li>
 <p>The transform output then feeds a standard quantizer (<code>fp32</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>rabitq</code>,
 …), which actually stores the codes. The whole chain is referred to as <strong><code>tq</code> (Transform
 Quantizer)</strong>.</p>
-<h2 id="quick-start-6"><a class="header" href="#quick-start-6">Quick start</a></h2>
+<h2 id="quick-start-7"><a class="header" href="#quick-start-7">Quick start</a></h2>
 <p><code>tq</code> is currently exposed as a <strong>public, externally configurable</strong> quantization type only by
 <strong>HGraph</strong>. HGraph maps the top-level keys <code>tq_chain</code> and <code>rabitq_pca_dim</code> into the nested
 <code>base_codes.quantization_params</code> JSON via its external-parameter mapping
@@ -3574,7 +3718,7 @@ during the build, or when you have not measured a build-time problem.</li>
 </ul>
 <p>Both choices produce a graph that is searched the same way at query time, so search-side
 parameters (<code>ef_search</code>, <code>pq_rerank</code>, …) carry over unchanged.</p>
-<h2 id="see-also-5"><a class="header" href="#see-also-5">See also</a></h2>
+<h2 id="see-also-6"><a class="header" href="#see-also-6">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#hgraph-2">HGraph index parameters</a></li>
@@ -3749,9 +3893,9 @@ if (result.has_value()) {
 <p>A runnable example is provided in
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/306_feature_calculate_distance_by_id.cpp"><code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code></a>.</p>
 <h2 id="sparse-vectors"><a class="header" href="#sparse-vectors">Sparse Vectors</a></h2>
-<p>For sparse-vector indexes (SINDI, SparseIndex), the <code>const float*</code> overloads are not
-applicable. Pass the query as a <code>DatasetPtr</code> carrying sparse vectors via
-<code>SparseVectors(...)</code>, and use the <code>DatasetPtr</code> overloads:</p>
+<p>For sparse-vector indexes such as SINDI, the <code>const float*</code> overloads are not applicable. Pass
+the query as a <code>DatasetPtr</code> carrying sparse vectors via <code>SparseVectors(...)</code>, and use the
+<code>DatasetPtr</code> overloads:</p>
 <pre><code class="language-cpp">auto query = vsag::Dataset::Make();
 query-&gt;NumElements(1)-&gt;SparseVectors(&amp;sparse_query)-&gt;Owner(false);
 
@@ -3769,7 +3913,6 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 <tr><td>brute_force</td><td>yes</td><td>yes (default loop)</td><td>Always precise (no quantization).</td></tr>
 <tr><td>pyramid</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
 <tr><td>sindi</td><td>no</td><td>yes</td><td>Sparse vectors only.</td></tr>
-<tr><td>sparse_index</td><td>no</td><td>yes</td><td>Sparse vectors only.</td></tr>
 </tbody>
 </table>
 </div>
@@ -3993,7 +4136,7 @@ candidates until enough survivors are collected.</li>
 <li>Result consumption is lazy / streaming (e.g. UI pagination, server-side cursor).</li>
 <li>The eventual <code>k</code> is unknown up front and may grow on demand.</li>
 </ul>
-<h2 id="how-it-works-5"><a class="header" href="#how-it-works-5">How It Works</a></h2>
+<h2 id="how-it-works-6"><a class="header" href="#how-it-works-6">How It Works</a></h2>
 <p>Iterator search relies on a long-lived <code>IteratorContext</code> object that holds:</p>
 <ul>
 <li>the current candidate heap / visited bitmap, and</li>
@@ -4588,7 +4731,7 @@ index falls back to the allocator that was attached to its owning <code>Resource
 <p><strong>Availability.</strong> <code>Index::SearchWithRequest</code> has a default implementation that returns an
 <em>unsupported</em> error. Only HGraph, IVF, BruteForce and WARP implement it today
 (<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>). For indexes that do not yet override
-<code>SearchWithRequest</code> (SINDI, Pyramid, SparseIndex), use the legacy <code>SearchParam</code>
+<code>SearchWithRequest</code> (HNSW, DiskANN, SINDI, Pyramid), use the legacy <code>SearchParam</code>
 path described below.</p>
 </blockquote>
 <h2 id="legacy-api--searchparamallocator-deprecated"><a class="header" href="#legacy-api--searchparamallocator-deprecated">Legacy API — <code>SearchParam::allocator</code> <em>(deprecated)</em></a></h2>
@@ -4618,7 +4761,8 @@ The resulting <code>Dataset</code> is marked <code>Owner(true, allocator)</code>
 <code>allocator-&gt;Deallocate(...)</code> on <code>ids</code> / <code>distances</code> automatically.</li>
 <li><strong>IVF / BruteForce / WARP</strong> currently construct the result <code>Dataset</code> via
 <code>create_fast_dataset(..., allocator_)</code> — i.e. the index’s own allocator
-(<code>src/algorithm/ivf.cpp</code>, <code>src/algorithm/brute_force.cpp</code>, <code>src/algorithm/warp.cpp</code>).
+(<code>src/algorithm/ivf/ivf.cpp</code>, <code>src/algorithm/bruteforce/bruteforce.cpp</code>; WARP uses the
+BruteForce implementation in WARP mode).
 <code>request.search_allocator_</code> is only consulted for scratch state on those paths today; the
 result buffers are owned by the index’s allocator. Treat the result <code>Dataset</code>’s lifetime as
 tied to the index’s allocator on these indexes.</li>
@@ -4721,7 +4865,7 @@ evaluation, ground-truth checks, or computing pairwise distances to a known shor
 <pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF)
 auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
 
-// Sparse vector indexes (SINDI, SparseIndex) — wrap the query in a Dataset
+// Sparse vector indexes (SINDI) — wrap the query in a Dataset
 auto query_ds = vsag::Dataset::Make();
 query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
 auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
@@ -4967,7 +5111,7 @@ using a <strong>conjugate graph</strong>, noticeably improving tail recall at al
 })";
 auto result = index-&gt;KnnSearch(query, k, search_param_json);
 </code></pre>
-<h2 id="how-it-works-6"><a class="header" href="#how-it-works-6">How It Works</a></h2>
+<h2 id="how-it-works-7"><a class="header" href="#how-it-works-7">How It Works</a></h2>
 <p>The conjugate graph is built by inverting “failure paths” over the training data on the original
 graph and then used as additional candidate edges during greedy expansion at search time. It is a
 lightweight patch on the main graph, typically below 10% of the main graph’s size.</p>
@@ -4989,31 +5133,29 @@ recall end-to-end.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="extra-info"><a class="header" href="#extra-info">Extra Info</a></h1>
 <p><code>extra_info</code> is a fixed-size, opaque per-vector byte payload stored alongside vectors inside
-the index. It lets you keep small pieces of non-vector metadata (e.g. timestamps, category ids,
-permission tags, application-specific fields) right next to the vectors, so you can:</p>
+the index. It lets you keep small pieces of non-vector metadata, such as timestamps, category ids,
+permission tags, or application-specific fields, right next to the vectors, so you can:</p>
 <ul>
 <li>Retrieve metadata by vector id without a separate KV store.</li>
 <li>Update a vector’s metadata in place without re-inserting the vector.</li>
-<li>Filter candidates <strong>during</strong> graph traversal using your own metadata, instead of post-filtering
-results.</li>
+<li>Filter candidates during search using your own metadata instead of post-filtering results.</li>
 </ul>
-<p>The library treats the payload as raw bytes — you fully own its layout, serialization, and
+<p>The library treats the payload as raw bytes. You fully own its layout, serialization, and
 interpretation.</p>
 <h2 id="index-support-1"><a class="header" href="#index-support-1">Index Support</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Index</th><th style="text-align: center">Store on Build/Add</th><th style="text-align: center"><code>GetExtraInfoByIds</code></th><th style="text-align: center"><code>UpdateExtraInfo</code></th><th style="text-align: center">In-graph filter (<code>use_extra_info_filter</code>)</th><th style="text-align: center">Returned in search results</th></tr>
-</thead>
-<tbody>
-<tr><td><strong>HGraph</strong></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
-<tr><td>IVF</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
-<tr><td>SINDI</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
-</tbody>
-</table>
-</div>
-<p>Only HGraph advertises the related capability flags; for the richest experience use HGraph.
-You can always check at runtime with <code>index-&gt;CheckFeature(...)</code>.</p>
+<p>Supported operations by index:</p>
+<ul>
+<li><strong>HGraph</strong>: store on Build/Add, <code>GetExtraInfoByIds</code>, <code>UpdateExtraInfo</code>,
+<code>use_extra_info_filter</code>, and search-result extra info.</li>
+<li><strong>LazyHGraph</strong>: the same support as HGraph in both phases. The flat phase is served by
+BruteForce, and after transition the graph phase is served by HGraph.</li>
+<li><strong>BruteForce</strong>: store on Build/Add, <code>GetExtraInfoByIds</code>, <code>UpdateExtraInfo</code>,
+<code>use_extra_info_filter</code>, and search-result extra info.</li>
+<li><strong>IVF</strong> and <strong>SINDI</strong>: store extra info on Build/Add, but do not expose retrieval, update,
+extra-info filtering, or search-result extra info.</li>
+</ul>
+<p>HGraph, LazyHGraph, and BruteForce advertise the related capability flags when
+<code>extra_info_size &gt; 0</code>. You can always check at runtime with <code>index-&gt;CheckFeature(...)</code>.</p>
 <h2 id="enabling-extra-info"><a class="header" href="#enabling-extra-info">Enabling Extra Info</a></h2>
 <p>Add the top-level integer field <code>extra_info_size</code> to the build parameters. The value is the size
 in bytes of the payload reserved per vector. Once an index is built, the size is fixed and is
@@ -5027,6 +5169,23 @@ serialized together with the index.</p>
         "base_quantization_type": "sq8",
         "max_degree": 26,
         "ef_construction": 100
+    }
+}
+</code></pre>
+<p>For LazyHGraph, <code>extra_info_size</code> is still a top-level field; the LazyHGraph-specific parameters
+stay in the <code>lazy_hgraph</code> object:</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "extra_info_size": 12,
+    "lazy_hgraph": {
+        "transition_threshold": 1000,
+        "hgraph": {
+            "base_quantization_type": "sq8",
+            "max_degree": 26,
+            "ef_construction": 100
+        }
     }
 }
 </code></pre>
@@ -5047,15 +5206,14 @@ index-&gt;Build(base);   // or index-&gt;Add(base)
 </code></pre>
 <p><code>ExtraInfoSize</code> must equal the index’s <code>extra_info_size</code>; otherwise the call is rejected.</p>
 <h2 id="retrieving-extra-info"><a class="header" href="#retrieving-extra-info">Retrieving Extra Info</a></h2>
-<h3 id="from-search-results-hgraph"><a class="header" href="#from-search-results-hgraph">From Search Results (HGraph)</a></h3>
-<p>When <code>extra_info_size &gt; 0</code>, HGraph automatically populates the result <code>Dataset</code> with the matching
+<h3 id="from-search-results"><a class="header" href="#from-search-results">From Search Results</a></h3>
+<p>When <code>extra_info_size &gt; 0</code>, supported indexes populate the result <code>Dataset</code> with the matching
 extra_info bytes for every returned id:</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(query, k, search_params).value();
-const char* infos = result-&gt;GetExtraInfos();          // length = result-&gt;GetDim() * extra_info_size
+const char* infos = result-&gt;GetExtraInfos();
+auto info_size = result-&gt;GetExtraInfoSize();
 </code></pre>
-<p>The result <code>Dataset</code> carries the <code>ExtraInfos</code> buffer but <strong>does not</strong> set <code>ExtraInfoSize</code> on it,
-so <code>result-&gt;GetExtraInfoSize()</code> will return <code>0</code>. Use the <code>extra_info_size</code> you configured at
-build time to compute offsets and lengths.</p>
+<p>Use <code>info_size</code> to compute offsets in the returned buffer.</p>
 <h3 id="by-ids-getextrainfobyids"><a class="header" href="#by-ids-getextrainfobyids">By Ids (<code>GetExtraInfoByIds</code>)</a></h3>
 <p>Allocate a <code>count * extra_info_size</code> byte buffer and call:</p>
 <pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_GET_EXTRA_INFO_BY_ID)) {
@@ -5077,17 +5235,18 @@ build time to compute offsets and lengths.</p>
 }
 </code></pre>
 <p>The dataset must contain exactly one element and the size must match.</p>
-<h2 id="in-graph-filtering-with-extra-info-hgraph"><a class="header" href="#in-graph-filtering-with-extra-info-hgraph">In-Graph Filtering with Extra Info (HGraph)</a></h2>
-<p>Post-filtering can be wasteful when the filter prunes many candidates. HGraph can call your
-filter on each candidate’s extra_info bytes during graph traversal, so disqualified candidates
-never enter the result set.</p>
+<h2 id="filtering-with-extra-info"><a class="header" href="#filtering-with-extra-info">Filtering with Extra Info</a></h2>
+<p>Post-filtering can be wasteful when the filter prunes many candidates. HGraph and LazyHGraph can
+call your filter on each candidate’s extra_info bytes during graph traversal, so disqualified
+candidates never enter the result set. LazyHGraph also supports the same byte-payload filter before
+transition, where the flat phase runs an exact scan.</p>
 <ol>
 <li>
 <p>Override the byte-buffer overload of <code>vsag::Filter</code>:</p>
 <pre><code class="language-cpp">class CategoryFilter : public vsag::Filter {
 public:
     CategoryFilter(uint32_t lo, uint32_t hi) : lo_(lo), hi_(hi) {}
-    bool CheckValid(int64_t /*id*/) const override { return true; }   // unused on this path
+    bool CheckValid(int64_t /*id*/) const override { return true; }
     bool CheckValid(const char* data) const override {
         uint32_t category_id;
         std::memcpy(&amp;category_id, data, sizeof(category_id));
@@ -5113,35 +5272,39 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
 </code></pre>
 </li>
 </ol>
-<p>When <code>use_extra_info_filter</code> is true, HGraph dispatches to <code>CheckValid(const char*)</code> instead of
+<p>When <code>use_extra_info_filter</code> is true, the search path calls <code>CheckValid(const char*)</code> instead of
 <code>CheckValid(int64_t)</code>. You can guard with
 <code>index-&gt;CheckFeature(vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER)</code>.</p>
+<h2 id="lazyhgraph-notes"><a class="header" href="#lazyhgraph-notes">LazyHGraph Notes</a></h2>
+<ul>
+<li><code>extra_info_size</code> must be configured when the LazyHGraph index is created; it is not nested under
+<code>lazy_hgraph</code> or <code>hgraph</code>.</li>
+<li>Extra info supplied while the index is still in the flat phase is migrated into the internal
+HGraph during transition.</li>
+<li><code>GetExtraInfoByIds</code>, <code>UpdateExtraInfo</code>, search-result extra info, and
+<code>use_extra_info_filter</code> work before and after transition.</li>
+<li>Serialized LazyHGraph indexes preserve both the current phase and the stored extra info.</li>
+</ul>
 <h2 id="capability-flags-1"><a class="header" href="#capability-flags-1">Capability Flags</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Flag</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>vsag::SUPPORT_GET_EXTRA_INFO_BY_ID</code></td><td><code>GetExtraInfoByIds</code> is available.</td></tr>
-<tr><td><code>vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT</code></td><td><code>UpdateExtraInfo</code> is available and thread-safe.</td></tr>
-<tr><td><code>vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER</code></td><td><code>use_extra_info_filter</code> is available in search.</td></tr>
-</tbody>
-</table>
-</div>
+<ul>
+<li><code>vsag::SUPPORT_GET_EXTRA_INFO_BY_ID</code>: <code>GetExtraInfoByIds</code> is available.</li>
+<li><code>vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT</code>: <code>UpdateExtraInfo</code> is available and thread-safe.</li>
+<li><code>vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER</code>: <code>use_extra_info_filter</code> is available in search.</li>
+</ul>
 <h2 id="notes-and-limitations-1"><a class="header" href="#notes-and-limitations-1">Notes and Limitations</a></h2>
 <ul>
 <li>The payload is opaque bytes; you are responsible for serialization/deserialization. The library
-only <code>memcpy</code>s by offset.</li>
+only copies by offset.</li>
 <li><code>extra_info_size</code> is fixed at build time and persisted in the serialized index.</li>
-<li>Storage cost is <code>extra_info_size * num_elements</code> bytes, accounted into <code>EstimateMemory</code>.</li>
-<li>Keep the payload compact — it is loaded into memory and walked during in-graph filtering.</li>
+<li>Storage cost is <code>extra_info_size * num_elements</code> bytes, accounted into <code>EstimateMemory</code> by
+indexes that support memory estimation for this storage.</li>
+<li>Keep the payload compact because it is read during extra-info filtering.</li>
 <li>The feature is currently C++ only; there is no Python binding for <code>extra_info</code>.</li>
 </ul>
 <h2 id="example-1"><a class="header" href="#example-1">Example</a></h2>
 <p>A complete, runnable example is available at
 <code>examples/cpp/320_feature_extra_info.cpp</code>. It demonstrates building an HGraph index with
-<code>extra_info</code>, retrieval by id, in-graph filtering, and in-place updates.</p>
+<code>extra_info</code>, retrieval by id, extra-info filtering, and in-place updates.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="index-lifecycle-management"><a class="header" href="#index-lifecycle-management">Index Lifecycle Management</a></h1>
 <p>After an index is built, VSAG provides several operations that mutate the index in place or
@@ -5367,6 +5530,187 @@ allocator; see <a href="#memory-management">Memory Management</a>.</li>
 <li>The search path supports a custom <code>Logger</code>
 (<code>examples/cpp/202_custom_logger.cpp</code>) to integrate with your logging stack.</li>
 <li><code>eval_performance</code> can write its metrics directly to InfluxDB for long-term monitoring.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="disk-based-index-best-practices"><a class="header" href="#disk-based-index-best-practices">Disk-Based Index Best Practices</a></h1>
+<p><img src="figures/resources/disk-index-overview.svg" alt="Disk-backed HGraph: the graph and compact base codes stay in memory for traversal, while a higher-precision precise copy on disk is read only for the ef_search finalists during reorder"></p>
+<p>When a corpus grows past the point where every vector fits in RAM, moving the coldest,
+largest part of the index onto an SSD is the most direct way to control cost. VSAG does
+this by letting each part of an index choose its own storage backend, so hot data stays
+in memory while cold data is served from disk. This page covers
+<strong><a href="#hgraph-2">HGraph</a> with disk-backed IO</strong> and shows copy-pasteable
+configurations, a capacity model, and a tuning checklist.</p>
+<blockquote>
+<p>“Disk index” here means <strong>tiering the index data across memory and disk</strong>. It is
+unrelated to filtering by scalar attributes alongside the vector — for that, see
+<a href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a>.</p>
+</blockquote>
+<h2 id="when-to-move-to-disk"><a class="header" href="#when-to-move-to-disk">When to move to disk</a></h2>
+<p>A large corpus does not automatically require disk. Weigh these signals first:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Signal</th><th>In-memory is fine</th><th>Consider disk</th></tr>
+</thead>
+<tbody>
+<tr><td>Corpus size</td><td>≤ tens of millions</td><td>Hundreds of millions / billions</td></tr>
+<tr><td>Full <code>fp32</code> fits in RAM</td><td>Yes</td><td>No</td></tr>
+<tr><td>Latency budget</td><td>Sub-millisecond, strict</td><td>A few to low-tens of milliseconds is acceptable</td></tr>
+<tr><td>Cost structure</td><td>RAM cost is acceptable</td><td>Want to replace most RAM with SSD</td></tr>
+</tbody>
+</table>
+</div>
+<p>A quick memory estimate: a full <code>fp32</code> copy occupies about <code>N × dim × 4</code> bytes. For
+example <code>1e9 × 128 × 4 ≈ 512 GB</code> and <code>1e8 × 768 × 4 ≈ 307 GB</code> — sizes that rarely fit in a
+single machine’s RAM, which is exactly the disk-index target.</p>
+<p>The cost of going to disk is a few random-read I/Os per query, so <strong>latency is higher than
+a pure in-memory index</strong>. If your service needs sub-millisecond latency and the data can be
+compressed to fit in RAM, prefer in-memory <a href="#hgraph-2">HGraph</a> with quantization
+instead.</p>
+<h2 id="the-core-idea"><a class="header" href="#the-core-idea">The core idea</a></h2>
+<p>VSAG’s disk-backed indexing follows one principle: <strong>keep a small, approximate representation
+in memory to navigate, and keep the large, precise representation on disk to rank.</strong> Graph
+traversal touches only the in-memory approximate codes; a small number of finalists are then
+re-scored (“reordered”) against the precise copy read from disk.
+Because the disk reads happen only at the end, for only a handful of candidates, the I/O
+cost stays bounded while recall is recovered by the precise rescore.</p>
+<h2 id="how-hgraph-tiers-storage"><a class="header" href="#how-hgraph-tiers-storage">How HGraph tiers storage</a></h2>
+<p>HGraph stores an index as several independent <strong>cells</strong>, and each cell can be pointed at its
+own <strong>IO backend</strong>. That is what enables “hot in memory, cold on disk”:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Cell</th><th>Holds</th><th>Access pattern</th><th>Recommended placement</th></tr>
+</thead>
+<tbody>
+<tr><td><code>graph</code></td><td>Adjacency lists of the proximity graph</td><td>Read on every hop</td><td>Memory (or <code>mmap_io</code> under pressure)</td></tr>
+<tr><td><code>base</code></td><td>Quantized codes used to traverse and prune</td><td>Read on every hop</td><td>Memory</td></tr>
+<tr><td><code>precise</code></td><td>High-precision copy used to reorder (<code>use_reorder</code>)</td><td>Read for a few finalists</td><td><strong>Disk</strong></td></tr>
+<tr><td><code>raw_vector</code></td><td>Optional raw vectors (<code>store_raw_vector</code>)</td><td>Rarely, e.g. <code>cosine</code>/exact</td><td>Memory or disk</td></tr>
+</tbody>
+</table>
+</div>
+<p>The IO backends you can assign to a cell:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Backend (<code>*_io_type</code>)</th><th>Location</th><th>Needs <code>*_file_path</code></th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>memory_io</code></td><td>Memory (contiguous)</td><td>No</td><td>Basic in-memory storage</td></tr>
+<tr><td><code>block_memory_io</code></td><td>Memory (block-allocated)</td><td>No</td><td>Default backend for large cells</td></tr>
+<tr><td><code>buffer_io</code></td><td>Disk (buffered <code>pread</code>)</td><td>Yes</td><td>Portable disk reads; works everywhere</td></tr>
+<tr><td><code>mmap_io</code></td><td>Disk (mmap + page cache)</td><td>Yes</td><td>Near-memory speed when the working set fits the page cache</td></tr>
+<tr><td><code>async_io</code></td><td>Disk (Linux libaio)</td><td>Yes</td><td>High-concurrency disk reads; <strong>Linux + libaio only</strong>, otherwise falls back to <code>buffer_io</code></td></tr>
+<tr><td><code>reader_io</code></td><td>Custom <code>Reader</code></td><td>No</td><td>Read through a user <code>ReaderSet</code> at load time (e.g. remote / object storage)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Each cell is wired with a flat pair of build parameters: <code>graph_io_type</code> / <code>graph_file_path</code>,
+<code>base_io_type</code> / <code>base_file_path</code>, <code>precise_io_type</code> / <code>precise_file_path</code>, and
+<code>raw_vector_io_type</code> / <code>raw_vector_file_path</code>. A <code>*_file_path</code> is <strong>required</strong> whenever the
+matching <code>*_io_type</code> is disk-backed (<code>buffer_io</code>, <code>mmap_io</code>, or <code>async_io</code>); the in-memory
+backends ignore it. All cells default to <code>block_memory_io</code> (fully in memory).</p>
+<h2 id="recommended-configuration-base-in-memory-precise-on-disk"><a class="header" href="#recommended-configuration-base-in-memory-precise-on-disk">Recommended configuration: base in memory, precise on disk</a></h2>
+<p>The workhorse layout keeps a very compact 3-bit RaBitQ base in memory for traversal and pushes
+a higher-precision <code>sq8</code> copy to disk for reorder, with <code>use_reorder</code> turned on so the
+finalists are re-ranked against it:</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "rabitq",
+        "rabitq_bits_per_dim_base": 3,
+        "max_degree": 32,
+        "ef_construction": 400,
+        "use_reorder": true,
+        "precise_quantization_type": "sq8",
+        "precise_io_type": "async_io",
+        "precise_file_path": "/data/vsag/hgraph_precise.data"
+    }
+}
+</code></pre>
+<p>Here <code>rabitq_bits_per_dim_base</code> selects the standard multi-bit RaBitQ base code (range <code>[1, 8]</code>);
+leave <code>rabitq_bits_per_dim_precise</code> unset so the base stays a plain RaBitQ code rather than
+switching to the x+y split variant.</p>
+<p>Search is unchanged — set <code>ef_search</code> as usual and reorder transparently reads the precise
+copy from disk:</p>
+<pre><code class="language-json">{"hgraph": {"ef_search": 200}}
+</code></pre>
+<p>The per-query data flow: graph traversal reads only the in-memory <code>base</code> codes and <code>graph</code>
+adjacency; disk I/O happens solely at the end, when reorder fetches the precise copy for
+the small candidate set before returning the top-k. This is why a disk-backed HGraph adds
+only a bounded number of reads per query rather than one read per hop.</p>
+<h2 id="hardware-and-deployment"><a class="header" href="#hardware-and-deployment">Hardware and deployment</a></h2>
+<ul>
+<li><strong>Use NVMe SSDs.</strong> Disk-backed vector search is dominated by random-read latency; NVMe is
+an order of magnitude better than SATA SSDs and essential for <code>async_io</code> / <code>mmap_io</code>.</li>
+<li><strong><code>async_io</code> requires Linux with libaio, which is enabled by default.</strong> The CMake option
+<code>ENABLE_LIBAIO</code> defaults to <code>ON</code>, and the Makefile passes <code>VSAG_ENABLE_LIBAIO=ON</code>; you only
+set these flags to turn libaio back on if a previous build disabled it. When libaio is absent
+(including on macOS), <code>async_io</code> logs a one-time warning and falls back to <code>buffer_io</code>, so
+configs remain portable but lose asynchronous batching. For production throughput, build on
+Linux with libaio.</li>
+<li><strong>Warm the page cache</strong> for <code>mmap_io</code> cells after load (e.g. a sequential read of the file,
+or a warm-up query pass) so early queries do not pay cold-miss latency.</li>
+<li><strong>Plan file paths and lifecycle.</strong> Disk-backed cells write to the <code>*_file_path</code> you supply;
+place them on a fast, dedicated volume with enough space for the precise copy, and clean up
+stale files when rebuilding. Serialize and load the index through the normal
+<a href="#serialization">Serialization</a> API — the backing files are managed with it.</li>
+</ul>
+<h2 id="capacity-planning"><a class="header" href="#capacity-planning">Capacity planning</a></h2>
+<p>Approximate per-vector storage for the main quantizers (plus small per-vector metadata such
+as norms and errors):</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Representation</th><th>Bytes per vector</th><th>Typical placement</th></tr>
+</thead>
+<tbody>
+<tr><td><code>fp32</code> (precise)</td><td><code>dim × 4</code></td><td>Disk</td></tr>
+<tr><td><code>fp16</code> / <code>bf16</code></td><td><code>dim × 2</code></td><td>Memory or disk</td></tr>
+<tr><td><code>sq8</code></td><td><code>dim × 1</code></td><td>Memory or disk</td></tr>
+<tr><td><code>sq4</code></td><td><code>dim × 0.5</code></td><td>Memory</td></tr>
+<tr><td><code>rabitq</code> (b-bit)</td><td><code>dim × b / 8</code></td><td>Memory</td></tr>
+</tbody>
+</table>
+</div>
+<p>Worked example for <code>N = 1e9</code>, <code>dim = 128</code>:</p>
+<ul>
+<li>3-bit <code>rabitq</code> base in memory: <code>1e9 × 128 × 3 / 8 ≈ 48 GB</code> RAM.</li>
+<li><code>sq8</code> precise on disk: <code>1e9 × 128 × 1 ≈ 128 GB</code> SSD.</li>
+<li>A full <code>fp32</code> precise instead (maximum reorder accuracy): <code>1e9 × 128 × 4 ≈ 512 GB</code> SSD.</li>
+<li>Add the graph: roughly <code>N × max_degree × 4</code> bytes for neighbor ids (memory or <code>mmap_io</code>).</li>
+</ul>
+<p>This is how a billion-scale index that would need ~0.5 TB of RAM as pure <code>fp32</code> collapses to
+tens of GB of RAM plus an SSD.</p>
+<h2 id="tuning-and-troubleshooting"><a class="header" href="#tuning-and-troubleshooting">Tuning and troubleshooting</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Symptom</th><th>Likely cause</th><th>Action</th></tr>
+</thead>
+<tbody>
+<tr><td>Recall too low</td><td>Base quantization too coarse, or reorder off</td><td>Keep <code>use_reorder: true</code>; raise <code>precise_quantization_type</code> toward <code>fp32</code>; increase <code>ef_search</code></td></tr>
+<tr><td>Latency too high</td><td>Too many disk reads per query</td><td>Lower <code>ef_search</code>; keep <code>graph</code>/<code>base</code> in memory; ensure precise-only is on disk; use NVMe + <code>async_io</code></td></tr>
+<tr><td>Memory still too high</td><td>Base or graph too large</td><td>Move base to <code>sq4</code> / <code>pq</code> / <code>rabitq</code>; push <code>graph</code> to <code>mmap_io</code></td></tr>
+<tr><td><code>async_io</code> seems synchronous</td><td>libaio not compiled in</td><td>Rebuild with <code>VSAG_ENABLE_LIBAIO=ON</code> on Linux; check for the fallback warning</td></tr>
+<tr><td>Cold-start latency spikes (mmap)</td><td>Page cache not warm</td><td>Warm the file after load before serving traffic</td></tr>
+</tbody>
+</table>
+</div>
+<p>Treat these as starting points and validate with <a href="#performance-evaluation-tool-eval_performance"><code>eval_performance</code></a> against a
+realistic query distribution; the <a href="#optimizer-tune">Optimizer (Tune)</a> can then
+settle search-time parameters automatically.</p>
+<h2 id="see-also-7"><a class="header" href="#see-also-7">See also</a></h2>
+<ul>
+<li><a href="#hgraph-2">HGraph</a> — the flagship index and its full parameter table</li>
+<li><a href="quantization/README.html">Quantization Overview</a> — choosing a base/precise quantizer</li>
+<li><a href="#best-practices">Best Practices</a> — general production guidance</li>
+<li><a href="#serialization">Serialization</a> — persisting and loading indexes</li>
+<li><a href="#performance-evaluation-tool-eval_performance">Evaluation Tool</a> and <a href="#optimizer-tune">Optimizer (Tune)</a> — measuring and
+tuning</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="metric-semantics-in-vsag"><a class="header" href="#metric-semantics-in-vsag">Metric Semantics in VSAG</a></h1>
@@ -6568,6 +6912,9 @@ make release
 versions.</li>
 <li>When the serialization format changes, validate deserialization compatibility in a staging
 environment first.</li>
+<li>For SINDI, the legacy <code>use_term_lists_heap_insert</code> search parameter is ignored. SINDI
+now derives the heap-insertion strategy from <code>doc_prune_ratio</code> and <code>query_prune_ratio</code>;
+update configs that relied on forcing this path directly.</li>
 <li>Roll out gradually in production and use the
 <a href="#performance-evaluation-tool-eval_performance">performance evaluation tool</a> to compare recall and latency.</li>
 </ul>
@@ -6734,7 +7081,7 @@ behavior. The agent will mirror this into the template’s required fields.</li>
 shell wrapper at
 <a href="https://github.com/antgroup/vsag/blob/main/tools/issue-helper/new-issue.sh"><code>tools/issue-helper/new-issue.sh</code></a>.</li>
 </ul>
-<h2 id="see-also-6"><a class="header" href="#see-also-6">See also</a></h2>
+<h2 id="see-also-8"><a class="header" href="#see-also-8">See also</a></h2>
 <ul>
 <li><a href="#community">Community</a></li>
 <li><a href="#contributing-to-vsag">Contributing to VSAG</a></li>

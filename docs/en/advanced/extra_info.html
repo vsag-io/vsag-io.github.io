@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-782c2bc5.js";
+            window.path_to_searchindex_js = "../searchindex-003fd777.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-732d3dbc.js"></script>
+        <script src="../toc-f8140cc2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -306,31 +306,29 @@
                     <main>
                         <h1 id="extra-info"><a class="header" href="#extra-info">Extra Info</a></h1>
 <p><code>extra_info</code> is a fixed-size, opaque per-vector byte payload stored alongside vectors inside
-the index. It lets you keep small pieces of non-vector metadata (e.g. timestamps, category ids,
-permission tags, application-specific fields) right next to the vectors, so you can:</p>
+the index. It lets you keep small pieces of non-vector metadata, such as timestamps, category ids,
+permission tags, or application-specific fields, right next to the vectors, so you can:</p>
 <ul>
 <li>Retrieve metadata by vector id without a separate KV store.</li>
 <li>Update a vector’s metadata in place without re-inserting the vector.</li>
-<li>Filter candidates <strong>during</strong> graph traversal using your own metadata, instead of post-filtering
-results.</li>
+<li>Filter candidates during search using your own metadata instead of post-filtering results.</li>
 </ul>
-<p>The library treats the payload as raw bytes — you fully own its layout, serialization, and
+<p>The library treats the payload as raw bytes. You fully own its layout, serialization, and
 interpretation.</p>
 <h2 id="index-support"><a class="header" href="#index-support">Index Support</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Index</th><th style="text-align: center">Store on Build/Add</th><th style="text-align: center"><code>GetExtraInfoByIds</code></th><th style="text-align: center"><code>UpdateExtraInfo</code></th><th style="text-align: center">In-graph filter (<code>use_extra_info_filter</code>)</th><th style="text-align: center">Returned in search results</th></tr>
-</thead>
-<tbody>
-<tr><td><strong>HGraph</strong></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
-<tr><td>IVF</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
-<tr><td>SINDI</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
-</tbody>
-</table>
-</div>
-<p>Only HGraph advertises the related capability flags; for the richest experience use HGraph.
-You can always check at runtime with <code>index-&gt;CheckFeature(...)</code>.</p>
+<p>Supported operations by index:</p>
+<ul>
+<li><strong>HGraph</strong>: store on Build/Add, <code>GetExtraInfoByIds</code>, <code>UpdateExtraInfo</code>,
+<code>use_extra_info_filter</code>, and search-result extra info.</li>
+<li><strong>LazyHGraph</strong>: the same support as HGraph in both phases. The flat phase is served by
+BruteForce, and after transition the graph phase is served by HGraph.</li>
+<li><strong>BruteForce</strong>: store on Build/Add, <code>GetExtraInfoByIds</code>, <code>UpdateExtraInfo</code>,
+<code>use_extra_info_filter</code>, and search-result extra info.</li>
+<li><strong>IVF</strong> and <strong>SINDI</strong>: store extra info on Build/Add, but do not expose retrieval, update,
+extra-info filtering, or search-result extra info.</li>
+</ul>
+<p>HGraph, LazyHGraph, and BruteForce advertise the related capability flags when
+<code>extra_info_size &gt; 0</code>. You can always check at runtime with <code>index-&gt;CheckFeature(...)</code>.</p>
 <h2 id="enabling-extra-info"><a class="header" href="#enabling-extra-info">Enabling Extra Info</a></h2>
 <p>Add the top-level integer field <code>extra_info_size</code> to the build parameters. The value is the size
 in bytes of the payload reserved per vector. Once an index is built, the size is fixed and is
@@ -344,6 +342,23 @@ serialized together with the index.</p>
         "base_quantization_type": "sq8",
         "max_degree": 26,
         "ef_construction": 100
+    }
+}
+</code></pre>
+<p>For LazyHGraph, <code>extra_info_size</code> is still a top-level field; the LazyHGraph-specific parameters
+stay in the <code>lazy_hgraph</code> object:</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "extra_info_size": 12,
+    "lazy_hgraph": {
+        "transition_threshold": 1000,
+        "hgraph": {
+            "base_quantization_type": "sq8",
+            "max_degree": 26,
+            "ef_construction": 100
+        }
     }
 }
 </code></pre>
@@ -364,15 +379,14 @@ index-&gt;Build(base);   // or index-&gt;Add(base)
 </code></pre>
 <p><code>ExtraInfoSize</code> must equal the index’s <code>extra_info_size</code>; otherwise the call is rejected.</p>
 <h2 id="retrieving-extra-info"><a class="header" href="#retrieving-extra-info">Retrieving Extra Info</a></h2>
-<h3 id="from-search-results-hgraph"><a class="header" href="#from-search-results-hgraph">From Search Results (HGraph)</a></h3>
-<p>When <code>extra_info_size &gt; 0</code>, HGraph automatically populates the result <code>Dataset</code> with the matching
+<h3 id="from-search-results"><a class="header" href="#from-search-results">From Search Results</a></h3>
+<p>When <code>extra_info_size &gt; 0</code>, supported indexes populate the result <code>Dataset</code> with the matching
 extra_info bytes for every returned id:</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(query, k, search_params).value();
-const char* infos = result-&gt;GetExtraInfos();          // length = result-&gt;GetDim() * extra_info_size
+const char* infos = result-&gt;GetExtraInfos();
+auto info_size = result-&gt;GetExtraInfoSize();
 </code></pre>
-<p>The result <code>Dataset</code> carries the <code>ExtraInfos</code> buffer but <strong>does not</strong> set <code>ExtraInfoSize</code> on it,
-so <code>result-&gt;GetExtraInfoSize()</code> will return <code>0</code>. Use the <code>extra_info_size</code> you configured at
-build time to compute offsets and lengths.</p>
+<p>Use <code>info_size</code> to compute offsets in the returned buffer.</p>
 <h3 id="by-ids-getextrainfobyids"><a class="header" href="#by-ids-getextrainfobyids">By Ids (<code>GetExtraInfoByIds</code>)</a></h3>
 <p>Allocate a <code>count * extra_info_size</code> byte buffer and call:</p>
 <pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_GET_EXTRA_INFO_BY_ID)) {
@@ -394,17 +408,18 @@ build time to compute offsets and lengths.</p>
 }
 </code></pre>
 <p>The dataset must contain exactly one element and the size must match.</p>
-<h2 id="in-graph-filtering-with-extra-info-hgraph"><a class="header" href="#in-graph-filtering-with-extra-info-hgraph">In-Graph Filtering with Extra Info (HGraph)</a></h2>
-<p>Post-filtering can be wasteful when the filter prunes many candidates. HGraph can call your
-filter on each candidate’s extra_info bytes during graph traversal, so disqualified candidates
-never enter the result set.</p>
+<h2 id="filtering-with-extra-info"><a class="header" href="#filtering-with-extra-info">Filtering with Extra Info</a></h2>
+<p>Post-filtering can be wasteful when the filter prunes many candidates. HGraph and LazyHGraph can
+call your filter on each candidate’s extra_info bytes during graph traversal, so disqualified
+candidates never enter the result set. LazyHGraph also supports the same byte-payload filter before
+transition, where the flat phase runs an exact scan.</p>
 <ol>
 <li>
 <p>Override the byte-buffer overload of <code>vsag::Filter</code>:</p>
 <pre><code class="language-cpp">class CategoryFilter : public vsag::Filter {
 public:
     CategoryFilter(uint32_t lo, uint32_t hi) : lo_(lo), hi_(hi) {}
-    bool CheckValid(int64_t /*id*/) const override { return true; }   // unused on this path
+    bool CheckValid(int64_t /*id*/) const override { return true; }
     bool CheckValid(const char* data) const override {
         uint32_t category_id;
         std::memcpy(&amp;category_id, data, sizeof(category_id));
@@ -430,35 +445,39 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
 </code></pre>
 </li>
 </ol>
-<p>When <code>use_extra_info_filter</code> is true, HGraph dispatches to <code>CheckValid(const char*)</code> instead of
+<p>When <code>use_extra_info_filter</code> is true, the search path calls <code>CheckValid(const char*)</code> instead of
 <code>CheckValid(int64_t)</code>. You can guard with
 <code>index-&gt;CheckFeature(vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER)</code>.</p>
+<h2 id="lazyhgraph-notes"><a class="header" href="#lazyhgraph-notes">LazyHGraph Notes</a></h2>
+<ul>
+<li><code>extra_info_size</code> must be configured when the LazyHGraph index is created; it is not nested under
+<code>lazy_hgraph</code> or <code>hgraph</code>.</li>
+<li>Extra info supplied while the index is still in the flat phase is migrated into the internal
+HGraph during transition.</li>
+<li><code>GetExtraInfoByIds</code>, <code>UpdateExtraInfo</code>, search-result extra info, and
+<code>use_extra_info_filter</code> work before and after transition.</li>
+<li>Serialized LazyHGraph indexes preserve both the current phase and the stored extra info.</li>
+</ul>
 <h2 id="capability-flags"><a class="header" href="#capability-flags">Capability Flags</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Flag</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>vsag::SUPPORT_GET_EXTRA_INFO_BY_ID</code></td><td><code>GetExtraInfoByIds</code> is available.</td></tr>
-<tr><td><code>vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT</code></td><td><code>UpdateExtraInfo</code> is available and thread-safe.</td></tr>
-<tr><td><code>vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER</code></td><td><code>use_extra_info_filter</code> is available in search.</td></tr>
-</tbody>
-</table>
-</div>
+<ul>
+<li><code>vsag::SUPPORT_GET_EXTRA_INFO_BY_ID</code>: <code>GetExtraInfoByIds</code> is available.</li>
+<li><code>vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT</code>: <code>UpdateExtraInfo</code> is available and thread-safe.</li>
+<li><code>vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER</code>: <code>use_extra_info_filter</code> is available in search.</li>
+</ul>
 <h2 id="notes-and-limitations"><a class="header" href="#notes-and-limitations">Notes and Limitations</a></h2>
 <ul>
 <li>The payload is opaque bytes; you are responsible for serialization/deserialization. The library
-only <code>memcpy</code>s by offset.</li>
+only copies by offset.</li>
 <li><code>extra_info_size</code> is fixed at build time and persisted in the serialized index.</li>
-<li>Storage cost is <code>extra_info_size * num_elements</code> bytes, accounted into <code>EstimateMemory</code>.</li>
-<li>Keep the payload compact — it is loaded into memory and walked during in-graph filtering.</li>
+<li>Storage cost is <code>extra_info_size * num_elements</code> bytes, accounted into <code>EstimateMemory</code> by
+indexes that support memory estimation for this storage.</li>
+<li>Keep the payload compact because it is read during extra-info filtering.</li>
 <li>The feature is currently C++ only; there is no Python binding for <code>extra_info</code>.</li>
 </ul>
 <h2 id="example"><a class="header" href="#example">Example</a></h2>
 <p>A complete, runnable example is available at
 <code>examples/cpp/320_feature_extra_info.cpp</code>. It demonstrates building an HGraph index with
-<code>extra_info</code>, retrieval by id, in-graph filtering, and in-place updates.</p>
+<code>extra_info</code>, retrieval by id, extra-info filtering, and in-place updates.</p>
 
                     </main>
 

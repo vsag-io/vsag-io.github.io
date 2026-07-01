@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-782c2bc5.js";
+            window.path_to_searchindex_js = "../searchindex-003fd777.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-732d3dbc.js"></script>
+        <script src="../toc-f8140cc2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -403,9 +403,9 @@ if (result.has_value()) {
 <p>A runnable example is provided in
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/306_feature_calculate_distance_by_id.cpp"><code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code></a>.</p>
 <h2 id="sparse-vectors"><a class="header" href="#sparse-vectors">Sparse Vectors</a></h2>
-<p>For sparse-vector indexes (SINDI, SparseIndex), the <code>const float*</code> overloads are not
-applicable. Pass the query as a <code>DatasetPtr</code> carrying sparse vectors via
-<code>SparseVectors(...)</code>, and use the <code>DatasetPtr</code> overloads:</p>
+<p>For sparse-vector indexes such as SINDI, the <code>const float*</code> overloads are not applicable. Pass
+the query as a <code>DatasetPtr</code> carrying sparse vectors via <code>SparseVectors(...)</code>, and use the
+<code>DatasetPtr</code> overloads:</p>
 <pre><code class="language-cpp">auto query = vsag::Dataset::Make();
 query-&gt;NumElements(1)-&gt;SparseVectors(&amp;sparse_query)-&gt;Owner(false);
 
@@ -423,7 +423,6 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 <tr><td>brute_force</td><td>yes</td><td>yes (default loop)</td><td>Always precise (no quantization).</td></tr>
 <tr><td>pyramid</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
 <tr><td>sindi</td><td>no</td><td>yes</td><td>Sparse vectors only.</td></tr>
-<tr><td>sparse_index</td><td>no</td><td>yes</td><td>Sparse vectors only.</td></tr>
 </tbody>
 </table>
 </div>

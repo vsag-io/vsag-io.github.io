@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-782c2bc5.js";
+            window.path_to_searchindex_js = "../searchindex-003fd777.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-732d3dbc.js"></script>
+        <script src="../toc-f8140cc2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -345,7 +345,7 @@ index falls back to the allocator that was attached to its owning <code>Resource
 <p><strong>Availability.</strong> <code>Index::SearchWithRequest</code> has a default implementation that returns an
 <em>unsupported</em> error. Only HGraph, IVF, BruteForce and WARP implement it today
 (<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>). For indexes that do not yet override
-<code>SearchWithRequest</code> (SINDI, Pyramid, SparseIndex), use the legacy <code>SearchParam</code>
+<code>SearchWithRequest</code> (HNSW, DiskANN, SINDI, Pyramid), use the legacy <code>SearchParam</code>
 path described below.</p>
 </blockquote>
 <h2 id="legacy-api--searchparamallocator-deprecated"><a class="header" href="#legacy-api--searchparamallocator-deprecated">Legacy API — <code>SearchParam::allocator</code> <em>(deprecated)</em></a></h2>
@@ -375,7 +375,8 @@ The resulting <code>Dataset</code> is marked <code>Owner(true, allocator)</code>
 <code>allocator-&gt;Deallocate(...)</code> on <code>ids</code> / <code>distances</code> automatically.</li>
 <li><strong>IVF / BruteForce / WARP</strong> currently construct the result <code>Dataset</code> via
 <code>create_fast_dataset(..., allocator_)</code> — i.e. the index’s own allocator
-(<code>src/algorithm/ivf.cpp</code>, <code>src/algorithm/brute_force.cpp</code>, <code>src/algorithm/warp.cpp</code>).
+(<code>src/algorithm/ivf/ivf.cpp</code>, <code>src/algorithm/bruteforce/bruteforce.cpp</code>; WARP uses the
+BruteForce implementation in WARP mode).
 <code>request.search_allocator_</code> is only consulted for scratch state on those paths today; the
 result buffers are owned by the index’s allocator. Treat the result <code>Dataset</code>’s lifetime as
 tied to the index’s allocator on these indexes.</li>

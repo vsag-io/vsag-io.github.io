@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0b5325f1.js";
+            window.path_to_searchindex_js = "../searchindex-fe62fd3d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-75afec7d.js"></script>
+        <script src="../toc-bf1b6517.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -339,7 +339,7 @@ auto result = index-&gt;SearchWithRequest(req).value();
 <blockquote>
 <p><strong>可用性。</strong> <code>Index::SearchWithRequest</code> 默认实现会返回 <em>不支持</em> 错误。目前只有 HGraph、
 IVF、BruteForce、WARP 实现了它（<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>）。对于
-尚未 override 的索引（SINDI、Pyramid、SparseIndex），请使用下文的旧版
+尚未 override 的索引（HNSW、DiskANN、SINDI、Pyramid），请使用下文的旧版
 <code>SearchParam</code> 路径。</p>
 </blockquote>
 <h2 id="旧版-api--searchparamallocator已弃用"><a class="header" href="#旧版-api--searchparamallocator已弃用">旧版 API —— <code>SearchParam::allocator</code>（已弃用）</a></h2>
@@ -366,10 +366,10 @@ auto result = index-&gt;KnnSearch(query, /*k=*/10, search_param).value();
 （见 <code>src/algorithm/hgraph.cpp</code> 中 <code>ctx.alloc = request.search_allocator_</code>）。其结果 <code>Dataset</code>
 被标记为 <code>Owner(true, allocator)</code>，析构时会自动用该 allocator 释放 <code>ids</code> / <code>distances</code>。</li>
 <li><strong>IVF / BruteForce / WARP</strong> 当前用 <code>create_fast_dataset(..., allocator_)</code> 构造结果，即索引
-自身的 allocator（<code>src/algorithm/ivf.cpp</code>、<code>src/algorithm/brute_force.cpp</code>、
-<code>src/algorithm/warp.cpp</code>）。这些路径上 <code>request.search_allocator_</code> 只会被部分临时缓冲读取，
-结果缓冲仍由索引 allocator 持有。在这些索引上请把结果 <code>Dataset</code> 的生命周期视为绑定到索引
-allocator。</li>
+自身的 allocator（<code>src/algorithm/ivf/ivf.cpp</code>、<code>src/algorithm/bruteforce/bruteforce.cpp</code>；
+WARP 使用 BruteForce 的 WARP 模式实现）。这些路径上 <code>request.search_allocator_</code> 只会被部分
+临时缓冲读取，结果缓冲仍由索引 allocator 持有。在这些索引上请把结果 <code>Dataset</code> 的生命周期
+视为绑定到索引 allocator。</li>
 </ul>
 <p>实际意义：</p>
 <ul>

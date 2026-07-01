@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-782c2bc5.js";
+            window.path_to_searchindex_js = "../searchindex-003fd777.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-732d3dbc.js"></script>
+        <script src="../toc-f8140cc2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -342,6 +342,9 @@ make release
 versions.</li>
 <li>When the serialization format changes, validate deserialization compatibility in a staging
 environment first.</li>
+<li>For SINDI, the legacy <code>use_term_lists_heap_insert</code> search parameter is ignored. SINDI
+now derives the heap-insertion strategy from <code>doc_prune_ratio</code> and <code>query_prune_ratio</code>;
+update configs that relied on forcing this path directly.</li>
 <li>Roll out gradually in production and use the
 <a href="eval.html">performance evaluation tool</a> to compare recall and latency.</li>
 </ul>

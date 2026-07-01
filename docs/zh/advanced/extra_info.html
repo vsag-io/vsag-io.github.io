@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0b5325f1.js";
+            window.path_to_searchindex_js = "../searchindex-fe62fd3d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-75afec7d.js"></script>
+        <script src="../toc-bf1b6517.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -310,24 +310,23 @@
 <ul>
 <li>通过向量 id 直接获取元数据，无需额外的 KV 存储。</li>
 <li>在不重新插入向量的前提下，原地更新某条向量对应的元数据。</li>
-<li>在图遍历<strong>过程中</strong>就基于元数据过滤候选，而不是事后再过滤搜索结果。</li>
+<li>在搜索过程中基于元数据过滤候选，而不是事后再过滤搜索结果。</li>
 </ul>
 <p>VSAG 把该负载视为原始字节流，其内存布局、序列化与解释完全由用户自行决定。</p>
 <h2 id="索引支持情况"><a class="header" href="#索引支持情况">索引支持情况</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>索引</th><th style="text-align: center">Build/Add 时存入</th><th style="text-align: center"><code>GetExtraInfoByIds</code></th><th style="text-align: center"><code>UpdateExtraInfo</code></th><th style="text-align: center">图内过滤（<code>use_extra_info_filter</code>）</th><th style="text-align: center">搜索结果中返回</th></tr>
-</thead>
-<tbody>
-<tr><td><strong>HGraph</strong></td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
-<tr><td>IVF</td><td style="text-align: center">支持</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
-<tr><td>SINDI</td><td style="text-align: center">支持</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
-</tbody>
-</table>
-</div>
-<p>只有 HGraph 注册了相关的能力标志位；如需完整体验请使用 HGraph。运行时可通过
-<code>index-&gt;CheckFeature(...)</code> 进行检查。</p>
+<p>各索引支持的操作如下：</p>
+<ul>
+<li><strong>HGraph</strong>：支持 Build/Add 时存入、<code>GetExtraInfoByIds</code>、<code>UpdateExtraInfo</code>、
+<code>use_extra_info_filter</code>，以及在搜索结果中返回 extra info。</li>
+<li><strong>LazyHGraph</strong>：两个阶段都支持与 HGraph 相同的能力。flat 阶段由 BruteForce 提供能力，
+转换后 graph 阶段由 HGraph 提供能力。</li>
+<li><strong>BruteForce</strong>：支持 Build/Add 时存入、<code>GetExtraInfoByIds</code>、<code>UpdateExtraInfo</code>、
+<code>use_extra_info_filter</code>，以及在搜索结果中返回 extra info。</li>
+<li><strong>IVF</strong> 和 <strong>SINDI</strong>：支持 Build/Add 时存入 extra info，但不提供获取、更新、
+extra-info 过滤或在搜索结果中返回 extra info。</li>
+</ul>
+<p>当 <code>extra_info_size &gt; 0</code> 时，HGraph、LazyHGraph 和 BruteForce 会注册相关能力标志位。
+运行时可通过 <code>index-&gt;CheckFeature(...)</code> 进行检查。</p>
 <h2 id="启用-extra-info"><a class="header" href="#启用-extra-info">启用 Extra Info</a></h2>
 <p>在创建索引的参数中，添加顶层整型字段 <code>extra_info_size</code>，其值为每条向量预留的字节数。索引一旦
 建立，该大小即被固定，并随索引一同序列化。</p>
@@ -340,6 +339,22 @@
         "base_quantization_type": "sq8",
         "max_degree": 26,
         "ef_construction": 100
+    }
+}
+</code></pre>
+<p>LazyHGraph 也使用顶层 <code>extra_info_size</code>；LazyHGraph 自身参数仍放在 <code>lazy_hgraph</code> 对象中：</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "extra_info_size": 12,
+    "lazy_hgraph": {
+        "transition_threshold": 1000,
+        "hgraph": {
+            "base_quantization_type": "sq8",
+            "max_degree": 26,
+            "ef_construction": 100
+        }
     }
 }
 </code></pre>
@@ -360,14 +375,14 @@ index-&gt;Build(base);   // 或 index-&gt;Add(base)
 </code></pre>
 <p><code>ExtraInfoSize</code> 必须和索引创建时的 <code>extra_info_size</code> 完全相等，否则调用会被拒绝。</p>
 <h2 id="获取-extra-info"><a class="header" href="#获取-extra-info">获取 Extra Info</a></h2>
-<h3 id="在搜索结果中获取hgraph"><a class="header" href="#在搜索结果中获取hgraph">在搜索结果中获取（HGraph）</a></h3>
-<p>当 <code>extra_info_size &gt; 0</code> 时，HGraph 会自动在结果 <code>Dataset</code> 中填入每个返回 id 对应的字节负载：</p>
+<h3 id="在搜索结果中获取"><a class="header" href="#在搜索结果中获取">在搜索结果中获取</a></h3>
+<p>当 <code>extra_info_size &gt; 0</code> 时，支持该能力的索引会在结果 <code>Dataset</code> 中填入每个返回 id 对应的
+字节负载：</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(query, k, search_params).value();
-const char* infos = result-&gt;GetExtraInfos();          // 长度 = result-&gt;GetDim() * extra_info_size
+const char* infos = result-&gt;GetExtraInfos();
+auto info_size = result-&gt;GetExtraInfoSize();
 </code></pre>
-<p>返回的结果 <code>Dataset</code> 中只设置了 <code>ExtraInfos</code> 缓冲区，<strong>并没有</strong>设置 <code>ExtraInfoSize</code>，
-因此 <code>result-&gt;GetExtraInfoSize()</code> 会返回 <code>0</code>。请使用建索引时配置的 <code>extra_info_size</code>
-来计算偏移和缓冲区长度。</p>
+<p>请使用 <code>info_size</code> 计算返回缓冲区中的偏移。</p>
 <h3 id="通过-id-批量获取getextrainfobyids"><a class="header" href="#通过-id-批量获取getextrainfobyids">通过 ID 批量获取（<code>GetExtraInfoByIds</code>）</a></h3>
 <p>调用方需要预先分配 <code>count * extra_info_size</code> 字节的缓冲区：</p>
 <pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_GET_EXTRA_INFO_BY_ID)) {
@@ -389,16 +404,17 @@ const char* infos = result-&gt;GetExtraInfos();          // 长度 = result-&gt;
 }
 </code></pre>
 <p>数据集必须只包含一条记录，且大小必须匹配。</p>
-<h2 id="基于-extra-info-的图内过滤hgraph"><a class="header" href="#基于-extra-info-的图内过滤hgraph">基于 Extra Info 的图内过滤（HGraph）</a></h2>
-<p>在过滤命中率较低的场景下，事后过滤会浪费大量计算。HGraph 可以在图遍历过程中，对每个候选向量
-直接调用用户定义的过滤器并传入其 extra_info 字节，从而让被过滤掉的候选根本不进入结果集。</p>
+<h2 id="基于-extra-info-过滤"><a class="header" href="#基于-extra-info-过滤">基于 Extra Info 过滤</a></h2>
+<p>在过滤命中率较低的场景下，事后过滤会浪费大量计算。HGraph 与 LazyHGraph 可以在图遍历过程中
+对每个候选向量直接调用用户定义的过滤器并传入其 extra_info 字节，从而让被过滤掉的候选不进入
+结果集。LazyHGraph 在转换前也支持同样的字节负载过滤，此时 flat 阶段会执行精确扫描。</p>
 <ol>
 <li>
 <p>重写 <code>vsag::Filter</code> 中接收字节缓冲区的版本：</p>
 <pre><code class="language-cpp">class CategoryFilter : public vsag::Filter {
 public:
     CategoryFilter(uint32_t lo, uint32_t hi) : lo_(lo), hi_(hi) {}
-    bool CheckValid(int64_t /*id*/) const override { return true; }   // 该路径下不会被调用
+    bool CheckValid(int64_t /*id*/) const override { return true; }
     bool CheckValid(const char* data) const override {
         uint32_t category_id;
         std::memcpy(&amp;category_id, data, sizeof(category_id));
@@ -423,33 +439,36 @@ auto result = index-&gt;KnnSearch(query, k, search_params, filter).value();
 </code></pre>
 </li>
 </ol>
-<p><code>use_extra_info_filter</code> 为 <code>true</code> 时，HGraph 会调用 <code>CheckValid(const char*)</code> 而不是
+<p><code>use_extra_info_filter</code> 为 <code>true</code> 时，搜索路径会调用 <code>CheckValid(const char*)</code> 而不是
 <code>CheckValid(int64_t)</code>。可使用
 <code>index-&gt;CheckFeature(vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER)</code> 进行能力检查。</p>
+<h2 id="lazyhgraph-说明"><a class="header" href="#lazyhgraph-说明">LazyHGraph 说明</a></h2>
+<ul>
+<li>创建 LazyHGraph 索引时必须配置 <code>extra_info_size</code>；该字段不放在 <code>lazy_hgraph</code> 或 <code>hgraph</code>
+对象内部。</li>
+<li>flat 阶段写入的 extra info 会在转换时迁移到内部 HGraph。</li>
+<li><code>GetExtraInfoByIds</code>、<code>UpdateExtraInfo</code>、搜索结果返回 extra info，以及
+<code>use_extra_info_filter</code> 在转换前后都可用。</li>
+<li>序列化 LazyHGraph 时会保留当前阶段和已存储的 extra info。</li>
+</ul>
 <h2 id="能力标志"><a class="header" href="#能力标志">能力标志</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>标志</th><th>含义</th></tr>
-</thead>
-<tbody>
-<tr><td><code>vsag::SUPPORT_GET_EXTRA_INFO_BY_ID</code></td><td>支持 <code>GetExtraInfoByIds</code>。</td></tr>
-<tr><td><code>vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT</code></td><td>支持线程安全的 <code>UpdateExtraInfo</code>。</td></tr>
-<tr><td><code>vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER</code></td><td>搜索时支持 <code>use_extra_info_filter</code>。</td></tr>
-</tbody>
-</table>
-</div>
+<ul>
+<li><code>vsag::SUPPORT_GET_EXTRA_INFO_BY_ID</code>：支持 <code>GetExtraInfoByIds</code>。</li>
+<li><code>vsag::SUPPORT_UPDATE_EXTRA_INFO_CONCURRENT</code>：支持线程安全的 <code>UpdateExtraInfo</code>。</li>
+<li><code>vsag::SUPPORT_KNN_SEARCH_WITH_EX_FILTER</code>：搜索时支持 <code>use_extra_info_filter</code>。</li>
+</ul>
 <h2 id="注意事项与限制"><a class="header" href="#注意事项与限制">注意事项与限制</a></h2>
 <ul>
-<li>负载是不透明的字节流，序列化/反序列化由用户负责，库内部仅按偏移做 <code>memcpy</code>。</li>
+<li>负载是不透明的字节流，序列化/反序列化由用户负责，库内部仅按偏移复制。</li>
 <li><code>extra_info_size</code> 在 Build 时即被固定，并写入序列化后的索引。</li>
-<li>存储开销为 <code>extra_info_size * num_elements</code> 字节，会被计入 <code>EstimateMemory</code>。</li>
-<li>请尽量保持负载紧凑——它会驻留内存，并在图内过滤时被反复读取。</li>
+<li>存储开销为 <code>extra_info_size * num_elements</code> 字节；支持该存储统计的索引会将其计入
+<code>EstimateMemory</code>。</li>
+<li>请尽量保持负载紧凑，因为 extra-info 过滤时会读取该负载。</li>
 <li>该特性目前仅提供 C++ 接口，未提供 Python 绑定。</li>
 </ul>
 <h2 id="示例"><a class="header" href="#示例">示例</a></h2>
 <p>完整的可运行示例位于 <code>examples/cpp/320_feature_extra_info.cpp</code>，演示了在 HGraph 上启用
-<code>extra_info</code>、按 id 获取、图内过滤搜索以及原地更新等用法。</p>
+<code>extra_info</code>、按 id 获取、extra-info 过滤搜索以及原地更新等用法。</p>
 
                     </main>
 

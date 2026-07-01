@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-782c2bc5.js";
+            window.path_to_searchindex_js = "../searchindex-003fd777.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-732d3dbc.js"></script>
+        <script src="../toc-f8140cc2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -399,10 +399,16 @@ common first-time mistake.</p>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Candidate heap size. When <code>0</code>, defaults to <code>SPARSE_AMPLIFICATION_FACTOR · topk</code> (500×). If set, must satisfy <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code>.</td></tr>
 <tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight query terms skipped (0.0 – 0.9).</td></tr>
 <tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of term-list entries skipped (0.0 – 0.9).</td></tr>
-<tr><td><code>use_term_lists_heap_insert</code></td><td>bool</td><td><code>true</code></td><td>Term-list-ordered heap insertion; usually faster.</td></tr>
 </tbody>
 </table>
 </div>
+<p>SINDI chooses the heap-insertion strategy automatically from the build-time
+<code>doc_prune_ratio</code> and search-time <code>query_prune_ratio</code>. With the current <code>0.1</code>
+threshold, SINDI uses the distance-array insertion path when both ratios are
+<code>&lt;= 0.1</code>; if either ratio is greater than <code>0.1</code>, it uses term-list heap
+insertion. The legacy
+<code>use_term_lists_heap_insert</code> search parameter is ignored; configure pruning
+ratios instead.</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"sindi": {"n_candidate": 200, "query_prune_ratio": 0.1}})").value();

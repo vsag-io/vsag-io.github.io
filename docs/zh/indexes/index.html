@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0b5325f1.js";
+            window.path_to_searchindex_js = "../searchindex-fe62fd3d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-75afec7d.js"></script>
+        <script src="../toc-bf1b6517.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -316,6 +316,7 @@
 </thead>
 <tbody>
 <tr><td><code>hgraph</code></td><td><a href="hgraph.html">HGraph</a></td><td>通用高召回图索引，量化选项丰富</td></tr>
+<tr><td><code>lazy_hgraph</code></td><td><a href="lazy_hgraph.html">LazyHGraph</a></td><td>从小规模精确检索开始、后续自动转换为 HGraph 的 FP32 集合</td></tr>
 <tr><td><code>ivf</code></td><td><a href="ivf.html">IVF</a></td><td>基于分桶的检索，适合高吞吐批查询与超大规模语料</td></tr>
 <tr><td><code>sindi</code></td><td><a href="sindi.html">SINDI</a></td><td>稀疏向量（BM25 / 学习稀疏）上的内积检索</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="pyramid.html">Pyramid</a></td><td>多租户 / 标签分区的层级索引</td></tr>
@@ -339,7 +340,8 @@
 </table>
 </div>
 <p>索引特有的构建参数放在 <code>index_param</code> 子对象中；查询参数放在以索引名命名的子对象中
-（例如 <code>hgraph</code>、<code>ivf</code>、<code>sindi</code>、<code>pyramid</code>）。具体参数定义在各索引页面内给出，也可查阅
+（例如 <code>hgraph</code>、<code>ivf</code>、<code>sindi</code>、<code>pyramid</code>）。LazyHGraph 转换到 graph 阶段后也使用
+<code>hgraph</code> 搜索参数。具体参数定义在各索引页面内给出，也可查阅
 <a href="../resources/index_parameters.html">索引参数</a> 进行总览。</p>
 
                     </main>

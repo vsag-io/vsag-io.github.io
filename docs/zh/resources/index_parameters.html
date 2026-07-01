@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0b5325f1.js";
+            window.path_to_searchindex_js = "../searchindex-fe62fd3d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-75afec7d.js"></script>
+        <script src="../toc-bf1b6517.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -358,6 +358,36 @@
 默认 <code>0.0</code>）。当取值 <code>&gt; 0</code> 且当前请求的 filter 的 <code>ValidRatio()</code> 不超过该
 阈值时，HGraph 会跳过图遍历，直接在通过过滤的 id 上做精确暴扫。详见
 <a href="../indexes/hgraph.html#高选择性过滤下的暴搜回退brute_force_threshold">HGraph 索引文档</a>。</p>
+<h2 id="lazyhgraph"><a class="header" href="#lazyhgraph">LazyHGraph</a></h2>
+<p>LazyHGraph 的构建参数可以放在顶层 <code>lazy_hgraph</code> 对象中（推荐，语义更清晰），也可以放在
+通用的 <code>index_param</code> 对象中。<code>hgraph</code> 子对象会转交给转换后的内部 HGraph。</p>
+<pre><code class="language-json">{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "lazy_hgraph": {
+        "transition_threshold": 1000,
+        "hgraph": {
+            "base_quantization_type": "sq8",
+            "max_degree": 26,
+            "ef_construction": 100
+        }
+    }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>典型值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>transition_threshold</code></td><td><code>1000</code> 或按业务规模设置</td><td>从精确 flat 搜索转换到 HGraph 的正整数向量数量阈值</td></tr>
+<tr><td><code>hgraph</code></td><td>HGraph 构建对象</td><td>graph 阶段的参数；见 <a href="../indexes/hgraph.html">HGraph</a></td></tr>
+</tbody>
+</table>
+</div>
+<p>LazyHGraph 只支持 <code>dtype: "float32"</code>。搜索参数使用 <code>hgraph</code> 对象，例如
+<code>{"hgraph": {"ef_search": 100}}</code>。详见 <a href="../indexes/lazy_hgraph.html">LazyHGraph 索引文档</a>。</p>
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {

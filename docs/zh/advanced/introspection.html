@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0b5325f1.js";
+            window.path_to_searchindex_js = "../searchindex-fe62fd3d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-75afec7d.js"></script>
+        <script src="../toc-bf1b6517.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -335,7 +335,7 @@ if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
 <pre><code class="language-cpp">// 稠密向量索引（HGraph、BruteForce、IVF）
 auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
 
-// 稀疏向量索引（SINDI、SparseIndex）—— 用 Dataset 封装查询
+// 稀疏向量索引（SINDI）—— 用 Dataset 封装查询
 auto query_ds = vsag::Dataset::Make();
 query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
 auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);

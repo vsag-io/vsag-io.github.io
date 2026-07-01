@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-782c2bc5.js";
+            window.path_to_searchindex_js = "../searchindex-003fd777.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-732d3dbc.js"></script>
+        <script src="../toc-f8140cc2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -317,6 +317,7 @@ structures and trade-offs they use under the hood.</p>
 </thead>
 <tbody>
 <tr><td><code>hgraph</code></td><td><a href="hgraph.html">HGraph</a></td><td>General-purpose, high-recall graph with rich quantization options</td></tr>
+<tr><td><code>lazy_hgraph</code></td><td><a href="lazy_hgraph.html">LazyHGraph</a></td><td>Small-to-growing FP32 collections that start exact and later convert to HGraph</td></tr>
 <tr><td><code>ivf</code></td><td><a href="ivf.html">IVF</a></td><td>Partition-based search, high-throughput batch queries, large corpora</td></tr>
 <tr><td><code>sindi</code></td><td><a href="sindi.html">SINDI</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="pyramid.html">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
@@ -341,7 +342,8 @@ structures and trade-offs they use under the hood.</p>
 </div>
 <p>Index-specific build parameters live under the <code>index_param</code> sub-object; search-time
 parameters live under a sub-object named after the index (e.g. <code>hgraph</code>, <code>ivf</code>,
-<code>sindi</code>, <code>pyramid</code>). Concrete schemas are documented on each page and enumerated in
+<code>sindi</code>, <code>pyramid</code>). LazyHGraph also uses the <code>hgraph</code> search object after it
+converts to graph phase. Concrete schemas are documented on each page and enumerated in
 <a href="../resources/index_parameters.html">Index Parameters</a>.</p>
 
                     </main>

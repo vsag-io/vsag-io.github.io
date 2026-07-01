@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-782c2bc5.js";
+            window.path_to_searchindex_js = "../searchindex-003fd777.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-732d3dbc.js"></script>
+        <script src="../toc-f8140cc2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -361,6 +361,38 @@ filter whose <code>ValidRatio()</code> is at most this threshold, HGraph skips t
 traversal and runs an exact scan over the surviving ids. See the
 <a href="../indexes/hgraph.html#brute-force-fallback-under-highly-selective-filters-brute_force_threshold">HGraph index page</a>
 for details.</p>
+<h2 id="lazyhgraph"><a class="header" href="#lazyhgraph">LazyHGraph</a></h2>
+<p>LazyHGraph can take its build parameters in a top-level <code>lazy_hgraph</code> object
+(preferred for clarity) or in the generic <code>index_param</code> object. The <code>hgraph</code>
+sub-object is forwarded to the internal HGraph used after transition.</p>
+<pre><code class="language-json">{
+    "dim": 128,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "lazy_hgraph": {
+        "transition_threshold": 1000,
+        "hgraph": {
+            "base_quantization_type": "sq8",
+            "max_degree": 26,
+            "ef_construction": 100
+        }
+    }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Typical</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>transition_threshold</code></td><td><code>1000</code> or workload-specific</td><td>Positive vector count at which the index converts from exact flat search to HGraph</td></tr>
+<tr><td><code>hgraph</code></td><td>HGraph build object</td><td>Parameters for the graph phase; see <a href="../indexes/hgraph.html">HGraph</a></td></tr>
+</tbody>
+</table>
+</div>
+<p>LazyHGraph only supports <code>dtype: "float32"</code>. Search parameters use the <code>hgraph</code>
+object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
+<a href="../indexes/lazy_hgraph.html">LazyHGraph index page</a> for details.</p>
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {
