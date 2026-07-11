@@ -1,0 +1,560 @@
+<!DOCTYPE HTML>
+<html lang="zh" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>新序列化格式 - VSAG文档</title>
+
+
+        <!-- Custom HTML head -->
+        <!-- Google tag (gtag.js) -->
+        <!-- Shared with docs/{docs,blog}/{en,zh}/theme/head.hbs and docs/landing/index.html. Keep these five copies in sync. -->
+        <!-- Hostname-gated so local mdBook previews and fork deploys do not pollute the production GA4 property. -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-2VKGDGDEQV"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          if (location.hostname === 'vsag.io') {
+            gtag('config', 'G-2VKGDGDEQV');
+          }
+        </script>
+        
+        <!-- Language toggle button injected into mdBook's top menu bar. -->
+        <!-- Shared across docs/{en,zh} and blog/{en,zh}. Keep these four copies in sync. -->
+        <style>
+          #lang-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2.2em;
+            height: 2.2em;
+            padding: 0 0.55em;
+            margin-left: 0.2em;
+            border: 0;
+            border-radius: 4px;
+            background: transparent;
+            color: var(--icons);
+            font: inherit;
+            font-size: 0.95em;
+            line-height: 1;
+            cursor: pointer;
+            text-decoration: none;
+            user-select: none;
+          }
+          #lang-toggle:hover {
+            color: var(--icons-hover);
+            background: var(--theme-hover, rgba(0, 0, 0, 0.05));
+          }
+          #lang-toggle[aria-busy="true"] {
+            opacity: 0.6;
+            cursor: progress;
+          }
+        </style>
+        <script>
+          (function () {
+            // Site layout (deployed at https://vsag.io/):
+            //   /docs/en/...   /docs/zh/...
+            //   /blogs/en/...  /blogs/zh/...
+            // mdBook sources in this repo live under docs/docs/{en,zh} and docs/blog/{en,zh};
+            // the deploy workflow renames blog -> blogs, so runtime paths use /blogs/.
+            var PAIRS = [
+              { a: '/docs/en/',  b: '/docs/zh/'  },
+              { a: '/blogs/en/', b: '/blogs/zh/' }
+            ];
+        
+            function detect(pathname) {
+              for (var i = 0; i < PAIRS.length; i++) {
+                var p = PAIRS[i];
+                if (pathname.indexOf(p.a) === 0) {
+                  return { current: 'en', other: 'zh', currentRoot: p.a, otherRoot: p.b };
+                }
+                if (pathname.indexOf(p.b) === 0) {
+                  return { current: 'zh', other: 'en', currentRoot: p.b, otherRoot: p.a };
+                }
+              }
+              return null;
+            }
+        
+            function buildTargetUrl(info, pathname) {
+              var rest = pathname.slice(info.currentRoot.length);
+              return info.otherRoot + rest;
+            }
+        
+            function insertButton() {
+              var bar = document.querySelector('.right-buttons');
+              if (!bar) return false;
+              if (document.getElementById('lang-toggle')) return true;
+        
+              var info = detect(window.location.pathname);
+              // On local `mdbook serve`, paths look like "/" instead of "/docs/en/";
+              // hide the button in that case to avoid sending users to nonexistent URLs.
+              if (!info) return true;
+        
+              // Use a real <button> so keyboard activation (Enter/Space) and focus
+              // styles match the other icons in mdBook's .right-buttons toolbar.
+              var btn = document.createElement('button');
+              btn.id = 'lang-toggle';
+              btn.type = 'button';
+              // Show the *target* language so users know what clicking does. Set
+              // `lang` so screen readers pronounce "中" / "EN" in the right voice.
+              btn.textContent = info.other === 'zh' ? '\u4e2d' : 'EN';
+              btn.lang = info.other;
+              btn.title = info.other === 'zh' ? '\u5207\u6362\u4e3a\u4e2d\u6587' : 'Switch to English';
+              btn.setAttribute('aria-label', btn.title);
+        
+              btn.addEventListener('click', function () {
+                // Guard against rapid double-clicks firing concurrent probes.
+                if (btn.getAttribute('aria-busy') === 'true') return;
+                var target = buildTargetUrl(info, window.location.pathname);
+                var hash = window.location.hash || '';
+                btn.setAttribute('aria-busy', 'true');
+                // Bound the HEAD probe so a stalled network does not leave the
+                // toggle stuck in the busy state forever.
+                var controller = (typeof AbortController === 'function') ? new AbortController() : null;
+                var timer = setTimeout(function () { if (controller) controller.abort(); }, 3000);
+                var opts = { method: 'HEAD' };
+                if (controller) opts.signal = controller.signal;
+                // Prefer HEAD to check existence without downloading the page.
+                fetch(target, opts).then(function (r) {
+                  clearTimeout(timer);
+                  window.location.assign(r.ok ? (target + hash) : info.otherRoot);
+                }).catch(function () {
+                  clearTimeout(timer);
+                  // Network error / CORS / offline / timeout -> fall back to language root.
+                  window.location.assign(info.otherRoot);
+                });
+              });
+        
+              bar.insertBefore(btn, bar.firstChild);
+              return true;
+            }
+        
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', insertButton);
+            } else {
+              insertButton();
+            }
+          })();
+        </script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-9a4b1121.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-8b6a0bc1.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">VSAG文档</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="新序列化格式"><a class="header" href="#新序列化格式">新序列化格式</a></h1>
+<p>新的序列化格式面向大索引产物和 forward-only 读取场景。它的设计目标是：</p>
+<ul>
+<li>让文件从头部开始就是自描述的，读取端无需先 seek 到文件尾部，就能识别 magic、版本、metadata 和
+block manifest。</li>
+<li>将索引内容拆分成带类型的 TLV block，便于工具检查各部分大小，也便于未来 reader 跳过未知的
+non-critical block。</li>
+<li>为完整恢复（<code>DeserializeStreaming</code>）和带策略加载（<code>Load</code>）提供统一的流式入口。</li>
+<li>提供稳定、可检查的布局，便于调试和运维工具进行可视化。</li>
+</ul>
+<p>新的序列化格式与之前的 <code>Serialize</code>/<code>Deserialize</code> 格式<strong>不兼容</strong>。<code>SerializeStreaming</code> 写出的文件
+必须用 <code>DeserializeStreaming</code> 或 <code>Load</code> 读取；<code>Serialize</code> 写出的文件必须用 <code>Deserialize</code> 读取。</p>
+<h2 id="使用模型"><a class="header" href="#使用模型">使用模型</a></h2>
+<p>序列化和反序列化是索引产物的存储、传输路径。<code>SerializeStreaming</code> 将已经构建好的索引写成自描述文件，
+<code>DeserializeStreaming</code> 在调用方已经知道要创建哪种索引对象时，恢复完整的内存索引。<code>Index::Load</code> 才是
+提供搜索服务的加载路径：它从文件 metadata 中创建索引对象，并返回可以直接用于搜索的 <code>IndexPtr</code>。</p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/advanced/streaming-serialization-usage.svg" alt="新序列化格式使用模型"><span class="img-wrapper"><img src="../figures/advanced/streaming-serialization-usage.svg" alt="新序列化格式使用模型"></span></label></p>
+<h2 id="流式序列化"><a class="header" href="#流式序列化">流式序列化</a></h2>
+<p><code>SerializeStreaming</code>、<code>DeserializeStreaming</code> 和 <code>Load</code> 读写 forward-only 的索引文件。该格式面向
+较大的索引产物：读取端不需要先 seek 到文件尾部解析 footer，就能从文件头拿到格式版本和 block 清单。
+当前 BruteForce、HGraph、IVF、SINDI 和 Pyramid 已实现该路径。</p>
+<pre><code class="language-cpp">auto index = vsag::Factory::CreateIndex("hgraph", build_params).value();
+index-&gt;Build(base).value();
+
+{
+    std::ofstream out("hgraph.streaming", std::ios::binary);
+    index-&gt;SerializeStreaming(out).value();
+}
+
+auto restored = vsag::Factory::CreateIndex("hgraph", build_params).value();
+{
+    std::ifstream in("hgraph.streaming", std::ios::binary);
+    restored-&gt;DeserializeStreaming(in).value();
+}
+
+vsag::IndexPtr loaded;
+{
+    std::ifstream in("hgraph.streaming", std::ios::binary);
+    loaded = vsag::Index::Load(in, "{}").value();
+}
+</code></pre>
+<h2 id="static-load"><a class="header" href="#static-load">Static Load</a></h2>
+<p><code>Index::Load</code> 是新 streaming 格式的带策略加载入口。它和 <code>DeserializeStreaming</code> 的区别是：调用方不需要
+先创建一个空索引对象。<code>Load</code> 会先读取 streaming metadata，识别序列化文件中的索引类型和
+<code>basic_info["index_param"]</code>，在内部创建匹配的索引对象，然后按照 load parameters 加载后续
+TLV body blocks。</p>
+<pre><code class="language-cpp">std::ifstream in("hgraph.streaming", std::ios::binary);
+vsag::LoadParameters load_parameters(R"({"base_io_type":"block_memory_io"})");
+auto loaded = vsag::Index::Load(in, load_parameters).value();
+</code></pre>
+<p>返回值是可直接使用的 <code>IndexPtr</code>，因此它是把索引加载起来并提供搜索服务时优先使用的路径。load
+parameters 用来控制已支持 block 的加载策略；参数对象既可以从 JSON 字符串构造，也可以通过
+<code>SetReader</code> 携带 reader 对象。不支持的策略会返回错误，不会静默 fallback。当前该 API 支持 streaming
+BruteForce、HGraph、IVF、SINDI 和 Pyramid 索引。其中 BruteForce 支持有限的 block placement 策略；
+HGraph 支持通过 <code>precise_reader</code> 将 <code>high_precision_codes</code> 绑定到外部 reader；IVF、SINDI 和 Pyramid
+目前会把写出的 streaming blocks 加载到内存。</p>
+<h2 id="文件布局"><a class="header" href="#文件布局">文件布局</a></h2>
+<p>流式文件由固定头部和一组 TLV block 构成：</p>
+<pre><code class="language-text">magic("vsagstm0")
+format_version
+metadata_length
+metadata_json
+metadata_checksum
+block_header + block_payload
+block_header + block_payload
+...
+section_end
+</code></pre>
+<p>metadata JSON 中保存索引名称、基础索引信息和 block manifest；构建参数保存在
+<code>basic_info["index_param"]</code> 中。manifest 描述预期的 block tag、block version，以及该 block 是否
+critical。未知 critical block 会导致反序列化失败；未知 non-critical block 可以被兼容 reader 跳过。</p>
+<h2 id="tlv-block-版本兼容"><a class="header" href="#tlv-block-版本兼容">TLV Block 版本兼容</a></h2>
+<p><code>format_version</code> 描述 streaming 文件整体结构，例如固定头、metadata 布局和 TLV framing。当某个 block
+payload 的二进制语义发生不兼容变化时，不应直接升级整体格式，而应升级对应 TLV block 的
+<code>block_version</code>。例如 HGraph 的 <code>base_codes</code> payload 如果因为 <code>basic_flatten_codes</code> 实现变化而无法被旧
+reader 正确解析，就需要升级 <code>base_codes</code> block version。</p>
+<p>每个可独立演进的 block 都需要区分两类版本信息：</p>
+<ul>
+<li><strong>当前写出版本</strong>：当前代码序列化该 block 时写入的 <code>block_version</code>。</li>
+<li><strong>支持读取版本</strong>：当前代码能读取的该 block 版本集合或版本范围。</li>
+</ul>
+<p>reader 读取 TLV header 后，先检查 <code>tag + block_version</code> 是否被当前代码支持：</p>
+<ul>
+<li>支持的版本按对应 block reader 继续解析 payload。</li>
+<li>不支持的 critical block 直接返回错误，避免旧代码误读新格式。</li>
+<li>不支持的 non-critical block 使用 <code>value_len</code> 跳过 payload，并继续读取后续 block。</li>
+</ul>
+<p>因此，后续如果某个 block 从 v1 升级到 v2，不能只把当前写出版本改成 v2，还需要同步维护该 block
+的支持读取版本。如果新代码仍保留 v1 reader，则 supported versions 应包含 v1 和 v2，这样 v2 代码仍可读取
+v1 索引；如果不再支持 v1，则应显式从 supported versions 中移除，并让读取旧 critical block 失败。</p>
+<p>metadata 中的 block manifest 用来让工具和 reader 在读取 body 前知道预期 block 版本；真正解析 body 时，
+TLV header 中的 <code>block_version</code> 仍是每个 payload 的权威版本。</p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/advanced/streaming-block-version-check.svg" alt="TLV block version check"><span class="img-wrapper"><img src="../figures/advanced/streaming-block-version-check.svg" alt="TLV block version check"></span></label></p>
+<h2 id="bruteforce-blocks"><a class="header" href="#bruteforce-blocks">BruteForce Blocks</a></h2>
+<p>BruteForce 按顺序写入以下 streaming blocks：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>内容</th><th>是否必需</th></tr>
+</thead>
+<tbody>
+<tr><td><code>attribute_filter</code></td><td>开启属性过滤时写入的可选属性过滤索引</td><td>条件必需</td></tr>
+<tr><td><code>base_codes</code></td><td>暴力搜索使用的 flatten codes</td><td>是</td></tr>
+<tr><td><code>label_table</code></td><td>外部 label 和 label remap</td><td>是</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> 会恢复完整的内存 BruteForce 索引。<code>Load</code> 当前要求 <code>base_codes</code> 加载到内存中；
+必需的 BruteForce codes 不支持 reader-based 加载。</p>
+<h2 id="hgraph-blocks"><a class="header" href="#hgraph-blocks">HGraph Blocks</a></h2>
+<p>HGraph 按顺序写入以下 streaming blocks：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>内容</th><th>是否必需</th></tr>
+</thead>
+<tbody>
+<tr><td><code>label_table</code></td><td>外部 label、label remap、可选 source id table</td><td>是</td></tr>
+<tr><td><code>base_codes</code></td><td>图搜索使用的 base flatten codes</td><td>是</td></tr>
+<tr><td><code>bottom_graph</code></td><td>覆盖全部向量的底层图</td><td>是</td></tr>
+<tr><td><code>high_precision_codes</code></td><td>reorder 使用独立精排 codes 时的高精度 codes</td><td>条件必需</td></tr>
+<tr><td><code>route_graphs</code></td><td>所有上层 route graph</td><td>是</td></tr>
+<tr><td><code>extra_info</code></td><td>可选 extra info 数据</td><td>条件必需</td></tr>
+<tr><td><code>attribute_filter</code></td><td>可选属性过滤索引</td><td>条件必需</td></tr>
+<tr><td><code>raw_vector</code></td><td>可选原始向量存储</td><td>条件必需</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> 会恢复完整的内存索引。<code>Load</code> 默认把 HGraph blocks 加载到内存中；如果
+load parameters 中设置 <code>precise_io_type</code>，可以覆盖 <code>precise_codes</code> 的 IO 类型。如果同时提供
+<code>precise_reader</code>，并且该 reader 大小与 <code>high_precision_codes</code> payload 大小一致，<code>Load</code> 会校验该外部
+reader 的 payload checksum，然后将 reorder codes 绑定到该 reader。</p>
+<h2 id="ivf-blocks"><a class="header" href="#ivf-blocks">IVF Blocks</a></h2>
+<p>IVF 按顺序写入以下 streaming blocks：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>内容</th><th>是否必需</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ivf_bucket</code></td><td>倒排列表使用的 bucket datacell 数据</td><td>是</td></tr>
+<tr><td><code>ivf_partition_strategy</code></td><td>partition strategy 状态，例如已训练的中心点</td><td>是</td></tr>
+<tr><td><code>label_table</code></td><td>外部 label 和 label remap</td><td>是</td></tr>
+<tr><td><code>high_precision_codes</code></td><td>IVF reorder 开启时的 reorder codes</td><td>条件必需</td></tr>
+<tr><td><code>attribute_filter</code></td><td>开启属性过滤时写入的可选属性过滤索引</td><td>条件必需</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> 会恢复完整的内存 IVF 索引。<code>Index::Load</code> 可以直接从 streaming metadata
+创建 IVF 索引对象，当前会把写出的 IVF blocks 都加载到内存中。</p>
+<h2 id="sindi-blocks"><a class="header" href="#sindi-blocks">SINDI Blocks</a></h2>
+<p>SINDI 按顺序写入以下 streaming blocks：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>内容</th><th>是否必需</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sindi_windows</code></td><td>sparse term windows 和量化运行时状态</td><td>是</td></tr>
+<tr><td><code>label_table</code></td><td>外部 label 和 label remap</td><td>是</td></tr>
+<tr><td><code>sindi_rerank_index</code></td><td>rerank 开启时的可选 rerank flat index</td><td>条件必需</td></tr>
+<tr><td><code>sindi_term_id_mapper</code></td><td>可选 term-id remap 表</td><td>条件必需</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> 会恢复完整的内存 SINDI 索引。<code>Index::Load</code> 可以直接从 streaming metadata
+创建 SINDI 索引对象，当前会把写出的 SINDI blocks 都加载到内存中。immutable SINDI runtime 暂不支持
+该 streaming 序列化路径。</p>
+<h2 id="pyramid-blocks"><a class="header" href="#pyramid-blocks">Pyramid Blocks</a></h2>
+<p>Pyramid 按顺序写入以下 streaming blocks：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>内容</th><th>是否必需</th></tr>
+</thead>
+<tbody>
+<tr><td><code>label_table</code></td><td>外部 label 和 label remap</td><td>是</td></tr>
+<tr><td><code>base_codes</code></td><td>图搜索使用的 base flatten codes</td><td>是</td></tr>
+<tr><td><code>high_precision_codes</code></td><td>reorder 开启时的精排 codes</td><td>条件必需</td></tr>
+<tr><td><code>pyramid_hierarchies</code></td><td>hierarchy 名称和 graph roots</td><td>是</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> 会恢复完整的内存 Pyramid 索引。<code>Index::Load</code> 可以直接从 streaming metadata
+创建 Pyramid 索引对象，当前会把写出的 Pyramid blocks 都加载到内存中。</p>
+<h2 id="可视化流式索引"><a class="header" href="#可视化流式索引">可视化流式索引</a></h2>
+<p>构建工具后，传入 streaming index 文件：</p>
+<pre><code class="language-bash">cmake --build build --target visualize_index
+build/tools/visualize_index/visualize_index \
+  --index_path /tmp/vsag-hgraph-streaming.index \
+  --html /tmp/vsag-hgraph-streaming.html
+</code></pre>
+<p>CLI 输出包含按真实字节比例展示的 raw horizontal layout，以及高密度的 logical-block layout。HTML
+输出会把相关的小 segment 聚合展示，例如 TLV header 与 payload，并在表格中保留精确 segment 明细。</p>
+<p>streaming serialization 和 <code>Index::Load</code> 的可运行示例见
+<code>examples/cpp/403_persistent_streaming_load.cpp</code>。</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../advanced/serialization.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../advanced/memory.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../advanced/serialization.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../advanced/memory.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

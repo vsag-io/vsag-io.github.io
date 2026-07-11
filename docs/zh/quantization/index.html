@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fe62fd3d.js";
+            window.path_to_searchindex_js = "../searchindex-9a4b1121.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-bf1b6517.js"></script>
+        <script src="../toc-8b6a0bc1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -309,7 +309,7 @@
 <strong>基础量化器</strong>（由 <code>base_quantization_type</code> 配置）存储向量，并可以额外保留
 一个<strong>精确量化器</strong>用于重排（<code>precise_quantization_type</code> + <code>use_reorder: true</code>）。本章介绍每一种受支持的量化器：它做什么、接受哪些 JSON 参数、是否
 需要训练、支持哪些度量、以及何时选用它。</p>
-<p><img src="../figures/quantization/quantization-overview.svg" alt="量化器选择决策树：按内存预算挑选量化器"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/quantization/quantization-overview.svg" alt="量化器选择决策树：按内存预算挑选量化器"><span class="img-wrapper"><img src="../figures/quantization/quantization-overview.svg" alt="量化器选择决策树：按内存预算挑选量化器"></span></label></p>
 <h2 id="存储与搜索流水线"><a class="header" href="#存储与搜索流水线">存储与搜索流水线</a></h2>
 <pre><code>                  +---------------------+
    原始向量 -----&gt;|  可选变换           |   (TQ 链：pca / rom / fht / mrle)
@@ -422,9 +422,14 @@
 <code>rabitq_bits_per_dim_base</code>、<code>rabitq_bits_per_dim_precise</code>、
 <code>rabitq_error_rate</code>、<code>rabitq_use_fht</code>、<code>sq4_uniform_trunc_rate</code>、<code>tq_chain</code>
 （见 <code>src/algorithm/hgraph.cpp</code>）。</li>
-<li><strong>IVF</strong>、<strong>Pyramid</strong>、<strong>BruteForce</strong> 暴露 <code>base_quantization_type</code>
-与通用的重排相关 key；部分可调项（如 <code>tq_chain</code>）目前在内部接好但未作
-为外部 key 暴露。</li>
+<li><strong>IVF</strong> 暴露 <code>base_quantization_type</code>、<code>base_pq_dim</code>、通用重排相关 key，
+以及 <code>rabitq_pca_dim</code>、<code>rabitq_bits_per_dim_query</code>、
+<code>rabitq_bits_per_dim_base</code>、<code>rabitq_version</code>、<code>rabitq_error_rate</code>、
+<code>rabitq_use_fht</code> 这些 RabitQ 调参 key。</li>
+<li><strong>Pyramid</strong> 暴露 <code>base_quantization_type</code>、<code>base_pq_dim</code>、通用重排相关 key，
+以及 RabitQ 的 PCA、底库/查询位数和 FHT 相关 key。</li>
+<li><strong>BruteForce</strong> 暴露 <code>base_quantization_type</code> 与通用重排相关 key；部分可调项
+（如 <code>tq_chain</code>）目前在内部接好但未作为外部 key 暴露。</li>
 </ul>
 <p>每种索引的完整参数列表见对应索引页。</p>
 <h2 id="本章内容"><a class="header" href="#本章内容">本章内容</a></h2>
@@ -488,7 +493,7 @@
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

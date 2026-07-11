@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-003fd777.js";
+            window.path_to_searchindex_js = "../searchindex-5e891436.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f8140cc2.js"></script>
+        <script src="../toc-651edbd8.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -348,9 +348,19 @@ safe to call on an empty index and is the recommended way to size a node before 
 }
 </code></pre>
 <p>See <code>examples/cpp/308_feature_estimate_memory.cpp</code> for a full run.</p>
+<h3 id="estimatebuildmemorynum_elements"><a class="header" href="#estimatebuildmemorynum_elements"><code>EstimateBuildMemory(num_elements)</code></a></h3>
+<p><code>Index::EstimateBuildMemory(num_elements)</code> returns the estimated memory (in bytes) required
+<strong>during the build process</strong> for <code>num_elements</code> vectors. Unlike <code>EstimateMemory</code>, which
+estimates the steady-state size of the final index, this accounts for temporary buffers and
+intermediate data structures that exist only while <code>Build</code> is running. The peak memory during
+build is typically higher than the post-build footprint:</p>
+<pre><code class="language-cpp">uint64_t peak = index-&gt;EstimateBuildMemory(1000000);  // bytes
+</code></pre>
+<p>Currently only DiskANN provides a non-trivial implementation; other index types throw
+an exception by default.</p>
 <h3 id="getmemoryusage"><a class="header" href="#getmemoryusage"><code>GetMemoryUsage()</code></a></h3>
 <p><code>Index::GetMemoryUsage()</code> returns the <strong>current</strong> memory footprint of an index in bytes:</p>
-<pre><code class="language-cpp">int64_t bytes = index-&gt;GetMemoryUsage();
+<pre><code class="language-cpp">uint64_t bytes = index-&gt;GetMemoryUsage();
 </code></pre>
 <p>Properties:</p>
 <ul>
@@ -371,6 +381,20 @@ a representative value.</li>
 </ul>
 <p>See <code>examples/cpp/319_feature_get_memory_usage.cpp</code> for a runnable example, including a helper
 that compares the interface value with the process resident size.</p>
+<h3 id="getmemoryusagedetail"><a class="header" href="#getmemoryusagedetail"><code>GetMemoryUsageDetail()</code></a></h3>
+<p><code>Index::GetMemoryUsageDetail()</code> returns a breakdown of the <strong>current</strong> memory usage by
+component:</p>
+<pre><code class="language-cpp">std::unordered_map&lt;std::string, uint64_t&gt; detail = index-&gt;GetMemoryUsageDetail();
+for (const auto&amp; [component, bytes] : detail) {
+    std::cout &lt;&lt; component &lt;&lt; ": " &lt;&lt; bytes &lt;&lt; " bytes\n";
+}
+</code></pre>
+<p>The returned map keys are component names and values are memory in bytes. This is useful for
+understanding <em>where</em> the memory is going inside an index.</p>
+<p>Currently only HGraph provides a meaningful implementation, returning components such as
+<code>basic_flatten_codes</code>, <code>bottom_graph</code>, <code>route_graph</code>, <code>neighbors_mutex</code>, <code>pool</code>,
+<code>label_table</code>, <code>high_precise_codes</code>, <code>extra_infos</code>, and <code>raw_vector</code>. SINDI returns an empty
+map. Other index types throw an exception by default.</p>
 <h3 id="capability-flags"><a class="header" href="#capability-flags">Capability Flags</a></h3>
 <div class="table-wrapper">
 <table>
@@ -400,7 +424,7 @@ full control over parallelism and resource ownership. See
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../advanced/serialization.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/new_serialization.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -414,7 +438,7 @@ full control over parallelism and resource ownership. See
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../advanced/serialization.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/new_serialization.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
@@ -444,7 +468,7 @@ full control over parallelism and resource ownership. See
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fe62fd3d.js";
+            window.path_to_searchindex_js = "../searchindex-9a4b1121.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-bf1b6517.js"></script>
+        <script src="../toc-8b6a0bc1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -309,7 +309,7 @@
 编码，给出所有内建量化器中最高的压缩率。在 HGraph 上，<code>x+y</code> split 模式把
 底库码拆成 <code>x</code> 个过滤 bit 和 <code>y</code> 个 supplement bit：图遍历只使用 filter code，
 重排 / full-distance 阶段只额外读取 supplement bits。</p>
-<p><img src="../figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ：按坐标相对随机超平面的符号进行编码"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ：按坐标相对随机超平面的符号进行编码"><span class="img-wrapper"><img src="../figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ：按坐标相对随机超平面的符号进行编码"></span></label></p>
 <blockquote>
 <p>实现：<code>src/quantization/rabitq_quantization/rabitq_quantizer.cpp</code>，
 参数文件 <code>rabitq_quantizer_parameter.cpp</code>。
@@ -351,13 +351,14 @@ HGraph split 的完整存储布局、lower bound 公式和 IO 模式见
 </tbody>
 </table>
 </div>
-<p>在 HGraph 上，这些以顶层 key 暴露：<code>rabitq_pca_dim</code>、
-<code>rabitq_bits_per_dim_query</code>、<code>rabitq_bits_per_dim_base</code>、
-<code>rabitq_bits_per_dim_precise</code>、<code>rabitq_error_rate</code>、
-<code>rabitq_use_fht</code>。其中 <code>rabitq_use_fht</code> 是 HGraph
-对量化器内部 <code>use_fht</code> key 的别名，由索引层重写（<code>src/algorithm/hgraph.cpp:473-480</code>，
-名称定义见 <code>src/constants.cpp:142-148</code>）。Pyramid 同样暴露相应的 <code>rabitq_*</code> key
-（<code>src/algorithm/pyramid.cpp:698-699</code>）。</p>
+<p>各索引页会把 RaBitQ 设置暴露为 <code>index_param</code> 顶层 key：HGraph 暴露
+<code>rabitq_pca_dim</code>、<code>rabitq_bits_per_dim_query</code>、<code>rabitq_bits_per_dim_base</code>、
+<code>rabitq_bits_per_dim_precise</code>、<code>rabitq_error_rate</code>、<code>rabitq_use_fht</code>；IVF
+暴露 <code>rabitq_pca_dim</code>、<code>rabitq_bits_per_dim_query</code>、
+<code>rabitq_bits_per_dim_base</code>、<code>rabitq_version</code>、<code>rabitq_error_rate</code>、
+<code>rabitq_use_fht</code>；Pyramid 为底层量化器暴露 PCA、底库/查询位数和 FHT
+相关 key。其中 <code>rabitq_use_fht</code> 是索引层对量化器内部 <code>use_fht</code> key
+的别名，会由索引层重写。</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -462,7 +463,7 @@ FHT 旋转是固定的（无需学习），因此不增加训练代价；PCA 预
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

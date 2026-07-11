@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-003fd777.js";
+            window.path_to_searchindex_js = "../searchindex-5e891436.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f8140cc2.js"></script>
+        <script src="../toc-651edbd8.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -393,6 +393,18 @@ sub-object is forwarded to the internal HGraph used after transition.</p>
 <p>LazyHGraph only supports <code>dtype: "float32"</code>. Search parameters use the <code>hgraph</code>
 object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
 <a href="../indexes/lazy_hgraph.html">LazyHGraph index page</a> for details.</p>
+<p>The <code>hgraph</code> search-param object also accepts the following filter-related parameters:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>skip_ratio</code></td><td>float</td><td><code>0.2</code></td><td>Controls the ratio of filtered-search candidate checks to skip, in range <code>[0.0, 1.0]</code>. Higher values mean more aggressive skipping, faster search, and potentially lower recall.</td></tr>
+<tr><td><code>skip_strategy</code></td><td>string</td><td><code>"deterministic_accumulative"</code></td><td>Skip strategy. Supports <code>"random"</code> and <code>"deterministic_accumulative"</code>.</td></tr>
+</tbody>
+</table>
+</div>
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {
@@ -477,7 +489,7 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

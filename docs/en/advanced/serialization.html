@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-003fd777.js";
+            window.path_to_searchindex_js = "../searchindex-5e891436.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f8140cc2.js"></script>
+        <script src="../toc-651edbd8.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,8 +305,11 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="serialization"><a class="header" href="#serialization">Serialization</a></h1>
-<p>VSAG indexes can be serialized and deserialized through several interfaces, supporting
-persistence, cross-process sharing, and distributed deployment.</p>
+<p>VSAG indexes can be serialized and deserialized through the existing serialization interfaces,
+supporting persistence, cross-process sharing, and distributed deployment.</p>
+<p>This page describes the existing serialization format used by <code>Serialize</code> and <code>Deserialize</code>. For
+the header-first streaming format introduced later, see <a href="new_serialization.html">New Serialization</a>.
+The two formats are not compatible with each other.</p>
 <h2 id="three-interfaces"><a class="header" href="#three-interfaces">Three Interfaces</a></h2>
 <h3 id="1-binaryset--readerset"><a class="header" href="#1-binaryset--readerset">1. <code>BinarySet</code> / <code>ReaderSet</code></a></h3>
 <p>The most flexible option. The index is split into named binary segments, and the caller owns the
@@ -328,7 +331,7 @@ empty-&gt;Deserialize(bs_loaded);
 avoids loading everything at once. This is useful for memory-constrained or partial-deserialization
 scenarios.</p>
 <h3 id="2-file-streams-stdostream--stdistream"><a class="header" href="#2-file-streams-stdostream--stdistream">2. File Streams (<code>std::ostream</code> / <code>std::istream</code>)</a></h3>
-<p>The simplest option — serialize the whole index to a file or memory stream:</p>
+<p>The simplest option: serialize the whole index to a file or memory stream:</p>
 <pre><code class="language-cpp">std::ofstream out("index.bin", std::ios::binary);
 index-&gt;Serialize(out);
 
@@ -345,10 +348,11 @@ empty-&gt;Deserialize(in);
 <ul>
 <li><code>Deserialize</code> requires an <strong>empty</strong> target index whose configuration (<code>dim</code>, <code>metric_type</code>, etc.)
 matches the one used at serialization time.</li>
+<li><code>Serialize</code>/<code>Deserialize</code> keep the existing footer-based format. The new <code>SerializeStreaming</code>
+format is header-first and must be read with <code>DeserializeStreaming</code> or <code>Load</code>.</li>
 <li>When upgrading across major versions, check the compatibility notes in the
 <a href="../resources/release_notes.html">release notes</a>.</li>
-<li>References:
-<code>examples/cpp/318_feature_tune.cpp</code>, <code>examples/cpp/401_persistent_kv.cpp</code>,
+<li>References: <code>examples/cpp/318_feature_tune.cpp</code>, <code>examples/cpp/401_persistent_kv.cpp</code>, and
 <code>examples/cpp/402_persistent_streaming.cpp</code>.</li>
 </ul>
 
@@ -360,7 +364,7 @@ matches the one used at serialization time.</li>
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../advanced/memory.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/new_serialization.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -374,7 +378,7 @@ matches the one used at serialization time.</li>
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../advanced/memory.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/new_serialization.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
@@ -400,7 +404,7 @@ matches the one used at serialization time.</li>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-003fd777.js";
+            window.path_to_searchindex_js = "../searchindex-5e891436.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f8140cc2.js"></script>
+        <script src="../toc-651edbd8.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -497,6 +497,8 @@ still controlled by <code>base_quantization_type</code> (and optionally <code>pr
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td>— (required)</td><td>Size of the search frontier. Larger = higher recall, slower query.</td></tr>
 <tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Hard cap on the number of hops the beam search performs before returning the current frontier.</td></tr>
+<tr><td><code>skip_ratio</code></td><td>float</td><td><code>0.2</code></td><td>Performance tuning parameter for filtered search. Controls the ratio of invalid points to skip, in range <code>[0.0, 1.0]</code>. <code>skip_ratio=0.2</code> means skip 20% of invalid points and only check 80%. Higher values improve performance but may reduce recall. Only applies to searches with filters. See <a href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy</a> below.</td></tr>
+<tr><td><code>skip_strategy</code></td><td>string</td><td><code>"deterministic_accumulative"</code></td><td>Strategy for filter skipping. Options: <code>"random"</code> (random skipping) or <code>"deterministic_accumulative"</code> (deterministic cumulative skipping). See <a href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy</a> below.</td></tr>
 <tr><td><code>brute_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Selectivity-aware brute-force fallback. When <code>&gt; 0</code> and the supplied filter’s <code>ValidRatio()</code> is <code>≤ brute_force_threshold</code>, the search <strong>bypasses the graph traversal entirely</strong> and runs an exact scan over the valid ids using the best available flatten codes (see the section below). Must lie in <code>[0.0, 1.0]</code>; the default <code>0.0</code> disables the feature and preserves legacy behavior.</td></tr>
 <tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>Enables the RaBitQ filter/lower-bound path. On an x+y split index it uses all x filter bits; see <a href="../quantization/rabitq_split.html">RaBitQ x+y Split</a>.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td>index default</td><td>Positive lower-bound error multiplier for this search. It can be tuned without rebuilding the split index.</td></tr>
@@ -554,8 +556,55 @@ total number of indexed vectors (regardless of selectivity, because every id
 is visited to check <code>CheckValid</code>). The benefit grows when graph search would
 otherwise need a much larger <code>ef_search</code> to recover recall.</li>
 </ul>
-<p>A runnable example is
-<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/322_feature_hgraph_brute_force_threshold.cpp"><code>322_feature_hgraph_brute_force_threshold.cpp</code></a>.</p>
+<p>See
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/322_feature_hgraph_brute_force_threshold.cpp"><code>322_feature_hgraph_brute_force_threshold.cpp</code></a>
+for a runnable brute-force fallback example.</p>
+<h3 id="filter-skip-strategy-skip_ratio-and-skip_strategy"><a class="header" href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy (skip_ratio and skip_strategy)</a></h3>
+<p>When searching with a filter, HGraph needs to frequently call Filter::CheckValid() during graph traversal to verify whether each candidate point is valid. This check can be expensive (especially for complex filter logic). skip_ratio and skip_strategy provide a probabilistic optimization: they skip some filter checks to speed up the search, but may reduce recall.</p>
+<h4 id="how-it-works-1"><a class="header" href="#how-it-works-1">How It Works</a></h4>
+<p>This is a probabilistic optimization strategy: we don’t know in advance which points are valid, so we decide probabilistically whether to visit each point.</p>
+<ul>
+<li>skip_ratio (default 0.2): Controls the aggressiveness of skipping filter checks. skip_ratio=0.2 means skip 20% of candidate checks and only check 80%. Higher values skip more, making search faster but potentially reducing recall.</li>
+<li>skip_strategy (default “deterministic_accumulative”): Determines how skipping is distributed:
+<ul>
+<li>“random”: Random skipping. Each point is visited independently with probability <code>visit_ratio = valid_ratio + (1 - valid_ratio) * (1 - skip_ratio)</code>, so roughly a <code>1 - skip_ratio</code> fraction of invalid points are skipped.</li>
+<li>“deterministic_accumulative”: Deterministic cumulative skipping. Emits visit decisions at fixed intervals so that the long-run visit ratio matches the target <code>visit_ratio</code>, with lower variance than the random strategy.</li>
+</ul>
+</li>
+</ul>
+<p>The specific formula:</p>
+<ul>
+<li>Let valid_ratio be the filter’s global validity rate (from Filter::ValidRatio())</li>
+<li>Probability of visiting each point = valid_ratio + (1 - valid_ratio) * (1 - skip_ratio)</li>
+<li>In expectation, this targets skipping about skip_ratio of invalid candidate checks when Filter::ValidRatio() is accurate</li>
+</ul>
+<h4 id="usage-examples"><a class="header" href="#usage-examples">Usage Examples</a></h4>
+<pre><code class="language-cpp">// Conservative setting: skip 10% of invalid candidate checks, suitable for high-recall
+// scenarios where latency is less critical
+auto params = R"({"hgraph": {"ef_search": 200, "skip_ratio": 0.1}})";
+auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
+
+// Use random strategy
+auto params = R"({"hgraph": {"ef_search": 200, "skip_ratio": 0.2, "skip_strategy": "random"}})";
+auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
+
+// Aggressive skipping: skip 50% of invalid candidate checks for lower latency
+auto params = R"({"hgraph": {"ef_search": 200, "skip_ratio": 0.5}})";
+auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
+</code></pre>
+<h4 id="choosing-values"><a class="header" href="#choosing-values">Choosing Values</a></h4>
+<ul>
+<li>Default 0.2: Suitable for most scenarios, balancing performance and recall.</li>
+<li>0.1 or lower: Conservative setting, suitable for scenarios with high recall requirements where latency is less critical.</li>
+<li>0.5 or higher: Aggressive skipping, suitable for latency-sensitive scenarios where recall degradation is acceptable (e.g., real-time recommendation systems).</li>
+<li>0.0: Don’t skip any points, equivalent to disabling this optimization (all points will be checked).</li>
+</ul>
+<p>Important notes:</p>
+<ul>
+<li>Only applies to searches with filters. These parameters are ignored when no filter is present.</li>
+<li>Performance optimization works better when Filter::ValidRatio() is accurately estimated.</li>
+<li>Can be used together with brute_force_threshold: when the filter is very strict (ValidRatio is very small), brute_force_threshold will trigger brute-force fallback; otherwise, graph traversal + skip optimization is used.</li>
+</ul>
 <h2 id="when-to-use-hgraph"><a class="header" href="#when-to-use-hgraph">When to use HGraph</a></h2>
 <ul>
 <li>Dense float vectors with dimensions roughly between 64 and 4096.</li>
@@ -622,7 +671,7 @@ strongly I/O-bound on a SSD, compare against <a href="ivf.html">IVF</a> before c
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

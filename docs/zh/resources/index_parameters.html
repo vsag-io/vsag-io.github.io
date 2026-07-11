@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fe62fd3d.js";
+            window.path_to_searchindex_js = "../searchindex-9a4b1121.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-bf1b6517.js"></script>
+        <script src="../toc-8b6a0bc1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -388,6 +388,18 @@
 </div>
 <p>LazyHGraph 只支持 <code>dtype: "float32"</code>。搜索参数使用 <code>hgraph</code> 对象，例如
 <code>{"hgraph": {"ef_search": 100}}</code>。详见 <a href="../indexes/lazy_hgraph.html">LazyHGraph 索引文档</a>。</p>
+<p><code>hgraph</code> 搜索参数还接受以下 filter 相关参数：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>skip_ratio</code></td><td>float</td><td><code>0.2</code></td><td>控制带 filter 搜索时跳过候选检查的比例，取值范围为 <code>[0.0, 1.0]</code>。值越大，跳过越激进，搜索越快但可能影响召回。</td></tr>
+<tr><td><code>skip_strategy</code></td><td>string</td><td><code>"deterministic_accumulative"</code></td><td>跳过策略。支持 <code>"random"</code> 和 <code>"deterministic_accumulative"</code>。</td></tr>
+</tbody>
+</table>
+</div>
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {
@@ -471,7 +483,7 @@
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

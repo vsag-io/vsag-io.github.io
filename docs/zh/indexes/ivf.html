@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fe62fd3d.js";
+            window.path_to_searchindex_js = "../searchindex-9a4b1121.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-bf1b6517.js"></script>
+        <script src="../toc-8b6a0bc1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,7 +305,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="ivf"><a class="header" href="#ivf">IVF</a></h1>
-<p><img src="../figures/indexes/ivf-overview.svg" alt="IVF：基于 k-means 中心的 Voronoi 分桶，仅扫描距离 q 最近的 scan_buckets_count 个桶，并支持可选的精排"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/indexes/ivf-overview.svg" alt="IVF：基于 k-means 中心的 Voronoi 分桶，仅扫描距离 q 最近的 scan_buckets_count 个桶，并支持可选的精排"><span class="img-wrapper"><img src="../figures/indexes/ivf-overview.svg" alt="IVF：基于 k-means 中心的 Voronoi 分桶，仅扫描距离 q 最近的 scan_buckets_count 个桶，并支持可选的精排"></span></label></p>
 <p>IVF（Inverted File，倒排索引）是 VSAG 的 <strong>分桶式</strong> 索引。它在构建时将语料聚类成若干桶，
 查询时只扫描与查询距离最近的若干个桶的中心对应的倒排列表，把 O(N) 的线性扫描降为
 O(N · <code>scan_buckets_count</code> / <code>buckets_count</code>)，并通过这两个参数在召回与延迟之间进行权衡。</p>
@@ -373,6 +373,12 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>中心训练方式：<code>kmeans</code> 或 <code>random</code></td></tr>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> —— 各量化器细节见<a href="../quantization/README.html">量化章节</a></td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
+<tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td><code>base_quantization_type: "rabitq"</code> 时可选的 PCA 预处理维度</td></tr>
+<tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td><code>rabitq</code> 查询每维位数；允许值为 <code>4</code> 或 <code>32</code></td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td><code>rabitq</code> 底库存储码每维位数；允许范围为 <code>[1, 8]</code></td></tr>
+<tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td><code>rabitq</code> 布局：<code>"standard"</code> 或 <code>"split_1bit_7bit"</code></td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td><code>rabitq</code> 编码的正数误差预算参数</td></tr>
+<tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td><code>rabitq</code> 二值化前是否启用 FHT 旋转</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排量化类型（<code>use_reorder: true</code> 时使用）</td></tr>
 <tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>粗排向量的存储后端</td></tr>
@@ -470,7 +476,7 @@ auto result = index-&gt;KnnSearch(
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

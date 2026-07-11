@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fe62fd3d.js";
+            window.path_to_searchindex_js = "../searchindex-9a4b1121.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-bf1b6517.js"></script>
+        <script src="../toc-8b6a0bc1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,7 +305,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="磁盘索引最佳实践"><a class="header" href="#磁盘索引最佳实践">磁盘索引最佳实践</a></h1>
-<p><img src="../figures/resources/disk-index-overview.svg" alt="磁盘版 HGraph：图结构与紧凑 base 编码留在内存中用于遍历，更高精度的 precise 副本存于磁盘，仅在重排阶段为 ef_search 入围候选读取"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/resources/disk-index-overview.svg" alt="磁盘版 HGraph：图结构与紧凑 base 编码留在内存中用于遍历，更高精度的 precise 副本存于磁盘，仅在重排阶段为 ef_search 入围候选读取"><span class="img-wrapper"><img src="../figures/resources/disk-index-overview.svg" alt="磁盘版 HGraph：图结构与紧凑 base 编码留在内存中用于遍历，更高精度的 precise 副本存于磁盘，仅在重排阶段为 ef_search 入围候选读取"></span></label></p>
 <p>当数据规模增长到内存放不下全量向量时，把最冷、最大的那部分索引下沉到 SSD，是控制成本最直接的
 手段。VSAG 让索引的每个部分各自选择存储后端，从而实现热数据留内存、冷数据从磁盘读取。本文介绍
 <strong><a href="../indexes/hgraph.html">HGraph</a> + 磁盘 IO</strong>，给出可直接复制的配置、容量模型与调优
@@ -513,7 +513,7 @@ Makefile 也会自动传入 <code>VSAG_ENABLE_LIBAIO=ON</code>；只有当此前
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

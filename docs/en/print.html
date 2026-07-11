@@ -146,8 +146,8 @@
         <link rel="icon" href="favicon-de23e50b.svg">
         <link rel="shortcut icon" href="favicon-8114d1fc.png">
         <link rel="stylesheet" href="css/variables-8adf115d.css">
-        <link rel="stylesheet" href="css/general-0392ca55.css">
-        <link rel="stylesheet" href="css/chrome-fc474251.css">
+        <link rel="stylesheet" href="css/general-e96d0476.css">
+        <link rel="stylesheet" href="css/chrome-d279d366.css">
         <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-003fd777.js";
+            window.path_to_searchindex_js = "searchindex-5e891436.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-f8140cc2.js"></script>
+        <script src="toc-651edbd8.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -325,6 +325,7 @@ enhancement, online <code>Tune</code>-based optimization, custom allocator / thr
 <li><strong>User Guide</strong> — start here if you are new to VSAG: install, create an index, and run search.</li>
 <li><strong>Indexes</strong> — compare supported index types and look up their parameters.</li>
 <li><strong>Advanced Features</strong> — deep dives into specific search, serialization, memory, and hybrid-index capabilities.</li>
+<li><strong>API Reference</strong> — the C++ class, method, and type reference for the public headers in <code>include/vsag/</code>.</li>
 <li><strong>Performance and Tuning</strong> — best practices, <code>Tune</code>, benchmarks, and evaluation tooling.</li>
 <li><strong>Developer Guide</strong> — building from source, running tests, and contributing.</li>
 <li><strong>Resources</strong> — release notes, roadmap, community links, related projects, papers, and contributors.</li>
@@ -721,6 +722,18 @@ sub-object is forwarded to the internal HGraph used after transition.</p>
 <p>LazyHGraph only supports <code>dtype: "float32"</code>. Search parameters use the <code>hgraph</code>
 object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
 <a href="#lazyhgraph-1">LazyHGraph index page</a> for details.</p>
+<p>The <code>hgraph</code> search-param object also accepts the following filter-related parameters:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>skip_ratio</code></td><td>float</td><td><code>0.2</code></td><td>Controls the ratio of filtered-search candidate checks to skip, in range <code>[0.0, 1.0]</code>. Higher values mean more aggressive skipping, faster search, and potentially lower recall.</td></tr>
+<tr><td><code>skip_strategy</code></td><td>string</td><td><code>"deterministic_accumulative"</code></td><td>Skip strategy. Supports <code>"random"</code> and <code>"deterministic_accumulative"</code>.</td></tr>
+</tbody>
+</table>
+</div>
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {
@@ -950,6 +963,8 @@ still controlled by <code>base_quantization_type</code> (and optionally <code>pr
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td>— (required)</td><td>Size of the search frontier. Larger = higher recall, slower query.</td></tr>
 <tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Hard cap on the number of hops the beam search performs before returning the current frontier.</td></tr>
+<tr><td><code>skip_ratio</code></td><td>float</td><td><code>0.2</code></td><td>Performance tuning parameter for filtered search. Controls the ratio of invalid points to skip, in range <code>[0.0, 1.0]</code>. <code>skip_ratio=0.2</code> means skip 20% of invalid points and only check 80%. Higher values improve performance but may reduce recall. Only applies to searches with filters. See <a href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy</a> below.</td></tr>
+<tr><td><code>skip_strategy</code></td><td>string</td><td><code>"deterministic_accumulative"</code></td><td>Strategy for filter skipping. Options: <code>"random"</code> (random skipping) or <code>"deterministic_accumulative"</code> (deterministic cumulative skipping). See <a href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy</a> below.</td></tr>
 <tr><td><code>brute_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Selectivity-aware brute-force fallback. When <code>&gt; 0</code> and the supplied filter’s <code>ValidRatio()</code> is <code>≤ brute_force_threshold</code>, the search <strong>bypasses the graph traversal entirely</strong> and runs an exact scan over the valid ids using the best available flatten codes (see the section below). Must lie in <code>[0.0, 1.0]</code>; the default <code>0.0</code> disables the feature and preserves legacy behavior.</td></tr>
 <tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>Enables the RaBitQ filter/lower-bound path. On an x+y split index it uses all x filter bits; see <a href="#rabitq-xy-split">RaBitQ x+y Split</a>.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td>index default</td><td>Positive lower-bound error multiplier for this search. It can be tuned without rebuilding the split index.</td></tr>
@@ -1007,8 +1022,55 @@ total number of indexed vectors (regardless of selectivity, because every id
 is visited to check <code>CheckValid</code>). The benefit grows when graph search would
 otherwise need a much larger <code>ef_search</code> to recover recall.</li>
 </ul>
-<p>A runnable example is
-<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/322_feature_hgraph_brute_force_threshold.cpp"><code>322_feature_hgraph_brute_force_threshold.cpp</code></a>.</p>
+<p>See
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/322_feature_hgraph_brute_force_threshold.cpp"><code>322_feature_hgraph_brute_force_threshold.cpp</code></a>
+for a runnable brute-force fallback example.</p>
+<h3 id="filter-skip-strategy-skip_ratio-and-skip_strategy"><a class="header" href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy (skip_ratio and skip_strategy)</a></h3>
+<p>When searching with a filter, HGraph needs to frequently call Filter::CheckValid() during graph traversal to verify whether each candidate point is valid. This check can be expensive (especially for complex filter logic). skip_ratio and skip_strategy provide a probabilistic optimization: they skip some filter checks to speed up the search, but may reduce recall.</p>
+<h4 id="how-it-works-1"><a class="header" href="#how-it-works-1">How It Works</a></h4>
+<p>This is a probabilistic optimization strategy: we don’t know in advance which points are valid, so we decide probabilistically whether to visit each point.</p>
+<ul>
+<li>skip_ratio (default 0.2): Controls the aggressiveness of skipping filter checks. skip_ratio=0.2 means skip 20% of candidate checks and only check 80%. Higher values skip more, making search faster but potentially reducing recall.</li>
+<li>skip_strategy (default “deterministic_accumulative”): Determines how skipping is distributed:
+<ul>
+<li>“random”: Random skipping. Each point is visited independently with probability <code>visit_ratio = valid_ratio + (1 - valid_ratio) * (1 - skip_ratio)</code>, so roughly a <code>1 - skip_ratio</code> fraction of invalid points are skipped.</li>
+<li>“deterministic_accumulative”: Deterministic cumulative skipping. Emits visit decisions at fixed intervals so that the long-run visit ratio matches the target <code>visit_ratio</code>, with lower variance than the random strategy.</li>
+</ul>
+</li>
+</ul>
+<p>The specific formula:</p>
+<ul>
+<li>Let valid_ratio be the filter’s global validity rate (from Filter::ValidRatio())</li>
+<li>Probability of visiting each point = valid_ratio + (1 - valid_ratio) * (1 - skip_ratio)</li>
+<li>In expectation, this targets skipping about skip_ratio of invalid candidate checks when Filter::ValidRatio() is accurate</li>
+</ul>
+<h4 id="usage-examples"><a class="header" href="#usage-examples">Usage Examples</a></h4>
+<pre><code class="language-cpp">// Conservative setting: skip 10% of invalid candidate checks, suitable for high-recall
+// scenarios where latency is less critical
+auto params = R"({"hgraph": {"ef_search": 200, "skip_ratio": 0.1}})";
+auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
+
+// Use random strategy
+auto params = R"({"hgraph": {"ef_search": 200, "skip_ratio": 0.2, "skip_strategy": "random"}})";
+auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
+
+// Aggressive skipping: skip 50% of invalid candidate checks for lower latency
+auto params = R"({"hgraph": {"ef_search": 200, "skip_ratio": 0.5}})";
+auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
+</code></pre>
+<h4 id="choosing-values"><a class="header" href="#choosing-values">Choosing Values</a></h4>
+<ul>
+<li>Default 0.2: Suitable for most scenarios, balancing performance and recall.</li>
+<li>0.1 or lower: Conservative setting, suitable for scenarios with high recall requirements where latency is less critical.</li>
+<li>0.5 or higher: Aggressive skipping, suitable for latency-sensitive scenarios where recall degradation is acceptable (e.g., real-time recommendation systems).</li>
+<li>0.0: Don’t skip any points, equivalent to disabling this optimization (all points will be checked).</li>
+</ul>
+<p>Important notes:</p>
+<ul>
+<li>Only applies to searches with filters. These parameters are ignored when no filter is present.</li>
+<li>Performance optimization works better when Filter::ValidRatio() is accurately estimated.</li>
+<li>Can be used together with brute_force_threshold: when the filter is very strict (ValidRatio is very small), brute_force_threshold will trigger brute-force fallback; otherwise, graph traversal + skip optimization is used.</li>
+</ul>
 <h2 id="when-to-use-hgraph"><a class="header" href="#when-to-use-hgraph">When to use HGraph</a></h2>
 <ul>
 <li>Dense float vectors with dimensions roughly between 64 and 4096.</li>
@@ -1039,7 +1101,7 @@ latency and quantization options.</p>
 <li>Example:
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/111_index_lazy_hgraph.cpp"><code>examples/cpp/111_index_lazy_hgraph.cpp</code></a></li>
 </ul>
-<h2 id="how-it-works-1"><a class="header" href="#how-it-works-1">How it works</a></h2>
+<h2 id="how-it-works-2"><a class="header" href="#how-it-works-2">How it works</a></h2>
 <ol>
 <li><strong>Flat phase.</strong> Before the threshold is reached, data is stored in an
 internal BruteForce index using FP32 vectors. Search is exact.</li>
@@ -1132,7 +1194,7 @@ the first insertion.</p>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="ivf-1"><a class="header" href="#ivf-1">IVF</a></h1>
-<p><img src="figures/indexes/ivf-overview.svg" alt="IVF: Voronoi partition over k-means centroids; only the scan_buckets_count buckets closest to the query are scanned, with an optional precise rerank"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/indexes/ivf-overview.svg" alt="IVF: Voronoi partition over k-means centroids; only the scan_buckets_count buckets closest to the query are scanned, with an optional precise rerank"><span class="img-wrapper"><img src="figures/indexes/ivf-overview.svg" alt="IVF: Voronoi partition over k-means centroids; only the scan_buckets_count buckets closest to the query are scanned, with an optional precise rerank"></span></label></p>
 <p>IVF (Inverted File) is VSAG’s <strong>partition-based</strong> index. It clusters the corpus into
 buckets at build time, and at query time only scans the buckets whose centroids are
 closest to the query. This turns an O(N) linear scan into O(N · <code>scan_buckets_count</code>
@@ -1145,7 +1207,7 @@ tight, or when queries are naturally parallelizable.</p>
 <li>Source: <code>src/algorithm/ivf.{h,cpp}</code>, <code>src/algorithm/ivf_parameter.{h,cpp}</code></li>
 <li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/106_index_ivf.cpp"><code>examples/cpp/106_index_ivf.cpp</code></a></li>
 </ul>
-<h2 id="how-it-works-2"><a class="header" href="#how-it-works-2">How it works</a></h2>
+<h2 id="how-it-works-3"><a class="header" href="#how-it-works-3">How it works</a></h2>
 <ol>
 <li><strong>Clustering.</strong> A sample of the dataset is clustered with k-means (or sampled
 randomly, <code>ivf_train_type: "random"</code>) to produce <code>buckets_count</code> centroids.</li>
@@ -1206,6 +1268,12 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>Centroid training: <code>kmeans</code> or <code>random</code></td></tr>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="quantization/README.html">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ subspaces (required with <code>pq</code> / <code>pqfs</code>)</td></tr>
+<tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td>Optional PCA preprocessing dimension for <code>base_quantization_type: "rabitq"</code></td></tr>
+<tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>Query bits for <code>rabitq</code>; allowed values are <code>4</code> or <code>32</code></td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>Stored-code bits for <code>rabitq</code>; allowed range is <code>[1, 8]</code></td></tr>
+<tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td><code>rabitq</code> layout: <code>"standard"</code> or <code>"split_1bit_7bit"</code></td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Positive error-budget parameter for <code>rabitq</code> encoding</td></tr>
+<tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td>Enable FHT rotation before <code>rabitq</code> binarization</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse scan</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (with <code>use_reorder: true</code>)</td></tr>
 <tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>Storage backend for coarse codes</td></tr>
@@ -1260,7 +1328,7 @@ queries-per-second.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="sindi"><a class="header" href="#sindi">SINDI</a></h1>
-<p><img src="figures/indexes/sindi-overview.svg" alt="SINDI: per-term inverted lists grouped by window; only the lists matching the query’s non-zero terms are walked and accumulated into an n_candidate-sized heap"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/indexes/sindi-overview.svg" alt="SINDI: per-term inverted lists grouped by window; only the lists matching the query’s non-zero terms are walked and accumulated into an n_candidate-sized heap"><span class="img-wrapper"><img src="figures/indexes/sindi-overview.svg" alt="SINDI: per-term inverted lists grouped by window; only the lists matching the query’s non-zero terms are walked and accumulated into an n_candidate-sized heap"></span></label></p>
 <p>SINDI (<strong>S</strong>parse <strong>IN</strong>verted <strong>D</strong>ense <strong>I</strong>ndex) is VSAG’s index for <strong>sparse
 vectors</strong> — the kind produced by BM25, SPLADE, and other learned-sparse encoders.
 Unlike the dense indexes (HGraph, IVF), SINDI operates directly on term/value
@@ -1269,7 +1337,7 @@ pairs and is the only VSAG index that accepts <code>dtype: "sparse"</code>.</p>
 <li>Source: <code>src/algorithm/sindi/</code></li>
 <li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/109_index_sindi.cpp"><code>examples/cpp/109_index_sindi.cpp</code></a></li>
 </ul>
-<h2 id="how-it-works-3"><a class="header" href="#how-it-works-3">How it works</a></h2>
+<h2 id="how-it-works-4"><a class="header" href="#how-it-works-4">How it works</a></h2>
 <ol>
 <li><strong>Window-based inverted lists.</strong> Documents are grouped into fixed-size windows
 (<code>window_size</code>). Within each window, an inverted list per term maps a term id
@@ -1424,7 +1492,7 @@ is not physically reclaimed.</p>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pyramid-1"><a class="header" href="#pyramid-1">Pyramid</a></h1>
-<p><img src="figures/indexes/pyramid-overview.svg" alt="Pyramid: a tree of per-node proximity sub-graphs keyed by a path string; the search walks down the tree along the query’s path prefix and runs ef_search inside the leaf sub-graph"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/indexes/pyramid-overview.svg" alt="Pyramid: a tree of per-node proximity sub-graphs keyed by a path string; the search walks down the tree along the query’s path prefix and runs ef_search inside the leaf sub-graph"><span class="img-wrapper"><img src="figures/indexes/pyramid-overview.svg" alt="Pyramid: a tree of per-node proximity sub-graphs keyed by a path string; the search walks down the tree along the query’s path prefix and runs ef_search inside the leaf sub-graph"></span></label></p>
 <p>Pyramid is VSAG’s <strong>hierarchical, path-partitioned</strong> graph index. Every vector is
 tagged with a path string such as <code>"a/d/f"</code>, and Pyramid builds a graph per node
 in that path tree. At query time you supply a path prefix, and Pyramid restricts
@@ -1437,7 +1505,7 @@ results.</p>
 <li>Example (single hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
 <li>Example (multi-hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/112_index_pyramid_multi_hierarchy.cpp"><code>examples/cpp/112_index_pyramid_multi_hierarchy.cpp</code></a></li>
 </ul>
-<h2 id="how-it-works-4"><a class="header" href="#how-it-works-4">How it works</a></h2>
+<h2 id="how-it-works-5"><a class="header" href="#how-it-works-5">How it works</a></h2>
 <ol>
 <li><strong>Path tree.</strong> Each vector carries a <code>path</code> in addition to its id. Paths use
 <code>/</code> as separator (e.g. <code>"tenant_a/lang_en/topic_news"</code>). Pyramid builds one
@@ -1665,7 +1733,7 @@ not physically reclaimed.</p>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="bruteforce"><a class="header" href="#bruteforce">BruteForce</a></h1>
-<p><img src="figures/indexes/brute_force-overview.svg" alt="BruteForce: vectors live in a flat store; the query is compared against every stored vector, with optional intra-query parallelism splitting the scan across threads, and the smallest distances are kept in a top-k heap"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/indexes/brute_force-overview.svg" alt="BruteForce: vectors live in a flat store; the query is compared against every stored vector, with optional intra-query parallelism splitting the scan across threads, and the smallest distances are kept in a top-k heap"><span class="img-wrapper"><img src="figures/indexes/brute_force-overview.svg" alt="BruteForce: vectors live in a flat store; the query is compared against every stored vector, with optional intra-query parallelism splitting the scan across threads, and the smallest distances are kept in a top-k heap"></span></label></p>
 <p>BruteForce is VSAG’s <strong>exact, flat</strong> index. At query time it scores the query against every
 vector in the corpus and returns the true top-k — no graph traversal, no inverted lists, no
 approximation. Its main role is to be the <strong>ground-truth baseline</strong> that approximate indexes
@@ -1675,7 +1743,7 @@ corpora or for workloads where 100% recall is mandatory.</p>
 <li>Source: <code>src/algorithm/brute_force.{h,cpp}</code></li>
 <li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a></li>
 </ul>
-<h2 id="how-it-works-5"><a class="header" href="#how-it-works-5">How it works</a></h2>
+<h2 id="how-it-works-6"><a class="header" href="#how-it-works-6">How it works</a></h2>
 <ol>
 <li><strong>Build.</strong> Vectors are stored in a single flat data cell encoded by <code>base_quantization_type</code>
 (default <code>fp32</code> — i.e. raw). No graph, no clustering, no training is performed for the
@@ -1832,7 +1900,7 @@ re-ranking (<code>precise_quantization_type</code> + <code>use_reorder: true</co
 documents each supported quantizer: what it does, what JSON parameters it
 takes, when it needs training, which metrics it supports, and when to choose
 it.</p>
-<p><img src="figures/quantization/quantization-overview.svg" alt="Quantization decision tree: pick a quantizer by memory budget"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/quantization/quantization-overview.svg" alt="Quantization decision tree: pick a quantizer by memory budget"><span class="img-wrapper"><img src="figures/quantization/quantization-overview.svg" alt="Quantization decision tree: pick a quantizer by memory budget"></span></label></p>
 <h2 id="storage-and-search-pipeline"><a class="header" href="#storage-and-search-pipeline">Storage and search pipeline</a></h2>
 <pre><code>                 +---------------------+
    raw vector --&gt;|  optional transform |   (TQ chain: pca / rom / fht / mrle)
@@ -1953,9 +2021,15 @@ for the exact behavior.</p>
 <code>rabitq_bits_per_dim_base</code>, <code>rabitq_bits_per_dim_precise</code>,
 <code>rabitq_error_rate</code>, <code>rabitq_use_fht</code>, <code>sq4_uniform_trunc_rate</code>, <code>tq_chain</code>
 (see <code>src/algorithm/hgraph.cpp</code>).</li>
-<li><strong>IVF</strong>, <strong>Pyramid</strong>, <strong>BruteForce</strong> expose <code>base_quantization_type</code> and
-the common reorder keys; some tunables (e.g. <code>tq_chain</code>) are wired
-internally but not exposed as external keys today.</li>
+<li><strong>IVF</strong> exposes <code>base_quantization_type</code>, <code>base_pq_dim</code>, the common reorder
+keys, and the RabitQ tuning keys <code>rabitq_pca_dim</code>,
+<code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>, <code>rabitq_version</code>,
+<code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code>.</li>
+<li><strong>Pyramid</strong> exposes <code>base_quantization_type</code>, <code>base_pq_dim</code>, the common
+reorder keys, and the RabitQ PCA, base/query bit, and FHT keys.</li>
+<li><strong>BruteForce</strong> exposes <code>base_quantization_type</code> and the common reorder keys;
+some tunables (e.g. <code>tq_chain</code>) are wired internally but not exposed as
+external keys today.</li>
 </ul>
 <p>Refer to each index page for its full parameter list.</p>
 <h2 id="in-this-chapter"><a class="header" href="#in-this-chapter">In this chapter</a></h2>
@@ -2028,7 +2102,7 @@ precise store on top of a base quantizer, the per-vector cost is
 code memory in half with <strong>near-lossless</strong> accuracy. They have no
 quantizer-specific JSON parameters; the only difference is the bit layout
 of the float format itself.</p>
-<p><img src="figures/quantization/fp-bitlayout.svg" alt="FP32 vs FP16 vs BF16 bit layout: sign / exponent / mantissa widths"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/quantization/fp-bitlayout.svg" alt="FP32 vs FP16 vs BF16 bit layout: sign / exponent / mantissa widths"><span class="img-wrapper"><img src="figures/quantization/fp-bitlayout.svg" alt="FP32 vs FP16 vs BF16 bit layout: sign / exponent / mantissa widths"></span></label></p>
 <blockquote>
 <p>Implementation: <code>src/quantization/scalar_quantization/half_precision_quantizer.cpp</code>
 with the type traits at <code>half_precision_traits.h</code>.
@@ -2112,7 +2186,7 @@ same implementation, parameterized by bit width, in
 <code>scalar_quantizer_parameter.h</code>.</p>
 <p>For SIMD-friendlier variants with a <strong>global</strong> <code>[min, max]</code>, see
 <a href="#scalar-quantization-uniform-sq4--sq8-uniform">Scalar Uniform</a>.</p>
-<p><img src="figures/quantization/sq-axis.svg" alt="Scalar Quantization: map a coordinate into one of 2^b bins on its per-dim range"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/quantization/sq-axis.svg" alt="Scalar Quantization: map a coordinate into one of 2^b bins on its per-dim range"><span class="img-wrapper"><img src="figures/quantization/sq-axis.svg" alt="Scalar Quantization: map a coordinate into one of 2^b bins on its per-dim range"></span></label></p>
 <h2 id="sq4-vs-sq8-at-a-glance"><a class="header" href="#sq4-vs-sq8-at-a-glance">SQ4 vs SQ8 at a glance</a></h2>
 <div class="table-wrapper">
 <table>
@@ -2189,7 +2263,7 @@ range that applies to every dimension. This trade-off — slightly less
 adaptive per dimension, but a much simpler decode path — unlocks SIMD code
 that runs significantly faster on <code>l2</code> and <code>ip</code> distance kernels and
 keeps the code layout tighter.</p>
-<p><img src="figures/quantization/sq-uniform-vs-perdim.svg" alt="Uniform (global range) vs per-dimension Scalar Quantization"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/quantization/sq-uniform-vs-perdim.svg" alt="Uniform (global range) vs per-dimension Scalar Quantization"><span class="img-wrapper"><img src="figures/quantization/sq-uniform-vs-perdim.svg" alt="Uniform (global range) vs per-dimension Scalar Quantization"></span></label></p>
 <blockquote>
 <p>Implementation: <code>src/quantization/scalar_quantization/sq8_uniform_quantizer.cpp</code>,
 <code>src/quantization/scalar_quantization/sq4_uniform_quantizer.cpp</code>.</p>
@@ -2306,7 +2380,7 @@ and quantizes each one independently against a small learned codebook of
 <code>2^pq_bits</code> centroids. The stored code is then <code>pq_dim × pq_bits</code> bits per
 vector — orders of magnitude smaller than <code>fp32</code>. Distance computations
 use precomputed lookup tables (LUT) per query.</p>
-<p><img src="figures/quantization/pq-codebook.svg" alt="Product Quantization: sub-vector split and codebook lookup"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/quantization/pq-codebook.svg" alt="Product Quantization: sub-vector split and codebook lookup"><span class="img-wrapper"><img src="figures/quantization/pq-codebook.svg" alt="Product Quantization: sub-vector split and codebook lookup"></span></label></p>
 <blockquote>
 <p>Implementation: <code>src/quantization/product_quantization/product_quantizer.cpp</code>,
 parameter file <code>product_quantizer_parameter.cpp</code>.</p>
@@ -2390,7 +2464,7 @@ with a chain like <code>"rom, pq"</code>.</li>
 fixes <code>pq_bits = 4</code> and uses a memory layout designed for the AVX-2 /
 AVX-512 “FastScan” lookup-table kernel. At the cost of being 4-bit only,
 it delivers significantly higher distance-computation throughput.</p>
-<p><img src="figures/quantization/pqfs-block.svg" alt="PQ FastScan: 16-vector 4-bit interleaved block and SIMD LUT lookup"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/quantization/pqfs-block.svg" alt="PQ FastScan: 16-vector 4-bit interleaved block and SIMD LUT lookup"><span class="img-wrapper"><img src="figures/quantization/pqfs-block.svg" alt="PQ FastScan: 16-vector 4-bit interleaved block and SIMD LUT lookup"></span></label></p>
 <blockquote>
 <p>Implementation: <code>src/quantization/product_quantization/pq_fastscan_quantizer.cpp</code>,
 parameter file <code>pq_fastscan_quantizer_parameter.cpp</code>.</p>
@@ -2467,7 +2541,7 @@ coordinate is encoded with <strong>1 bit</strong>, giving the highest compressio
 of any built-in quantizer. On HGraph, an <code>x+y</code> split mode stores low-bit base
 codes as <code>x</code> filter bits plus <code>y</code> supplement bits, so graph traversal can use
 only the filter code and re-ranking can fetch only the supplement bits it needs.</p>
-<p><img src="figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ: encode each coordinate by its sign relative to a random hyperplane"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ: encode each coordinate by its sign relative to a random hyperplane"><span class="img-wrapper"><img src="figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ: encode each coordinate by its sign relative to a random hyperplane"></span></label></p>
 <blockquote>
 <p>Implementation: <code>src/quantization/rabitq_quantization/rabitq_quantizer.cpp</code>,
 parameter file <code>rabitq_quantizer_parameter.cpp</code>.
@@ -2512,14 +2586,15 @@ vector.</li>
 </tbody>
 </table>
 </div>
-<p>On HGraph these are exposed as the top-level keys <code>rabitq_pca_dim</code>,
-<code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>,
-<code>rabitq_bits_per_dim_precise</code>, <code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code> —
-the last one is the HGraph
-alias for the quantizer’s <code>use_fht</code> key and is rewritten by the index
-layer (<code>src/algorithm/hgraph.cpp:473-480</code>, names defined in
-<code>src/constants.cpp:142-148</code>). Pyramid exposes the same <code>rabitq_*</code> keys
-(<code>src/algorithm/pyramid.cpp:698-699</code>).</p>
+<p>Index pages expose RaBitQ settings as top-level <code>index_param</code> keys:
+HGraph exposes <code>rabitq_pca_dim</code>, <code>rabitq_bits_per_dim_query</code>,
+<code>rabitq_bits_per_dim_base</code>, <code>rabitq_bits_per_dim_precise</code>,
+<code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code>; IVF exposes
+<code>rabitq_pca_dim</code>, <code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>,
+<code>rabitq_version</code>, <code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code>; Pyramid exposes
+the PCA, base/query bit, and FHT keys for its base quantizer. The
+<code>rabitq_use_fht</code> key is an index-level alias for the quantizer’s internal
+<code>use_fht</code> key and is rewritten by the index layer.</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -4136,7 +4211,7 @@ candidates until enough survivors are collected.</li>
 <li>Result consumption is lazy / streaming (e.g. UI pagination, server-side cursor).</li>
 <li>The eventual <code>k</code> is unknown up front and may grow on demand.</li>
 </ul>
-<h2 id="how-it-works-6"><a class="header" href="#how-it-works-6">How It Works</a></h2>
+<h2 id="how-it-works-7"><a class="header" href="#how-it-works-7">How It Works</a></h2>
 <p>Iterator search relies on a long-lived <code>IteratorContext</code> object that holds:</p>
 <ul>
 <li>the current candidate heap / visited bitmap, and</li>
@@ -4551,8 +4626,11 @@ and the placeholder example at <code>examples/python/todo_examples/301_feature_f
 intentionally empty.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="serialization"><a class="header" href="#serialization">Serialization</a></h1>
-<p>VSAG indexes can be serialized and deserialized through several interfaces, supporting
-persistence, cross-process sharing, and distributed deployment.</p>
+<p>VSAG indexes can be serialized and deserialized through the existing serialization interfaces,
+supporting persistence, cross-process sharing, and distributed deployment.</p>
+<p>This page describes the existing serialization format used by <code>Serialize</code> and <code>Deserialize</code>. For
+the header-first streaming format introduced later, see <a href="#new-serialization">New Serialization</a>.
+The two formats are not compatible with each other.</p>
 <h2 id="three-interfaces"><a class="header" href="#three-interfaces">Three Interfaces</a></h2>
 <h3 id="1-binaryset--readerset"><a class="header" href="#1-binaryset--readerset">1. <code>BinarySet</code> / <code>ReaderSet</code></a></h3>
 <p>The most flexible option. The index is split into named binary segments, and the caller owns the
@@ -4574,7 +4652,7 @@ empty-&gt;Deserialize(bs_loaded);
 avoids loading everything at once. This is useful for memory-constrained or partial-deserialization
 scenarios.</p>
 <h3 id="2-file-streams-stdostream--stdistream"><a class="header" href="#2-file-streams-stdostream--stdistream">2. File Streams (<code>std::ostream</code> / <code>std::istream</code>)</a></h3>
-<p>The simplest option — serialize the whole index to a file or memory stream:</p>
+<p>The simplest option: serialize the whole index to a file or memory stream:</p>
 <pre><code class="language-cpp">std::ofstream out("index.bin", std::ios::binary);
 index-&gt;Serialize(out);
 
@@ -4591,12 +4669,232 @@ empty-&gt;Deserialize(in);
 <ul>
 <li><code>Deserialize</code> requires an <strong>empty</strong> target index whose configuration (<code>dim</code>, <code>metric_type</code>, etc.)
 matches the one used at serialization time.</li>
+<li><code>Serialize</code>/<code>Deserialize</code> keep the existing footer-based format. The new <code>SerializeStreaming</code>
+format is header-first and must be read with <code>DeserializeStreaming</code> or <code>Load</code>.</li>
 <li>When upgrading across major versions, check the compatibility notes in the
 <a href="#release-notes">release notes</a>.</li>
-<li>References:
-<code>examples/cpp/318_feature_tune.cpp</code>, <code>examples/cpp/401_persistent_kv.cpp</code>,
+<li>References: <code>examples/cpp/318_feature_tune.cpp</code>, <code>examples/cpp/401_persistent_kv.cpp</code>, and
 <code>examples/cpp/402_persistent_streaming.cpp</code>.</li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="new-serialization"><a class="header" href="#new-serialization">New Serialization</a></h1>
+<p>The new serialization format is designed for large index artifacts and forward-only readers. Its
+main goals are:</p>
+<ul>
+<li>Make the file self-describing from the beginning, so readers can inspect the magic, version,
+metadata, and block manifest without seeking to a footer.</li>
+<li>Split index content into typed TLV blocks, so tools can inspect block sizes and future readers can
+skip unknown non-critical blocks.</li>
+<li>Provide one streaming path for full restoration (<code>DeserializeStreaming</code>) and policy-based loading
+(<code>Load</code>).</li>
+<li>Support debugging and operations tooling through a stable layout that can be visualized.</li>
+</ul>
+<p>The new serialization format is <strong>not compatible</strong> with the previous <code>Serialize</code>/<code>Deserialize</code>
+format. Files written by <code>SerializeStreaming</code> must be read with <code>DeserializeStreaming</code> or <code>Load</code>;
+files written by <code>Serialize</code> must be read with <code>Deserialize</code>.</p>
+<h2 id="usage-model"><a class="header" href="#usage-model">Usage Model</a></h2>
+<p>Serialization and deserialization are the persistence and transport path for index artifacts.
+<code>SerializeStreaming</code> writes a built index into a self-describing file, and <code>DeserializeStreaming</code>
+restores the complete in-memory index when a caller already knows which index object to create.
+<code>Index::Load</code> is the serving path: it creates the index from the file metadata and returns an
+<code>IndexPtr</code> that can be used for search.</p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/advanced/streaming-serialization-usage.svg" alt="Streaming serialization usage model"><span class="img-wrapper"><img src="figures/advanced/streaming-serialization-usage.svg" alt="Streaming serialization usage model"></span></label></p>
+<h2 id="streaming-serialization"><a class="header" href="#streaming-serialization">Streaming Serialization</a></h2>
+<p><code>SerializeStreaming</code>, <code>DeserializeStreaming</code>, and <code>Load</code> write and read a forward-only index file.
+The format is designed for large index artifacts where the reader should not seek to a footer
+before it can understand the file layout. It is currently implemented for BruteForce, HGraph, IVF,
+SINDI, and Pyramid.</p>
+<pre><code class="language-cpp">auto index = vsag::Factory::CreateIndex("hgraph", build_params).value();
+index-&gt;Build(base).value();
+
+{
+    std::ofstream out("hgraph.streaming", std::ios::binary);
+    index-&gt;SerializeStreaming(out).value();
+}
+
+auto restored = vsag::Factory::CreateIndex("hgraph", build_params).value();
+{
+    std::ifstream in("hgraph.streaming", std::ios::binary);
+    restored-&gt;DeserializeStreaming(in).value();
+}
+
+vsag::IndexPtr loaded;
+{
+    std::ifstream in("hgraph.streaming", std::ios::binary);
+    loaded = vsag::Index::Load(in, "{}").value();
+}
+</code></pre>
+<h2 id="static-load"><a class="header" href="#static-load">Static Load</a></h2>
+<p><code>Index::Load</code> is the entry point for policy-based loading from the new streaming format. Unlike
+<code>DeserializeStreaming</code>, callers do not create an empty index first. <code>Load</code> reads the streaming
+metadata, checks the serialized index type and <code>basic_info["index_param"]</code>, creates the matching
+index internally, and then loads the TLV body blocks according to the load parameters.</p>
+<pre><code class="language-cpp">std::ifstream in("hgraph.streaming", std::ios::binary);
+vsag::LoadParameters load_parameters(R"({"base_io_type":"block_memory_io"})");
+auto loaded = vsag::Index::Load(in, load_parameters).value();
+</code></pre>
+<p>The returned value is a ready-to-use <code>IndexPtr</code>, so this is the preferred path for loading
+an index that will serve search traffic. Load parameters control placement policy for supported
+blocks. The parameters object can be built from a JSON string and can also carry reader objects
+with <code>SetReader</code>. Unsupported policies return an error instead of silently falling back. The API
+currently supports streaming BruteForce, HGraph, IVF, SINDI, and Pyramid indexes. BruteForce
+supports limited block placement policies. HGraph can bind <code>high_precision_codes</code> to an external
+reader through <code>precise_reader</code>. IVF, SINDI, and Pyramid currently load all emitted streaming
+blocks into memory.</p>
+<h2 id="file-layout"><a class="header" href="#file-layout">File Layout</a></h2>
+<p>A streaming file starts with a fixed header and then a sequence of TLV blocks:</p>
+<pre><code class="language-text">magic("vsagstm0")
+format_version
+metadata_length
+metadata_json
+metadata_checksum
+block_header + block_payload
+block_header + block_payload
+...
+section_end
+</code></pre>
+<p>The metadata JSON stores the index name, basic index information, and a block manifest; build
+parameters are stored in <code>basic_info["index_param"]</code>. The manifest lists the expected block tags,
+block versions, and whether a block is critical. Unknown critical blocks fail deserialization;
+unknown non-critical blocks can be skipped by compatible readers.</p>
+<h2 id="tlv-block-version-compatibility"><a class="header" href="#tlv-block-version-compatibility">TLV Block Version Compatibility</a></h2>
+<p><code>format_version</code> describes the whole streaming file structure, such as the fixed header, metadata
+layout, and TLV framing. When only one block payload changes in a binary-incompatible
+way, the format should not bump the global format version. Instead, bump the
+<code>block_version</code> of that TLV block. For
+example, if HGraph <code>base_codes</code> cannot be parsed by older readers after a <code>basic_flatten_codes</code>
+implementation change, the <code>base_codes</code> block version must be increased.</p>
+<p>Each independently evolving block must distinguish two kinds of version information:</p>
+<ul>
+<li><strong>Current write version</strong>: the <code>block_version</code> written by the current code when serializing that
+block.</li>
+<li><strong>Supported read versions</strong>: the set or range of block versions that the current code can read for
+that block.</li>
+</ul>
+<p>After a reader reads the TLV header, it checks whether <code>tag + block_version</code> is supported by the
+current code:</p>
+<ul>
+<li>Supported versions are parsed by the matching block reader.</li>
+<li>Unsupported critical blocks fail fast, preventing older code from misreading newer bytes.</li>
+<li>Unsupported non-critical blocks are skipped with <code>value_len</code>, then reading continues from the next
+block.</li>
+</ul>
+<p>Therefore, when a block is upgraded from v1 to v2, the implementation must not only change the
+current write version to v2; it must also update that block’s supported read versions. If the new
+code keeps the v1 reader, supported versions should include both v1 and v2 so v2 code can still load
+v1 indexes. If v1 is intentionally no longer supported, remove it from the supported versions and
+make old critical blocks fail explicitly.</p>
+<p>The block manifest in metadata lets tools and readers inspect expected block versions before reading
+the body. During body parsing, the <code>block_version</code> stored in each TLV header remains the
+authoritative version for that payload.</p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/advanced/streaming-block-version-check.svg" alt="TLV block version check"><span class="img-wrapper"><img src="figures/advanced/streaming-block-version-check.svg" alt="TLV block version check"></span></label></p>
+<h2 id="bruteforce-blocks"><a class="header" href="#bruteforce-blocks">BruteForce Blocks</a></h2>
+<p>BruteForce writes these streaming blocks in order:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>Contents</th><th>Required</th></tr>
+</thead>
+<tbody>
+<tr><td><code>attribute_filter</code></td><td>optional attribute filter index</td><td>conditional</td></tr>
+<tr><td><code>base_codes</code></td><td>flatten codes used for exhaustive search</td><td>yes</td></tr>
+<tr><td><code>label_table</code></td><td>external labels and label remap</td><td>yes</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> restores the full in-memory BruteForce index. <code>Load</code> currently requires
+<code>base_codes</code> to be loaded into memory; reader-based loading for required BruteForce codes is
+rejected.</p>
+<h2 id="hgraph-blocks"><a class="header" href="#hgraph-blocks">HGraph Blocks</a></h2>
+<p>HGraph writes these streaming blocks in order:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>Contents</th><th>Required</th></tr>
+</thead>
+<tbody>
+<tr><td><code>label_table</code></td><td>external labels, label remap, optional source id table</td><td>yes</td></tr>
+<tr><td><code>base_codes</code></td><td>base flatten codes used by graph search</td><td>yes</td></tr>
+<tr><td><code>bottom_graph</code></td><td>bottom-layer graph over all vectors</td><td>yes</td></tr>
+<tr><td><code>high_precision_codes</code></td><td>precise reorder codes when reorder uses separate codes</td><td>conditional</td></tr>
+<tr><td><code>route_graphs</code></td><td>all upper route graph layers</td><td>yes</td></tr>
+<tr><td><code>extra_info</code></td><td>optional extra info payloads</td><td>conditional</td></tr>
+<tr><td><code>attribute_filter</code></td><td>optional attribute filter index</td><td>conditional</td></tr>
+<tr><td><code>raw_vector</code></td><td>optional stored raw vectors</td><td>conditional</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> restores the full in-memory index. <code>Load</code> loads HGraph blocks into memory by
+default. Load parameters can set <code>precise_io_type</code> to override the IO type for <code>precise_codes</code>. If
+they also provide <code>precise_reader</code>, and that reader size matches the <code>high_precision_codes</code> payload
+size, <code>Load</code> validates the external reader payload checksum and then binds reorder codes to that
+reader.</p>
+<h2 id="ivf-blocks"><a class="header" href="#ivf-blocks">IVF Blocks</a></h2>
+<p>IVF writes these streaming blocks in order:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>Contents</th><th>Required</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ivf_bucket</code></td><td>bucket datacell payloads for inverted lists</td><td>yes</td></tr>
+<tr><td><code>ivf_partition_strategy</code></td><td>partition strategy state, such as trained centroids</td><td>yes</td></tr>
+<tr><td><code>label_table</code></td><td>external labels and label remap</td><td>yes</td></tr>
+<tr><td><code>high_precision_codes</code></td><td>reorder codes when IVF reorder is enabled</td><td>conditional</td></tr>
+<tr><td><code>attribute_filter</code></td><td>optional attribute filter index</td><td>conditional</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> restores the full in-memory IVF index. <code>Index::Load</code> can create the IVF
+index directly from streaming metadata and currently loads all emitted IVF blocks into memory.</p>
+<h2 id="sindi-blocks"><a class="header" href="#sindi-blocks">SINDI Blocks</a></h2>
+<p>SINDI writes these streaming blocks in order:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>Contents</th><th>Required</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sindi_windows</code></td><td>sparse term windows and quantization runtime state</td><td>yes</td></tr>
+<tr><td><code>label_table</code></td><td>external labels and label remap</td><td>yes</td></tr>
+<tr><td><code>sindi_rerank_index</code></td><td>optional rerank flat index when rerank is enabled</td><td>conditional</td></tr>
+<tr><td><code>sindi_term_id_mapper</code></td><td>optional term-id remapping table</td><td>conditional</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> restores the full in-memory SINDI index. <code>Index::Load</code> can create the SINDI
+index directly from streaming metadata and currently loads all emitted SINDI blocks into memory.
+Immutable SINDI runtime serialization is not supported by this streaming path.</p>
+<h2 id="pyramid-blocks"><a class="header" href="#pyramid-blocks">Pyramid Blocks</a></h2>
+<p>Pyramid writes these streaming blocks in order:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>Contents</th><th>Required</th></tr>
+</thead>
+<tbody>
+<tr><td><code>label_table</code></td><td>external labels and label remap</td><td>yes</td></tr>
+<tr><td><code>base_codes</code></td><td>base flatten codes used by graph search</td><td>yes</td></tr>
+<tr><td><code>high_precision_codes</code></td><td>precise reorder codes when reorder is enabled</td><td>conditional</td></tr>
+<tr><td><code>pyramid_hierarchies</code></td><td>hierarchy names and graph roots</td><td>yes</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> restores the full in-memory Pyramid index. <code>Index::Load</code> can create the
+Pyramid index directly from streaming metadata and currently loads all emitted Pyramid blocks into
+memory.</p>
+<h2 id="visualizing-a-streaming-index"><a class="header" href="#visualizing-a-streaming-index">Visualizing a Streaming Index</a></h2>
+<p>Build the tool and point it at a streaming index file:</p>
+<pre><code class="language-bash">cmake --build build --target visualize_index
+build/tools/visualize_index/visualize_index \
+  --index_path /tmp/vsag-hgraph-streaming.index \
+  --html /tmp/vsag-hgraph-streaming.html
+</code></pre>
+<p>The CLI output includes a raw horizontal layout by real byte proportion and a compact logical-block
+layout. The HTML output groups related small segments, such as a TLV header and its payload, and
+shows exact segment details in tables.</p>
+<p>See <code>examples/cpp/403_persistent_streaming_load.cpp</code> for runnable examples of streaming
+serialization and <code>Index::Load</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="memory-management"><a class="header" href="#memory-management">Memory Management</a></h1>
 <p>VSAG uses custom <code>Allocator</code> and <code>Resource</code> objects on its hot paths, allowing users to:</p>
@@ -4642,9 +4940,19 @@ safe to call on an empty index and is the recommended way to size a node before 
 }
 </code></pre>
 <p>See <code>examples/cpp/308_feature_estimate_memory.cpp</code> for a full run.</p>
+<h3 id="estimatebuildmemorynum_elements"><a class="header" href="#estimatebuildmemorynum_elements"><code>EstimateBuildMemory(num_elements)</code></a></h3>
+<p><code>Index::EstimateBuildMemory(num_elements)</code> returns the estimated memory (in bytes) required
+<strong>during the build process</strong> for <code>num_elements</code> vectors. Unlike <code>EstimateMemory</code>, which
+estimates the steady-state size of the final index, this accounts for temporary buffers and
+intermediate data structures that exist only while <code>Build</code> is running. The peak memory during
+build is typically higher than the post-build footprint:</p>
+<pre><code class="language-cpp">uint64_t peak = index-&gt;EstimateBuildMemory(1000000);  // bytes
+</code></pre>
+<p>Currently only DiskANN provides a non-trivial implementation; other index types throw
+an exception by default.</p>
 <h3 id="getmemoryusage"><a class="header" href="#getmemoryusage"><code>GetMemoryUsage()</code></a></h3>
 <p><code>Index::GetMemoryUsage()</code> returns the <strong>current</strong> memory footprint of an index in bytes:</p>
-<pre><code class="language-cpp">int64_t bytes = index-&gt;GetMemoryUsage();
+<pre><code class="language-cpp">uint64_t bytes = index-&gt;GetMemoryUsage();
 </code></pre>
 <p>Properties:</p>
 <ul>
@@ -4665,6 +4973,20 @@ a representative value.</li>
 </ul>
 <p>See <code>examples/cpp/319_feature_get_memory_usage.cpp</code> for a runnable example, including a helper
 that compares the interface value with the process resident size.</p>
+<h3 id="getmemoryusagedetail"><a class="header" href="#getmemoryusagedetail"><code>GetMemoryUsageDetail()</code></a></h3>
+<p><code>Index::GetMemoryUsageDetail()</code> returns a breakdown of the <strong>current</strong> memory usage by
+component:</p>
+<pre><code class="language-cpp">std::unordered_map&lt;std::string, uint64_t&gt; detail = index-&gt;GetMemoryUsageDetail();
+for (const auto&amp; [component, bytes] : detail) {
+    std::cout &lt;&lt; component &lt;&lt; ": " &lt;&lt; bytes &lt;&lt; " bytes\n";
+}
+</code></pre>
+<p>The returned map keys are component names and values are memory in bytes. This is useful for
+understanding <em>where</em> the memory is going inside an index.</p>
+<p>Currently only HGraph provides a meaningful implementation, returning components such as
+<code>basic_flatten_codes</code>, <code>bottom_graph</code>, <code>route_graph</code>, <code>neighbors_mutex</code>, <code>pool</code>,
+<code>label_table</code>, <code>high_precise_codes</code>, <code>extra_infos</code>, and <code>raw_vector</code>. SINDI returns an empty
+map. Other index types throw an exception by default.</p>
 <h3 id="capability-flags"><a class="header" href="#capability-flags">Capability Flags</a></h3>
 <div class="table-wrapper">
 <table>
@@ -5111,7 +5433,7 @@ using a <strong>conjugate graph</strong>, noticeably improving tail recall at al
 })";
 auto result = index-&gt;KnnSearch(query, k, search_param_json);
 </code></pre>
-<h2 id="how-it-works-7"><a class="header" href="#how-it-works-7">How It Works</a></h2>
+<h2 id="how-it-works-8"><a class="header" href="#how-it-works-8">How It Works</a></h2>
 <p>The conjugate graph is built by inverting “failure paths” over the training data on the original
 graph and then used as additional candidate edges during greedy expansion at search time. It is a
 lightweight patch on the main graph, typically below 10% of the main graph’s size.</p>
@@ -5470,6 +5792,1395 @@ deserialization with a dedicated reader if you only need a snapshot on disk.</li
 freely serialized and shipped before any vectors are added.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="api-reference"><a class="header" href="#api-reference">API Reference</a></h1>
+<p>This chapter is a curated reference for VSAG’s <strong>public C++ API</strong> — the headers installed under
+<code>include/vsag/</code>. It documents the classes, structs, enums, and free functions an application links
+against, grouped by responsibility. The installed headers remain the authoritative source of
+truth; the pages here explain intent, ownership, and how the pieces fit together.</p>
+<blockquote>
+<p>Looking for how to <em>configure</em> an index (the JSON <code>index_param</code> / search keys)? That is covered
+in <a href="#index-parameters">Index Parameters</a> and each <a href="indexes/README.html">index page</a>.
+This chapter covers the <em>code</em> surface (types and methods), not the JSON schema.</p>
+</blockquote>
+<h2 id="include-and-namespace"><a class="header" href="#include-and-namespace">Include and namespace</a></h2>
+<p>A single umbrella header pulls in the whole public API, and every symbol lives in the <code>vsag</code>
+namespace:</p>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;   // includes factory.h, index.h, dataset.h, engine.h, ...
+
+int main() {
+    vsag::init();                       // one-time process initialization
+    std::string ver = vsag::version();  // git-derived version string
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Free function</th><th>Header</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>bool vsag::init()</code></td><td><code>vsag/vsag.h</code></td><td>Initializes the library. Call once before other APIs. Always returns <code>true</code>.</td></tr>
+<tr><td><code>std::string vsag::version()</code></td><td><code>vsag/vsag.h</code></td><td>Returns the build version derived from the git revision.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="error-handling-model"><a class="header" href="#error-handling-model">Error-handling model</a></h2>
+<p>Almost every fallible call returns <code>tl::expected&lt;T, Error&gt;</code> (a <code>std::expected</code>-style type shipped in
+<code>vsag/expected.hpp</code>) instead of throwing. A handful of legacy statistics accessors still throw
+<code>std::runtime_error</code> when unsupported; those are called out on the <a href="#index">Index</a> page.</p>
+<pre><code class="language-cpp">auto result = vsag::Factory::CreateIndex("hgraph", params);
+if (not result.has_value()) {
+    const vsag::Error&amp; err = result.error();
+    std::cerr &lt;&lt; "create failed: " &lt;&lt; static_cast&lt;int&gt;(err.type) &lt;&lt; " " &lt;&lt; err.message &lt;&lt; "\n";
+    return;
+}
+std::shared_ptr&lt;vsag::Index&gt; index = result.value();
+</code></pre>
+<p><code>Error</code> carries a machine-readable <code>type</code> and a human-readable <code>message</code>:</p>
+<pre><code class="language-cpp">struct Error {
+    ErrorType type;
+    std::string message;
+};
+</code></pre>
+<h3 id="errortype"><a class="header" href="#errortype"><code>ErrorType</code></a></h3>
+<p>Defined in <code>vsag/errors.h</code>. Values start at <code>1</code> (<code>0</code> is reserved).</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Category</th><th>Value</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>Common</td><td><code>UNKNOWN_ERROR</code></td><td>Unknown error.</td></tr>
+<tr><td>Common</td><td><code>INTERNAL_ERROR</code></td><td>Internal algorithm error.</td></tr>
+<tr><td>Common</td><td><code>INVALID_ARGUMENT</code></td><td>An argument was invalid.</td></tr>
+<tr><td>Behavior</td><td><code>WRONG_STATUS</code></td><td>Index is in the wrong state for the call.</td></tr>
+<tr><td>Behavior</td><td><code>BUILD_TWICE</code></td><td>The index was already built and cannot be built again.</td></tr>
+<tr><td>Behavior</td><td><code>INDEX_NOT_EMPTY</code></td><td>Deserializing onto a non-empty index.</td></tr>
+<tr><td>Behavior</td><td><code>UNSUPPORTED_INDEX</code></td><td>Requested an index type that does not exist.</td></tr>
+<tr><td>Behavior</td><td><code>UNSUPPORTED_INDEX_OPERATION</code></td><td>This index does not implement the called method.</td></tr>
+<tr><td>Behavior</td><td><code>DIMENSION_NOT_EQUAL</code></td><td>Request dimension differs from the index dimension.</td></tr>
+<tr><td>Behavior</td><td><code>INDEX_EMPTY</code></td><td>Index is empty; cannot search or serialize.</td></tr>
+<tr><td>Runtime</td><td><code>NO_ENOUGH_MEMORY</code></td><td>Memory allocation failed.</td></tr>
+<tr><td>Runtime</td><td><code>READ_ERROR</code></td><td>Failed to read from a binary.</td></tr>
+<tr><td>Runtime</td><td><code>MISSING_FILE</code></td><td>A required file is missing (e.g. DiskANN deserialization).</td></tr>
+<tr><td>Runtime</td><td><code>INVALID_BINARY</code></td><td>Serialized binary content is invalid.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Because most index methods are <code>virtual</code> with a default body that returns
+<code>UNSUPPORTED_INDEX_OPERATION</code>, an “unsupported” result is normal and expected: it means the concrete
+index does not implement that optional capability. Use
+<a href="#checkfeature"><code>Index::CheckFeature</code></a> to probe support ahead of time.</p>
+<h2 id="header-map"><a class="header" href="#header-map">Header map</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Header</th><th>Primary symbols</th><th>Reference page</th></tr>
+</thead>
+<tbody>
+<tr><td><code>factory.h</code>, <code>engine.h</code>, <code>vsag.h</code></td><td><code>Factory</code>, <code>Engine</code>, <code>init</code>, <code>version</code></td><td><a href="#factory--engine">Factory &amp; Engine</a></td></tr>
+<tr><td><code>index.h</code></td><td><code>Index</code>, <code>IndexType</code>, <code>RemoveMode</code>, <code>MergeUnit</code></td><td><a href="#index">Index</a></td></tr>
+<tr><td><code>dataset.h</code></td><td><code>Dataset</code>, <code>SparseVector</code>, <code>MultiVector</code></td><td><a href="#dataset">Dataset</a></td></tr>
+<tr><td><code>search_request.h</code>, <code>filter.h</code>, <code>bitset.h</code>, <code>search_param.h</code>, <code>iterator_context.h</code></td><td><code>SearchRequest</code>, <code>Filter</code>, <code>Bitset</code></td><td><a href="#search-request--filters">Search Request &amp; Filters</a></td></tr>
+<tr><td><code>binaryset.h</code>, <code>readerset.h</code></td><td><code>BinarySet</code>, <code>Binary</code>, <code>Reader</code>, <code>ReaderSet</code></td><td><a href="#serialization-types">Serialization Types</a></td></tr>
+<tr><td><code>resource.h</code>, <code>allocator.h</code>, <code>thread_pool.h</code>, <code>options.h</code>, <code>logger.h</code></td><td><code>Resource</code>, <code>Allocator</code>, <code>ThreadPool</code>, <code>Options</code>, <code>Logger</code></td><td><a href="#resource-management">Resource Management</a></td></tr>
+<tr><td><code>attribute.h</code>, <code>index_features.h</code>, <code>index_detail_info.h</code>, <code>utils.h</code>, <code>constants.h</code></td><td><code>Attribute</code>, <code>IndexFeature</code>, <code>IndexDetailInfo</code></td><td><a href="#auxiliary-types">Auxiliary Types</a></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="in-this-chapter-1"><a class="header" href="#in-this-chapter-1">In this chapter</a></h2>
+<ul>
+<li><a href="#factory--engine">Factory &amp; Engine</a> — create indexes and readers; own resources with <code>Engine</code>.</li>
+<li><a href="#index">Index</a> — the core index interface: build, search, update, serialize, inspect.</li>
+<li><a href="#dataset">Dataset</a> — the builder-pattern container for vectors, ids, and metadata.</li>
+<li><a href="#search-request--filters">Search Request &amp; Filters</a> — <code>SearchRequest</code>, <code>Filter</code>, <code>Bitset</code>, iterator context.</li>
+<li><a href="#serialization-types">Serialization Types</a> — <code>BinarySet</code> / <code>Binary</code> and <code>Reader</code> / <code>ReaderSet</code>.</li>
+<li><a href="#resource-management">Resource Management</a> — allocator, thread pool, engine resources, options, logger.</li>
+<li><a href="#auxiliary-types">Auxiliary Types</a> — attributes, feature flags, index detail info, and utility helpers.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="factory--engine"><a class="header" href="#factory--engine">Factory &amp; Engine</a></h1>
+<p>Every VSAG workflow begins by obtaining an <code>Index</code>. There are two entry points:</p>
+<ul>
+<li><a href="#factory"><code>Factory</code></a> — the simplest way to create an index or a file reader. It uses a default
+(or caller-supplied) allocator and manages resources internally.</li>
+<li><a href="#engine"><code>Engine</code></a> — an explicit owner of shared resources (allocator + thread pool). Use it
+when you want several indexes to share one memory allocator / thread pool, or when you need
+deterministic control over resource lifetime.</li>
+</ul>
+<p>This page also documents the process-level <a href="#library-initialization">initialization helpers</a> and the
+<a href="#top-level-helper-functions">top-level helper functions</a> for parameter generation and validation.</p>
+<h2 id="library-initialization"><a class="header" href="#library-initialization">Library initialization</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+vsag::init();                       // call once, before any other API
+std::string ver = vsag::version();  // e.g. the git-derived build string
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Function</th><th>Signature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>vsag::init</code></td><td><code>bool init()</code></td><td>One-time process initialization. Returns <code>true</code>.</td></tr>
+<tr><td><code>vsag::version</code></td><td><code>std::string version()</code></td><td>Build version derived from the git revision.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="factory"><a class="header" href="#factory">Factory</a></h2>
+<p>Declared in <code>vsag/factory.h</code>. <code>Factory</code> is a stateless utility class with only static methods; it
+cannot be instantiated.</p>
+<h3 id="createindex"><a class="header" href="#createindex"><code>CreateIndex</code></a></h3>
+<pre><code class="language-cpp">static tl::expected&lt;std::shared_ptr&lt;Index&gt;, Error&gt;
+CreateIndex(const std::string&amp; name,
+            const std::string&amp; parameters,
+            Allocator* allocator = nullptr);
+</code></pre>
+<p>Creates an index of the given type.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>name</code></td><td>Index type name, e.g. <code>"hgraph"</code>, <code>"ivf"</code>, <code>"diskann"</code>, <code>"brute_force"</code>, <code>"sindi"</code>, <code>"pyramid"</code>.</td></tr>
+<tr><td><code>parameters</code></td><td>A JSON string describing the index configuration (dtype, dim, metric, index-specific keys). See <a href="#index-parameters">Index Parameters</a>.</td></tr>
+<tr><td><code>allocator</code></td><td>Optional custom <a href="#allocator"><code>Allocator</code></a>. When <code>nullptr</code>, VSAG uses a built-in default allocator. The caller must keep the allocator alive for the whole lifetime of the returned index.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Returns a <code>std::shared_ptr&lt;Index&gt;</code> on success, or an <code>Error</code> (typically <code>UNSUPPORTED_INDEX</code> for an
+unknown <code>name</code>, or <code>INVALID_ARGUMENT</code> for malformed <code>parameters</code>).</p>
+<pre><code class="language-cpp">auto index = vsag::Factory::CreateIndex("hgraph", R"(
+{
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": { "base_quantization_type": "sq8" }
+})");
+if (not index.has_value()) {
+    std::cerr &lt;&lt; index.error().message &lt;&lt; std::endl;
+    return;
+}
+std::shared_ptr&lt;vsag::Index&gt; hgraph = index.value();
+</code></pre>
+<h3 id="createlocalfilereader"><a class="header" href="#createlocalfilereader"><code>CreateLocalFileReader</code></a></h3>
+<pre><code class="language-cpp">static std::shared_ptr&lt;Reader&gt;
+CreateLocalFileReader(const std::string&amp; filename, int64_t base_offset, int64_t size);
+</code></pre>
+<p>Creates a <a href="#reader"><code>Reader</code></a> that reads a window of a local file starting at
+<code>base_offset</code> for <code>size</code> bytes. This is most often used to build a <a href="#readerset"><code>ReaderSet</code></a>
+for streaming deserialization of on-disk indexes. Unlike the methods above, it returns a plain
+<code>std::shared_ptr</code> (there is no fallible <code>Error</code> channel).</p>
+<h2 id="engine"><a class="header" href="#engine">Engine</a></h2>
+<p>Declared in <code>vsag/engine.h</code>. An <code>Engine</code> binds a <a href="#resource"><code>Resource</code></a> (allocator +
+thread pool) and lets you create indexes that share it. The engine never takes ownership of a
+<code>Resource*</code> passed to it; you control its lifetime.</p>
+<pre><code class="language-cpp">vsag::Resource resource(vsag::Engine::CreateDefaultAllocator().get(), nullptr);
+vsag::Engine engine(&amp;resource);
+
+auto index = engine.CreateIndex("hgraph", params);
+// ... use index ...
+
+engine.Shutdown();   // release engine-held state; warns on dangling references
+</code></pre>
+<h3 id="constructor--lifecycle"><a class="header" href="#constructor--lifecycle">Constructor &amp; lifecycle</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Member</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td>Constructor</td><td><code>explicit Engine(Resource* resource)</code></td><td>Binds an externally-owned <code>Resource</code>. The <code>Resource</code> is <strong>not</strong> managed by the engine.</td></tr>
+<tr><td><code>Shutdown</code></td><td><code>void Shutdown()</code></td><td>Gracefully tears down engine-held state. Warns if external references to engine resources still exist, guarding against dangling references.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="createindex-1"><a class="header" href="#createindex-1"><code>CreateIndex</code></a></h3>
+<pre><code class="language-cpp">[[nodiscard]] tl::expected&lt;std::shared_ptr&lt;Index&gt;, Error&gt;
+CreateIndex(const std::string&amp; name, const std::string&amp; parameters);
+</code></pre>
+<p>Same semantics as <a href="#createindex"><code>Factory::CreateIndex</code></a>, except the index is created against the
+engine’s shared <code>Resource</code> (allocator and thread pool) instead of a per-call allocator.</p>
+<h3 id="static-resource-helpers"><a class="header" href="#static-resource-helpers">Static resource helpers</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Member</th><th>Signature</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>CreateDefaultAllocator</code></td><td><code>static std::shared_ptr&lt;Allocator&gt; CreateDefaultAllocator()</code></td><td>Creates VSAG’s built-in allocator. Returns an empty pointer on failure — check for null.</td></tr>
+<tr><td><code>CreateThreadPool</code></td><td><code>static tl::expected&lt;std::shared_ptr&lt;ThreadPool&gt;, Error&gt; CreateThreadPool(uint32_t num_threads)</code></td><td>Creates a thread pool with <code>num_threads</code> workers. Returns an <code>Error</code> for an invalid count.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <a href="#resource-management">Resource Management</a> for how <code>Resource</code>, <code>Allocator</code>, and <code>ThreadPool</code> fit
+together, and <code>examples/cpp/201_custom_allocator.cpp</code> / <code>203_custom_thread_pool.cpp</code> for runnable
+samples.</p>
+<h2 id="top-level-helper-functions"><a class="header" href="#top-level-helper-functions">Top-level helper functions</a></h2>
+<p>These free functions (declared in <code>vsag/index.h</code>) help you generate and validate configuration
+strings before creating an index. All return <code>tl::expected&lt;..., Error&gt;</code>.</p>
+<h3 id="generate_build_parameters"><a class="header" href="#generate_build_parameters"><code>generate_build_parameters</code></a></h3>
+<pre><code class="language-cpp">tl::expected&lt;std::string, Error&gt;
+generate_build_parameters(std::string metric_type,
+                          int64_t num_elements,
+                          int64_t dim,
+                          bool use_conjugate_graph = false);
+</code></pre>
+<p><em>(Experimental.)</em> Produces a suggested build-parameter JSON string from the dataset shape
+(<code>metric_type</code>, <code>num_elements</code>, <code>dim</code>). Pass <code>use_conjugate_graph = true</code> to enable
+<a href="#graph-index-enhancement">conjugate-graph enhancement</a>.</p>
+<h3 id="estimate_search_time"><a class="header" href="#estimate_search_time"><code>estimate_search_time</code></a></h3>
+<pre><code class="language-cpp">tl::expected&lt;float, Error&gt;
+estimate_search_time(const std::string&amp; index_name,
+                     int64_t data_num,
+                     int64_t data_dim,
+                     const std::string&amp; parameters);
+</code></pre>
+<p>Estimates the per-query search time (in milliseconds) for the given index type and configuration.</p>
+<h3 id="check_diskann_hnsw_build_parameters--check_diskann_hnsw_search_parameters"><a class="header" href="#check_diskann_hnsw_build_parameters--check_diskann_hnsw_search_parameters"><code>check_diskann_hnsw_build_parameters</code> / <code>check_diskann_hnsw_search_parameters</code></a></h3>
+<pre><code class="language-cpp">tl::expected&lt;bool, Error&gt;
+check_diskann_hnsw_build_parameters(const std::string&amp; json_string);
+
+tl::expected&lt;bool, Error&gt;
+check_diskann_hnsw_search_parameters(const std::string&amp; json_string);
+</code></pre>
+<p>Validate DiskANN/HNSW build and search parameter JSON respectively. On success the value is <code>true</code>;
+on failure the <code>Error</code> message explains what is wrong. See the
+<a href="#compatibility-check-tool-check_compatibility">Compatibility Check Tool</a> for a CLI wrapper around this kind of
+validation.</p>
+<h2 id="see-also-7"><a class="header" href="#see-also-7">See also</a></h2>
+<ul>
+<li><a href="#index">Index</a> — what you can do with the index once it is created.</li>
+<li><a href="#resource-management">Resource Management</a> — allocator, thread pool, and <code>Resource</code> details.</li>
+<li><a href="#index-parameters">Index Parameters</a> — the JSON schema accepted by <code>CreateIndex</code>.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="index"><a class="header" href="#index">Index</a></h1>
+<p><code>vsag::Index</code> (declared in <code>vsag/index.h</code>) is the central abstraction of the library. Every concrete
+index type — HGraph, IVF, DiskANN, BruteForce, SINDI, Pyramid, and so on — implements this
+interface. You never instantiate <code>Index</code> directly; obtain one from
+<a href="#createindex"><code>Factory::CreateIndex</code></a> or <a href="#createindex-1"><code>Engine::CreateIndex</code></a>
+and hold it through <code>IndexPtr</code> (<code>std::shared_ptr&lt;Index&gt;</code>).</p>
+<pre><code class="language-cpp">using IndexPtr = std::shared_ptr&lt;Index&gt;;
+</code></pre>
+<h2 id="how-to-read-this-reference"><a class="header" href="#how-to-read-this-reference">How to read this reference</a></h2>
+<p><code>Index</code> exposes many optional capabilities. The base class provides a <strong>default implementation</strong> for
+almost every method:</p>
+<ul>
+<li>Most methods return <code>tl::unexpected(Error(ErrorType::UNSUPPORTED_INDEX_OPERATION, ...))</code> when the
+concrete index does not implement them.</li>
+<li>A handful of statistics accessors instead <strong>throw <code>std::runtime_error</code></strong> (called out explicitly
+below). Wrap those in <code>try/catch</code> if you call them on an index that may not support them.</li>
+</ul>
+<p>Because “unsupported” is a normal, expected outcome, probe capabilities up front with
+<a href="#checkfeature"><code>CheckFeature</code></a> rather than assuming a method works. Methods marked <em>(pure virtual)</em>
+must be implemented by every index and are always safe to call.</p>
+<p>Pointer/handle types used throughout this page: <code>DatasetPtr</code> (<a href="#dataset">Dataset</a>), <code>FilterPtr</code>
+(<a href="#filter-1">Filter</a>), <code>BitsetPtr</code> (<a href="#bitset">Bitset</a>), <code>BinarySet</code> /
+<code>ReaderSet</code> (<a href="#serialization-types">Serialization Types</a>).</p>
+<h2 id="enumerations-and-helper-types"><a class="header" href="#enumerations-and-helper-types">Enumerations and helper types</a></h2>
+<h3 id="indextype"><a class="header" href="#indextype"><code>IndexType</code></a></h3>
+<pre><code class="language-cpp">enum class IndexType {
+    HNSW, DISKANN, HGRAPH, IVF, PYRAMID, BRUTEFORCE, SPARSE, SINDI, WARP, LAZY_HGRAPH, SIMQ
+};
+</code></pre>
+<p>Returned by <a href="#getindextype"><code>GetIndexType</code></a>.</p>
+<h3 id="removemode"><a class="header" href="#removemode"><code>RemoveMode</code></a></h3>
+<pre><code class="language-cpp">enum class RemoveMode {
+    MARK_REMOVE = 0,   // mark as deleted; no shrink/repair — fast
+    FORCE_REMOVE = 1,  // physically remove and repair the graph — heavy
+};
+</code></pre>
+<p>Passed to <a href="#remove"><code>Remove</code></a>.</p>
+<h3 id="mergeunit-and-idmapfunction"><a class="header" href="#mergeunit-and-idmapfunction"><code>MergeUnit</code> and <code>IdMapFunction</code></a></h3>
+<pre><code class="language-cpp">using IdMapFunction = std::function&lt;std::tuple&lt;bool, int64_t&gt;(int64_t)&gt;;
+
+struct MergeUnit {
+    IndexPtr index = nullptr;         // source sub-index to merge from
+    IdMapFunction id_map_func = nullptr;  // per-id filter + remap
+};
+</code></pre>
+<p>For each source id, <code>id_map_func</code> returns <code>{keep, new_id}</code>: <code>keep == true</code> includes the vector under
+target id <code>new_id</code>. Used by <a href="#merge"><code>Merge</code></a>.</p>
+<h3 id="checkpoint"><a class="header" href="#checkpoint"><code>Checkpoint</code></a></h3>
+<pre><code class="language-cpp">struct Index::Checkpoint {
+    BinarySet data;       // intermediate state
+    bool finish = false;  // true once the build is complete
+};
+</code></pre>
+<p>Returned by <a href="#continuebuild"><code>ContinueBuild</code></a> to drive incremental builds.</p>
+<h3 id="data-selection-flags"><a class="header" href="#data-selection-flags">Data-selection flags</a></h3>
+<p>Bit flags for <a href="#getdatabyidswithflag"><code>GetDataByIdsWithFlag</code></a>, combined with bitwise OR:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Macro</th><th>Value</th><th>Selects</th></tr>
+</thead>
+<tbody>
+<tr><td><code>DATA_FLAG_FLOAT32_VECTOR</code></td><td><code>0x01</code></td><td>float32 vectors</td></tr>
+<tr><td><code>DATA_FLAG_INT8_VECTOR</code></td><td><code>0x02</code></td><td>int8 vectors</td></tr>
+<tr><td><code>DATA_FLAG_SPARSE_VECTOR</code></td><td><code>0x04</code></td><td>sparse vectors</td></tr>
+<tr><td><code>DATA_FLAG_EXTRA_INFO</code></td><td><code>0x10</code></td><td>extra info blobs</td></tr>
+<tr><td><code>DATA_FLAG_ATTRIBUTE</code></td><td><code>0x20</code></td><td>attributes</td></tr>
+<tr><td><code>DATA_FLAG_ID</code></td><td><code>0x40</code></td><td>ids</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="writefunctype"><a class="header" href="#writefunctype"><code>WriteFuncType</code></a></h3>
+<pre><code class="language-cpp">using OffsetType = uint64_t;
+using SizeType = uint64_t;
+using WriteFuncType = std::function&lt;void(OffsetType, SizeType, const void*)&gt;;
+</code></pre>
+<p>A sink callback for streaming <a href="#serialize"><code>Serialize</code></a>. Each call asks you to persist <code>SizeType</code>
+bytes (at the given source pointer) at logical <code>OffsetType</code> in the output.</p>
+<h2 id="build--train"><a class="header" href="#build--train">Build &amp; train</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Build</code></td><td><code>tl::expected&lt;std::vector&lt;int64_t&gt;, Error&gt; Build(const DatasetPtr&amp; base)</code></td><td><em>(pure virtual)</em> Builds the index from all vectors. Returns the ids that failed to insert.</td></tr>
+<tr><td><code>Train</code></td><td><code>tl::expected&lt;void, Error&gt; Train(const DatasetPtr&amp; data)</code></td><td>Trains an index (e.g. IVF centroids, quantizer) without inserting.</td></tr>
+<tr><td><code>Tune</code></td><td><code>tl::expected&lt;bool, Error&gt; Tune(const std::string&amp; parameters, bool disable_future_tuning = false)</code></td><td>Applies runtime tuning. See <a href="#optimizer-tune">Optimizer (Tune)</a>.</td></tr>
+<tr><td><code>ContinueBuild</code></td><td><code>tl::expected&lt;Checkpoint, Error&gt; ContinueBuild(const DatasetPtr&amp; base, const BinarySet&amp; binary_set)</code></td><td>Adds dynamism to indexes that cannot insert incrementally; drive it with the returned <a href="#checkpoint"><code>Checkpoint</code></a>.</td></tr>
+<tr><td><code>Add</code></td><td><code>tl::expected&lt;std::vector&lt;int64_t&gt;, Error&gt; Add(const DatasetPtr&amp; base)</code></td><td>Inserts new vectors into an already-built index. Returns ids that failed to insert.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <a href="#build-and-train">Build and Train</a> and <code>examples/cpp/311_feature_train.cpp</code>.</p>
+<h2 id="update--remove"><a class="header" href="#update--remove">Update &amp; remove</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Remove</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Remove(const std::vector&lt;int64_t&gt;&amp; ids, RemoveMode mode = RemoveMode::MARK_REMOVE)</code></td><td>Removes many ids; returns the count removed.</td></tr>
+<tr><td><code>Remove</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Remove(int64_t id, RemoveMode mode = RemoveMode::MARK_REMOVE)</code></td><td>Single-id convenience overload.</td></tr>
+<tr><td><code>UpdateId</code></td><td><code>tl::expected&lt;bool, Error&gt; UpdateId(int64_t old_id, int64_t new_id)</code></td><td>Relabels a base point.</td></tr>
+<tr><td><code>UpdateVector</code></td><td><code>tl::expected&lt;bool, Error&gt; UpdateVector(int64_t id, const DatasetPtr&amp; new_base, bool force_update = false)</code></td><td>Replaces the vector for <code>id</code>. <code>force_update = false</code> performs a connectivity check.</td></tr>
+<tr><td><code>UpdateExtraInfo</code></td><td><code>tl::expected&lt;bool, Error&gt; UpdateExtraInfo(const DatasetPtr&amp; new_base)</code></td><td>Updates stored extra-info blobs.</td></tr>
+<tr><td><code>UpdateAttribute</code></td><td><code>tl::expected&lt;void, Error&gt; UpdateAttribute(int64_t id, const AttributeSet&amp; new_attrs)</code></td><td>Replaces attributes of <code>id</code>.</td></tr>
+<tr><td><code>UpdateAttribute</code></td><td><code>tl::expected&lt;void, Error&gt; UpdateAttribute(int64_t id, const AttributeSet&amp; new_attrs, const AttributeSet&amp; origin_attrs)</code></td><td>Same, but supplies the previous attributes for a faster in-place update.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <code>examples/cpp/303_feature_remove.cpp</code>.</p>
+<h2 id="search-1"><a class="header" href="#search-1">Search</a></h2>
+<p>The recommended entry point is <a href="#searchwithrequest"><code>SearchWithRequest</code></a>, which takes a single
+<a href="#searchrequest"><code>SearchRequest</code></a> carrying the query, mode, top-k / radius, and any filters.
+The older per-argument <code>KnnSearch</code> / <code>RangeSearch</code> overloads remain for compatibility.</p>
+<p>Every search returns a <code>DatasetPtr</code>: for KNN, <code>num_elements == 1</code> and <code>ids</code> / <code>distances</code> have
+length <code>k</code>; for range search, the result length is the number of matches. See <a href="#dataset">Dataset</a>
+for how to read results.</p>
+<h3 id="searchwithrequest"><a class="header" href="#searchwithrequest"><code>SearchWithRequest</code></a></h3>
+<pre><code class="language-cpp">[[nodiscard]] tl::expected&lt;DatasetPtr, Error&gt;
+SearchWithRequest(const SearchRequest&amp; request) const;
+</code></pre>
+<p>Unified KNN or range search driven by <a href="#searchrequest"><code>SearchRequest</code></a>. This is the
+preferred API for new code; it supports attribute filters, callback filters, bitset filters, a
+per-search allocator, and iterator search through one struct.</p>
+<h3 id="knnsearch-overloads"><a class="header" href="#knnsearch-overloads"><code>KnnSearch</code> overloads</a></h3>
+<pre><code class="language-cpp">// (1) bitset pre-filter — pure virtual
+tl::expected&lt;DatasetPtr, Error&gt;
+KnnSearch(const DatasetPtr&amp; query, int64_t k, const std::string&amp; parameters,
+          BitsetPtr invalid = nullptr) const;
+
+// (2) callback pre-filter — pure virtual
+tl::expected&lt;DatasetPtr, Error&gt;
+KnnSearch(const DatasetPtr&amp; query, int64_t k, const std::string&amp; parameters,
+          const std::function&lt;bool(int64_t)&gt;&amp; filter) const;
+
+// (3) Filter object
+tl::expected&lt;DatasetPtr, Error&gt;
+KnnSearch(const DatasetPtr&amp; query, int64_t k, const std::string&amp; parameters,
+          const FilterPtr&amp; filter) const;
+
+// (4) Filter + iterator context
+tl::expected&lt;DatasetPtr, Error&gt;
+KnnSearch(const DatasetPtr&amp; query, int64_t k, const std::string&amp; parameters,
+          const FilterPtr&amp; filter, IteratorContext*&amp; iter_ctx, bool is_last_search) const;
+
+// (5) SearchParam — [[deprecated]], use SearchWithRequest
+tl::expected&lt;DatasetPtr, Error&gt;
+KnnSearch(const DatasetPtr&amp; query, int64_t k, SearchParam&amp; search_param) const;
+</code></pre>
+<p>Notes on the filter argument:</p>
+<ul>
+<li>In overloads (1)/(2) the predicate/bitset marks vectors <strong>filtered out</strong>. For a <code>bitset</code>,
+<code>Test(id) == true</code> means id is excluded. For the <code>std::function</code> predicate, returning <code>true</code> means
+the id is excluded.</li>
+<li>Overload (3)/(4) take a <a href="#filter-1"><code>Filter</code></a> object, whose <code>CheckValid(id)</code> uses the
+opposite convention (<code>true</code> means <em>keep</em>). See <a href="#filtered-search">Filtered Search</a>
+for the full semantics, and <code>examples/cpp/301_feature_filter.cpp</code>.</li>
+<li>Overload (4) powers <a href="#iterator-search">Iterator Search</a>; pass the same <code>iter_ctx</code>
+across calls and set <code>is_last_search</code> on the final call.</li>
+</ul>
+<h3 id="rangesearch-overloads"><a class="header" href="#rangesearch-overloads"><code>RangeSearch</code> overloads</a></h3>
+<pre><code class="language-cpp">// (1) plain — pure virtual
+tl::expected&lt;DatasetPtr, Error&gt;
+RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; parameters,
+            int64_t limited_size = -1) const;
+
+// (2) bitset pre-filter — pure virtual
+tl::expected&lt;DatasetPtr, Error&gt;
+RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; parameters,
+            BitsetPtr invalid, int64_t limited_size = -1) const;
+
+// (3) callback pre-filter — pure virtual
+tl::expected&lt;DatasetPtr, Error&gt;
+RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; parameters,
+            const std::function&lt;bool(int64_t)&gt;&amp; filter, int64_t limited_size = -1) const;
+
+// (4) Filter object
+tl::expected&lt;DatasetPtr, Error&gt;
+RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; parameters,
+            const FilterPtr&amp; filter, int64_t limited_size = -1) const;
+</code></pre>
+<p><code>radius</code> bounds the distance; <code>limited_size</code> caps the result count (<code>&lt;= 0</code> means no limit, <code>0</code> is an
+error). See <a href="#range-search">Range Search</a> and <code>examples/cpp/302_feature_range_search.cpp</code>.</p>
+<h2 id="distance-by-id"><a class="header" href="#distance-by-id">Distance by id</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const float* vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>Distance from a dense query to the stored vector <code>id</code>.</td></tr>
+<tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const DatasetPtr&amp; vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>Same, accepting a <code>DatasetPtr</code> (works for sparse indexes such as SINDI).</td></tr>
+<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true) const</code></td><td>Batch variant; <code>-1</code> in the result marks an invalid distance.</td></tr>
+<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true) const</code></td><td>Batch variant accepting a <code>DatasetPtr</code> query.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>calculate_precise_distance = true</code> may load full-precision vectors (possibly from disk) instead of
+quantized codes. See <a href="#calculate-distance-by-id">Calculate Distance by ID</a> and
+<code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code>.</p>
+<h2 id="conjugate-graph-enhancement"><a class="header" href="#conjugate-graph-enhancement">Conjugate-graph enhancement</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Pretrain</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Pretrain(const std::vector&lt;int64_t&gt;&amp; base_tag_ids, uint32_t k, const std::string&amp; parameters)</code></td><td>Enhances chosen base vectors by searching generated queries. Returns successful insertions.</td></tr>
+<tr><td><code>Feedback</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Feedback(const DatasetPtr&amp; query, int64_t k, const std::string&amp; parameters, int64_t global_optimum_tag_id = INT64_MAX)</code></td><td>Feeds a known optimum back into the conjugate graph.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <a href="#graph-index-enhancement">Graph Enhancement</a>.</p>
+<h2 id="data-retrieval"><a class="header" href="#data-retrieval">Data retrieval</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>GetMinAndMaxId</code></td><td><code>tl::expected&lt;std::pair&lt;int64_t, int64_t&gt;, Error&gt; GetMinAndMaxId() const</code></td><td>Smallest and largest ids in the index.</td></tr>
+<tr><td><code>GetExtraInfoByIds</code></td><td><code>tl::expected&lt;void, Error&gt; GetExtraInfoByIds(const int64_t* ids, int64_t count, char* extra_infos) const</code></td><td>Copies extra-info blobs for <code>ids</code> into a caller-provided buffer.</td></tr>
+<tr><td><code>GetRawVectorByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetRawVectorByIds(const int64_t* ids, int64_t count, Allocator* specified_allocator = nullptr) const</code></td><td>Returns stored vectors. Values are <em>close to</em> the originals but not guaranteed bit-identical (quantization/precision).</td></tr>
+<tr><td><code>GetDataByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIds(const int64_t* ids, int64_t count) const</code></td><td>Returns all stored data (vectors, attributes, extra info) for <code>ids</code>.</td></tr>
+<tr><td><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>Like <code>GetDataByIds</code> but selects fields via <a href="#data-selection-flags"><code>DATA_FLAG_*</code></a>.</td></tr>
+<tr><td><code>GetIndexDetailInfos</code></td><td><code>tl::expected&lt;std::vector&lt;IndexDetailInfo&gt;, Error&gt; GetIndexDetailInfos() const</code></td><td>Lists the introspectable detail fields. See <a href="#index-detail-info"><code>IndexDetailInfo</code></a>.</td></tr>
+<tr><td><code>GetDetailDataByName</code></td><td><code>tl::expected&lt;DetailDataPtr, Error&gt; GetDetailDataByName(const std::string&amp; name, IndexDetailInfo&amp; info) const</code></td><td>Fetches one detail-data payload by name.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <a href="#index-introspection">Index Introspection</a> and
+<code>examples/cpp/317_feature_get_detail_data.cpp</code>.</p>
+<h2 id="capabilities-merge-clone-export"><a class="header" href="#capabilities-merge-clone-export">Capabilities, merge, clone, export</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>CheckFeature</code></td><td><code>bool CheckFeature(IndexFeature feature) const</code></td><td>Probes whether an optional capability is supported. See <a href="#indexfeature"><code>IndexFeature</code></a>.</td></tr>
+<tr><td><code>Merge</code></td><td><code>tl::expected&lt;void, Error&gt; Merge(const std::vector&lt;MergeUnit&gt;&amp; merge_units)</code></td><td>Merges same-type sub-indexes with id remapping. See <a href="#mergeunit-and-idmapfunction"><code>MergeUnit</code></a>.</td></tr>
+<tr><td><code>Clone</code></td><td><code>tl::expected&lt;IndexPtr, Error&gt; Clone(const std::shared_ptr&lt;Allocator&gt;&amp; allocator = nullptr) const</code></td><td>Deep-copies the index.</td></tr>
+<tr><td><code>ExportModel</code></td><td><code>tl::expected&lt;IndexPtr, Error&gt; ExportModel() const</code></td><td>Returns an empty index carrying only the trained model.</td></tr>
+<tr><td><code>ExportIDs</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; ExportIDs() const</code></td><td>Returns all ids as a dataset.</td></tr>
+<tr><td><code>SetImmutable</code></td><td><code>tl::expected&lt;void, Error&gt; SetImmutable()</code></td><td>Freezes the index; further add/delete is rejected.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <code>examples/cpp/309_feature_clone.cpp</code>, <code>310_feature_export_model.cpp</code>, and
+<code>315_feature_hgraph_merge.cpp</code>, plus <a href="#index-lifecycle-management">Index Lifecycle Management</a>.</p>
+<h2 id="serialization-1"><a class="header" href="#serialization-1">Serialization</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Serialize</code></td><td><code>tl::expected&lt;BinarySet, Error&gt; Serialize() const</code></td><td><em>(pure virtual)</em> Serializes to an in-memory <a href="#binaryset"><code>BinarySet</code></a>.</td></tr>
+<tr><td><code>Serialize</code></td><td><code>tl::expected&lt;void, Error&gt; Serialize(WriteFuncType write_func) const</code></td><td>Streams the serialized index through a <a href="#writefunctype"><code>WriteFuncType</code></a> sink.</td></tr>
+<tr><td><code>Serialize</code></td><td><code>tl::expected&lt;void, Error&gt; Serialize(std::ostream&amp; out_stream)</code></td><td>Serializes to an open output stream.</td></tr>
+<tr><td><code>Deserialize</code></td><td><code>tl::expected&lt;void, Error&gt; Deserialize(const BinarySet&amp; binary_set)</code></td><td><em>(pure virtual)</em> Restores from a <code>BinarySet</code>. Fails if the index is not empty.</td></tr>
+<tr><td><code>Deserialize</code></td><td><code>tl::expected&lt;void, Error&gt; Deserialize(const ReaderSet&amp; reader_set)</code></td><td><em>(pure virtual)</em> Restores from a <a href="#readerset"><code>ReaderSet</code></a> (e.g. on-disk readers).</td></tr>
+<tr><td><code>Deserialize</code></td><td><code>tl::expected&lt;void, Error&gt; Deserialize(std::istream&amp; in_stream)</code></td><td>Restores from an open input stream.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Deserializing onto a non-empty index yields <code>INDEX_NOT_EMPTY</code>. See <a href="#serialization">Serialization</a>
+and <code>examples/cpp/401_persistent_kv.cpp</code> / <code>402_persistent_streaming.cpp</code>.</p>
+<h2 id="cache-build-acceleration"><a class="header" href="#cache-build-acceleration">Cache (build acceleration)</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ExportCache</code></td><td><code>tl::expected&lt;void, Error&gt; ExportCache(std::ostream&amp; out_stream) const</code></td><td>Writes a build-time cache (e.g. graph neighbors) that can accelerate a later <code>Build</code>.</td></tr>
+<tr><td><code>ImportCache</code></td><td><code>tl::expected&lt;void, Error&gt; ImportCache(std::istream&amp; in_stream)</code></td><td>Loads a previously exported cache; the next <code>Build</code> reuses it.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="statistics--introspection"><a class="header" href="#statistics--introspection">Statistics &amp; introspection</a></h2>
+<p>Unless noted, these return values directly. <strong>The methods marked “throws” raise
+<code>std::runtime_error</code></strong> (not <code>tl::expected</code>) when the index does not support them.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>GetIndexType</code></td><td><code>IndexType GetIndexType() const</code></td><td><strong>Throws</strong> if unsupported.</td></tr>
+<tr><td><code>GetNumElements</code></td><td><code>int64_t GetNumElements() const</code></td><td><em>(pure virtual)</em> Live element count.</td></tr>
+<tr><td><code>GetNumberRemoved</code></td><td><code>int64_t GetNumberRemoved() const</code></td><td><strong>Throws</strong> if unsupported. Count of removed elements.</td></tr>
+<tr><td><code>GetMemoryUsage</code></td><td><code>int64_t GetMemoryUsage() const</code></td><td><em>(pure virtual)</em> Bytes occupied by the index.</td></tr>
+<tr><td><code>GetMemoryUsageDetail</code></td><td><code>std::string GetMemoryUsageDetail() const</code></td><td><strong>Throws</strong> if unsupported. Per-component memory as JSON.</td></tr>
+<tr><td><code>EstimateMemory</code></td><td><code>uint64_t EstimateMemory(uint64_t num_elements) const</code></td><td><strong>Throws</strong> if unsupported. Estimated bytes for <code>num_elements</code>.</td></tr>
+<tr><td><code>GetEstimateBuildMemory</code></td><td><code>int64_t GetEstimateBuildMemory(int64_t num_elements) const</code></td><td><strong>Throws</strong> if unsupported. Estimated peak build memory.</td></tr>
+<tr><td><code>GetStats</code></td><td><code>std::string GetStats() const</code></td><td><strong>Throws</strong> if unsupported. Runtime statistics as JSON.</td></tr>
+<tr><td><code>AnalyzeIndexBySearch</code></td><td><code>std::string AnalyzeIndexBySearch(const SearchRequest&amp; request)</code></td><td><strong>Throws</strong> if unsupported. Analysis JSON for a probe search.</td></tr>
+<tr><td><code>CheckIdExist</code></td><td><code>bool CheckIdExist(int64_t id) const</code></td><td><strong>Throws</strong> if unsupported. Whether <code>id</code> is present.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <code>examples/cpp/308_feature_estimate_memory.cpp</code>, <code>319_feature_get_memory_usage.cpp</code>, and the
+<a href="#index-analysis-analyzeindexbysearch--analyze_index">Index Analysis Tool</a>.</p>
+<h2 id="see-also-8"><a class="header" href="#see-also-8">See also</a></h2>
+<ul>
+<li><a href="#dataset">Dataset</a> — construct query/base inputs and read search results.</li>
+<li><a href="#search-request--filters">Search Request &amp; Filters</a> — the <code>SearchRequest</code> fields and filter types.</li>
+<li><a href="#serialization-types">Serialization Types</a> — <code>BinarySet</code>, <code>Binary</code>, <code>Reader</code>, <code>ReaderSet</code>.</li>
+<li><a href="#auxiliary-types">Auxiliary Types</a> — <code>IndexFeature</code>, <code>IndexDetailInfo</code>, <code>AttributeSet</code>.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="dataset"><a class="header" href="#dataset">Dataset</a></h1>
+<p><code>vsag::Dataset</code> (declared in <code>vsag/dataset.h</code>) is the universal container VSAG uses for <strong>inputs</strong>
+(base vectors to build/add, query vectors to search) and <strong>outputs</strong> (search results, retrieved
+vectors). You always hold it through <code>DatasetPtr</code>:</p>
+<pre><code class="language-cpp">using DatasetPtr = std::shared_ptr&lt;Dataset&gt;;
+</code></pre>
+<h2 id="builder-pattern"><a class="header" href="#builder-pattern">Builder pattern</a></h2>
+<p><code>Dataset</code> uses a fluent builder: <code>Make()</code> creates an instance, and every setter returns the same
+<code>DatasetPtr</code> so calls chain. Setters only store pointers/values — they do <strong>not</strong> copy your buffers.</p>
+<pre><code class="language-cpp">auto base = vsag::Dataset::Make()
+                -&gt;Dim(128)
+                -&gt;NumElements(10000)
+                -&gt;Ids(ids)                 // const int64_t*
+                -&gt;Float32Vectors(vectors)  // const float*
+                -&gt;Owner(false);            // caller keeps ownership of ids/vectors
+</code></pre>
+<h3 id="ownership"><a class="header" href="#ownership">Ownership</a></h3>
+<p>Ownership controls who frees the underlying buffers:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Call</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Owner(true)</code></td><td>The dataset owns its buffers and frees them on destruction (using the default allocator).</td></tr>
+<tr><td><code>Owner(true, allocator)</code></td><td>The dataset owns its buffers and frees them via the supplied <a href="#allocator"><code>Allocator</code></a>.</td></tr>
+<tr><td><code>Owner(false)</code></td><td>The caller keeps ownership; the dataset only borrows the pointers. They must outlive the dataset.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Use <code>Owner(false)</code> for build/query inputs you already hold. Search results returned by the index use
+<code>Owner(true)</code>, so you can read them and let the <code>DatasetPtr</code> free everything.</p>
+<pre><code class="language-cpp">DatasetPtr Make();               // static factory
+
+DatasetPtr Owner(bool is_owner, Allocator* allocator);
+DatasetPtr Owner(bool is_owner);              // uses the default allocator
+DatasetPtr Append(const DatasetPtr&amp; other);   // concatenate another dataset
+DatasetPtr DeepCopy(Allocator* allocator = nullptr) const;  // independent copy
+</code></pre>
+<h2 id="metadata"><a class="header" href="#metadata">Metadata</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Setter</th><th>Getter</th><th>Type</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>NumElements(int64_t)</code></td><td><code>GetNumElements()</code></td><td><code>int64_t</code></td><td>Number of elements (vectors/rows).</td></tr>
+<tr><td><code>Dim(int64_t)</code></td><td><code>GetDim()</code></td><td><code>int64_t</code></td><td>Dense vector dimensionality.</td></tr>
+<tr><td><code>Ids(const int64_t*)</code></td><td><code>GetIds()</code></td><td><code>const int64_t*</code></td><td>Per-element ids (length <code>NumElements</code>).</td></tr>
+<tr><td><code>Distances(const float*)</code></td><td><code>GetDistances()</code></td><td><code>const float*</code></td><td>Distances (search output; length depends on <code>k</code>/matches).</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="vector-payloads"><a class="header" href="#vector-payloads">Vector payloads</a></h2>
+<p>A dataset carries exactly one vector representation, chosen to match the index’s <code>dtype</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Setter</th><th>Getter</th><th>Element type</th><th>Use with</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Float32Vectors(const float*)</code></td><td><code>GetFloat32Vectors()</code></td><td><code>float</code></td><td><code>dtype: float32</code></td></tr>
+<tr><td><code>Float16Vectors(const uint16_t*)</code></td><td><code>GetFloat16Vectors()</code></td><td><code>uint16_t</code></td><td><code>dtype: float16</code> <strong>and</strong> <code>bfloat16</code> (raw 16-bit payload)</td></tr>
+<tr><td><code>Int8Vectors(const int8_t*)</code></td><td><code>GetInt8Vectors()</code></td><td><code>int8_t</code></td><td><code>dtype: int8</code></td></tr>
+<tr><td><code>SparseVectors(const SparseVector*)</code></td><td><code>GetSparseVectors()</code></td><td><a href="#sparsevector"><code>SparseVector</code></a></td><td><code>dtype: sparse</code> (SINDI)</td></tr>
+</tbody>
+</table>
+</div>
+<p>Dense vectors are laid out row-major: element <code>i</code>, dimension <code>j</code> lives at <code>vectors[i * dim + j]</code>.</p>
+<h3 id="multi-vector-payloads"><a class="header" href="#multi-vector-payloads">Multi-vector payloads</a></h3>
+<p>For documents that hold several dense sub-vectors each:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Setter</th><th>Getter</th><th>Type</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>MultiVectors(const MultiVector*)</code></td><td><code>GetMultiVectors()</code></td><td><a href="#multivector"><code>MultiVector</code></a></td><td>One entry per document.</td></tr>
+<tr><td><code>MultiVectorDim(int64_t)</code></td><td><code>GetMultiVectorDim()</code></td><td><code>int64_t</code></td><td>Floats per sub-vector (independent of <code>Dim</code>).</td></tr>
+<tr><td><code>VectorCounts(const uint32_t*)</code></td><td><code>GetVectorCounts()</code></td><td><code>const uint32_t*</code></td><td>Sub-vector count per document.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="metadata-payloads"><a class="header" href="#metadata-payloads">Metadata payloads</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Setter</th><th>Getter</th><th>Type</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>AttributeSets(const AttributeSet*)</code></td><td><code>GetAttributeSets()</code></td><td><a href="#attributeset"><code>AttributeSet</code></a></td><td>Per-element attributes for hybrid search.</td></tr>
+<tr><td><code>ExtraInfos(const char*)</code></td><td><code>GetExtraInfos()</code></td><td><code>const char*</code></td><td>Packed extra-info blobs.</td></tr>
+<tr><td><code>ExtraInfoSize(int64_t)</code></td><td><code>GetExtraInfoSize()</code></td><td><code>int64_t</code></td><td>Bytes per extra-info blob.</td></tr>
+<tr><td><code>Paths(const std::string*)</code></td><td><code>GetPaths()</code></td><td><code>const std::string*</code></td><td>Hierarchy paths (Pyramid). Default hierarchy.</td></tr>
+<tr><td><code>Paths(const std::string&amp; hierarchy, const std::string*)</code></td><td><code>GetPaths(const std::string&amp; hierarchy)</code></td><td><code>const std::string*</code></td><td>Paths for a named hierarchy.</td></tr>
+<tr><td><code>SourceID(const std::string*)</code></td><td><code>GetSourceID()</code></td><td><code>const std::string*</code></td><td>Optional source identifier.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <a href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a> and
+<a href="#extra-info">Extra Info</a>.</p>
+<h2 id="diagnostics-payloads"><a class="header" href="#diagnostics-payloads">Diagnostics payloads</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Setter</th><th>Getter</th><th>Type</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Statistics(const std::string&amp;)</code></td><td><code>GetStatistics()</code> / <code>GetStatistics(keys)</code></td><td><code>std::string</code> / <code>std::vector&lt;std::string&gt;</code></td><td>Serialized statistics; the keyed getter returns values for the requested keys.</td></tr>
+<tr><td><code>Reasoning(const std::string&amp;)</code></td><td><code>GetReasoning()</code></td><td><code>std::string</code></td><td>Reasoning report (JSON) explaining recall of <code>expected_labels_</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="reading-search-results"><a class="header" href="#reading-search-results">Reading search results</a></h2>
+<p>Search methods return a <code>DatasetPtr</code> you read back with the getters:</p>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(query, 10, search_params);
+if (result.has_value()) {
+    auto r = result.value();
+    for (int64_t i = 0; i &lt; r-&gt;GetDim(); ++i) {
+        int64_t id = r-&gt;GetIds()[i];
+        float dist = r-&gt;GetDistances()[i];
+    }
+}
+</code></pre>
+<p>For KNN, <code>GetNumElements()</code> is <code>1</code> and the ids/distances arrays have length <code>k</code>. For range search,
+the number of matches is reported through the result’s dimension. See
+<a href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a>.</p>
+<h2 id="sparsevector"><a class="header" href="#sparsevector"><code>SparseVector</code></a></h2>
+<pre><code class="language-cpp">struct SparseVector {
+    uint32_t len_ = 0;         // number of non-zero entries
+    uint32_t* ids_ = nullptr;  // term ids, length len_ (sorted ascending inside the index)
+    float* vals_ = nullptr;    // term weights, length len_
+
+    // optional original tokenization (order/duplicates preserved, unlike ids_)
+    uint32_t token_seq_len_ = 0;
+    uint32_t* token_sequence_ = nullptr;
+};
+</code></pre>
+<p>Sorting <code>ids_</code> ascending before insertion is recommended. <code>token_sequence_</code> is optional and only
+used by indexes that consume raw token order.</p>
+<h2 id="multivector"><a class="header" href="#multivector"><code>MultiVector</code></a></h2>
+<pre><code class="language-cpp">struct MultiVector {
+    uint32_t len_ = 0;          // number of sub-vectors in this document
+    float* vectors_ = nullptr;  // flat array of len_ * MultiVectorDim floats
+};
+</code></pre>
+<p>When <code>Owner(true)</code> is set, each element’s <code>vectors_</code> must be independently allocated, because the
+destructor frees each <code>vectors_</code> separately.</p>
+<h2 id="see-also-9"><a class="header" href="#see-also-9">See also</a></h2>
+<ul>
+<li><a href="#index">Index</a> — the methods that consume and return datasets.</li>
+<li><a href="#search-request--filters">Search Request &amp; Filters</a> — wrapping a query dataset in a <code>SearchRequest</code>.</li>
+<li><a href="#auxiliary-types">Auxiliary Types</a> — <code>AttributeSet</code> and attribute value types.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="search-request--filters"><a class="header" href="#search-request--filters">Search Request &amp; Filters</a></h1>
+<p>This page covers the types that describe <em>how</em> to search: the unified
+<a href="#searchrequest"><code>SearchRequest</code></a>, the filtering primitives <a href="#filter-1"><code>Filter</code></a> and
+<a href="#bitset"><code>Bitset</code></a>, and the <a href="#iteratorcontext"><code>IteratorContext</code></a> used for incremental search. The
+deprecated <a href="#searchparam-deprecated"><code>SearchParam</code></a> is documented at the end for migration.</p>
+<h2 id="searchrequest"><a class="header" href="#searchrequest"><code>SearchRequest</code></a></h2>
+<p>Declared in <code>vsag/search_request.h</code>. <code>SearchRequest</code> is a plain struct that bundles every option for
+<a href="#searchwithrequest"><code>Index::SearchWithRequest</code></a>. Fill in the fields you need and leave
+the rest at their defaults.</p>
+<pre><code class="language-cpp">vsag::SearchRequest request;
+request.query_ = query;      // DatasetPtr with one query vector
+request.mode_ = vsag::SearchMode::KNN_SEARCH;
+request.topk_ = 10;
+request.params_str_ = R"({"hgraph": {"ef_search": 100}})";
+
+auto result = index-&gt;SearchWithRequest(request);
+</code></pre>
+<h3 id="searchmode"><a class="header" href="#searchmode"><code>SearchMode</code></a></h3>
+<pre><code class="language-cpp">enum class SearchMode {
+    KNN_SEARCH = 1,    // return the top-k nearest vectors
+    RANGE_SEARCH = 2,  // return all vectors within radius_
+};
+</code></pre>
+<h3 id="basic-fields"><a class="header" href="#basic-fields">Basic fields</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>query_</code></td><td><code>DatasetPtr</code></td><td><code>nullptr</code></td><td>The query. Exactly one query vector is allowed.</td></tr>
+<tr><td><code>mode_</code></td><td><code>SearchMode</code></td><td><code>KNN_SEARCH</code></td><td>KNN vs. range search.</td></tr>
+<tr><td><code>topk_</code></td><td><code>int64_t</code></td><td><code>10</code></td><td>Neighbors to return (KNN mode). Must be positive.</td></tr>
+<tr><td><code>radius_</code></td><td><code>float</code></td><td><code>0.5</code></td><td>Distance threshold (range mode). Non-negative.</td></tr>
+<tr><td><code>limited_size_</code></td><td><code>int64_t</code></td><td><code>-1</code></td><td>Cap on range results; <code>-1</code> means no limit.</td></tr>
+<tr><td><code>params_str_</code></td><td><code>std::string</code></td><td><code>""</code></td><td>Algorithm-specific search params as JSON (e.g. <code>ef_search</code>).</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="filtering-fields"><a class="header" href="#filtering-fields">Filtering fields</a></h3>
+<p>Three filtering mechanisms are available and are combined with logical <strong>AND</strong> when more than one is
+enabled.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>enable_attribute_filter_</code></td><td><code>bool</code></td><td><code>false</code></td><td>Enable SQL-style attribute filtering.</td></tr>
+<tr><td><code>attribute_filter_str_</code></td><td><code>std::string</code></td><td><code>""</code></td><td>The filter expression (see below). Requires <code>enable_attribute_filter_</code>.</td></tr>
+<tr><td><code>enable_filter_</code></td><td><code>bool</code></td><td><code>false</code></td><td>Enable a custom <a href="#filter-1"><code>Filter</code></a> callback.</td></tr>
+<tr><td><code>filter_</code></td><td><code>FilterPtr</code></td><td><code>nullptr</code></td><td>The filter object. Requires <code>enable_filter_</code>.</td></tr>
+<tr><td><code>enable_bitset_filter_</code></td><td><code>bool</code></td><td><code>false</code></td><td>Enable a <a href="#bitset"><code>Bitset</code></a> filter.</td></tr>
+<tr><td><code>bitset_filter_</code></td><td><code>BitsetPtr</code></td><td><code>nullptr</code></td><td>The bitset. <code>Test(id) == true</code> <strong>excludes</strong> id. Requires <code>enable_bitset_filter_</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The <code>attribute_filter_str_</code> grammar is SQL-like. Examples:</p>
+<pre><code class="language-text">category = 'electronics' AND price != 1000
+multi_in(category, ['electronics', 'clothing']) AND multi_notin(color, ['red', 'blue'])
+</code></pre>
+<p>See <a href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a> and
+<a href="#filtered-search">Filtered Search</a>.</p>
+<h3 id="resource--iterator-fields"><a class="header" href="#resource--iterator-fields">Resource &amp; iterator fields</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>search_allocator_</code></td><td><code>Allocator*</code></td><td><code>nullptr</code></td><td>Per-search allocator; falls back to the index allocator when null.</td></tr>
+<tr><td><code>enable_iterator_search_</code></td><td><code>bool</code></td><td><code>false</code></td><td>Enable incremental (iterator) search.</td></tr>
+<tr><td><code>p_iter_ctx_</code></td><td><code>IteratorContext**</code></td><td><code>nullptr</code></td><td>Handle to the iterator state, reused across calls.</td></tr>
+<tr><td><code>is_last_search_</code></td><td><code>bool</code></td><td><code>false</code></td><td>Marks the final call of an iterator sequence.</td></tr>
+<tr><td><code>expected_labels_</code></td><td><code>std::vector&lt;int64_t&gt;</code></td><td><code>{}</code></td><td>Ids expected in the result; enables reasoning analysis of missed recalls.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <a href="#per-search-allocator">Per-Search Allocator</a> and
+<a href="#iterator-search">Iterator Search</a>, plus <code>examples/cpp/313</code>/<code>314</code> for the allocator.</p>
+<h2 id="filter-1"><a class="header" href="#filter-1"><code>Filter</code></a></h2>
+<p>Declared in <code>vsag/filter.h</code>. Implement this abstract class to express arbitrary “keep this id?”
+logic. Hold it through <code>FilterPtr</code> (<code>std::shared_ptr&lt;Filter&gt;</code>).</p>
+<pre><code class="language-cpp">class Filter {
+public:
+    enum class Distribution { NONE = 0, RELATED_TO_VECTOR };
+
+    virtual bool CheckValid(int64_t id) const = 0;          // true  =&gt; KEEP the id
+    virtual bool CheckValid(const char* data) const;         // extra-info variant (default true)
+    virtual float ValidRatio() const;                        // fraction kept (default 1.0)
+    virtual Distribution FilterDistribution() const;         // hint (default NONE)
+    virtual void GetValidIds(const int64_t** valid_ids, int64_t&amp; count) const;
+};
+</code></pre>
+<blockquote>
+<p><strong>Convention:</strong> <code>Filter::CheckValid(id)</code> returns <code>true</code> to <strong>keep</strong> a vector. This is the opposite
+of the <code>bitset</code> / <code>std::function&lt;bool(int64_t)&gt;</code> pre-filter overloads on
+<a href="#knnsearch-overloads"><code>Index</code></a>, where <code>true</code> means <em>filtered out</em>. Keep this
+distinction in mind when choosing an overload.</p>
+</blockquote>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Member</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>CheckValid(int64_t id)</code></td><td>Core predicate. <code>true</code> keeps the id in results.</td></tr>
+<tr><td><code>CheckValid(const char* data)</code></td><td>Predicate over an element’s extra-info bytes. Defaults to <code>true</code>.</td></tr>
+<tr><td><code>ValidRatio()</code></td><td>Estimated fraction of vectors that pass; lets the engine pick a strategy.</td></tr>
+<tr><td><code>FilterDistribution()</code></td><td><code>RELATED_TO_VECTOR</code> hints validity correlates with vector position.</td></tr>
+<tr><td><code>GetValidIds(...)</code></td><td>Optionally expose the explicit valid-id set.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <code>examples/cpp/301_feature_filter.cpp</code>.</p>
+<h2 id="bitset"><a class="header" href="#bitset"><code>Bitset</code></a></h2>
+<p>Declared in <code>vsag/bitset.h</code>. A compact set of bit flags keyed by position, held through <code>BitsetPtr</code>.
+It is used both as a filtering input and as a utility (e.g. the result of
+<a href="#utility-functions"><code>l2_and_filtering</code></a>).</p>
+<pre><code class="language-cpp">static BitsetPtr Random(int64_t length);  // random bitset of the given length
+static BitsetPtr Make();                  // empty bitset
+
+void Set(int64_t pos, bool value);
+void Set(int64_t pos);       // = Set(pos, true)
+bool Test(int64_t pos) const;
+uint64_t Count();            // number of set bits
+std::string Dump();          // debug dump
+</code></pre>
+<blockquote>
+<p>When a <code>Bitset</code> is used as a search pre-filter (<code>bitset_filter_</code>, or the <code>invalid</code> argument of
+<code>KnnSearch</code> / <code>RangeSearch</code>), <code>Test(id) == true</code> means the id is <strong>filtered out</strong>.</p>
+</blockquote>
+<h2 id="iteratorcontext"><a class="header" href="#iteratorcontext"><code>IteratorContext</code></a></h2>
+<p>Declared in <code>vsag/iterator_context.h</code>. An opaque handle that stores the position of an in-progress
+iterator search so that subsequent calls resume where the previous one stopped.</p>
+<pre><code class="language-cpp">class IteratorContext {
+public:
+    virtual ~IteratorContext() = default;
+};
+</code></pre>
+<p>You do not construct or inspect it directly. VSAG allocates it on the first iterator search; pass the
+same handle back (via <code>SearchRequest::p_iter_ctx_</code>, or the <code>KnnSearch</code> iterator overload) on each
+subsequent call, and set the last-search flag on the final call so the engine can release it. See
+<a href="#iterator-search">Iterator Search</a>.</p>
+<h2 id="searchparam-deprecated"><a class="header" href="#searchparam-deprecated"><code>SearchParam</code> (deprecated)</a></h2>
+<p>Declared in <code>vsag/search_param.h</code>. <code>SearchParam</code> predates <code>SearchRequest</code> and is retained only for
+the deprecated <code>KnnSearch(query, k, SearchParam&amp;)</code> overload.</p>
+<pre><code class="language-cpp">struct SearchParam {  // [[deprecated]] use SearchRequest
+    bool is_iter_filter{false};
+    bool is_last_search{false};
+    const std::string&amp; parameters;
+    FilterPtr filter{nullptr};
+    Allocator* allocator{nullptr};
+    IteratorContext* iter_ctx{nullptr};
+};
+</code></pre>
+<p><strong>Prefer <a href="#searchrequest"><code>SearchRequest</code></a> + <a href="#searchwithrequest"><code>SearchWithRequest</code></a>
+for all new code.</strong> <code>SearchParam</code> holds <code>parameters</code> by reference, so the referenced string must
+outlive the call.</p>
+<h2 id="see-also-10"><a class="header" href="#see-also-10">See also</a></h2>
+<ul>
+<li><a href="#index">Index</a> — the search methods that consume these types.</li>
+<li><a href="#dataset">Dataset</a> — building the <code>query_</code> and reading results.</li>
+<li><a href="#auxiliary-types">Auxiliary Types</a> — attribute value types used by attribute filters.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="serialization-types"><a class="header" href="#serialization-types">Serialization Types</a></h1>
+<p>VSAG can persist an index in two shapes: an in-memory <a href="#binaryset"><code>BinarySet</code></a> (a named collection
+of byte blobs) or, for on-disk / streaming scenarios, a <a href="#readerset"><code>ReaderSet</code></a> of lazy
+<a href="#reader"><code>Reader</code></a> objects. These types are the payloads passed to
+<a href="#serialization-1"><code>Index::Serialize</code> / <code>Index::Deserialize</code></a>.</p>
+<p>For end-to-end workflows and stream-based serialization, see
+<a href="#serialization">Serialization</a> and <code>examples/cpp/401_persistent_kv.cpp</code> /
+<code>402_persistent_streaming.cpp</code>.</p>
+<h2 id="binary"><a class="header" href="#binary"><code>Binary</code></a></h2>
+<p>Declared in <code>vsag/binaryset.h</code>. A single named byte buffer with its length.</p>
+<pre><code class="language-cpp">struct Binary {
+    std::shared_ptr&lt;int8_t[]&gt; data;  // the bytes
+    uint64_t size;                   // number of bytes
+};
+</code></pre>
+<p>The <code>shared_ptr</code> owns the buffer, so a <code>Binary</code> can be copied and stored freely without worrying
+about lifetime.</p>
+<h2 id="binaryset"><a class="header" href="#binaryset"><code>BinarySet</code></a></h2>
+<p>Declared in <code>vsag/binaryset.h</code>. A string-keyed map of <code>Binary</code> blobs — the standard in-memory
+serialization container. An index serializes itself into several named parts (graph, vectors,
+quantizer, etc.), all gathered in one <code>BinarySet</code>.</p>
+<pre><code class="language-cpp">class BinarySet {
+public:
+    void Set(const std::string&amp; name, Binary binary);   // store a blob
+    Binary Get(const std::string&amp; name) const;          // {nullptr, 0} if absent
+    std::vector&lt;std::string&gt; GetKeys() const;            // all stored names
+    bool Contains(const std::string&amp; key) const;
+};
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Set(name, binary)</code></td><td>Stores <code>binary</code> under <code>name</code>, overwriting any existing entry.</td></tr>
+<tr><td><code>Get(name)</code></td><td>Returns the blob, or an empty <code>Binary{nullptr, 0}</code> if the name is absent.</td></tr>
+<tr><td><code>GetKeys()</code></td><td>Returns every stored name.</td></tr>
+<tr><td><code>Contains(key)</code></td><td>Whether a blob is stored under <code>key</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">// Serialize to a BinarySet, then persist each part however you like.
+auto serialized = index-&gt;Serialize();
+if (serialized.has_value()) {
+    vsag::BinarySet bs = serialized.value();
+    for (const auto&amp; key : bs.GetKeys()) {
+        vsag::Binary part = bs.Get(key);
+        // write part.data[0 .. part.size) to your store, keyed by `key`
+    }
+}
+</code></pre>
+<p>To restore, rebuild the <code>BinarySet</code> from your store and call
+<a href="#serialization-1"><code>Deserialize(const BinarySet&amp;)</code></a> on a fresh (empty) index.</p>
+<h2 id="reader"><a class="header" href="#reader"><code>Reader</code></a></h2>
+<p>Declared in <code>vsag/readerset.h</code>. An abstract source of bytes that the index reads on demand — the
+basis for deserializing large, disk-resident indexes without loading everything into memory. Obtain a
+local-file reader from <a href="#createlocalfilereader"><code>Factory::CreateLocalFileReader</code></a>,
+or implement <code>Reader</code> for a custom backend (object storage, mmap, etc.). Hold it through <code>ReaderPtr</code>
+(<code>std::shared_ptr&lt;Reader&gt;</code>).</p>
+<pre><code class="language-cpp">class Reader {
+public:
+    virtual void Read(uint64_t offset, uint64_t len, void* dest) = 0;                  // sync
+    virtual void AsyncRead(uint64_t offset, uint64_t len, void* dest, CallBack cb) = 0; // async
+    virtual bool MultiRead(uint8_t* dests, const uint64_t* lens,
+                           const uint64_t* offsets, uint64_t count);                    // batched
+    virtual uint64_t Size() const = 0;
+};
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Read(offset, len, dest)</code></td><td>Synchronously copy <code>len</code> bytes from <code>offset</code> into <code>dest</code>. Thread-safe.</td></tr>
+<tr><td><code>AsyncRead(offset, len, dest, callback)</code></td><td>Asynchronous read; <code>callback</code> is invoked with an <a href="#ioerrorcode"><code>IOErrorCode</code></a> and message on completion.</td></tr>
+<tr><td><code>MultiRead(dests, lens, offsets, count)</code></td><td>Perform <code>count</code> synchronous reads in one call; returns <code>false</code> on any failure.</td></tr>
+<tr><td><code>Size()</code></td><td>Total size of the underlying source in bytes.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="ioerrorcode"><a class="header" href="#ioerrorcode"><code>IOErrorCode</code></a></h3>
+<pre><code class="language-cpp">enum class IOErrorCode {
+    IO_SUCCESS = 0,  // operation succeeded
+    IO_ERROR = 1,    // general I/O error
+    IO_TIMEOUT = 2,  // operation timed out
+};
+</code></pre>
+<h3 id="callback"><a class="header" href="#callback"><code>CallBack</code></a></h3>
+<pre><code class="language-cpp">using CallBack = std::function&lt;void(IOErrorCode code, const std::string&amp; message)&gt;;
+</code></pre>
+<p>The completion handler for <code>AsyncRead</code>.</p>
+<h2 id="readerset"><a class="header" href="#readerset"><code>ReaderSet</code></a></h2>
+<p>Declared in <code>vsag/readerset.h</code>. A string-keyed map of <code>Reader</code> objects — the streaming analogue of
+<code>BinarySet</code>. Each named part of a serialized index maps to a <code>Reader</code> that fetches that part on
+demand. Pass a fully populated <code>ReaderSet</code> to
+<a href="#serialization-1"><code>Deserialize(const ReaderSet&amp;)</code></a>.</p>
+<pre><code class="language-cpp">class ReaderSet {
+public:
+    void Set(const std::string&amp; name, ReaderPtr reader);
+    ReaderPtr Get(const std::string&amp; name) const;   // nullptr if absent
+    std::vector&lt;std::string&gt; GetKeys() const;
+    bool Contains(const std::string&amp; key) const;
+};
+</code></pre>
+<p>The method semantics mirror <a href="#binaryset"><code>BinarySet</code></a>, except values are <code>ReaderPtr</code> instead of
+<code>Binary</code>.</p>
+<pre><code class="language-cpp">vsag::ReaderSet readers;
+readers.Set("graph", vsag::Factory::CreateLocalFileReader("index.graph", 0, graph_size));
+readers.Set("vectors", vsag::Factory::CreateLocalFileReader("index.vectors", 0, vec_size));
+
+auto fresh = vsag::Factory::CreateIndex("hgraph", params).value();
+fresh-&gt;Deserialize(readers);
+</code></pre>
+<h2 id="see-also-11"><a class="header" href="#see-also-11">See also</a></h2>
+<ul>
+<li><a href="#serialization-1">Index</a> — the <code>Serialize</code> / <code>Deserialize</code> method family.</li>
+<li><a href="#createlocalfilereader">Factory &amp; Engine</a> — creating file-backed readers.</li>
+<li><a href="#serialization">Serialization</a> — full persistence guide.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="resource-management"><a class="header" href="#resource-management">Resource Management</a></h1>
+<p>VSAG lets you take control of the memory and threads it uses. This page covers
+<a href="#allocator"><code>Allocator</code></a> (custom memory management), <a href="#threadpool"><code>ThreadPool</code></a> (custom
+concurrency), <a href="#resource"><code>Resource</code></a> (a bundle of the two shared by an <a href="#engine"><code>Engine</code></a>),
+the process-wide <a href="#options"><code>Options</code></a> singleton, and the pluggable <a href="#logger-1"><code>Logger</code></a>.</p>
+<p>Runnable samples: <code>examples/cpp/201_custom_allocator.cpp</code>, <code>202_custom_logger.cpp</code>, and
+<code>203_custom_thread_pool.cpp</code>. See also <a href="#memory-management">Memory Management</a> and
+<a href="#extensibility">Extensibility</a>.</p>
+<h2 id="allocator"><a class="header" href="#allocator"><code>Allocator</code></a></h2>
+<p>Declared in <code>vsag/allocator.h</code>. An abstract interface for custom memory management. Implement it to
+route all of an index’s allocations through your own pool, arena, or accounting layer, then pass it to
+<a href="#createindex"><code>Factory::CreateIndex</code></a> or a <a href="#resource"><code>Resource</code></a>.</p>
+<pre><code class="language-cpp">class Allocator {
+public:
+    virtual std::string Name() = 0;
+    virtual void* Allocate(uint64_t size) = 0;
+    virtual void Deallocate(void* p) = 0;
+    virtual void* Reallocate(void* p, uint64_t size) = 0;
+
+    template &lt;typename T, typename... Args&gt; T* New(Args&amp;&amp;... args);  // Allocate + construct
+    template &lt;typename T&gt; void Delete(T* p);                          // destruct + Deallocate
+};
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Member</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Name()</code></td><td>Identifier for the allocator implementation (used in diagnostics).</td></tr>
+<tr><td><code>Allocate(size)</code></td><td>Return a block of at least <code>size</code> bytes.</td></tr>
+<tr><td><code>Deallocate(p)</code></td><td>Free a block previously returned by this allocator.</td></tr>
+<tr><td><code>Reallocate(p, size)</code></td><td>Resize a block, preserving contents.</td></tr>
+<tr><td><code>New&lt;T&gt;(args...)</code></td><td>Helper: allocate and construct a <code>T</code>; frees and rethrows if the constructor throws.</td></tr>
+<tr><td><code>Delete&lt;T&gt;(p)</code></td><td>Helper: destruct <code>*p</code> and free its storage (null-safe).</td></tr>
+</tbody>
+</table>
+</div>
+<p>An allocator passed to an index must outlive that index. VSAG’s built-in allocator is available via
+<a href="#static-resource-helpers"><code>Engine::CreateDefaultAllocator</code></a>.</p>
+<h2 id="threadpool"><a class="header" href="#threadpool"><code>ThreadPool</code></a></h2>
+<p>Declared in <code>vsag/thread_pool.h</code>. An abstract task executor. Supply your own to make VSAG share your
+application’s threads instead of spawning its own.</p>
+<pre><code class="language-cpp">class ThreadPool {
+public:
+    virtual void WaitUntilEmpty() = 0;
+    virtual void SetQueueSizeLimit(std::uint64_t limit) = 0;
+    virtual void SetPoolSize(std::uint64_t limit) = 0;
+    virtual std::future&lt;void&gt; Enqueue(std::function&lt;void(void)&gt; task) = 0;
+};
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Member</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>WaitUntilEmpty()</code></td><td>Block until all enqueued tasks finish.</td></tr>
+<tr><td><code>SetQueueSizeLimit(limit)</code></td><td>Cap the pending-task queue; behavior past the cap is implementation-defined.</td></tr>
+<tr><td><code>SetPoolSize(limit)</code></td><td>Cap the number of worker threads.</td></tr>
+<tr><td><code>Enqueue(task)</code></td><td>Submit a task; returns a <code>std::future&lt;void&gt;</code> for its completion.</td></tr>
+</tbody>
+</table>
+</div>
+<p>A ready-made pool can be created with
+<a href="#static-resource-helpers"><code>Engine::CreateThreadPool</code></a>.</p>
+<h2 id="resource"><a class="header" href="#resource"><code>Resource</code></a></h2>
+<p>Declared in <code>vsag/resource.h</code>. A <code>Resource</code> bundles an <a href="#allocator"><code>Allocator</code></a> and a
+<a href="#threadpool"><code>ThreadPool</code></a> so that an <a href="#engine"><code>Engine</code></a> — and every index it
+creates — can share them.</p>
+<pre><code class="language-cpp">class Resource {
+public:
+    explicit Resource(Allocator* allocator, ThreadPool* thread_pool);
+    explicit Resource(const std::shared_ptr&lt;Allocator&gt;&amp; allocator,
+                      const std::shared_ptr&lt;ThreadPool&gt;&amp; thread_pool);
+    explicit Resource();  // default allocator, no thread pool
+
+    std::shared_ptr&lt;Allocator&gt; GetAllocator() const;
+    std::shared_ptr&lt;ThreadPool&gt; GetThreadPool() const;
+};
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Constructor / method</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Resource(Allocator*, ThreadPool*)</code></td><td>Use raw pointers you own. A null allocator means “create and own a default”; a null thread pool means “no pool”.</td></tr>
+<tr><td><code>Resource(shared_ptr, shared_ptr)</code></td><td>Same, with shared ownership.</td></tr>
+<tr><td><code>Resource()</code></td><td>Default allocator, no thread pool.</td></tr>
+<tr><td><code>GetAllocator()</code></td><td>The resource’s allocator (a default one if none was supplied).</td></tr>
+<tr><td><code>GetThreadPool()</code></td><td>The resource’s thread pool, or null if none was supplied.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-cpp">auto alloc = vsag::Engine::CreateDefaultAllocator();
+auto pool = vsag::Engine::CreateThreadPool(4).value();
+vsag::Resource resource(alloc, pool);
+vsag::Engine engine(&amp;resource);
+auto index = engine.CreateIndex("hgraph", params);
+</code></pre>
+<h2 id="options"><a class="header" href="#options"><code>Options</code></a></h2>
+<p>Declared in <code>vsag/options.h</code>. A process-wide singleton for global configuration, accessed via
+<code>Options::Instance()</code>. Thread-safe. <code>Option</code> is a type alias for <code>Options</code>.</p>
+<pre><code class="language-cpp">vsag::Options::Instance().set_num_threads_building(8);
+vsag::Options::Instance().set_logger(&amp;my_logger);
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Setting</th><th>Accessors</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td>IO threads</td><td><code>num_threads_io()</code> / <code>set_num_threads_io(n)</code></td><td><code>8</code></td><td>Threads for disk-index IO during search (1–200).</td></tr>
+<tr><td>Build threads</td><td><code>num_threads_building()</code> / <code>set_num_threads_building(n)</code></td><td><code>4</code></td><td>Threads for constructing an index.</td></tr>
+<tr><td>Block size limit</td><td><code>block_size_limit()</code> / <code>set_block_size_limit(bytes)</code></td><td><code>128 MB</code></td><td>Max bytes per allocation block (must be &gt; 2 MB).</td></tr>
+<tr><td>Direct-IO align</td><td><code>direct_IO_object_align_bit()</code> / <code>set_direct_IO_object_align_bit(bits)</code></td><td><code>9</code></td><td>Direct-IO object alignment, in bits (&lt; 21).</td></tr>
+<tr><td>Logger</td><td><code>logger()</code> / <code>set_logger(Logger*)</code></td><td><code>nullptr</code></td><td>Active <a href="#logger-1"><code>Logger</code></a>; returns <code>true</code> on set.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="logger-1"><a class="header" href="#logger-1"><code>Logger</code></a></h2>
+<p>Declared in <code>vsag/logger.h</code>. An abstract logging sink. Implement it and register it via
+<code>Options::set_logger</code> to route VSAG’s log output through your application’s logging system.</p>
+<p>The built-in logger defaults to <code>info</code>. Set <code>VSAG_LOG_LEVEL</code> before the built-in logger is
+created to choose <code>trace</code>, <code>debug</code>, <code>info</code>, <code>warn</code>/<code>warning</code>, <code>error</code>, <code>critical</code>, or <code>off</code>. Invalid
+values are ignored and keep the default level. An explicit <code>SetLevel</code> call still overrides the
+environment-derived level.</p>
+<pre><code class="language-cpp">class Logger {
+public:
+    enum Level : int {
+        kTRACE = 0, kDEBUG = 1, kINFO = 2, kWARN = 3, kERR = 4, kCRITICAL = 5, kOFF = 6, kN_LEVELS
+    };
+
+    virtual void SetLevel(Level log_level) = 0;
+    virtual void Trace(const std::string&amp; msg) = 0;
+    virtual void Debug(const std::string&amp; msg) = 0;
+    virtual void Info(const std::string&amp; msg) = 0;
+    virtual void Warn(const std::string&amp; msg) = 0;
+    virtual void Error(const std::string&amp; msg) = 0;
+    virtual void Critical(const std::string&amp; msg) = 0;
+};
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Member</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>SetLevel(level)</code></td><td>Only messages at or above <code>level</code> are emitted. <code>kOFF</code> disables logging.</td></tr>
+<tr><td><code>Trace</code> / <code>Debug</code> / <code>Info</code> / <code>Warn</code> / <code>Error</code> / <code>Critical</code></td><td>Emit a message at the corresponding severity.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See <code>examples/cpp/202_custom_logger.cpp</code>.</p>
+<h2 id="see-also-12"><a class="header" href="#see-also-12">See also</a></h2>
+<ul>
+<li><a href="#factory--engine">Factory &amp; Engine</a> — how <code>Engine</code> consumes a <code>Resource</code>.</li>
+<li><a href="#index">Index</a> — per-call allocators on retrieval and search methods.</li>
+<li><a href="#resource--iterator-fields">Search Request &amp; Filters</a> — the per-search allocator field.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="auxiliary-types"><a class="header" href="#auxiliary-types">Auxiliary Types</a></h1>
+<p>This page gathers the remaining public types: the <a href="#attributes">attribute</a> system used for hybrid
+(attribute-filtered) search, the <a href="#indexfeature"><code>IndexFeature</code></a> capability flags, the
+<a href="#index-detail-info">index detail info</a> introspection types, the <a href="#utility-functions">utility functions</a>
+in <code>utils.h</code>, and the string <a href="#constants">constants</a> in <code>constants.h</code>.</p>
+<h2 id="attributes"><a class="header" href="#attributes">Attributes</a></h2>
+<p>Declared in <code>vsag/attribute.h</code>. Attributes are typed, named metadata attached to each vector, enabling
+SQL-style filtering during search (see
+<a href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a>).</p>
+<h3 id="attrvaluetype"><a class="header" href="#attrvaluetype"><code>AttrValueType</code></a></h3>
+<pre><code class="language-cpp">enum AttrValueType {
+    INT32 = 1, UINT32 = 2, INT64 = 3, UINT64 = 4,
+    INT8 = 5, UINT8 = 6, INT16 = 7, UINT16 = 8,
+    STRING = 9,
+};
+</code></pre>
+<p>The element type carried by an attribute.</p>
+<h3 id="attribute"><a class="header" href="#attribute"><code>Attribute</code></a></h3>
+<pre><code class="language-cpp">class Attribute {
+public:
+    std::string name_{};
+
+    virtual AttrValueType GetValueType() const = 0;
+    virtual uint64_t GetValueCount() const = 0;
+    virtual Attribute* DeepCopy() const = 0;
+    virtual bool Equal(const Attribute* other) const = 0;
+};
+using AttributePtr = std::shared_ptr&lt;Attribute&gt;;
+</code></pre>
+<p>An abstract, named attribute. Each attribute may hold multiple values (<code>GetValueCount()</code>), so a single
+field can represent a multi-valued tag set.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Member</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>name_</code></td><td>The attribute (field) name.</td></tr>
+<tr><td><code>GetValueType()</code></td><td>The <a href="#attrvaluetype"><code>AttrValueType</code></a> of the stored values.</td></tr>
+<tr><td><code>GetValueCount()</code></td><td>Number of values held.</td></tr>
+<tr><td><code>DeepCopy()</code></td><td>Allocate an independent copy.</td></tr>
+<tr><td><code>Equal(other)</code></td><td>Value equality against another attribute.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="attributevaluet"><a class="header" href="#attributevaluet"><code>AttributeValue&lt;T&gt;</code></a></h3>
+<pre><code class="language-cpp">template &lt;class T&gt;
+class AttributeValue : public Attribute {
+public:
+    AttrValueType GetValueType() const override;
+    uint64_t GetValueCount() const override;
+    std::vector&lt;T&gt;&amp; GetValue();
+    const std::vector&lt;T&gt;&amp; GetValue() const;
+    Attribute* DeepCopy() const override;
+    bool Equal(const Attribute* other) const override;
+};
+</code></pre>
+<p>The concrete, typed implementation of <code>Attribute</code>. Instantiate it with the C++ type matching the
+desired <a href="#attrvaluetype"><code>AttrValueType</code></a> (e.g. <code>AttributeValue&lt;int32_t&gt;</code>, <code>AttributeValue&lt;std::string&gt;</code>),
+set <code>name_</code>, and push values into <code>GetValue()</code>.</p>
+<pre><code class="language-cpp">auto tag = std::make_shared&lt;vsag::AttributeValue&lt;int32_t&gt;&gt;();
+tag-&gt;name_ = "category";
+tag-&gt;GetValue().push_back(7);
+</code></pre>
+<h3 id="attributeset"><a class="header" href="#attributeset"><code>AttributeSet</code></a></h3>
+<pre><code class="language-cpp">struct AttributeSet {
+    std::vector&lt;Attribute*&gt; attrs_;
+};
+</code></pre>
+<p>A bag of attributes describing one element. Attach a per-element array of <code>AttributeSet</code> to a
+<a href="#metadata-payloads"><code>Dataset</code></a> via <code>AttributeSets(...)</code>, or pass one to
+<a href="#update--remove"><code>Index::UpdateAttribute</code></a>.</p>
+<h2 id="indexfeature"><a class="header" href="#indexfeature"><code>IndexFeature</code></a></h2>
+<p>Declared in <code>vsag/index_features.h</code>. An enum of optional capabilities you can probe with
+<a href="#checkfeature"><code>Index::CheckFeature</code></a> before calling an optional method.</p>
+<pre><code class="language-cpp">enum IndexFeature {
+    NEED_TRAIN = 1,
+    SUPPORT_BUILD,
+    SUPPORT_ADD_AFTER_BUILD,
+    SUPPORT_KNN_SEARCH,
+    SUPPORT_RANGE_SEARCH,
+    SUPPORT_DELETE_BY_ID,
+    SUPPORT_SERIALIZE_BINARY_SET,
+    SUPPORT_CAL_DISTANCE_BY_ID,
+    SUPPORT_MERGE_INDEX,
+    SUPPORT_CLONE,
+    /* ... many more ... */
+    INDEX_FEATURE_COUNT   // sentinel; always the last value
+};
+</code></pre>
+<p>The enum groups capabilities into families:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Family</th><th>Examples</th></tr>
+</thead>
+<tbody>
+<tr><td>Lifecycle</td><td><code>NEED_TRAIN</code>, <code>SUPPORT_BUILD</code>, <code>SUPPORT_ADD_AFTER_BUILD</code>, <code>SUPPORT_ADD_FROM_EMPTY</code>, <code>SUPPORT_RESET</code></td></tr>
+<tr><td>Search</td><td><code>SUPPORT_KNN_SEARCH</code>, <code>SUPPORT_RANGE_SEARCH</code>, <code>SUPPORT_*_WITH_ID_FILTER</code>, <code>SUPPORT_KNN_ITERATOR_FILTER_SEARCH</code>, <code>SUPPORT_BATCH_SEARCH</code></td></tr>
+<tr><td>Metric</td><td><code>SUPPORT_METRIC_TYPE_L2</code>, <code>SUPPORT_METRIC_TYPE_INNER_PRODUCT</code>, <code>SUPPORT_METRIC_TYPE_COSINE</code></td></tr>
+<tr><td>Serialization</td><td><code>SUPPORT_SERIALIZE_FILE</code> / <code>_BINARY_SET</code> / <code>_WRITE_FUNC</code>, <code>SUPPORT_DESERIALIZE_FILE</code> / <code>_BINARY_SET</code> / <code>_READER_SET</code></td></tr>
+<tr><td>Concurrency</td><td><code>SUPPORT_ADD_CONCURRENT</code>, <code>SUPPORT_SEARCH_CONCURRENT</code>, <code>SUPPORT_ADD_SEARCH_DELETE_CONCURRENT</code>, and the <code>SUPPORT_*_WITH_MULTI_THREAD</code> build/train variants</td></tr>
+<tr><td>Introspection &amp; ops</td><td><code>SUPPORT_ESTIMATE_MEMORY</code>, <code>SUPPORT_GET_MEMORY_USAGE</code>, <code>SUPPORT_CHECK_ID_EXIST</code>, <code>SUPPORT_MERGE_INDEX</code>, <code>SUPPORT_CLONE</code>, <code>SUPPORT_EXPORT_MODEL</code>, <code>SUPPORT_EXPORT_IDS</code>, <code>SUPPORT_TUNE</code>, <code>SUPPORT_CAL_DISTANCE_BY_ID</code>, <code>SUPPORT_GET_*_BY_ID(S)</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>INDEX_FEATURE_COUNT</code> marks the end of the enum and is not a real feature. See
+<code>examples/cpp/307_feature_check_features.cpp</code>.</p>
+<h2 id="index-detail-info"><a class="header" href="#index-detail-info">Index detail info</a></h2>
+<p>Declared in <code>vsag/index_detail_info.h</code>. These types describe and carry the structured data returned by
+<a href="#data-retrieval"><code>Index::GetIndexDetailInfos</code></a> and
+<a href="#data-retrieval"><code>Index::GetDetailDataByName</code></a>. See
+<a href="#index-introspection">Index Introspection</a> and
+<code>examples/cpp/317_feature_get_detail_data.cpp</code>.</p>
+<h3 id="indexdetaildatatype"><a class="header" href="#indexdetaildatatype"><code>IndexDetailDataType</code></a></h3>
+<pre><code class="language-cpp">enum class IndexDetailDataType {
+    TYPE_2DArray_INT64,
+    TYPE_1DArray_INT64,
+    TYPE_SCALAR_INT64,
+    TYPE_SCALAR_DOUBLE,
+    TYPE_SCALAR_STRING,
+    TYPE_SCALAR_BOOL,
+};
+</code></pre>
+<p>Tells you which <code>DetailData</code> getter is valid for a given field.</p>
+<h3 id="indexdetailinfo"><a class="header" href="#indexdetailinfo"><code>IndexDetailInfo</code></a></h3>
+<pre><code class="language-cpp">class IndexDetailInfo {
+public:
+    std::string name;
+    std::string description;
+    IndexDetailDataType type;
+};
+</code></pre>
+<p>A descriptor for one introspectable field: its <code>name</code>, a human-readable <code>description</code>, and the payload
+<code>type</code>.</p>
+<h3 id="detaildata"><a class="header" href="#detaildata"><code>DetailData</code></a></h3>
+<pre><code class="language-cpp">class DetailData {
+public:
+    virtual std::vector&lt;int64_t&gt; GetData1DArrayInt64();
+    virtual std::vector&lt;std::vector&lt;int64_t&gt;&gt; GetData2DArrayInt64();
+    virtual std::string GetDataScalarString();
+    virtual bool GetDataScalarBool();
+    virtual int64_t GetDataScalarInt64();
+    virtual double GetDataScalarDouble();
+    // ... const overloads ...
+};
+using DetailDataPtr = std::shared_ptr&lt;DetailData&gt;;
+</code></pre>
+<p>The payload itself. Read it through the getter matching the descriptor’s
+<a href="#indexdetaildatatype"><code>IndexDetailDataType</code></a>; calling a mismatched getter is not meaningful.</p>
+<h2 id="utility-functions"><a class="header" href="#utility-functions">Utility functions</a></h2>
+<p>Declared in <code>vsag/utils.h</code>. Free helper functions for clustering and recall evaluation.</p>
+<h3 id="kmeans_clustering"><a class="header" href="#kmeans_clustering"><code>kmeans_clustering</code></a></h3>
+<pre><code class="language-cpp">float kmeans_clustering(uint64_t d, uint64_t n, uint64_t k, const float* x,
+                        float* centroids, const std::string&amp; dis_type);
+</code></pre>
+<p>Runs k-means over <code>n</code> points of dimension <code>d</code>, writing <code>k</code> centroids into the pre-allocated
+<code>centroids</code> (size <code>k * d</code>). <code>dis_type</code> is one of <code>"l2"</code>, <code>"cosine"</code>, <code>"ip"</code>. Returns the final
+quantization error.</p>
+<h3 id="l2_and_filtering"><a class="header" href="#l2_and_filtering"><code>l2_and_filtering</code></a></h3>
+<pre><code class="language-cpp">BitsetPtr l2_and_filtering(int64_t dim, int64_t nb, const float* base,
+                           const float* query, float threshold);
+</code></pre>
+<p>Returns a <a href="#bitset"><code>Bitset</code></a> in which bit <code>i</code> is set (<code>true</code>) when base vector <code>i</code> falls
+<em>within</em> <code>threshold</code> L2 distance of <code>query</code> — the ground truth consumed by <code>range_search_recall</code>.
+Note the polarity is the <strong>opposite</strong> of a search pre-filter, where a set bit <em>excludes</em> an id (see
+<a href="#bitset"><code>Bitset</code></a>); invert it before reusing it as an <code>invalid</code> / <code>bitset_filter_</code> mask.</p>
+<h3 id="knn_search_recall--range_search_recall"><a class="header" href="#knn_search_recall--range_search_recall"><code>knn_search_recall</code> / <code>range_search_recall</code></a></h3>
+<pre><code class="language-cpp">float knn_search_recall(const float* base, const int64_t* id_map, int64_t base_num,
+                        const float* query, int64_t data_dim,
+                        const int64_t* result_ids, int64_t result_size);
+
+float range_search_recall(const float* base, const int64_t* base_ids, int64_t num_base,
+                          const float* query, int64_t dim,
+                          const int64_t* result_ids, int64_t result_size, float threshold);
+</code></pre>
+<p>Compute the recall of a KNN or range search result against the ground truth derived from the base
+vectors. Handy for tests and benchmarks; see <a href="#reference-performance">Benchmarks</a>.</p>
+<h2 id="constants"><a class="header" href="#constants">Constants</a></h2>
+<p>Declared in <code>vsag/constants.h</code>. A large set of <code>extern const char* const</code> string constants for the
+keys and enumerated string values used throughout the JSON-based configuration. Using the constants
+instead of raw string literals avoids typos. They fall into several groups:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Group</th><th>Examples</th></tr>
+</thead>
+<tbody>
+<tr><td>Index type names</td><td><code>INDEX_HGRAPH</code>, <code>INDEX_IVF</code>, <code>INDEX_DISKANN</code>, <code>INDEX_BRUTE_FORCE</code>, <code>INDEX_SINDI</code>, <code>INDEX_PYRAMID</code></td></tr>
+<tr><td>Dataset field names</td><td><code>DIM</code>, <code>NUM_ELEMENTS</code>, <code>IDS</code>, <code>DISTS</code>, <code>FLOAT32_VECTORS</code>, <code>SPARSE_VECTORS</code></td></tr>
+<tr><td>Metric names</td><td><code>METRIC_L2</code>, <code>METRIC_COSINE</code>, <code>METRIC_IP</code></td></tr>
+<tr><td>Data type names</td><td><code>DATATYPE_FLOAT32</code>, <code>DATATYPE_FLOAT16</code>, <code>DATATYPE_BFLOAT16</code>, <code>DATATYPE_INT8</code>, <code>DATATYPE_SPARSE</code></td></tr>
+<tr><td>Top-level params</td><td><code>PARAMETER_DTYPE</code>, <code>PARAMETER_DIM</code>, <code>PARAMETER_METRIC_TYPE</code>, <code>INDEX_PARAM</code></td></tr>
+<tr><td>Per-index params</td><td><code>HGRAPH_*</code>, <code>IVF_*</code>, <code>DISKANN_PARAMETER_*</code>, <code>PYRAMID_*</code>, <code>BRUTE_FORCE_*</code></td></tr>
+<tr><td>Statistics keys</td><td><code>STATSTIC_MEMORY</code>, <code>STATSTIC_KNN_TIME</code>, <code>STATSTIC_RANGE_TIME</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>For the meaning of each parameter key, see <a href="#index-parameters">Index Parameters</a> and
+the individual <a href="indexes/README.html">index pages</a>.</p>
+<h2 id="see-also-13"><a class="header" href="#see-also-13">See also</a></h2>
+<ul>
+<li><a href="#index">Index</a> — <code>CheckFeature</code>, <code>GetIndexDetailInfos</code>, <code>UpdateAttribute</code>.</li>
+<li><a href="#dataset">Dataset</a> — attaching <code>AttributeSet</code> data to elements.</li>
+<li><a href="#search-request--filters">Search Request &amp; Filters</a> — attribute-filter expressions and <code>Bitset</code>.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="best-practices"><a class="header" href="#best-practices">Best Practices</a></h1>
 <p>This page gathers practical advice for running VSAG in production, as a companion to the
 parameter reference and performance tuning guide.</p>
@@ -5533,7 +7244,7 @@ allocator; see <a href="#memory-management">Memory Management</a>.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="disk-based-index-best-practices"><a class="header" href="#disk-based-index-best-practices">Disk-Based Index Best Practices</a></h1>
-<p><img src="figures/resources/disk-index-overview.svg" alt="Disk-backed HGraph: the graph and compact base codes stay in memory for traversal, while a higher-precision precise copy on disk is read only for the ef_search finalists during reorder"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/resources/disk-index-overview.svg" alt="Disk-backed HGraph: the graph and compact base codes stay in memory for traversal, while a higher-precision precise copy on disk is read only for the ef_search finalists during reorder"><span class="img-wrapper"><img src="figures/resources/disk-index-overview.svg" alt="Disk-backed HGraph: the graph and compact base codes stay in memory for traversal, while a higher-precision precise copy on disk is read only for the ef_search finalists during reorder"></span></label></p>
 <p>When a corpus grows past the point where every vector fits in RAM, moving the coldest,
 largest part of the index onto an SSD is the most direct way to control cost. VSAG does
 this by letting each part of an index choose its own storage backend, so hot data stays
@@ -5703,7 +7414,7 @@ tens of GB of RAM plus an SSD.</p>
 <p>Treat these as starting points and validate with <a href="#performance-evaluation-tool-eval_performance"><code>eval_performance</code></a> against a
 realistic query distribution; the <a href="#optimizer-tune">Optimizer (Tune)</a> can then
 settle search-time parameters automatically.</p>
-<h2 id="see-also-7"><a class="header" href="#see-also-7">See also</a></h2>
+<h2 id="see-also-14"><a class="header" href="#see-also-14">See also</a></h2>
 <ul>
 <li><a href="#hgraph-2">HGraph</a> — the flagship index and its full parameter table</li>
 <li><a href="quantization/README.html">Quantization Overview</a> — choosing a base/precise quantizer</li>
@@ -7081,7 +8792,7 @@ behavior. The agent will mirror this into the template’s required fields.</li>
 shell wrapper at
 <a href="https://github.com/antgroup/vsag/blob/main/tools/issue-helper/new-issue.sh"><code>tools/issue-helper/new-issue.sh</code></a>.</li>
 </ul>
-<h2 id="see-also-8"><a class="header" href="#see-also-8">See also</a></h2>
+<h2 id="see-also-15"><a class="header" href="#see-also-15">See also</a></h2>
 <ul>
 <li><a href="#community">Community</a></li>
 <li><a href="#contributing-to-vsag">Contributing to VSAG</a></li>
@@ -7259,7 +8970,7 @@ first contribution:</p>
 
         <script src="clipboard-1626706a.min.js"></script>
         <script src="highlight-abc7f01d.js"></script>
-        <script src="book-c22b7243.js"></script>
+        <script src="book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

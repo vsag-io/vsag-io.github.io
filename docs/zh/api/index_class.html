@@ -1,0 +1,671 @@
+<!DOCTYPE HTML>
+<html lang="zh" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Index - VSAG文档</title>
+
+
+        <!-- Custom HTML head -->
+        <!-- Google tag (gtag.js) -->
+        <!-- Shared with docs/{docs,blog}/{en,zh}/theme/head.hbs and docs/landing/index.html. Keep these five copies in sync. -->
+        <!-- Hostname-gated so local mdBook previews and fork deploys do not pollute the production GA4 property. -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-2VKGDGDEQV"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          if (location.hostname === 'vsag.io') {
+            gtag('config', 'G-2VKGDGDEQV');
+          }
+        </script>
+        
+        <!-- Language toggle button injected into mdBook's top menu bar. -->
+        <!-- Shared across docs/{en,zh} and blog/{en,zh}. Keep these four copies in sync. -->
+        <style>
+          #lang-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2.2em;
+            height: 2.2em;
+            padding: 0 0.55em;
+            margin-left: 0.2em;
+            border: 0;
+            border-radius: 4px;
+            background: transparent;
+            color: var(--icons);
+            font: inherit;
+            font-size: 0.95em;
+            line-height: 1;
+            cursor: pointer;
+            text-decoration: none;
+            user-select: none;
+          }
+          #lang-toggle:hover {
+            color: var(--icons-hover);
+            background: var(--theme-hover, rgba(0, 0, 0, 0.05));
+          }
+          #lang-toggle[aria-busy="true"] {
+            opacity: 0.6;
+            cursor: progress;
+          }
+        </style>
+        <script>
+          (function () {
+            // Site layout (deployed at https://vsag.io/):
+            //   /docs/en/...   /docs/zh/...
+            //   /blogs/en/...  /blogs/zh/...
+            // mdBook sources in this repo live under docs/docs/{en,zh} and docs/blog/{en,zh};
+            // the deploy workflow renames blog -> blogs, so runtime paths use /blogs/.
+            var PAIRS = [
+              { a: '/docs/en/',  b: '/docs/zh/'  },
+              { a: '/blogs/en/', b: '/blogs/zh/' }
+            ];
+        
+            function detect(pathname) {
+              for (var i = 0; i < PAIRS.length; i++) {
+                var p = PAIRS[i];
+                if (pathname.indexOf(p.a) === 0) {
+                  return { current: 'en', other: 'zh', currentRoot: p.a, otherRoot: p.b };
+                }
+                if (pathname.indexOf(p.b) === 0) {
+                  return { current: 'zh', other: 'en', currentRoot: p.b, otherRoot: p.a };
+                }
+              }
+              return null;
+            }
+        
+            function buildTargetUrl(info, pathname) {
+              var rest = pathname.slice(info.currentRoot.length);
+              return info.otherRoot + rest;
+            }
+        
+            function insertButton() {
+              var bar = document.querySelector('.right-buttons');
+              if (!bar) return false;
+              if (document.getElementById('lang-toggle')) return true;
+        
+              var info = detect(window.location.pathname);
+              // On local `mdbook serve`, paths look like "/" instead of "/docs/en/";
+              // hide the button in that case to avoid sending users to nonexistent URLs.
+              if (!info) return true;
+        
+              // Use a real <button> so keyboard activation (Enter/Space) and focus
+              // styles match the other icons in mdBook's .right-buttons toolbar.
+              var btn = document.createElement('button');
+              btn.id = 'lang-toggle';
+              btn.type = 'button';
+              // Show the *target* language so users know what clicking does. Set
+              // `lang` so screen readers pronounce "中" / "EN" in the right voice.
+              btn.textContent = info.other === 'zh' ? '\u4e2d' : 'EN';
+              btn.lang = info.other;
+              btn.title = info.other === 'zh' ? '\u5207\u6362\u4e3a\u4e2d\u6587' : 'Switch to English';
+              btn.setAttribute('aria-label', btn.title);
+        
+              btn.addEventListener('click', function () {
+                // Guard against rapid double-clicks firing concurrent probes.
+                if (btn.getAttribute('aria-busy') === 'true') return;
+                var target = buildTargetUrl(info, window.location.pathname);
+                var hash = window.location.hash || '';
+                btn.setAttribute('aria-busy', 'true');
+                // Bound the HEAD probe so a stalled network does not leave the
+                // toggle stuck in the busy state forever.
+                var controller = (typeof AbortController === 'function') ? new AbortController() : null;
+                var timer = setTimeout(function () { if (controller) controller.abort(); }, 3000);
+                var opts = { method: 'HEAD' };
+                if (controller) opts.signal = controller.signal;
+                // Prefer HEAD to check existence without downloading the page.
+                fetch(target, opts).then(function (r) {
+                  clearTimeout(timer);
+                  window.location.assign(r.ok ? (target + hash) : info.otherRoot);
+                }).catch(function () {
+                  clearTimeout(timer);
+                  // Network error / CORS / offline / timeout -> fall back to language root.
+                  window.location.assign(info.otherRoot);
+                });
+              });
+        
+              bar.insertBefore(btn, bar.firstChild);
+              return true;
+            }
+        
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', insertButton);
+            } else {
+              insertButton();
+            }
+          })();
+        </script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-9a4b1121.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-8b6a0bc1.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">VSAG文档</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="index"><a class="header" href="#index">Index</a></h1>
+<p><code>vsag::Index</code>（声明于 <code>vsag/index.h</code>）是本库的核心抽象。每一种具体索引 —— HGraph、IVF、DiskANN、
+BruteForce、SINDI、Pyramid 等 —— 都实现这一接口。你从不直接实例化 <code>Index</code>，而是通过
+<a href="factory_engine.html#createindex"><code>Factory::CreateIndex</code></a> 或
+<a href="factory_engine.html#createindex-1"><code>Engine::CreateIndex</code></a> 获取，并用 <code>IndexPtr</code>
+（<code>std::shared_ptr&lt;Index&gt;</code>）持有它。</p>
+<pre><code class="language-cpp">using IndexPtr = std::shared_ptr&lt;Index&gt;;
+</code></pre>
+<h2 id="如何阅读本参考"><a class="header" href="#如何阅读本参考">如何阅读本参考</a></h2>
+<p><code>Index</code> 暴露了许多可选能力。基类为几乎每个方法都提供了<strong>默认实现</strong>：</p>
+<ul>
+<li>当具体索引未实现某方法时，大多数方法返回
+<code>tl::unexpected(Error(ErrorType::UNSUPPORTED_INDEX_OPERATION, ...))</code>。</li>
+<li>少数统计访问器则会<strong>抛出 <code>std::runtime_error</code></strong>（下文会明确标注）。若在可能不支持它们的索引上调用，
+请用 <code>try/catch</code> 包裹。</li>
+</ul>
+<p>由于“不支持”是正常且预期的结果，请用 <a href="#checkfeature"><code>CheckFeature</code></a> 提前探测能力，而不要假设某个方法一定
+可用。标注为 <em>（纯虚函数）</em> 的方法必须由每种索引实现，调用它们总是安全的。</p>
+<p>本页通篇用到的指针/句柄类型：<code>DatasetPtr</code>（<a href="dataset.html">Dataset</a>）、<code>FilterPtr</code>
+（<a href="search.html#filter">Filter</a>）、<code>BitsetPtr</code>（<a href="search.html#bitset">Bitset</a>）、<code>BinarySet</code> /
+<code>ReaderSet</code>（<a href="serialization.html">序列化类型</a>）。</p>
+<h2 id="枚举与辅助类型"><a class="header" href="#枚举与辅助类型">枚举与辅助类型</a></h2>
+<h3 id="indextype"><a class="header" href="#indextype"><code>IndexType</code></a></h3>
+<pre><code class="language-cpp">enum class IndexType {
+    HNSW, DISKANN, HGRAPH, IVF, PYRAMID, BRUTEFORCE, SPARSE, SINDI, WARP, LAZY_HGRAPH, SIMQ
+};
+</code></pre>
+<p>由 <a href="#getindextype"><code>GetIndexType</code></a> 返回。</p>
+<h3 id="removemode"><a class="header" href="#removemode"><code>RemoveMode</code></a></h3>
+<pre><code class="language-cpp">enum class RemoveMode {
+    MARK_REMOVE = 0,   // 标记删除；不收缩/不修复 —— 快
+    FORCE_REMOVE = 1,  // 物理删除并修复图 —— 重
+};
+</code></pre>
+<p>传入 <a href="#remove"><code>Remove</code></a>。</p>
+<h3 id="mergeunit-与-idmapfunction"><a class="header" href="#mergeunit-与-idmapfunction">MergeUnit 与 IdMapFunction</a></h3>
+<pre><code class="language-cpp">using IdMapFunction = std::function&lt;std::tuple&lt;bool, int64_t&gt;(int64_t)&gt;;
+
+struct MergeUnit {
+    IndexPtr index = nullptr;         // 要合并进来的源子索引
+    IdMapFunction id_map_func = nullptr;  // 逐 id 的过滤 + 重映射
+};
+</code></pre>
+<p>对每个源 id，<code>id_map_func</code> 返回 <code>{keep, new_id}</code>：<code>keep == true</code> 表示将该向量以目标 id <code>new_id</code> 纳入。
+由 <a href="#merge"><code>Merge</code></a> 使用。</p>
+<h3 id="checkpoint"><a class="header" href="#checkpoint"><code>Checkpoint</code></a></h3>
+<pre><code class="language-cpp">struct Index::Checkpoint {
+    BinarySet data;       // 中间状态
+    bool finish = false;  // 构建完成后为 true
+};
+</code></pre>
+<p>由 <a href="#continuebuild"><code>ContinueBuild</code></a> 返回，用于驱动增量构建。</p>
+<h3 id="数据选择标志"><a class="header" href="#数据选择标志">数据选择标志</a></h3>
+<p>用于 <a href="#getdatabyidswithflag"><code>GetDataByIdsWithFlag</code></a> 的位标志，可通过按位或组合：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>宏</th><th>值</th><th>选取</th></tr>
+</thead>
+<tbody>
+<tr><td><code>DATA_FLAG_FLOAT32_VECTOR</code></td><td><code>0x01</code></td><td>float32 向量</td></tr>
+<tr><td><code>DATA_FLAG_INT8_VECTOR</code></td><td><code>0x02</code></td><td>int8 向量</td></tr>
+<tr><td><code>DATA_FLAG_SPARSE_VECTOR</code></td><td><code>0x04</code></td><td>稀疏向量</td></tr>
+<tr><td><code>DATA_FLAG_EXTRA_INFO</code></td><td><code>0x10</code></td><td>extra info 数据块</td></tr>
+<tr><td><code>DATA_FLAG_ATTRIBUTE</code></td><td><code>0x20</code></td><td>属性</td></tr>
+<tr><td><code>DATA_FLAG_ID</code></td><td><code>0x40</code></td><td>id</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="writefunctype"><a class="header" href="#writefunctype"><code>WriteFuncType</code></a></h3>
+<pre><code class="language-cpp">using OffsetType = uint64_t;
+using SizeType = uint64_t;
+using WriteFuncType = std::function&lt;void(OffsetType, SizeType, const void*)&gt;;
+</code></pre>
+<p>用于流式 <a href="#serialize"><code>Serialize</code></a> 的落盘回调。每次调用要求你把 <code>SizeType</code> 字节（位于给定源指针处）持久化
+到输出中逻辑偏移 <code>OffsetType</code> 的位置。</p>
+<h2 id="构建与训练"><a class="header" href="#构建与训练">构建与训练</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>方法</th><th>签名</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Build</code></td><td><code>tl::expected&lt;std::vector&lt;int64_t&gt;, Error&gt; Build(const DatasetPtr&amp; base)</code></td><td><em>（纯虚函数）</em> 从全部向量构建索引。返回插入失败的 id。</td></tr>
+<tr><td><code>Train</code></td><td><code>tl::expected&lt;void, Error&gt; Train(const DatasetPtr&amp; data)</code></td><td>训练索引（如 IVF 聚类中心、量化器）而不插入数据。</td></tr>
+<tr><td><code>Tune</code></td><td><code>tl::expected&lt;bool, Error&gt; Tune(const std::string&amp; parameters, bool disable_future_tuning = false)</code></td><td>应用运行期调优。见 <a href="../advanced/optimizer.html">优化器</a>。</td></tr>
+<tr><td><code>ContinueBuild</code></td><td><code>tl::expected&lt;Checkpoint, Error&gt; ContinueBuild(const DatasetPtr&amp; base, const BinarySet&amp; binary_set)</code></td><td>为无法增量插入的索引提供动态性；用返回的 <a href="#checkpoint"><code>Checkpoint</code></a> 驱动。</td></tr>
+<tr><td><code>Add</code></td><td><code>tl::expected&lt;std::vector&lt;int64_t&gt;, Error&gt; Add(const DatasetPtr&amp; base)</code></td><td>向已构建的索引插入新向量。返回插入失败的 id。</td></tr>
+</tbody>
+</table>
+</div>
+<p>见 <a href="../advanced/build_and_train.html">索引构建与训练</a> 与 <code>examples/cpp/311_feature_train.cpp</code>。</p>
+<h2 id="更新与删除"><a class="header" href="#更新与删除">更新与删除</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>方法</th><th>签名</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Remove</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Remove(const std::vector&lt;int64_t&gt;&amp; ids, RemoveMode mode = RemoveMode::MARK_REMOVE)</code></td><td>删除多个 id；返回被删除的数量。</td></tr>
+<tr><td><code>Remove</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Remove(int64_t id, RemoveMode mode = RemoveMode::MARK_REMOVE)</code></td><td>单 id 便捷重载。</td></tr>
+<tr><td><code>UpdateId</code></td><td><code>tl::expected&lt;bool, Error&gt; UpdateId(int64_t old_id, int64_t new_id)</code></td><td>为一个基础点重新打标签。</td></tr>
+<tr><td><code>UpdateVector</code></td><td><code>tl::expected&lt;bool, Error&gt; UpdateVector(int64_t id, const DatasetPtr&amp; new_base, bool force_update = false)</code></td><td>替换 <code>id</code> 对应的向量。<code>force_update = false</code> 会执行连通性检查。</td></tr>
+<tr><td><code>UpdateExtraInfo</code></td><td><code>tl::expected&lt;bool, Error&gt; UpdateExtraInfo(const DatasetPtr&amp; new_base)</code></td><td>更新存储的 extra-info 数据块。</td></tr>
+<tr><td><code>UpdateAttribute</code></td><td><code>tl::expected&lt;void, Error&gt; UpdateAttribute(int64_t id, const AttributeSet&amp; new_attrs)</code></td><td>替换 <code>id</code> 的属性。</td></tr>
+<tr><td><code>UpdateAttribute</code></td><td><code>tl::expected&lt;void, Error&gt; UpdateAttribute(int64_t id, const AttributeSet&amp; new_attrs, const AttributeSet&amp; origin_attrs)</code></td><td>同上，但提供旧属性以便更快地原地更新。</td></tr>
+</tbody>
+</table>
+</div>
+<p>见 <code>examples/cpp/303_feature_remove.cpp</code>。</p>
+<h2 id="搜索"><a class="header" href="#搜索">搜索</a></h2>
+<p>推荐的入口是 <a href="#searchwithrequest"><code>SearchWithRequest</code></a>，它接收单个
+<a href="search.html#searchrequest"><code>SearchRequest</code></a>，其中携带查询、模式、top-k / 半径以及各类过滤器。较旧的
+逐参数 <code>KnnSearch</code> / <code>RangeSearch</code> 重载为兼容性保留。</p>
+<p>每次搜索都返回一个 <code>DatasetPtr</code>：对 KNN，<code>num_elements == 1</code>，<code>ids</code> / <code>distances</code> 长度为 <code>k</code>；对范围
+搜索，结果长度即命中数。如何读取结果见 <a href="dataset.html">Dataset</a>。</p>
+<h3 id="searchwithrequest"><a class="header" href="#searchwithrequest"><code>SearchWithRequest</code></a></h3>
+<pre><code class="language-cpp">[[nodiscard]] tl::expected&lt;DatasetPtr, Error&gt;
+SearchWithRequest(const SearchRequest&amp; request) const;
+</code></pre>
+<p>由 <a href="search.html#searchrequest"><code>SearchRequest</code></a> 驱动的统一 KNN 或范围搜索。这是新代码首选的 API；它通过
+一个结构体即可支持属性过滤、回调过滤、bitset 过滤、逐次搜索 allocator 以及迭代式搜索。</p>
+<h3 id="knnsearch-重载"><a class="header" href="#knnsearch-重载">KnnSearch 重载</a></h3>
+<pre><code class="language-cpp">// (1) bitset 预过滤 —— 纯虚函数
+tl::expected&lt;DatasetPtr, Error&gt;
+KnnSearch(const DatasetPtr&amp; query, int64_t k, const std::string&amp; parameters,
+          BitsetPtr invalid = nullptr) const;
+
+// (2) 回调预过滤 —— 纯虚函数
+tl::expected&lt;DatasetPtr, Error&gt;
+KnnSearch(const DatasetPtr&amp; query, int64_t k, const std::string&amp; parameters,
+          const std::function&lt;bool(int64_t)&gt;&amp; filter) const;
+
+// (3) Filter 对象
+tl::expected&lt;DatasetPtr, Error&gt;
+KnnSearch(const DatasetPtr&amp; query, int64_t k, const std::string&amp; parameters,
+          const FilterPtr&amp; filter) const;
+
+// (4) Filter + 迭代上下文
+tl::expected&lt;DatasetPtr, Error&gt;
+KnnSearch(const DatasetPtr&amp; query, int64_t k, const std::string&amp; parameters,
+          const FilterPtr&amp; filter, IteratorContext*&amp; iter_ctx, bool is_last_search) const;
+
+// (5) SearchParam —— [[deprecated]]，请改用 SearchWithRequest
+tl::expected&lt;DatasetPtr, Error&gt;
+KnnSearch(const DatasetPtr&amp; query, int64_t k, SearchParam&amp; search_param) const;
+</code></pre>
+<p>关于 filter 参数的说明：</p>
+<ul>
+<li>在重载 (1)/(2) 中，谓词/bitset 标记的是被<strong>过滤掉</strong>的向量。对 <code>bitset</code>，<code>Test(id) == true</code> 表示该 id
+被排除；对 <code>std::function</code> 谓词，返回 <code>true</code> 表示该 id 被排除。</li>
+<li>重载 (3)/(4) 接收 <a href="search.html#filter"><code>Filter</code></a> 对象，其 <code>CheckValid(id)</code> 采用相反约定
+（<code>true</code> 表示<em>保留</em>）。完整语义见 <a href="../advanced/filtered_search.html">带过滤的搜索</a> 与
+<code>examples/cpp/301_feature_filter.cpp</code>。</li>
+<li>重载 (4) 支撑<a href="../advanced/iterator_search.html">迭代式搜索</a>；跨调用传入同一个 <code>iter_ctx</code>，并在最后一次
+调用时设置 <code>is_last_search</code>。</li>
+</ul>
+<h3 id="rangesearch-重载"><a class="header" href="#rangesearch-重载"><code>RangeSearch</code> 重载</a></h3>
+<pre><code class="language-cpp">// (1) 普通 —— 纯虚函数
+tl::expected&lt;DatasetPtr, Error&gt;
+RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; parameters,
+            int64_t limited_size = -1) const;
+
+// (2) bitset 预过滤 —— 纯虚函数
+tl::expected&lt;DatasetPtr, Error&gt;
+RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; parameters,
+            BitsetPtr invalid, int64_t limited_size = -1) const;
+
+// (3) 回调预过滤 —— 纯虚函数
+tl::expected&lt;DatasetPtr, Error&gt;
+RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; parameters,
+            const std::function&lt;bool(int64_t)&gt;&amp; filter, int64_t limited_size = -1) const;
+
+// (4) Filter 对象
+tl::expected&lt;DatasetPtr, Error&gt;
+RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; parameters,
+            const FilterPtr&amp; filter, int64_t limited_size = -1) const;
+</code></pre>
+<p><code>radius</code> 限定距离上界；<code>limited_size</code> 限制结果数量（<code>&lt;= 0</code> 表示不限，<code>0</code> 为错误）。见
+<a href="../advanced/range_search.html">范围搜索</a> 与 <code>examples/cpp/302_feature_range_search.cpp</code>。</p>
+<h2 id="按-id-计算距离"><a class="header" href="#按-id-计算距离">按 id 计算距离</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>方法</th><th>签名</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const float* vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>稠密查询到已存向量 <code>id</code> 的距离。</td></tr>
+<tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const DatasetPtr&amp; vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>同上，接收 <code>DatasetPtr</code>（适用于 SINDI 等稀疏索引）。</td></tr>
+<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true) const</code></td><td>批量版本；结果中的 <code>-1</code> 表示无效距离。</td></tr>
+<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true) const</code></td><td>接收 <code>DatasetPtr</code> 查询的批量版本。</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>calculate_precise_distance = true</code> 时可能会加载全精度向量（可能来自磁盘）而非量化编码。见
+<a href="../advanced/calc_distance_by_id.html">按 ID 计算距离</a> 与
+<code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code>。</p>
+<h2 id="共轭图增强"><a class="header" href="#共轭图增强">共轭图增强</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>方法</th><th>签名</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Pretrain</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Pretrain(const std::vector&lt;int64_t&gt;&amp; base_tag_ids, uint32_t k, const std::string&amp; parameters)</code></td><td>通过检索生成的查询来增强选定的基础向量。返回成功插入数。</td></tr>
+<tr><td><code>Feedback</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Feedback(const DatasetPtr&amp; query, int64_t k, const std::string&amp; parameters, int64_t global_optimum_tag_id = INT64_MAX)</code></td><td>把已知最优解反馈到共轭图中。</td></tr>
+</tbody>
+</table>
+</div>
+<p>见 <a href="../advanced/enhance_graph.html">图索引增强</a>。</p>
+<h2 id="数据获取"><a class="header" href="#数据获取">数据获取</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>方法</th><th>签名</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>GetMinAndMaxId</code></td><td><code>tl::expected&lt;std::pair&lt;int64_t, int64_t&gt;, Error&gt; GetMinAndMaxId() const</code></td><td>索引中最小与最大的 id。</td></tr>
+<tr><td><code>GetExtraInfoByIds</code></td><td><code>tl::expected&lt;void, Error&gt; GetExtraInfoByIds(const int64_t* ids, int64_t count, char* extra_infos) const</code></td><td>把 <code>ids</code> 的 extra-info 数据块拷贝到调用方提供的缓冲区。</td></tr>
+<tr><td><code>GetRawVectorByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetRawVectorByIds(const int64_t* ids, int64_t count, Allocator* specified_allocator = nullptr) const</code></td><td>返回已存向量。其值<em>接近</em>原始值，但不保证逐位一致（量化/精度）。</td></tr>
+<tr><td><code>GetDataByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIds(const int64_t* ids, int64_t count) const</code></td><td>返回 <code>ids</code> 的全部已存数据（向量、属性、extra info）。</td></tr>
+<tr><td><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>类似 <code>GetDataByIds</code>，但通过 <a href="#数据选择标志"><code>DATA_FLAG_*</code></a> 选择字段。</td></tr>
+<tr><td><code>GetIndexDetailInfos</code></td><td><code>tl::expected&lt;std::vector&lt;IndexDetailInfo&gt;, Error&gt; GetIndexDetailInfos() const</code></td><td>列出可自省的细节字段。见 <a href="types.html#索引细节信息"><code>IndexDetailInfo</code></a>。</td></tr>
+<tr><td><code>GetDetailDataByName</code></td><td><code>tl::expected&lt;DetailDataPtr, Error&gt; GetDetailDataByName(const std::string&amp; name, IndexDetailInfo&amp; info) const</code></td><td>按名称获取一份细节数据负载。</td></tr>
+</tbody>
+</table>
+</div>
+<p>见 <a href="../advanced/introspection.html">索引自省</a> 与 <code>examples/cpp/317_feature_get_detail_data.cpp</code>。</p>
+<h2 id="能力探测合并克隆与导出"><a class="header" href="#能力探测合并克隆与导出">能力探测、合并、克隆与导出</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>方法</th><th>签名</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>CheckFeature</code></td><td><code>bool CheckFeature(IndexFeature feature) const</code></td><td>探测某个可选能力是否受支持。见 <a href="types.html#indexfeature"><code>IndexFeature</code></a>。</td></tr>
+<tr><td><code>Merge</code></td><td><code>tl::expected&lt;void, Error&gt; Merge(const std::vector&lt;MergeUnit&gt;&amp; merge_units)</code></td><td>合并同类型子索引并进行 id 重映射。见 <a href="#mergeunit-与-idmapfunction"><code>MergeUnit</code></a>。</td></tr>
+<tr><td><code>Clone</code></td><td><code>tl::expected&lt;IndexPtr, Error&gt; Clone(const std::shared_ptr&lt;Allocator&gt;&amp; allocator = nullptr) const</code></td><td>深拷贝索引。</td></tr>
+<tr><td><code>ExportModel</code></td><td><code>tl::expected&lt;IndexPtr, Error&gt; ExportModel() const</code></td><td>返回一个只携带已训练模型的空索引。</td></tr>
+<tr><td><code>ExportIDs</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; ExportIDs() const</code></td><td>以 dataset 形式返回全部 id。</td></tr>
+<tr><td><code>SetImmutable</code></td><td><code>tl::expected&lt;void, Error&gt; SetImmutable()</code></td><td>冻结索引；后续的增/删将被拒绝。</td></tr>
+</tbody>
+</table>
+</div>
+<p>见 <code>examples/cpp/309_feature_clone.cpp</code>、<code>310_feature_export_model.cpp</code>、
+<code>315_feature_hgraph_merge.cpp</code>，以及 <a href="../advanced/index_lifecycle.html">索引生命周期管理</a>。</p>
+<h2 id="序列化"><a class="header" href="#序列化">序列化</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>方法</th><th>签名</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>Serialize</code></td><td><code>tl::expected&lt;BinarySet, Error&gt; Serialize() const</code></td><td><em>（纯虚函数）</em> 序列化为内存中的 <a href="serialization.html#binaryset"><code>BinarySet</code></a>。</td></tr>
+<tr><td><code>Serialize</code></td><td><code>tl::expected&lt;void, Error&gt; Serialize(WriteFuncType write_func) const</code></td><td>通过 <a href="#writefunctype"><code>WriteFuncType</code></a> 落盘回调流式输出序列化结果。</td></tr>
+<tr><td><code>Serialize</code></td><td><code>tl::expected&lt;void, Error&gt; Serialize(std::ostream&amp; out_stream)</code></td><td>序列化到一个已打开的输出流。</td></tr>
+<tr><td><code>Deserialize</code></td><td><code>tl::expected&lt;void, Error&gt; Deserialize(const BinarySet&amp; binary_set)</code></td><td><em>（纯虚函数）</em> 从 <code>BinarySet</code> 恢复。索引非空时失败。</td></tr>
+<tr><td><code>Deserialize</code></td><td><code>tl::expected&lt;void, Error&gt; Deserialize(const ReaderSet&amp; reader_set)</code></td><td><em>（纯虚函数）</em> 从 <a href="serialization.html#readerset"><code>ReaderSet</code></a>（如磁盘 reader）恢复。</td></tr>
+<tr><td><code>Deserialize</code></td><td><code>tl::expected&lt;void, Error&gt; Deserialize(std::istream&amp; in_stream)</code></td><td>从一个已打开的输入流恢复。</td></tr>
+</tbody>
+</table>
+</div>
+<p>在非空索引上反序列化会得到 <code>INDEX_NOT_EMPTY</code>。见 <a href="../advanced/serialization.html">序列化格式</a> 与
+<code>examples/cpp/401_persistent_kv.cpp</code> / <code>402_persistent_streaming.cpp</code>。</p>
+<h2 id="缓存构建加速"><a class="header" href="#缓存构建加速">缓存（构建加速）</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>方法</th><th>签名</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>ExportCache</code></td><td><code>tl::expected&lt;void, Error&gt; ExportCache(std::ostream&amp; out_stream) const</code></td><td>写出构建期缓存（如图邻居），可加速后续的 <code>Build</code>。</td></tr>
+<tr><td><code>ImportCache</code></td><td><code>tl::expected&lt;void, Error&gt; ImportCache(std::istream&amp; in_stream)</code></td><td>加载之前导出的缓存；下一次 <code>Build</code> 会复用它。</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="统计与自省"><a class="header" href="#统计与自省">统计与自省</a></h2>
+<p>除非另有说明，这些方法直接返回值。<strong>标注为“抛出”的方法在索引不支持时会抛出 <code>std::runtime_error</code></strong>
+（而非 <code>tl::expected</code>）。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>方法</th><th>签名</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>GetIndexType</code></td><td><code>IndexType GetIndexType() const</code></td><td>不支持时<strong>抛出</strong>。</td></tr>
+<tr><td><code>GetNumElements</code></td><td><code>int64_t GetNumElements() const</code></td><td><em>（纯虚函数）</em> 存活元素数。</td></tr>
+<tr><td><code>GetNumberRemoved</code></td><td><code>int64_t GetNumberRemoved() const</code></td><td>不支持时<strong>抛出</strong>。已删除元素数。</td></tr>
+<tr><td><code>GetMemoryUsage</code></td><td><code>int64_t GetMemoryUsage() const</code></td><td><em>（纯虚函数）</em> 索引占用的字节数。</td></tr>
+<tr><td><code>GetMemoryUsageDetail</code></td><td><code>std::string GetMemoryUsageDetail() const</code></td><td>不支持时<strong>抛出</strong>。各组件内存的 JSON。</td></tr>
+<tr><td><code>EstimateMemory</code></td><td><code>uint64_t EstimateMemory(uint64_t num_elements) const</code></td><td>不支持时<strong>抛出</strong>。<code>num_elements</code> 的预估字节数。</td></tr>
+<tr><td><code>GetEstimateBuildMemory</code></td><td><code>int64_t GetEstimateBuildMemory(int64_t num_elements) const</code></td><td>不支持时<strong>抛出</strong>。预估构建峰值内存。</td></tr>
+<tr><td><code>GetStats</code></td><td><code>std::string GetStats() const</code></td><td>不支持时<strong>抛出</strong>。运行期统计的 JSON。</td></tr>
+<tr><td><code>AnalyzeIndexBySearch</code></td><td><code>std::string AnalyzeIndexBySearch(const SearchRequest&amp; request)</code></td><td>不支持时<strong>抛出</strong>。一次探测搜索的分析 JSON。</td></tr>
+<tr><td><code>CheckIdExist</code></td><td><code>bool CheckIdExist(int64_t id) const</code></td><td>不支持时<strong>抛出</strong>。<code>id</code> 是否存在。</td></tr>
+</tbody>
+</table>
+</div>
+<p>见 <code>examples/cpp/308_feature_estimate_memory.cpp</code>、<code>319_feature_get_memory_usage.cpp</code>，以及
+<a href="../resources/analyze_index.html">索引分析工具</a>。</p>
+<h2 id="参见"><a class="header" href="#参见">参见</a></h2>
+<ul>
+<li><a href="dataset.html">Dataset</a> —— 构造查询/基础输入并读取搜索结果。</li>
+<li><a href="search.html">搜索请求与过滤器</a> —— <code>SearchRequest</code> 字段与过滤器类型。</li>
+<li><a href="serialization.html">序列化类型</a> —— <code>BinarySet</code>、<code>Binary</code>、<code>Reader</code>、<code>ReaderSet</code>。</li>
+<li><a href="types.html">辅助类型</a> —— <code>IndexFeature</code>、<code>IndexDetailInfo</code>、<code>AttributeSet</code>。</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../api/factory_engine.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../api/dataset.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../api/factory_engine.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../api/dataset.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

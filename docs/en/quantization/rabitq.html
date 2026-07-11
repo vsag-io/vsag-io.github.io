@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-003fd777.js";
+            window.path_to_searchindex_js = "../searchindex-5e891436.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f8140cc2.js"></script>
+        <script src="../toc-651edbd8.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -310,7 +310,7 @@ coordinate is encoded with <strong>1 bit</strong>, giving the highest compressio
 of any built-in quantizer. On HGraph, an <code>x+y</code> split mode stores low-bit base
 codes as <code>x</code> filter bits plus <code>y</code> supplement bits, so graph traversal can use
 only the filter code and re-ranking can fetch only the supplement bits it needs.</p>
-<p><img src="../figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ: encode each coordinate by its sign relative to a random hyperplane"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ: encode each coordinate by its sign relative to a random hyperplane"><span class="img-wrapper"><img src="../figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ: encode each coordinate by its sign relative to a random hyperplane"></span></label></p>
 <blockquote>
 <p>Implementation: <code>src/quantization/rabitq_quantization/rabitq_quantizer.cpp</code>,
 parameter file <code>rabitq_quantizer_parameter.cpp</code>.
@@ -355,14 +355,15 @@ vector.</li>
 </tbody>
 </table>
 </div>
-<p>On HGraph these are exposed as the top-level keys <code>rabitq_pca_dim</code>,
-<code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>,
-<code>rabitq_bits_per_dim_precise</code>, <code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code> —
-the last one is the HGraph
-alias for the quantizer’s <code>use_fht</code> key and is rewritten by the index
-layer (<code>src/algorithm/hgraph.cpp:473-480</code>, names defined in
-<code>src/constants.cpp:142-148</code>). Pyramid exposes the same <code>rabitq_*</code> keys
-(<code>src/algorithm/pyramid.cpp:698-699</code>).</p>
+<p>Index pages expose RaBitQ settings as top-level <code>index_param</code> keys:
+HGraph exposes <code>rabitq_pca_dim</code>, <code>rabitq_bits_per_dim_query</code>,
+<code>rabitq_bits_per_dim_base</code>, <code>rabitq_bits_per_dim_precise</code>,
+<code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code>; IVF exposes
+<code>rabitq_pca_dim</code>, <code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>,
+<code>rabitq_version</code>, <code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code>; Pyramid exposes
+the PCA, base/query bit, and FHT keys for its base quantizer. The
+<code>rabitq_use_fht</code> key is an index-level alias for the quantizer’s internal
+<code>use_fht</code> key and is rewritten by the index layer.</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -468,7 +469,7 @@ significantly higher recall than pure 1-bit when using more total bits.</li>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 

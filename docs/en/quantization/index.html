@@ -145,8 +145,8 @@
         <link rel="icon" href="../favicon-de23e50b.svg">
         <link rel="shortcut icon" href="../favicon-8114d1fc.png">
         <link rel="stylesheet" href="../css/variables-8adf115d.css">
-        <link rel="stylesheet" href="../css/general-0392ca55.css">
-        <link rel="stylesheet" href="../css/chrome-fc474251.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
         <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-003fd777.js";
+            window.path_to_searchindex_js = "../searchindex-5e891436.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f8140cc2.js"></script>
+        <script src="../toc-651edbd8.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -312,7 +312,7 @@ re-ranking (<code>precise_quantization_type</code> + <code>use_reorder: true</co
 documents each supported quantizer: what it does, what JSON parameters it
 takes, when it needs training, which metrics it supports, and when to choose
 it.</p>
-<p><img src="../figures/quantization/quantization-overview.svg" alt="Quantization decision tree: pick a quantizer by memory budget"></p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/quantization/quantization-overview.svg" alt="Quantization decision tree: pick a quantizer by memory budget"><span class="img-wrapper"><img src="../figures/quantization/quantization-overview.svg" alt="Quantization decision tree: pick a quantizer by memory budget"></span></label></p>
 <h2 id="storage-and-search-pipeline"><a class="header" href="#storage-and-search-pipeline">Storage and search pipeline</a></h2>
 <pre><code>                 +---------------------+
    raw vector --&gt;|  optional transform |   (TQ chain: pca / rom / fht / mrle)
@@ -433,9 +433,15 @@ for the exact behavior.</p>
 <code>rabitq_bits_per_dim_base</code>, <code>rabitq_bits_per_dim_precise</code>,
 <code>rabitq_error_rate</code>, <code>rabitq_use_fht</code>, <code>sq4_uniform_trunc_rate</code>, <code>tq_chain</code>
 (see <code>src/algorithm/hgraph.cpp</code>).</li>
-<li><strong>IVF</strong>, <strong>Pyramid</strong>, <strong>BruteForce</strong> expose <code>base_quantization_type</code> and
-the common reorder keys; some tunables (e.g. <code>tq_chain</code>) are wired
-internally but not exposed as external keys today.</li>
+<li><strong>IVF</strong> exposes <code>base_quantization_type</code>, <code>base_pq_dim</code>, the common reorder
+keys, and the RabitQ tuning keys <code>rabitq_pca_dim</code>,
+<code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>, <code>rabitq_version</code>,
+<code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code>.</li>
+<li><strong>Pyramid</strong> exposes <code>base_quantization_type</code>, <code>base_pq_dim</code>, the common
+reorder keys, and the RabitQ PCA, base/query bit, and FHT keys.</li>
+<li><strong>BruteForce</strong> exposes <code>base_quantization_type</code> and the common reorder keys;
+some tunables (e.g. <code>tq_chain</code>) are wired internally but not exposed as
+external keys today.</li>
 </ul>
 <p>Refer to each index page for its full parameter list.</p>
 <h2 id="in-this-chapter"><a class="header" href="#in-this-chapter">In this chapter</a></h2>
@@ -499,7 +505,7 @@ internally but not exposed as external keys today.</li>
 
         <script src="../clipboard-1626706a.min.js"></script>
         <script src="../highlight-abc7f01d.js"></script>
-        <script src="../book-c22b7243.js"></script>
+        <script src="../book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
 
