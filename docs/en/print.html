@@ -166,7 +166,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5e891436.js";
+            window.path_to_searchindex_js = "searchindex-a3186769.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-651edbd8.js"></script>
@@ -1274,6 +1274,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td><code>rabitq</code> layout: <code>"standard"</code> or <code>"split_1bit_7bit"</code></td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Positive error-budget parameter for <code>rabitq</code> encoding</td></tr>
 <tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td>Enable FHT rotation before <code>rabitq</code> binarization</td></tr>
+<tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use CAQ fast construction for multi-bit <code>rabitq</code>; set to <code>false</code> for exact encoding</td></tr>
+<tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>CAQ adjustment rounds; allowed range is <code>[1, 32]</code></td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse scan</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (with <code>use_reorder: true</code>)</td></tr>
 <tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>Storage backend for coarse codes</td></tr>
@@ -2583,9 +2585,20 @@ vector.</li>
 <tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>HGraph-only split-mode key. When present with <code>base_quantization_type: "rabitq"</code> and <code>precise_quantization_type: "rabitq"</code>, this means <code>y</code>, the supplement bits used for reorder/full-distance refinement. The sum <code>x + y</code> must be <code>&lt;= 8</code>.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Default lower-bound error multiplier for HGraph split search; must be finite and positive. It can be overridden per search under the <code>hgraph</code> object.</td></tr>
 <tr><td><code>use_fht</code></td><td>bool</td><td><code>false</code></td><td>If <code>true</code>, applies a Fast Hadamard Transform rotation before binarization. Improves accuracy on anisotropic data with cheap O(dim log dim) cost (<code>rabitq_quantizer_parameter.cpp:76-78</code>).</td></tr>
+<tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>For stored codes wider than one bit, use CAQ-based fast encoding. Set to <code>false</code> to retain the exact RaBitQ encoder. The setting is ignored for one-bit codes.</td></tr>
+<tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Number of CAQ coordinate-adjustment rounds. Allowed range: <code>[1, 32]</code>. Each coordinate moves by at most one level per round.</td></tr>
 </tbody>
 </table>
 </div>
+<p>Multi-bit RaBitQ uses an LVQ initialization followed by fixed-round coordinate
+adjustment when <code>fast_encode_rabitq</code> is enabled. This reduces code selection
+from approximately <code>O(2^B * dim * log(dim))</code> to <code>O(rounds * dim)</code> while keeping
+the existing code layout and query estimator. The implementation follows the
+CAQ component of <a href="https://arxiv.org/abs/2509.12086">SAQ</a>; use the exact fallback
+when measuring the quality/speed trade-off on a new dataset. These build-only
+settings do not affect index loading compatibility. VSAG uses a clean-room
+implementation and does not depend on the Apache-2.0 licensed
+<a href="https://github.com/howarlii/saq/">SAQ reference repository</a>.</p>
 <p>Index pages expose RaBitQ settings as top-level <code>index_param</code> keys:
 HGraph exposes <code>rabitq_pca_dim</code>, <code>rabitq_bits_per_dim_query</code>,
 <code>rabitq_bits_per_dim_base</code>, <code>rabitq_bits_per_dim_precise</code>,
@@ -2594,7 +2607,9 @@ HGraph exposes <code>rabitq_pca_dim</code>, <code>rabitq_bits_per_dim_query</cod
 <code>rabitq_version</code>, <code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code>; Pyramid exposes
 the PCA, base/query bit, and FHT keys for its base quantizer. The
 <code>rabitq_use_fht</code> key is an index-level alias for the quantizer’s internal
-<code>use_fht</code> key and is rewritten by the index layer.</p>
+<code>use_fht</code> key and is rewritten by the index layer.
+<code>fast_encode_rabitq</code> and <code>fast_encode_rabitq_rounds</code> are available on HGraph,
+IVF, and Pyramid and are propagated to both base and precise RaBitQ quantizers.</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",

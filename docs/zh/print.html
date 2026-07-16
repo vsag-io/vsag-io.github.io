@@ -166,7 +166,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-9a4b1121.js";
+            window.path_to_searchindex_js = "searchindex-4de24482.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8b6a0bc1.js"></script>
@@ -1246,6 +1246,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td><code>rabitq</code> 布局：<code>"standard"</code> 或 <code>"split_1bit_7bit"</code></td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td><code>rabitq</code> 编码的正数误差预算参数</td></tr>
 <tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td><code>rabitq</code> 二值化前是否启用 FHT 旋转</td></tr>
+<tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>多 bit <code>rabitq</code> 是否使用 CAQ 快速构建；设为 <code>false</code> 时使用精确编码</td></tr>
+<tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>CAQ 微调轮数，允许范围 <code>[1, 32]</code></td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排量化类型（<code>use_reorder: true</code> 时使用）</td></tr>
 <tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>粗排向量的存储后端</td></tr>
@@ -2456,9 +2458,18 @@ HGraph split 的完整存储布局、lower bound 公式和 IO 模式见
 <tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>未设置</td><td>HGraph-only split 模式 key。和 <code>base_quantization_type: "rabitq"</code>、<code>precise_quantization_type: "rabitq"</code> 一起出现时表示 <code>y</code>，即重排 / full-distance 阶段读取的 supplement bits。要求 <code>x + y &lt;= 8</code>。</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>HGraph split 搜索的默认 lower-bound 误差倍率；必须为有限正数，也可以在 <code>hgraph</code> 搜索参数中按次覆盖。</td></tr>
 <tr><td><code>use_fht</code></td><td>bool</td><td><code>false</code></td><td><code>true</code> 时在二值化前应用快速 Hadamard 变换旋转。以 O(dim log dim) 的廉价代价提升各向异性数据上的精度（<code>rabitq_quantizer_parameter.cpp:76-78</code>）。</td></tr>
+<tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>对大于 1 bit 的底库码启用基于 CAQ 的快速编码；设为 <code>false</code> 时使用原有精确编码。1 bit 编码会忽略此参数。</td></tr>
+<tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>CAQ 坐标微调轮数，范围 <code>[1, 32]</code>；每个坐标在每轮最多移动一级。</td></tr>
 </tbody>
 </table>
 </div>
+<p>启用 <code>fast_encode_rabitq</code> 后，多 bit RaBitQ 先进行 LVQ 初始化，再执行固定轮数的
+坐标微调，把码字选择复杂度从约 <code>O(2^B * dim * log(dim))</code> 降到
+<code>O(rounds * dim)</code>，且不改变编码布局和查询估计器。实现参考
+<a href="https://arxiv.org/abs/2509.12086">SAQ</a> 中的 CAQ；在新数据集上评估质量与速度
+权衡时可关闭该参数使用精确编码。两个参数仅影响构建，不影响已保存索引的加载
+兼容性。VSAG 采用 clean-room 实现，不依赖采用 Apache-2.0 许可证的
+<a href="https://github.com/howarlii/saq/">SAQ 参考仓库</a>。</p>
 <p>各索引页会把 RaBitQ 设置暴露为 <code>index_param</code> 顶层 key：HGraph 暴露
 <code>rabitq_pca_dim</code>、<code>rabitq_bits_per_dim_query</code>、<code>rabitq_bits_per_dim_base</code>、
 <code>rabitq_bits_per_dim_precise</code>、<code>rabitq_error_rate</code>、<code>rabitq_use_fht</code>；IVF
@@ -2467,6 +2478,8 @@ HGraph split 的完整存储布局、lower bound 公式和 IO 模式见
 <code>rabitq_use_fht</code>；Pyramid 为底层量化器暴露 PCA、底库/查询位数和 FHT
 相关 key。其中 <code>rabitq_use_fht</code> 是索引层对量化器内部 <code>use_fht</code> key
 的别名，会由索引层重写。</p>
+<p><code>fast_encode_rabitq</code> 和 <code>fast_encode_rabitq_rounds</code> 同时适用于 HGraph、IVF
+和 Pyramid，并会传播给 base 与 precise RaBitQ 量化器。</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
