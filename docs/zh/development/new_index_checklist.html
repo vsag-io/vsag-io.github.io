@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="light sidebar-visible" dir="ltr">
+<html lang="zh" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Index Introspection - VSAG Documentation</title>
+        <title>新索引接入检查清单 - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-511e3c2e.js";
+            window.path_to_searchindex_js = "../searchindex-4a8d5bff.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8253392c.js"></script>
+        <script src="../toc-5433fefd.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG Documentation</h1>
+                    <h1 class="menu-title">VSAG文档</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,138 +304,221 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="index-introspection"><a class="header" href="#index-introspection">Index Introspection</a></h1>
-<p>VSAG indexes expose three families of introspection APIs that let callers discover what an index
-can do, compute distances against existing vectors, and read back structured information about
-the built index without re-running a search:</p>
+                        <h1 id="新索引接入检查清单"><a class="header" href="#新索引接入检查清单">新索引接入检查清单</a></h1>
+<p>新增 VSAG 索引实现时使用这份检查清单。第一版应保持范围可控：先让索引能通过公开
+factory 创建，支持它声明的生命周期方法；只有在行为已经实现并经过测试后，再开启对应的
+feature flag。</p>
+<h2 id="必做项"><a class="header" href="#必做项">必做项</a></h2>
 <ul>
-<li><strong><code>CheckFeature(IndexFeature)</code></strong> — runtime capability discovery.</li>
-<li><strong><code>CalDistanceById(...)</code></strong> — distance from a query to specific stored ids.</li>
-<li><strong><code>GetIndexDetailInfos()</code> / <code>GetDetailDataByName(...)</code></strong> — structured per-index detail data.</li>
+<li>
+<p><input disabled="" type="checkbox"> 选择公开索引名称和类型。</p>
+<ul>
+<li>如果新索引需要公开名称常量，请在 <code>include/vsag/constants.h</code> 或
+<code>src/inner_string_params.h</code> 中添加。</li>
+<li>当调用方需要通过 <code>Index::GetIndexType()</code> 区分该索引时，在
+<code>include/vsag/index.h</code> 中添加 <code>IndexType</code> 枚举值。</li>
+<li>保持公开名称稳定。<code>src/factory/index_registry.cpp</code> 会在查找前把 factory 名称
+归一化为小写。</li>
 </ul>
-<p>These APIs are read-only and safe to call concurrently with search.</p>
-<h2 id="capability-discovery--checkfeature"><a class="header" href="#capability-discovery--checkfeature">Capability Discovery — <code>CheckFeature</code></a></h2>
-<p><code>index-&gt;CheckFeature(vsag::SUPPORT_*)</code> returns <code>true</code> when the underlying index implementation
-advertises the given feature. Use it whenever a code path takes an <code>IndexPtr</code> of unknown concrete
-type (e.g. user-supplied configuration, polymorphic store):</p>
-<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_ESTIMATE_MEMORY)) {
-    uint64_t est = index-&gt;EstimateMemory(100'000);
-}
-
-if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
-    // Skip / fall back to remove + re-add via a different index.
-}
-</code></pre>
-<p>Feature flags cover almost every optional surface in the library: build / add /
-serialize variants, concurrent combinations, metric types, attribute and extra-info filters,
-<code>Clone</code>, <code>ExportModel</code>, <code>Tune</code>, and more. See <code>include/vsag/index_features.h</code> for the full
-enumeration.</p>
-<p>A runnable example is available at <code>examples/cpp/307_feature_check_features.cpp</code>.</p>
-<h2 id="distances-to-existing-ids--caldistancebyid"><a class="header" href="#distances-to-existing-ids--caldistancebyid">Distances to Existing Ids — <code>CalDistanceById</code></a></h2>
-<p><code>CalDistanceById</code> computes the distance between a query and one or more vectors that are
-<strong>already stored in the index</strong>, without running a search. This is useful for re-ranking, A/B
-evaluation, ground-truth checks, or computing pairwise distances to a known shortlist.</p>
-<p>Two overloads are provided:</p>
-<pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF)
-auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
-
-// Sparse vector indexes (SINDI) — wrap the query in a Dataset
-auto query_ds = vsag::Dataset::Make();
-query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
-auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
-</code></pre>
-<p>The result <code>Dataset</code> holds <code>count</code> distances in <code>GetDistances()</code>. A value of <code>-1.0F</code> means the
-corresponding id was invalid (not present in the index).</p>
-<h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
-<p>The trailing <code>bool</code> argument trades precision for latency:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Value</th><th>Behavior</th></tr>
-</thead>
-<tbody>
-<tr><td><code>true</code> (default)</td><td>Use the full-precision vector representation. May incur disk I/O on hybrid memory-disk indexes.</td></tr>
-<tr><td><code>false</code></td><td>Use the quantized / approximate representation cached for search. Faster, no I/O.</td></tr>
-</tbody>
-</table>
-</div>
-<p>A runnable example is available at <code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code>.</p>
-<h2 id="detail-data--getindexdetailinfos--getdetaildatabyname"><a class="header" href="#detail-data--getindexdetailinfos--getdetaildatabyname">Detail Data — <code>GetIndexDetailInfos</code> / <code>GetDetailDataByName</code></a></h2>
-<p><code>GetIndexDetailInfos()</code> returns a list of <code>IndexDetailInfo</code> records that describe every named
-piece of structured data the index can expose. Each record carries a <code>name</code>, a <code>description</code>, and
-a <code>type</code> enum that selects the right typed accessor on <code>DetailData</code>.</p>
-<p>Support is index-dependent — there is no dedicated <code>SUPPORT_*</code> flag for these two APIs. The
-<code>Index</code> base class throws <code>std::runtime_error("Index doesn't support ...")</code> by default
-(<code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> in <code>include/vsag/index.h:658,674</code>);
-HGraph / IVF / BruteForce / Pyramid / SINDI / WARP implement them through
-<code>InnerIndexInterface</code>. Always handle the <code>tl::expected</code> error path when calling these APIs.</p>
-<pre><code class="language-cpp">auto infos = index-&gt;GetIndexDetailInfos().value();
-for (const auto&amp; info : infos) {
-    std::cout &lt;&lt; info.name &lt;&lt; " : " &lt;&lt; info.description &lt;&lt; '\n';
-}
-</code></pre>
-<p>Once you know which entries are available, call <code>GetDetailDataByName(name, info)</code> to retrieve the
-typed payload:</p>
-<pre><code class="language-cpp">vsag::IndexDetailInfo info;
-auto detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_NUM_ELEMENTS, info).value();
-int64_t n = detail-&gt;GetDataScalarInt64();
-
-detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_LABEL_TABLE, info).value();
-auto table = detail-&gt;GetData2DArrayInt64();   // [row][col] int64 matrix
-
-detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_DATA_TYPE, info).value();
-std::string dt = detail-&gt;GetDataScalarString();
-</code></pre>
-<h3 id="data-types"><a class="header" href="#data-types">Data Types</a></h3>
-<p><code>info.type</code> selects which accessor on <code>DetailData</code> is valid:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th><code>IndexDetailDataType</code></th><th>Accessor</th></tr>
-</thead>
-<tbody>
-<tr><td><code>TYPE_SCALAR_INT64</code></td><td><code>GetDataScalarInt64()</code></td></tr>
-<tr><td><code>TYPE_SCALAR_DOUBLE</code></td><td><code>GetDataScalarDouble()</code></td></tr>
-<tr><td><code>TYPE_SCALAR_BOOL</code></td><td><code>GetDataScalarBool()</code></td></tr>
-<tr><td><code>TYPE_SCALAR_STRING</code></td><td><code>GetDataScalarString()</code></td></tr>
-<tr><td><code>TYPE_1DArray_INT64</code></td><td><code>GetData1DArrayInt64()</code></td></tr>
-<tr><td><code>TYPE_2DArray_INT64</code></td><td><code>GetData2DArrayInt64()</code></td></tr>
-</tbody>
-</table>
-</div>
-<p>Standard detail names exposed as constants in <code>include/vsag/index_detail_info.h</code>:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Constant</th><th>Typical type</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>INDEX_DETAIL_NAME_NUM_ELEMENTS</code></td><td><code>TYPE_SCALAR_INT64</code></td><td>Number of vectors currently in the index.</td></tr>
-<tr><td><code>INDEX_DETAIL_NAME_LABEL_TABLE</code></td><td><code>TYPE_2DArray_INT64</code></td><td>Per-vector label table (e.g. internal-to-user id mapping).</td></tr>
-<tr><td><code>INDEX_DETAIL_DATA_TYPE</code></td><td><code>TYPE_SCALAR_STRING</code></td><td>Underlying vector data type (e.g. <code>"float32"</code>).</td></tr>
-</tbody>
-</table>
-</div>
-<p>Individual indexes may expose additional names; iterate <code>GetIndexDetailInfos()</code> to discover them
-at runtime. A runnable example is available at <code>examples/cpp/317_feature_get_detail_data.cpp</code>.</p>
-<h2 id="notes-and-limitations"><a class="header" href="#notes-and-limitations">Notes and Limitations</a></h2>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 在公开 <code>Index</code> API 背后实现索引。</p>
 <ul>
-<li><code>CheckFeature</code> is constant-time. Prefer it over <code>try</code> / <code>catch</code> around an unsupported call.</li>
-<li><code>CalDistanceById</code> requires the underlying index to retain enough information to recompute the
-distance. For purely quantized indexes (no raw vectors retained), <code>calculate_precise_distance = true</code> may return the quantized distance instead.</li>
-<li><code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> are read-only snapshots. The values returned
-reflect the index state at the moment of the call; concurrent mutations may invalidate them.</li>
+<li>对新的内存索引，优先沿用 <code>src/index/index_impl.h</code> 中现有的 <code>IndexImpl&lt;T&gt;</code> 模式：
+在 <code>src/algorithm/&lt;name&gt;/</code> 下实现一个 <code>InnerIndexInterface</code> 子类 <code>T</code>。</li>
+<li>实现 <code>static CheckAndMappingExternalParam(const JsonType&amp;, const IndexCommonParam&amp;)</code>，
+让 <code>IndexImpl&lt;T&gt;</code> 能校验外部 JSON 并构造内部参数对象。</li>
+<li>按内部索引契约实现 <code>GetName()</code>、<code>GetIndexType()</code>、<code>GetNumElements()</code>、<code>Add()</code>、
+<code>KnnSearch()</code>、<code>Serialize(StreamWriter&amp;)</code> 和 <code>Deserialize(StreamReader&amp;)</code>；索引支持
+<code>Build()</code> 时再实现它。<code>InnerIndexInterface::Add()</code> 是纯虚函数，因此每个子类都必须重写，
+即使索引只支持 <code>Build()</code>；不支持时应抛出 <code>UNSUPPORTED_INDEX_OPERATION</code>，且不要开启对应
+的 feature flag。</li>
+<li>对不支持的操作保留基类默认行为，不要把未实现能力声明为已支持。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 接入 factory 和 engine 创建路径。</p>
+<ul>
+<li>在 <code>src/factory/index_creators.cpp</code> 中添加 creator。</li>
+<li>在 <code>register_all_index_creators()</code> 中注册。</li>
+<li>对共享字段使用 <code>src/index_common_param.cpp</code> 中的
+<code>IndexCommonParam::CheckAndCreate()</code>：<code>dtype</code>、<code>metric_type</code>、<code>dim</code>、可选 <code>repr</code>、
+可选 <code>extra_info_size</code>、allocator、thread pool，以及旧序列化格式兼容信息。</li>
+<li>在 <code>src/factory/factory_test.cpp</code> 或实现附近的专项测试中，覆盖可接受名称、非法参数
+和不支持的参数形态。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 添加构建系统接入。</p>
+<ul>
+<li>添加 <code>src/algorithm/&lt;name&gt;/CMakeLists.txt</code>，并从 <code>src/algorithm/CMakeLists.txt</code> 引入。</li>
+<li>将新源码加入最近的现有 target，不要创建平行构建路径。</li>
+<li>文件后缀保持 <code>.cpp</code>；除非变更本身涉及第三方依赖，否则不要修改 <code>extern/</code>。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 定义并校验索引参数。</p>
+<ul>
+<li>当索引有自己的 schema 时，把实现参数放在 <code>&lt;name&gt;_parameter.{h,cpp}</code> 中。</li>
+<li>为序列化/重建参数校验实现 JSON 解析、<code>ToJson()</code> 和 <code>CheckCompatibility()</code>。</li>
+<li>对非法维度、metric/data type 组合、缺失的必需配置块和未知模式，通过已有的
+<code>CHECK_ARGUMENT</code> / <code>VsagException</code> 流程返回 <code>ErrorType::INVALID_ARGUMENT</code>。</li>
+<li>如果参数对用户可见，更新 <code>docs/docs/{en,zh}/src/resources/index_parameters.md</code> 和对应
+索引文档。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 明确实现生命周期行为。</p>
+<ul>
+<li>决定索引是否支持 <code>Train()</code>、<code>Build()</code>、<code>ContinueBuild()</code>、build 后 <code>Add()</code>、空索引
+<code>Add()</code>。</li>
+<li>决定是否支持 <code>Remove()</code>、<code>UpdateId()</code>、<code>UpdateVector()</code>、<code>UpdateAttribute()</code> 和
+<code>UpdateExtraInfo()</code>。</li>
+<li>对每一种支持的 mutation，测试空数据集、重复 ID（如适用）、缺失 ID、不可变索引行为以及
+mutation 后的搜索正确性。</li>
+<li>保持 <code>InitFeatures()</code> 与已经实现的操作一致。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 实现搜索行为和结果打包。</p>
+<ul>
+<li>支持该索引要求的公开 <code>KnnSearch()</code> 重载，包括声明支持时的 <code>BitsetPtr</code>、
+<code>std::function&lt;bool(int64_t)&gt;</code> 和 <code>FilterPtr</code> 过滤路径。</li>
+<li>如果索引支持新的 request 路径，实现 <code>SearchWithRequest()</code>。</li>
+<li>一致地返回 <code>Dataset</code> 字段：ID、距离、<code>num_elements</code>、结果维度和可选结果统计信息。</li>
+<li>按 HGraph 等现有索引使用的嵌套索引名约定解析搜索参数。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 保持序列化兼容。</p>
+<ul>
+<li>同时实现 <code>Serialize(StreamWriter&amp;)</code> 和 <code>Deserialize(StreamReader&amp;)</code>；基类
+<code>InnerIndexInterface</code> 会把它们适配到 <code>BinarySet</code>、<code>ReaderSet</code> 和 stream。</li>
+<li>保存足够的元数据以拒绝不兼容二进制，包括参数兼容性，以及存在 extra info 时的
+<code>extra_info_size</code>。</li>
+<li>当索引同时支持 <code>BinarySet</code> 和 <code>ReaderSet</code> 时，添加两条路径的 round-trip 测试。</li>
+<li>如果既有索引的二进制格式发生变化，更新兼容性测试并记录迁移路径。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 在声明 feature 前补齐测试。</p>
+<ul>
+<li>单元测试应覆盖参数解析、build/add/search、序列化、feature flag、已实现的内存估算以及
+错误路径。</li>
+<li><code>tests/</code> 下的功能测试应覆盖用户能通过 <code>Factory::CreateIndex()</code> 触达的公开 API 行为。</li>
+<li>保持 <code>src/</code> 和 <code>include/</code> 的 C++ 单元测试覆盖率不低于项目阈值。</li>
+</ul>
+</li>
+</ul>
+<h2 id="可选适配点"><a class="header" href="#可选适配点">可选适配点</a></h2>
+<p>仅当新索引确实实现对应行为时才添加这些能力。实现后，在 <code>InitFeatures()</code> 中开启匹配的
+<code>IndexFeature</code>，并添加专项测试。</p>
+<ul>
+<li>
+<p><input disabled="" type="checkbox"> Extra info（<code>extra_info</code> / <code>extrainfo</code>）。</p>
+<ul>
+<li>通过 <code>IndexCommonParam</code> 解析 <code>extra_info_size</code>。</li>
+<li>保存来自 <code>Dataset::GetExtraInfos()</code> 的定长逐向量 payload，并在 <code>Build()</code>、<code>Add()</code> 和
+<code>UpdateExtraInfo()</code> 中校验 <code>Dataset::GetExtraInfoSize()</code>。</li>
+<li>实现 <code>GetExtraInfoByIds()</code>，并在支持该 feature 时填充搜索结果中的 extra info。</li>
+<li>如果索引支持 extra-info 过滤，记录并测试会切换到 <code>Filter::CheckValid(const char*)</code> 的
+搜索参数。</li>
+<li>参考 <code>docs/docs/zh/src/advanced/extra_info.md</code> 和
+<code>examples/cpp/320_feature_extra_info.cpp</code>。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 统计与分析。</p>
+<ul>
+<li>为能帮助运维理解索引的静态结构数据实现 <code>GetStats()</code>。</li>
+<li>只有在需要基于 query 分析时，才实现 <code>AnalyzeIndexBySearch(const SearchRequest&amp;)</code>。</li>
+<li>当 search-time 指标有价值时，通过 <code>Dataset::Statistics()</code> 附带结果统计。</li>
+<li>保持工具输出兼容 <code>tools/analyze_index</code> 和
+<code>docs/docs/zh/src/resources/analyze_index.md</code>。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 范围搜索。</p>
+<ul>
+<li>必须重写 <code>InnerIndexInterface</code> 要求的纯虚主重载
+<code>RangeSearch(..., const FilterPtr&amp;, ...)</code>，即使算法不支持范围搜索；不支持时应抛出
+<code>UNSUPPORTED_INDEX_OPERATION</code>，且不要开启对应的 feature flag。</li>
+<li>只有当算法能遵守 radius 语义和 <code>limited_size</code> 时，才实现其他 <code>RangeSearch()</code> 重载。</li>
+<li>测试不限量、限量、带过滤和空结果场景。</li>
+<li>参考 <code>docs/docs/zh/src/advanced/range_search.md</code>。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 过滤器与属性。</p>
+<ul>
+<li>只有当各路径已接入搜索时，才支持 <code>BitsetPtr</code>、<code>std::function&lt;bool(int64_t)&gt;</code> 或
+<code>FilterPtr</code>。</li>
+<li>如果支持属性过滤，实现属性存储/更新路径，并记录可接受的属性 schema。</li>
+<li>测试 bitset invalidation 语义和 <code>Filter::CheckValid()</code> keep 语义之间的差异。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Allocator、resource 和线程集成。</p>
+<ul>
+<li>使用 <code>IndexCommonParam::allocator_</code> 或派生的 allocator-aware 组件分配长期结构。</li>
+<li>当 build/search 工作并行化时，使用 <code>Resource</code> thread pool。</li>
+<li>确认自定义 allocator 和自定义 thread-pool 示例仍准确描述行为。</li>
+<li>只有在 add/search/delete/update 交互已测试后，才标记并发相关 feature。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 内存和自省 API。</p>
+<ul>
+<li>当索引能报告有意义数字时，实现 <code>EstimateMemory()</code>、<code>EstimateBuildMemory()</code>、
+<code>GetMemoryUsage()</code> 和 <code>GetMemoryUsageDetail()</code>。</li>
+<li>只有在底层存储支持时，才实现 <code>GetMinAndMaxId()</code>、<code>CheckIdExist()</code>、<code>ExportIDs()</code>、
+<code>GetVectorByIds()</code>、<code>GetDataByIds()</code>、<code>GetIndexDetailInfos()</code> 或
+<code>GetDetailDataByName()</code>。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 模型导出、clone、merge、tune、feedback 和 cache 导入/导出。</p>
+<ul>
+<li>当索引可以在不错误共享可变存储的情况下复制时，实现 <code>Clone()</code> 和 <code>ExportModel()</code>。</li>
+<li>只有在参数兼容性、ID 重映射和删除语义清晰时，才实现 <code>Merge()</code>。</li>
+<li>只有带有明确参数解析和测试时，才实现 <code>Tune()</code>、<code>Feedback()</code>、<code>ExportCache()</code> 和
+<code>ImportCache()</code>。</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> 绑定、示例、benchmark 和文档。</p>
+<ul>
+<li>Python 绑定通常只在公开 API surface 变化时需要更新；当前 <code>pyvsag</code> 用户通过名称和 JSON
+参数创建索引。</li>
+<li>当索引引入新的用户工作流时，在 <code>examples/cpp/</code> 下添加 C++ 示例。</li>
+<li>如果行为可从 <code>pyvsag</code> 触达，在 <code>tests/python/</code> 下添加 Python 示例/测试。</li>
+<li>当 reviewer 需要可重复性能数据时，在 <code>benchs/</code> 下添加 benchmark YAML。</li>
+<li>对用户可见的索引或参数，在 <code>docs/docs/{en,zh}/src/</code> 下添加英文和中文网站文档。</li>
+</ul>
+</li>
+</ul>
+<h2 id="review-checklist"><a class="header" href="#review-checklist">Review Checklist</a></h2>
+<ul>
+<li><input disabled="" type="checkbox"> <code>Factory::CreateIndex()</code> 和 <code>Engine::CreateIndex()</code> 能按文档名称创建索引。</li>
+<li><input disabled="" type="checkbox"> <code>CheckFeature()</code> 只对已实现且已测试的行为返回 true。</li>
+<li><input disabled="" type="checkbox"> 不支持的操作通过现有 wrapper 返回 <code>UNSUPPORTED_INDEX_OPERATION</code>。</li>
+<li><input disabled="" type="checkbox"> 序列化 round trip 保留索引声明支持的 ID、向量或压缩码、参数、删除状态、属性和
+extra info。</li>
+<li><input disabled="" type="checkbox"> 每个支持的生命周期转换后，搜索结果仍然有效。</li>
+<li><input disabled="" type="checkbox"> 文档列出用户可见参数、支持的 metric/data type 和不支持的操作。</li>
+<li><input disabled="" type="checkbox"> 已运行实际验证：变更代码对应的单元/功能测试，以及文档-only 变更需要的格式检查或
+<code>git diff --check</code>。</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../advanced/search_allocator.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../development/code_structure.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../advanced/extensibility.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../development/building.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -445,11 +528,11 @@ reflect the index state at the moment of the call; concurrent mutations may inva
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../advanced/search_allocator.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../development/code_structure.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../advanced/extensibility.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../development/building.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

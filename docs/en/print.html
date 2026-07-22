@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-a3186769.js";
+            window.path_to_searchindex_js = "searchindex-511e3c2e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-651edbd8.js"></script>
+        <script src="toc-8253392c.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -607,6 +607,7 @@ structures and trade-offs they use under the hood.</p>
 <tr><td><code>lazy_hgraph</code></td><td><a href="#lazyhgraph-1">LazyHGraph</a></td><td>Small-to-growing FP32 collections that start exact and later convert to HGraph</td></tr>
 <tr><td><code>ivf</code></td><td><a href="#ivf-1">IVF</a></td><td>Partition-based search, high-throughput batch queries, large corpora</td></tr>
 <tr><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product</td></tr>
+<tr><td><code>simq</code></td><td><a href="#simq">SIMQ</a></td><td>ColBERT-style multi-vector retrieval (MaxSim)</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="#pyramid-1">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
 </tbody>
 </table>
@@ -1493,6 +1494,212 @@ is not physically reclaimed.</p>
 <li><a href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="simq"><a class="header" href="#simq">SIMQ</a></h1>
+<p>SIMQ is VSAG’s index for <strong>multi-vector</strong> retrieval — the kind of data where each
+document is a <em>set</em> of token-level vectors rather than a single embedding. This
+pattern arises in late-interaction models such as ColBERT, where a document is
+represented by one vector per token and relevance is computed via <strong>MaxSim</strong>
+(sum of maximum per-query-token similarities).</p>
+<ul>
+<li>Source: <code>src/algorithm/simq/</code></li>
+</ul>
+<h2 id="how-it-works-5"><a class="header" href="#how-it-works-5">How it works</a></h2>
+<ol>
+<li><strong>Dynamic clustering of token vectors.</strong> At build time, all token vectors
+across every document are extracted into a flat pool and clustered using an
+HGraph-based dynamic clustering algorithm. The initial cluster centers are
+sampled at a ratio controlled by <code>init_cluster_ratio</code>; clusters that grow
+beyond <code>max_cluster_size</code> are split incrementally.</li>
+<li><strong>Representative graph for coarse search.</strong> A representative HGraph is built
+over the cluster centroids. At query time, each query token searches this
+graph to find its nearest clusters (controlled by <code>coarse_k</code>). The cluster
+scores are accumulated across all query tokens to produce a candidate set.</li>
+<li><strong>Exact MaxSim reranking.</strong> The top <code>rerank_k</code> candidates are re-scored by
+reading back the original token vectors from disk (or memory) and computing
+the exact MaxSim similarity between query tokens and document tokens.</li>
+</ol>
+<p>The combination of cluster-level coarse search and exact reranking gives SIMQ a
+tunable recall/latency tradeoff for multi-vector workloads.</p>
+<h2 id="quick-start-5"><a class="header" href="#quick-start-5">Quick start</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string build_params = R"({
+    "dtype": "float32",
+    "metric_type": "ip",
+    "dim": 256,
+    "index_param": {
+        "base_io_type": "async_io",
+        "base_file_path": "/path/to/simq_base_codes.bin",
+        "init_cluster_ratio": 0.1,
+        "max_cluster_size": 160,
+        "split_start_idx": 80,
+        "random_seed": 42,
+        "coarse_k": 50,
+        "rerank_k": 1000
+    }
+})";
+auto index = vsag::Factory::CreateIndex("simq", build_params).value();
+
+// Build a dataset of MultiVector.
+// Each document has a variable number of token vectors, each of dimension `dim`.
+std::vector&lt;vsag::MultiVector&gt; base_mvs(num_docs);
+std::vector&lt;int64_t&gt; ids(num_docs);
+for (int64_t i = 0; i &lt; num_docs; ++i) {
+    base_mvs[i].len_ = doc_token_counts[i];             // number of tokens in doc i
+    base_mvs[i].vectors_ = doc_token_vectors[i];        // flat array: len_ * dim floats
+    ids[i] = i;
+}
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_docs)
+    -&gt;Dim(dim)
+    -&gt;Ids(ids.data())
+    -&gt;MultiVectors(base_mvs.data())
+    -&gt;MultiVectorDim(dim)
+    -&gt;Owner(false);
+index-&gt;Build(base);
+
+// Search with a multi-vector query.
+vsag::MultiVector query_mv;
+query_mv.len_ = query_token_count;
+query_mv.vectors_ = query_token_vectors;
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)
+    -&gt;Dim(dim)
+    -&gt;MultiVectors(&amp;query_mv)
+    -&gt;MultiVectorDim(dim)
+    -&gt;Owner(false);
+
+std::string search_params = R"({
+    "simq": {
+        "coarse_k": 600,
+        "rerank_k": 5000
+    }
+})";
+auto result = index-&gt;KnnSearch(query, /*topk=*/100, search_params).value();
+
+// Read results.
+const int64_t* result_ids = result-&gt;GetIds();
+const float* result_dists = result-&gt;GetDistances();
+int64_t result_count = result-&gt;GetDim();
+for (int64_t i = 0; i &lt; result_count; ++i) {
+    int64_t id = result_ids[i];
+    float dist = result_dists[i];
+}
+</code></pre>
+<h2 id="build-parameters-4"><a class="header" href="#build-parameters-4">Build parameters</a></h2>
+<p>SIMQ-specific build parameters live under <code>index_param</code>. The common fields
+<code>dim</code>, <code>dtype</code>, and <code>metric_type</code> are top-level. <code>dtype</code> <strong>must</strong> be
+<code>"float32"</code> and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>int</td><td>— (required)</td><td>Dimension of each token vector.</td></tr>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"async_io"</code></td><td>Storage backend for reranking multi-vector data.</td></tr>
+<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path for disk-backed IO types.</td></tr>
+<tr><td><code>init_cluster_ratio</code></td><td>float</td><td><code>0.2</code></td><td>Fraction of tokens sampled as initial cluster centers.</td></tr>
+<tr><td><code>max_cluster_size</code></td><td>int</td><td><code>64</code></td><td>Maximum token vectors per cluster before split.</td></tr>
+<tr><td><code>split_start_idx</code></td><td>int</td><td><code>32</code></td><td>Split position within an overflowing cluster.</td></tr>
+<tr><td><code>random_seed</code></td><td>int</td><td><code>42</code></td><td>Random seed for clustering shuffle.</td></tr>
+<tr><td><code>coarse_k</code></td><td>int</td><td><code>8</code></td><td>Default nearest clusters per query token at build time.</td></tr>
+<tr><td><code>rerank_k</code></td><td>int</td><td><code>100</code></td><td>Default max rerank candidates at build time.</td></tr>
+</tbody>
+</table>
+</div>
+<ul>
+<li><strong><code>dim</code></strong> — shared across all documents and queries.</li>
+<li><strong><code>base_io_type</code></strong> — supported values: <code>async_io</code>, <code>memory_io</code>,
+<code>block_memory_io</code>, <code>buffer_io</code>, <code>mmap_io</code>, <code>reader_io</code>.</li>
+<li><strong><code>base_file_path</code></strong> — the default is a placeholder; provide a real path
+when using a disk-backed type (<code>async_io</code>, <code>buffer_io</code>, <code>mmap_io</code>).</li>
+<li><strong><code>init_cluster_ratio</code></strong> — range <code>(0, 1]</code>. Smaller values yield fewer,
+larger clusters; larger values produce more, finer-grained clusters.</li>
+<li><strong><code>max_cluster_size</code></strong> — must be &gt; 1.</li>
+<li><strong><code>split_start_idx</code></strong> — typically half of <code>max_cluster_size</code>.
+Must be in <code>(1, max_cluster_size)</code>.</li>
+<li><strong><code>coarse_k</code></strong>, <strong><code>rerank_k</code></strong> — must be &gt; 0.</li>
+</ul>
+<blockquote>
+<p><strong>Choosing cluster parameters.</strong> <code>init_cluster_ratio</code> and <code>max_cluster_size</code>
+together control the number and size of clusters. A smaller
+<code>init_cluster_ratio</code> with a larger <code>max_cluster_size</code> yields fewer clusters and
+faster coarse search at the cost of recall. Start with
+<code>init_cluster_ratio = 0.1</code>–<code>0.2</code> and <code>max_cluster_size = 2 ×</code>
+<code>split_start_idx</code>, then tune with the search parameters.</p>
+</blockquote>
+<h2 id="search-parameters-4"><a class="header" href="#search-parameters-4">Search parameters</a></h2>
+<p>Search-time parameters live under the <code>simq</code> sub-object:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>coarse_k</code></td><td>int</td><td><em>(index default)</em></td><td>Nearest clusters per query token.</td></tr>
+<tr><td><code>rerank_k</code></td><td>int</td><td><em>(index default)</em></td><td>Max rerank candidates.</td></tr>
+</tbody>
+</table>
+</div>
+<ul>
+<li><strong><code>coarse_k</code></strong> — overrides the build-time value. Larger values increase
+the candidate pool and improve recall at the cost of latency.</li>
+<li><strong><code>rerank_k</code></strong> — overrides the build-time value. Larger values improve
+recall at the cost of more disk reads and compute.</li>
+<li>When omitted, the build-time defaults are used. Both values must be &gt; 0
+when explicitly set.</li>
+</ul>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"simq": {"coarse_k": 600, "rerank_k": 5000}})").value();
+</code></pre>
+<h2 id="when-to-use-simq"><a class="header" href="#when-to-use-simq">When to use SIMQ</a></h2>
+<ul>
+<li><strong>Late-interaction retrieval</strong> with ColBERT or similar models where each
+document is a bag of token-level vectors and relevance is computed via MaxSim.</li>
+<li><strong>Multi-vector relevance</strong> where a single embedding per document loses too much
+information and fine-grained token-level matching is needed.</li>
+<li><strong>Large-scale multi-vector corpora</strong> where brute-force MaxSim is too slow and a
+two-stage coarse-then-rerank pipeline provides the right recall/latency
+tradeoff.</li>
+</ul>
+<p>SIMQ only accepts <code>float32</code> multi-vector data with inner-product similarity. It
+does <strong>not</strong> accept single dense vectors or sparse vectors (use HGraph or SINDI
+for those).</p>
+<h2 id="practical-guidance-1"><a class="header" href="#practical-guidance-1">Practical guidance</a></h2>
+<ul>
+<li><strong>Scaling <code>coarse_k</code> and <code>rerank_k</code>.</strong> Increasing <code>coarse_k</code> widens the
+cluster-level candidate net; increasing <code>rerank_k</code> admits more documents to
+exact scoring. In practice, <code>rerank_k</code> has a larger impact on recall but also
+on latency because each additional candidate requires a disk read and full
+MaxSim computation.</li>
+<li><strong>IO type selection.</strong> Use <code>async_io</code> for large corpora that do not fit in
+memory. Use <code>memory_io</code> or <code>block_memory_io</code> when the multi-vector data fits in
+RAM for the lowest reranking latency.</li>
+<li><strong>Cluster sizing.</strong> Set <code>max_cluster_size</code> to roughly twice <code>split_start_idx</code>.
+The split point determines how the token vectors are partitioned when a cluster
+overflows; centering it keeps the two halves balanced.</li>
+</ul>
+<h2 id="multivector-field-reference"><a class="header" href="#multivector-field-reference">MultiVector field reference</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>len_</code></td><td><code>uint32_t</code></td><td>Number of token vectors in this document or query.</td></tr>
+<tr><td><code>vectors_</code></td><td><code>float*</code></td><td>Contiguous array of <code>len_ * dim</code> floats</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="see-also-4"><a class="header" href="#see-also-4">See also</a></h2>
+<ul>
+<li><a href="#creating-an-index">Creating an Index</a></li>
+<li><a href="#index-parameters">Index Parameters</a></li>
+<li><a href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pyramid-1"><a class="header" href="#pyramid-1">Pyramid</a></h1>
 <p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/indexes/pyramid-overview.svg" alt="Pyramid: a tree of per-node proximity sub-graphs keyed by a path string; the search walks down the tree along the query’s path prefix and runs ef_search inside the leaf sub-graph"><span class="img-wrapper"><img src="figures/indexes/pyramid-overview.svg" alt="Pyramid: a tree of per-node proximity sub-graphs keyed by a path string; the search walks down the tree along the query’s path prefix and runs ef_search inside the leaf sub-graph"></span></label></p>
 <p>Pyramid is VSAG’s <strong>hierarchical, path-partitioned</strong> graph index. Every vector is
@@ -1507,7 +1714,7 @@ results.</p>
 <li>Example (single hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
 <li>Example (multi-hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/112_index_pyramid_multi_hierarchy.cpp"><code>examples/cpp/112_index_pyramid_multi_hierarchy.cpp</code></a></li>
 </ul>
-<h2 id="how-it-works-5"><a class="header" href="#how-it-works-5">How it works</a></h2>
+<h2 id="how-it-works-6"><a class="header" href="#how-it-works-6">How it works</a></h2>
 <ol>
 <li><strong>Path tree.</strong> Each vector carries a <code>path</code> in addition to its id. Paths use
 <code>/</code> as separator (e.g. <code>"tenant_a/lang_en/topic_news"</code>). Pyramid builds one
@@ -1524,7 +1731,7 @@ HGraph: <code>nsw</code> insertion or <code>odescent</code> with <code>graph_ite
 to the most specific sub-graph matching the query path and runs a graph search
 there with <code>ef_search</code> (and <code>subindex_ef_search</code> for intermediate levels).</li>
 </ol>
-<h2 id="quick-start-5"><a class="header" href="#quick-start-5">Quick start</a></h2>
+<h2 id="quick-start-6"><a class="header" href="#quick-start-6">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string params = R"({
@@ -1567,7 +1774,7 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"pyramid": {"ef_search": 100}})").value();
 </code></pre>
-<h2 id="build-parameters-4"><a class="header" href="#build-parameters-4">Build parameters</a></h2>
+<h2 id="build-parameters-5"><a class="header" href="#build-parameters-5">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>.</p>
 <div class="table-wrapper">
 <table>
@@ -1592,7 +1799,7 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
-<h2 id="search-parameters-4"><a class="header" href="#search-parameters-4">Search parameters</a></h2>
+<h2 id="search-parameters-5"><a class="header" href="#search-parameters-5">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>pyramid</code> sub-object:</p>
 <div class="table-wrapper">
 <table>
@@ -1726,7 +1933,7 @@ the running total. Removing an id that is absent or already removed is a no-op.
 <code>RemoveMode::FORCE_REMOVE</code> is not supported and returns an error.</p>
 <p>Mark-removed vectors still occupy memory until the index is rebuilt; the space is
 not physically reclaimed.</p>
-<h2 id="see-also-4"><a class="header" href="#see-also-4">See also</a></h2>
+<h2 id="see-also-5"><a class="header" href="#see-also-5">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#index-parameters">Index Parameters</a></li>
@@ -1745,7 +1952,7 @@ corpora or for workloads where 100% recall is mandatory.</p>
 <li>Source: <code>src/algorithm/brute_force.{h,cpp}</code></li>
 <li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a></li>
 </ul>
-<h2 id="how-it-works-6"><a class="header" href="#how-it-works-6">How it works</a></h2>
+<h2 id="how-it-works-7"><a class="header" href="#how-it-works-7">How it works</a></h2>
 <ol>
 <li><strong>Build.</strong> Vectors are stored in a single flat data cell encoded by <code>base_quantization_type</code>
 (default <code>fp32</code> — i.e. raw). No graph, no clustering, no training is performed for the
@@ -1761,7 +1968,7 @@ be split across multiple threads via the <code>parallelism</code> search paramet
 <p>Because the index keeps every vector verbatim (modulo the chosen quantizer), the result is
 <strong>exact</strong> when <code>base_quantization_type</code> is <code>fp32</code> and is the standard reference used to compute
 ground truth in the <code>eval_performance</code> tool.</p>
-<h2 id="quick-start-6"><a class="header" href="#quick-start-6">Quick start</a></h2>
+<h2 id="quick-start-7"><a class="header" href="#quick-start-7">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string params = R"({
@@ -1783,7 +1990,7 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 </code></pre>
 <p>A full runnable program is at
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>.</p>
-<h2 id="build-parameters-5"><a class="header" href="#build-parameters-5">Build parameters</a></h2>
+<h2 id="build-parameters-6"><a class="header" href="#build-parameters-6">Build parameters</a></h2>
 <p>The minimal config consists of the three top-level fields (<code>dtype</code>, <code>metric_type</code>, <code>dim</code>).
 For most uses no <code>index_param</code> is needed — that is the form shown in
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp">example 105</a>.
@@ -1824,7 +2031,7 @@ capability flags — use HGraph or IVF if you need a quantized index that still 
 the supplied dataset before adding vectors; the resulting recall is no longer 100%. Only
 <code>fp32</code>, <code>fp16</code>, and <code>bf16</code> skip training and preserve exact distances (modulo numeric
 precision).</p>
-<h2 id="search-parameters-5"><a class="header" href="#search-parameters-5">Search parameters</a></h2>
+<h2 id="search-parameters-6"><a class="header" href="#search-parameters-6">Search parameters</a></h2>
 <p>BruteForce does not expose any index-specific search knobs (no <code>ef</code>, <code>nprobe</code>, etc.), but the
 generic <code>IndexSearchParameter</code> fields are honored:</p>
 <div class="table-wrapper">
@@ -1885,7 +2092,7 @@ inverted-list structure.</li>
 </ul>
 <p>For anything larger, prefer <a href="#hgraph-2">HGraph</a> (latency-sensitive, high recall) or
 <a href="#ivf-1">IVF</a> (throughput-oriented, memory-friendly).</p>
-<h2 id="see-also-5"><a class="header" href="#see-also-5">See also</a></h2>
+<h2 id="see-also-6"><a class="header" href="#see-also-6">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a></li>
@@ -2975,7 +3182,7 @@ proportionally.</li>
 <p>The transform output then feeds a standard quantizer (<code>fp32</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>rabitq</code>,
 …), which actually stores the codes. The whole chain is referred to as <strong><code>tq</code> (Transform
 Quantizer)</strong>.</p>
-<h2 id="quick-start-7"><a class="header" href="#quick-start-7">Quick start</a></h2>
+<h2 id="quick-start-8"><a class="header" href="#quick-start-8">Quick start</a></h2>
 <p><code>tq</code> is currently exposed as a <strong>public, externally configurable</strong> quantization type only by
 <strong>HGraph</strong>. HGraph maps the top-level keys <code>tq_chain</code> and <code>rabitq_pca_dim</code> into the nested
 <code>base_codes.quantization_params</code> JSON via its external-parameter mapping
@@ -3198,6 +3405,227 @@ parameter set consistent, not just the chain string.</p>
 <li><code>build-dev/</code></li>
 </ul>
 <p>Each contains the test binaries, example executables, and libraries.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="new-index-integration-checklist"><a class="header" href="#new-index-integration-checklist">New Index Integration Checklist</a></h1>
+<p>Use this checklist when adding a new index implementation to VSAG. Keep the first pass small:
+make the index creatable through the public factory, support the lifecycle methods it advertises,
+and add feature flags only after the behavior is implemented and tested.</p>
+<h2 id="required"><a class="header" href="#required">Required</a></h2>
+<ul>
+<li>
+<p><input disabled="" type="checkbox"> Choose the public index name and type.</p>
+<ul>
+<li>Add the user-facing index name constant in <code>include/vsag/constants.h</code> or
+<code>src/inner_string_params.h</code> if the new index needs one.</li>
+<li>Add an <code>IndexType</code> value in <code>include/vsag/index.h</code> when callers must distinguish this index
+through <code>Index::GetIndexType()</code>.</li>
+<li>Keep the public name stable. <code>src/factory/index_registry.cpp</code> normalizes factory names to lower
+case before lookup.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Implement the index behind the public <code>Index</code> API.</p>
+<ul>
+<li>Prefer the current <code>IndexImpl&lt;T&gt;</code> pattern in <code>src/index/index_impl.h</code> for new in-memory
+indexes: implement <code>T</code> as an <code>InnerIndexInterface</code> subclass under <code>src/algorithm/&lt;name&gt;/</code>.</li>
+<li>Implement <code>static CheckAndMappingExternalParam(const JsonType&amp;, const IndexCommonParam&amp;)</code> so
+<code>IndexImpl&lt;T&gt;</code> can validate external JSON and construct the internal parameter object.</li>
+<li>Implement <code>GetName()</code>, <code>GetIndexType()</code>, <code>GetNumElements()</code>, <code>Add()</code>, <code>KnnSearch()</code>,
+<code>Serialize(StreamWriter&amp;)</code>, and <code>Deserialize(StreamReader&amp;)</code> as required by the inner-index
+contract; implement <code>Build()</code> when the index supports it. <code>InnerIndexInterface::Add()</code> is pure
+virtual, so every subclass must override it even when the index only supports <code>Build()</code> and
+should throw <code>UNSUPPORTED_INDEX_OPERATION</code> without enabling the corresponding feature flag.</li>
+<li>Leave unsupported operations on the base class defaults instead of advertising them.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Wire creation through the factory and engine path.</p>
+<ul>
+<li>Add a creator in <code>src/factory/index_creators.cpp</code>.</li>
+<li>Register it in <code>register_all_index_creators()</code>.</li>
+<li>Use <code>IndexCommonParam::CheckAndCreate()</code> from <code>src/index_common_param.cpp</code> for shared fields:
+<code>dtype</code>, <code>metric_type</code>, <code>dim</code>, optional <code>repr</code>, optional <code>extra_info_size</code>, allocator, thread
+pool, and old serialization format compatibility.</li>
+<li>Add factory tests for the accepted name, invalid parameters, and unsupported parameter shapes in
+<code>src/factory/factory_test.cpp</code> or a focused test near the implementation.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Add build-system wiring.</p>
+<ul>
+<li>Add <code>src/algorithm/&lt;name&gt;/CMakeLists.txt</code> and include it from <code>src/algorithm/CMakeLists.txt</code>.</li>
+<li>Add new sources to the closest existing target rather than creating a parallel build path.</li>
+<li>Keep file suffixes as <code>.cpp</code>; do not edit <code>extern/</code> unless the dependency itself is part of the
+change.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Define and validate index parameters.</p>
+<ul>
+<li>Put implementation parameters in a <code>&lt;name&gt;_parameter.{h,cpp}</code> pair when the index has its own
+schema.</li>
+<li>Implement JSON parsing, <code>ToJson()</code>, and <code>CheckCompatibility()</code> for serialized/recreated
+parameter checks.</li>
+<li>Reject invalid dimensions, metric/data-type combinations, missing required blocks, and unknown
+modes with <code>ErrorType::INVALID_ARGUMENT</code> through the existing <code>CHECK_ARGUMENT</code> /
+<code>VsagException</code> flow.</li>
+<li>Update <code>docs/docs/{en,zh}/src/resources/index_parameters.md</code> and the per-index docs if the
+parameter becomes user-facing.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Implement lifecycle behavior deliberately.</p>
+<ul>
+<li>Decide whether the index supports <code>Train()</code>, <code>Build()</code>, <code>ContinueBuild()</code>, <code>Add()</code> after build,
+and <code>Add()</code> from empty.</li>
+<li>Decide whether <code>Remove()</code>, <code>UpdateId()</code>, <code>UpdateVector()</code>, <code>UpdateAttribute()</code>, and
+<code>UpdateExtraInfo()</code> are supported.</li>
+<li>For every supported mutation, test empty datasets, duplicate IDs if applicable, missing IDs,
+immutable index behavior, and search correctness after mutation.</li>
+<li>Keep <code>InitFeatures()</code> in sync with the implemented operations.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Implement search behavior and result packing.</p>
+<ul>
+<li>Support the public <code>KnnSearch()</code> overloads required by the index, including <code>BitsetPtr</code>,
+<code>std::function&lt;bool(int64_t)&gt;</code>, and <code>FilterPtr</code> filtering when advertised.</li>
+<li>Implement <code>SearchWithRequest()</code> if the index supports the newer request path.</li>
+<li>Return <code>Dataset</code> fields consistently: IDs, distances, <code>num_elements</code>, result dimension, and
+optional result statistics.</li>
+<li>Parse search parameters with the same nested index-name convention used by existing indexes
+such as HGraph.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Preserve serialization compatibility.</p>
+<ul>
+<li>Implement both <code>Serialize(StreamWriter&amp;)</code> and <code>Deserialize(StreamReader&amp;)</code>; the base
+<code>InnerIndexInterface</code> adapts these to <code>BinarySet</code>, <code>ReaderSet</code>, and streams.</li>
+<li>Store enough metadata to reject incompatible binaries, including parameter compatibility and
+<code>extra_info_size</code> when extra info is present.</li>
+<li>Add round-trip tests through <code>BinarySet</code> and <code>ReaderSet</code> when the index supports both.</li>
+<li>If the binary format changes for an existing index, update compatibility tests and document the
+migration path.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Add tests before advertising features.</p>
+<ul>
+<li>Unit tests should cover parameter parsing, build/add/search, serialization, feature flags,
+memory estimation if implemented, and error paths.</li>
+<li>Functional tests under <code>tests/</code> should cover public API behavior that users can reach through
+<code>Factory::CreateIndex()</code>.</li>
+<li>Keep C++ unit-test coverage for <code>src/</code> and <code>include/</code> at or above the project threshold.</li>
+</ul>
+</li>
+</ul>
+<h2 id="optional-adaptation-points"><a class="header" href="#optional-adaptation-points">Optional Adaptation Points</a></h2>
+<p>Add these only when the new index actually implements the behavior. When implemented, enable the
+matching <code>IndexFeature</code> values in <code>InitFeatures()</code> and add focused tests.</p>
+<ul>
+<li>
+<p><input disabled="" type="checkbox"> Extra info (<code>extra_info</code> / <code>extrainfo</code>).</p>
+<ul>
+<li>Parse <code>extra_info_size</code> through <code>IndexCommonParam</code>.</li>
+<li>Store fixed-size per-vector payloads from <code>Dataset::GetExtraInfos()</code> and validate
+<code>Dataset::GetExtraInfoSize()</code> during <code>Build()</code>, <code>Add()</code>, and <code>UpdateExtraInfo()</code>.</li>
+<li>Implement <code>GetExtraInfoByIds()</code> and populate search-result extra info when the feature is
+supported.</li>
+<li>If the index supports extra-info filtering, document and test the search parameter that switches
+<code>Filter::CheckValid(const char*)</code> on.</li>
+<li>See <code>docs/docs/en/src/advanced/extra_info.md</code> and <code>examples/cpp/320_feature_extra_info.cpp</code>.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Statistics and analysis.</p>
+<ul>
+<li>Implement <code>GetStats()</code> for static structure data that helps operators understand an index.</li>
+<li>Implement <code>AnalyzeIndexBySearch(const SearchRequest&amp;)</code> only for query-driven analysis.</li>
+<li>Include result statistics with <code>Dataset::Statistics()</code> when search-time metrics are useful.</li>
+<li>Keep tool output compatible with <code>tools/analyze_index</code> and
+<code>docs/docs/en/src/resources/analyze_index.md</code>.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Range search.</p>
+<ul>
+<li>Override the pure-virtual primary <code>RangeSearch(..., const FilterPtr&amp;, ...)</code> required by
+<code>InnerIndexInterface</code>, even when the algorithm does not support range search; in that case,
+throw <code>UNSUPPORTED_INDEX_OPERATION</code> without enabling the corresponding feature flag.</li>
+<li>Implement the other <code>RangeSearch()</code> overloads only when the algorithm can honor radius
+semantics and <code>limited_size</code>.</li>
+<li>Test no-limit, limited, filtered, and empty-result cases.</li>
+<li>See <code>docs/docs/en/src/advanced/range_search.md</code>.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Filters and attributes.</p>
+<ul>
+<li>Support <code>BitsetPtr</code>, <code>std::function&lt;bool(int64_t)&gt;</code>, or <code>FilterPtr</code> only when each path is
+wired through search.</li>
+<li>If attribute filtering is supported, implement attribute storage/update paths and document
+accepted attribute schemas.</li>
+<li>Test the difference between bitset invalidation and <code>Filter::CheckValid()</code> keep semantics.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Allocator, resource, and threading integration.</p>
+<ul>
+<li>Allocate long-lived structures with <code>IndexCommonParam::allocator_</code> or a derived allocator-aware
+component.</li>
+<li>Use the <code>Resource</code> thread pool when build/search work is parallelized.</li>
+<li>Verify custom allocator and custom thread-pool examples still describe the behavior accurately.</li>
+<li>Mark concurrency features only after add/search/delete/update interactions are tested.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Memory and introspection APIs.</p>
+<ul>
+<li>Implement <code>EstimateMemory()</code>, <code>EstimateBuildMemory()</code>, <code>GetMemoryUsage()</code>, and
+<code>GetMemoryUsageDetail()</code> when the index can report meaningful numbers.</li>
+<li>Implement <code>GetMinAndMaxId()</code>, <code>CheckIdExist()</code>, <code>ExportIDs()</code>, <code>GetVectorByIds()</code>,
+<code>GetDataByIds()</code>, <code>GetIndexDetailInfos()</code>, or <code>GetDetailDataByName()</code> only when the backing
+storage supports them.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Model export, clone, merge, tune, feedback, and cache import/export.</p>
+<ul>
+<li>Implement <code>Clone()</code> and <code>ExportModel()</code> when the index can be copied without sharing mutable
+storage incorrectly.</li>
+<li>Implement <code>Merge()</code> only when parameter compatibility, ID remapping, and deletion semantics are
+clear.</li>
+<li>Implement <code>Tune()</code>, <code>Feedback()</code>, <code>ExportCache()</code>, and <code>ImportCache()</code> only with explicit
+parameter parsing and tests.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Bindings, examples, benchmarks, and docs.</p>
+<ul>
+<li>Python bindings usually need updates only when the public API surface changes; current
+<code>pyvsag</code> users create indexes through names and JSON parameters.</li>
+<li>Add C++ examples under <code>examples/cpp/</code> when the index introduces a new user workflow.</li>
+<li>Add Python examples/tests under <code>tests/python/</code> if the behavior is reachable from <code>pyvsag</code>.</li>
+<li>Add benchmark YAML under <code>benchs/</code> when reviewers need repeatable performance data.</li>
+<li>Add English and Chinese website docs under <code>docs/docs/{en,zh}/src/</code> for user-facing indexes or
+parameters.</li>
+</ul>
+</li>
+</ul>
+<h2 id="review-checklist"><a class="header" href="#review-checklist">Review Checklist</a></h2>
+<ul>
+<li><input disabled="" type="checkbox"> <code>Factory::CreateIndex()</code> and <code>Engine::CreateIndex()</code> create the index by the documented name.</li>
+<li><input disabled="" type="checkbox"> <code>CheckFeature()</code> returns true only for implemented and tested behavior.</li>
+<li><input disabled="" type="checkbox"> Unsupported operations return <code>UNSUPPORTED_INDEX_OPERATION</code> through existing wrappers.</li>
+<li><input disabled="" type="checkbox"> Serialization round trips preserve IDs, vectors or compressed codes, parameters, deletions,
+attributes, and extra info that the index claims to support.</li>
+<li><input disabled="" type="checkbox"> Search results remain valid after every supported lifecycle transition.</li>
+<li><input disabled="" type="checkbox"> Documentation lists user-facing parameters, supported metrics/data types, and unsupported
+operations.</li>
+<li><input disabled="" type="checkbox"> Practical validation has run: unit/functional tests for changed code, plus formatting or
+<code>git diff --check</code> for documentation-only changes.</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="building"><a class="header" href="#building">Building</a></h1>
 <p>This page documents how to build VSAG from source.</p>
@@ -3808,7 +4236,7 @@ during the build, or when you have not measured a build-time problem.</li>
 </ul>
 <p>Both choices produce a graph that is searched the same way at query time, so search-side
 parameters (<code>ef_search</code>, <code>pq_rerank</code>, …) carry over unchanged.</p>
-<h2 id="see-also-6"><a class="header" href="#see-also-6">See also</a></h2>
+<h2 id="see-also-7"><a class="header" href="#see-also-7">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#hgraph-2">HGraph index parameters</a></li>
@@ -4226,7 +4654,7 @@ candidates until enough survivors are collected.</li>
 <li>Result consumption is lazy / streaming (e.g. UI pagination, server-side cursor).</li>
 <li>The eventual <code>k</code> is unknown up front and may grow on demand.</li>
 </ul>
-<h2 id="how-it-works-7"><a class="header" href="#how-it-works-7">How It Works</a></h2>
+<h2 id="how-it-works-8"><a class="header" href="#how-it-works-8">How It Works</a></h2>
 <p>Iterator search relies on a long-lived <code>IteratorContext</code> object that holds:</p>
 <ul>
 <li>the current candidate heap / visited bitmap, and</li>
@@ -5448,7 +5876,7 @@ using a <strong>conjugate graph</strong>, noticeably improving tail recall at al
 })";
 auto result = index-&gt;KnnSearch(query, k, search_param_json);
 </code></pre>
-<h2 id="how-it-works-8"><a class="header" href="#how-it-works-8">How It Works</a></h2>
+<h2 id="how-it-works-9"><a class="header" href="#how-it-works-9">How It Works</a></h2>
 <p>The conjugate graph is built by inverting “failure paths” over the training data on the original
 graph and then used as additional candidate edges during greedy expansion at search time. It is a
 lightweight patch on the main graph, typically below 10% of the main graph’s size.</p>
@@ -6063,7 +6491,7 @@ check_diskann_hnsw_search_parameters(const std::string&amp; json_string);
 on failure the <code>Error</code> message explains what is wrong. See the
 <a href="#compatibility-check-tool-check_compatibility">Compatibility Check Tool</a> for a CLI wrapper around this kind of
 validation.</p>
-<h2 id="see-also-7"><a class="header" href="#see-also-7">See also</a></h2>
+<h2 id="see-also-8"><a class="header" href="#see-also-8">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — what you can do with the index once it is created.</li>
 <li><a href="#resource-management">Resource Management</a> — allocator, thread pool, and <code>Resource</code> details.</li>
@@ -6376,7 +6804,7 @@ and <code>examples/cpp/401_persistent_kv.cpp</code> / <code>402_persistent_strea
 </div>
 <p>See <code>examples/cpp/308_feature_estimate_memory.cpp</code>, <code>319_feature_get_memory_usage.cpp</code>, and the
 <a href="#index-analysis-analyzeindexbysearch--analyze_index">Index Analysis Tool</a>.</p>
-<h2 id="see-also-8"><a class="header" href="#see-also-8">See also</a></h2>
+<h2 id="see-also-9"><a class="header" href="#see-also-9">See also</a></h2>
 <ul>
 <li><a href="#dataset">Dataset</a> — construct query/base inputs and read search results.</li>
 <li><a href="#search-request--filters">Search Request &amp; Filters</a> — the <code>SearchRequest</code> fields and filter types.</li>
@@ -6532,7 +6960,7 @@ used by indexes that consume raw token order.</p>
 </code></pre>
 <p>When <code>Owner(true)</code> is set, each element’s <code>vectors_</code> must be independently allocated, because the
 destructor frees each <code>vectors_</code> separately.</p>
-<h2 id="see-also-9"><a class="header" href="#see-also-9">See also</a></h2>
+<h2 id="see-also-10"><a class="header" href="#see-also-10">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — the methods that consume and return datasets.</li>
 <li><a href="#search-request--filters">Search Request &amp; Filters</a> — wrapping a query dataset in a <code>SearchRequest</code>.</li>
@@ -6698,7 +7126,7 @@ the deprecated <code>KnnSearch(query, k, SearchParam&amp;)</code> overload.</p>
 <p><strong>Prefer <a href="#searchrequest"><code>SearchRequest</code></a> + <a href="#searchwithrequest"><code>SearchWithRequest</code></a>
 for all new code.</strong> <code>SearchParam</code> holds <code>parameters</code> by reference, so the referenced string must
 outlive the call.</p>
-<h2 id="see-also-10"><a class="header" href="#see-also-10">See also</a></h2>
+<h2 id="see-also-11"><a class="header" href="#see-also-11">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — the search methods that consume these types.</li>
 <li><a href="#dataset">Dataset</a> — building the <code>query_</code> and reading results.</li>
@@ -6820,7 +7248,7 @@ readers.Set("vectors", vsag::Factory::CreateLocalFileReader("index.vectors", 0, 
 auto fresh = vsag::Factory::CreateIndex("hgraph", params).value();
 fresh-&gt;Deserialize(readers);
 </code></pre>
-<h2 id="see-also-11"><a class="header" href="#see-also-11">See also</a></h2>
+<h2 id="see-also-12"><a class="header" href="#see-also-12">See also</a></h2>
 <ul>
 <li><a href="#serialization-1">Index</a> — the <code>Serialize</code> / <code>Deserialize</code> method family.</li>
 <li><a href="#createlocalfilereader">Factory &amp; Engine</a> — creating file-backed readers.</li>
@@ -6982,7 +7410,7 @@ public:
 </table>
 </div>
 <p>See <code>examples/cpp/202_custom_logger.cpp</code>.</p>
-<h2 id="see-also-12"><a class="header" href="#see-also-12">See also</a></h2>
+<h2 id="see-also-13"><a class="header" href="#see-also-13">See also</a></h2>
 <ul>
 <li><a href="#factory--engine">Factory &amp; Engine</a> — how <code>Engine</code> consumes a <code>Resource</code>.</li>
 <li><a href="#index">Index</a> — per-call allocators on retrieval and search methods.</li>
@@ -7189,7 +7617,7 @@ instead of raw string literals avoids typos. They fall into several groups:</p>
 </div>
 <p>For the meaning of each parameter key, see <a href="#index-parameters">Index Parameters</a> and
 the individual <a href="indexes/README.html">index pages</a>.</p>
-<h2 id="see-also-13"><a class="header" href="#see-also-13">See also</a></h2>
+<h2 id="see-also-14"><a class="header" href="#see-also-14">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — <code>CheckFeature</code>, <code>GetIndexDetailInfos</code>, <code>UpdateAttribute</code>.</li>
 <li><a href="#dataset">Dataset</a> — attaching <code>AttributeSet</code> data to elements.</li>
@@ -7429,7 +7857,7 @@ tens of GB of RAM plus an SSD.</p>
 <p>Treat these as starting points and validate with <a href="#performance-evaluation-tool-eval_performance"><code>eval_performance</code></a> against a
 realistic query distribution; the <a href="#optimizer-tune">Optimizer (Tune)</a> can then
 settle search-time parameters automatically.</p>
-<h2 id="see-also-14"><a class="header" href="#see-also-14">See also</a></h2>
+<h2 id="see-also-15"><a class="header" href="#see-also-15">See also</a></h2>
 <ul>
 <li><a href="#hgraph-2">HGraph</a> — the flagship index and its full parameter table</li>
 <li><a href="quantization/README.html">Quantization Overview</a> — choosing a base/precise quantizer</li>
@@ -8807,7 +9235,7 @@ behavior. The agent will mirror this into the template’s required fields.</li>
 shell wrapper at
 <a href="https://github.com/antgroup/vsag/blob/main/tools/issue-helper/new-issue.sh"><code>tools/issue-helper/new-issue.sh</code></a>.</li>
 </ul>
-<h2 id="see-also-15"><a class="header" href="#see-also-15">See also</a></h2>
+<h2 id="see-also-16"><a class="header" href="#see-also-16">See also</a></h2>
 <ul>
 <li><a href="#community">Community</a></li>
 <li><a href="#contributing-to-vsag">Contributing to VSAG</a></li>

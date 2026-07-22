@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Index Introspection - VSAG Documentation</title>
+        <title>SIMQ - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -304,138 +304,221 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="index-introspection"><a class="header" href="#index-introspection">Index Introspection</a></h1>
-<p>VSAG indexes expose three families of introspection APIs that let callers discover what an index
-can do, compute distances against existing vectors, and read back structured information about
-the built index without re-running a search:</p>
+                        <h1 id="simq"><a class="header" href="#simq">SIMQ</a></h1>
+<p>SIMQ is VSAG’s index for <strong>multi-vector</strong> retrieval — the kind of data where each
+document is a <em>set</em> of token-level vectors rather than a single embedding. This
+pattern arises in late-interaction models such as ColBERT, where a document is
+represented by one vector per token and relevance is computed via <strong>MaxSim</strong>
+(sum of maximum per-query-token similarities).</p>
 <ul>
-<li><strong><code>CheckFeature(IndexFeature)</code></strong> — runtime capability discovery.</li>
-<li><strong><code>CalDistanceById(...)</code></strong> — distance from a query to specific stored ids.</li>
-<li><strong><code>GetIndexDetailInfos()</code> / <code>GetDetailDataByName(...)</code></strong> — structured per-index detail data.</li>
+<li>Source: <code>src/algorithm/simq/</code></li>
 </ul>
-<p>These APIs are read-only and safe to call concurrently with search.</p>
-<h2 id="capability-discovery--checkfeature"><a class="header" href="#capability-discovery--checkfeature">Capability Discovery — <code>CheckFeature</code></a></h2>
-<p><code>index-&gt;CheckFeature(vsag::SUPPORT_*)</code> returns <code>true</code> when the underlying index implementation
-advertises the given feature. Use it whenever a code path takes an <code>IndexPtr</code> of unknown concrete
-type (e.g. user-supplied configuration, polymorphic store):</p>
-<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_ESTIMATE_MEMORY)) {
-    uint64_t est = index-&gt;EstimateMemory(100'000);
-}
+<h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
+<ol>
+<li><strong>Dynamic clustering of token vectors.</strong> At build time, all token vectors
+across every document are extracted into a flat pool and clustered using an
+HGraph-based dynamic clustering algorithm. The initial cluster centers are
+sampled at a ratio controlled by <code>init_cluster_ratio</code>; clusters that grow
+beyond <code>max_cluster_size</code> are split incrementally.</li>
+<li><strong>Representative graph for coarse search.</strong> A representative HGraph is built
+over the cluster centroids. At query time, each query token searches this
+graph to find its nearest clusters (controlled by <code>coarse_k</code>). The cluster
+scores are accumulated across all query tokens to produce a candidate set.</li>
+<li><strong>Exact MaxSim reranking.</strong> The top <code>rerank_k</code> candidates are re-scored by
+reading back the original token vectors from disk (or memory) and computing
+the exact MaxSim similarity between query tokens and document tokens.</li>
+</ol>
+<p>The combination of cluster-level coarse search and exact reranking gives SIMQ a
+tunable recall/latency tradeoff for multi-vector workloads.</p>
+<h2 id="quick-start"><a class="header" href="#quick-start">Quick start</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
-if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
-    // Skip / fall back to remove + re-add via a different index.
+std::string build_params = R"({
+    "dtype": "float32",
+    "metric_type": "ip",
+    "dim": 256,
+    "index_param": {
+        "base_io_type": "async_io",
+        "base_file_path": "/path/to/simq_base_codes.bin",
+        "init_cluster_ratio": 0.1,
+        "max_cluster_size": 160,
+        "split_start_idx": 80,
+        "random_seed": 42,
+        "coarse_k": 50,
+        "rerank_k": 1000
+    }
+})";
+auto index = vsag::Factory::CreateIndex("simq", build_params).value();
+
+// Build a dataset of MultiVector.
+// Each document has a variable number of token vectors, each of dimension `dim`.
+std::vector&lt;vsag::MultiVector&gt; base_mvs(num_docs);
+std::vector&lt;int64_t&gt; ids(num_docs);
+for (int64_t i = 0; i &lt; num_docs; ++i) {
+    base_mvs[i].len_ = doc_token_counts[i];             // number of tokens in doc i
+    base_mvs[i].vectors_ = doc_token_vectors[i];        // flat array: len_ * dim floats
+    ids[i] = i;
+}
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_docs)
+    -&gt;Dim(dim)
+    -&gt;Ids(ids.data())
+    -&gt;MultiVectors(base_mvs.data())
+    -&gt;MultiVectorDim(dim)
+    -&gt;Owner(false);
+index-&gt;Build(base);
+
+// Search with a multi-vector query.
+vsag::MultiVector query_mv;
+query_mv.len_ = query_token_count;
+query_mv.vectors_ = query_token_vectors;
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)
+    -&gt;Dim(dim)
+    -&gt;MultiVectors(&amp;query_mv)
+    -&gt;MultiVectorDim(dim)
+    -&gt;Owner(false);
+
+std::string search_params = R"({
+    "simq": {
+        "coarse_k": 600,
+        "rerank_k": 5000
+    }
+})";
+auto result = index-&gt;KnnSearch(query, /*topk=*/100, search_params).value();
+
+// Read results.
+const int64_t* result_ids = result-&gt;GetIds();
+const float* result_dists = result-&gt;GetDistances();
+int64_t result_count = result-&gt;GetDim();
+for (int64_t i = 0; i &lt; result_count; ++i) {
+    int64_t id = result_ids[i];
+    float dist = result_dists[i];
 }
 </code></pre>
-<p>Feature flags cover almost every optional surface in the library: build / add /
-serialize variants, concurrent combinations, metric types, attribute and extra-info filters,
-<code>Clone</code>, <code>ExportModel</code>, <code>Tune</code>, and more. See <code>include/vsag/index_features.h</code> for the full
-enumeration.</p>
-<p>A runnable example is available at <code>examples/cpp/307_feature_check_features.cpp</code>.</p>
-<h2 id="distances-to-existing-ids--caldistancebyid"><a class="header" href="#distances-to-existing-ids--caldistancebyid">Distances to Existing Ids — <code>CalDistanceById</code></a></h2>
-<p><code>CalDistanceById</code> computes the distance between a query and one or more vectors that are
-<strong>already stored in the index</strong>, without running a search. This is useful for re-ranking, A/B
-evaluation, ground-truth checks, or computing pairwise distances to a known shortlist.</p>
-<p>Two overloads are provided:</p>
-<pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF)
-auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
-
-// Sparse vector indexes (SINDI) — wrap the query in a Dataset
-auto query_ds = vsag::Dataset::Make();
-query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
-auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
-</code></pre>
-<p>The result <code>Dataset</code> holds <code>count</code> distances in <code>GetDistances()</code>. A value of <code>-1.0F</code> means the
-corresponding id was invalid (not present in the index).</p>
-<h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
-<p>The trailing <code>bool</code> argument trades precision for latency:</p>
+<h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
+<p>SIMQ-specific build parameters live under <code>index_param</code>. The common fields
+<code>dim</code>, <code>dtype</code>, and <code>metric_type</code> are top-level. <code>dtype</code> <strong>must</strong> be
+<code>"float32"</code> and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Value</th><th>Behavior</th></tr>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>true</code> (default)</td><td>Use the full-precision vector representation. May incur disk I/O on hybrid memory-disk indexes.</td></tr>
-<tr><td><code>false</code></td><td>Use the quantized / approximate representation cached for search. Faster, no I/O.</td></tr>
+<tr><td><code>dim</code></td><td>int</td><td>— (required)</td><td>Dimension of each token vector.</td></tr>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"async_io"</code></td><td>Storage backend for reranking multi-vector data.</td></tr>
+<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path for disk-backed IO types.</td></tr>
+<tr><td><code>init_cluster_ratio</code></td><td>float</td><td><code>0.2</code></td><td>Fraction of tokens sampled as initial cluster centers.</td></tr>
+<tr><td><code>max_cluster_size</code></td><td>int</td><td><code>64</code></td><td>Maximum token vectors per cluster before split.</td></tr>
+<tr><td><code>split_start_idx</code></td><td>int</td><td><code>32</code></td><td>Split position within an overflowing cluster.</td></tr>
+<tr><td><code>random_seed</code></td><td>int</td><td><code>42</code></td><td>Random seed for clustering shuffle.</td></tr>
+<tr><td><code>coarse_k</code></td><td>int</td><td><code>8</code></td><td>Default nearest clusters per query token at build time.</td></tr>
+<tr><td><code>rerank_k</code></td><td>int</td><td><code>100</code></td><td>Default max rerank candidates at build time.</td></tr>
 </tbody>
 </table>
 </div>
-<p>A runnable example is available at <code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code>.</p>
-<h2 id="detail-data--getindexdetailinfos--getdetaildatabyname"><a class="header" href="#detail-data--getindexdetailinfos--getdetaildatabyname">Detail Data — <code>GetIndexDetailInfos</code> / <code>GetDetailDataByName</code></a></h2>
-<p><code>GetIndexDetailInfos()</code> returns a list of <code>IndexDetailInfo</code> records that describe every named
-piece of structured data the index can expose. Each record carries a <code>name</code>, a <code>description</code>, and
-a <code>type</code> enum that selects the right typed accessor on <code>DetailData</code>.</p>
-<p>Support is index-dependent — there is no dedicated <code>SUPPORT_*</code> flag for these two APIs. The
-<code>Index</code> base class throws <code>std::runtime_error("Index doesn't support ...")</code> by default
-(<code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> in <code>include/vsag/index.h:658,674</code>);
-HGraph / IVF / BruteForce / Pyramid / SINDI / WARP implement them through
-<code>InnerIndexInterface</code>. Always handle the <code>tl::expected</code> error path when calling these APIs.</p>
-<pre><code class="language-cpp">auto infos = index-&gt;GetIndexDetailInfos().value();
-for (const auto&amp; info : infos) {
-    std::cout &lt;&lt; info.name &lt;&lt; " : " &lt;&lt; info.description &lt;&lt; '\n';
-}
-</code></pre>
-<p>Once you know which entries are available, call <code>GetDetailDataByName(name, info)</code> to retrieve the
-typed payload:</p>
-<pre><code class="language-cpp">vsag::IndexDetailInfo info;
-auto detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_NUM_ELEMENTS, info).value();
-int64_t n = detail-&gt;GetDataScalarInt64();
-
-detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_LABEL_TABLE, info).value();
-auto table = detail-&gt;GetData2DArrayInt64();   // [row][col] int64 matrix
-
-detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_DATA_TYPE, info).value();
-std::string dt = detail-&gt;GetDataScalarString();
-</code></pre>
-<h3 id="data-types"><a class="header" href="#data-types">Data Types</a></h3>
-<p><code>info.type</code> selects which accessor on <code>DetailData</code> is valid:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th><code>IndexDetailDataType</code></th><th>Accessor</th></tr>
-</thead>
-<tbody>
-<tr><td><code>TYPE_SCALAR_INT64</code></td><td><code>GetDataScalarInt64()</code></td></tr>
-<tr><td><code>TYPE_SCALAR_DOUBLE</code></td><td><code>GetDataScalarDouble()</code></td></tr>
-<tr><td><code>TYPE_SCALAR_BOOL</code></td><td><code>GetDataScalarBool()</code></td></tr>
-<tr><td><code>TYPE_SCALAR_STRING</code></td><td><code>GetDataScalarString()</code></td></tr>
-<tr><td><code>TYPE_1DArray_INT64</code></td><td><code>GetData1DArrayInt64()</code></td></tr>
-<tr><td><code>TYPE_2DArray_INT64</code></td><td><code>GetData2DArrayInt64()</code></td></tr>
-</tbody>
-</table>
-</div>
-<p>Standard detail names exposed as constants in <code>include/vsag/index_detail_info.h</code>:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Constant</th><th>Typical type</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>INDEX_DETAIL_NAME_NUM_ELEMENTS</code></td><td><code>TYPE_SCALAR_INT64</code></td><td>Number of vectors currently in the index.</td></tr>
-<tr><td><code>INDEX_DETAIL_NAME_LABEL_TABLE</code></td><td><code>TYPE_2DArray_INT64</code></td><td>Per-vector label table (e.g. internal-to-user id mapping).</td></tr>
-<tr><td><code>INDEX_DETAIL_DATA_TYPE</code></td><td><code>TYPE_SCALAR_STRING</code></td><td>Underlying vector data type (e.g. <code>"float32"</code>).</td></tr>
-</tbody>
-</table>
-</div>
-<p>Individual indexes may expose additional names; iterate <code>GetIndexDetailInfos()</code> to discover them
-at runtime. A runnable example is available at <code>examples/cpp/317_feature_get_detail_data.cpp</code>.</p>
-<h2 id="notes-and-limitations"><a class="header" href="#notes-and-limitations">Notes and Limitations</a></h2>
 <ul>
-<li><code>CheckFeature</code> is constant-time. Prefer it over <code>try</code> / <code>catch</code> around an unsupported call.</li>
-<li><code>CalDistanceById</code> requires the underlying index to retain enough information to recompute the
-distance. For purely quantized indexes (no raw vectors retained), <code>calculate_precise_distance = true</code> may return the quantized distance instead.</li>
-<li><code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> are read-only snapshots. The values returned
-reflect the index state at the moment of the call; concurrent mutations may invalidate them.</li>
+<li><strong><code>dim</code></strong> — shared across all documents and queries.</li>
+<li><strong><code>base_io_type</code></strong> — supported values: <code>async_io</code>, <code>memory_io</code>,
+<code>block_memory_io</code>, <code>buffer_io</code>, <code>mmap_io</code>, <code>reader_io</code>.</li>
+<li><strong><code>base_file_path</code></strong> — the default is a placeholder; provide a real path
+when using a disk-backed type (<code>async_io</code>, <code>buffer_io</code>, <code>mmap_io</code>).</li>
+<li><strong><code>init_cluster_ratio</code></strong> — range <code>(0, 1]</code>. Smaller values yield fewer,
+larger clusters; larger values produce more, finer-grained clusters.</li>
+<li><strong><code>max_cluster_size</code></strong> — must be &gt; 1.</li>
+<li><strong><code>split_start_idx</code></strong> — typically half of <code>max_cluster_size</code>.
+Must be in <code>(1, max_cluster_size)</code>.</li>
+<li><strong><code>coarse_k</code></strong>, <strong><code>rerank_k</code></strong> — must be &gt; 0.</li>
+</ul>
+<blockquote>
+<p><strong>Choosing cluster parameters.</strong> <code>init_cluster_ratio</code> and <code>max_cluster_size</code>
+together control the number and size of clusters. A smaller
+<code>init_cluster_ratio</code> with a larger <code>max_cluster_size</code> yields fewer clusters and
+faster coarse search at the cost of recall. Start with
+<code>init_cluster_ratio = 0.1</code>–<code>0.2</code> and <code>max_cluster_size = 2 ×</code>
+<code>split_start_idx</code>, then tune with the search parameters.</p>
+</blockquote>
+<h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
+<p>Search-time parameters live under the <code>simq</code> sub-object:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>coarse_k</code></td><td>int</td><td><em>(index default)</em></td><td>Nearest clusters per query token.</td></tr>
+<tr><td><code>rerank_k</code></td><td>int</td><td><em>(index default)</em></td><td>Max rerank candidates.</td></tr>
+</tbody>
+</table>
+</div>
+<ul>
+<li><strong><code>coarse_k</code></strong> — overrides the build-time value. Larger values increase
+the candidate pool and improve recall at the cost of latency.</li>
+<li><strong><code>rerank_k</code></strong> — overrides the build-time value. Larger values improve
+recall at the cost of more disk reads and compute.</li>
+<li>When omitted, the build-time defaults are used. Both values must be &gt; 0
+when explicitly set.</li>
+</ul>
+<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
+    query, topk,
+    R"({"simq": {"coarse_k": 600, "rerank_k": 5000}})").value();
+</code></pre>
+<h2 id="when-to-use-simq"><a class="header" href="#when-to-use-simq">When to use SIMQ</a></h2>
+<ul>
+<li><strong>Late-interaction retrieval</strong> with ColBERT or similar models where each
+document is a bag of token-level vectors and relevance is computed via MaxSim.</li>
+<li><strong>Multi-vector relevance</strong> where a single embedding per document loses too much
+information and fine-grained token-level matching is needed.</li>
+<li><strong>Large-scale multi-vector corpora</strong> where brute-force MaxSim is too slow and a
+two-stage coarse-then-rerank pipeline provides the right recall/latency
+tradeoff.</li>
+</ul>
+<p>SIMQ only accepts <code>float32</code> multi-vector data with inner-product similarity. It
+does <strong>not</strong> accept single dense vectors or sparse vectors (use HGraph or SINDI
+for those).</p>
+<h2 id="practical-guidance"><a class="header" href="#practical-guidance">Practical guidance</a></h2>
+<ul>
+<li><strong>Scaling <code>coarse_k</code> and <code>rerank_k</code>.</strong> Increasing <code>coarse_k</code> widens the
+cluster-level candidate net; increasing <code>rerank_k</code> admits more documents to
+exact scoring. In practice, <code>rerank_k</code> has a larger impact on recall but also
+on latency because each additional candidate requires a disk read and full
+MaxSim computation.</li>
+<li><strong>IO type selection.</strong> Use <code>async_io</code> for large corpora that do not fit in
+memory. Use <code>memory_io</code> or <code>block_memory_io</code> when the multi-vector data fits in
+RAM for the lowest reranking latency.</li>
+<li><strong>Cluster sizing.</strong> Set <code>max_cluster_size</code> to roughly twice <code>split_start_idx</code>.
+The split point determines how the token vectors are partitioned when a cluster
+overflows; centering it keeps the two halves balanced.</li>
+</ul>
+<h2 id="multivector-field-reference"><a class="header" href="#multivector-field-reference">MultiVector field reference</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>len_</code></td><td><code>uint32_t</code></td><td>Number of token vectors in this document or query.</td></tr>
+<tr><td><code>vectors_</code></td><td><code>float*</code></td><td>Contiguous array of <code>len_ * dim</code> floats</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
+<ul>
+<li><a href="../guide/create_index.html">Creating an Index</a></li>
+<li><a href="../resources/index_parameters.html">Index Parameters</a></li>
+<li><a href="../guide/knn_search.html">k-Nearest Neighbor Search</a></li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../advanced/search_allocator.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../indexes/sindi.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../advanced/extensibility.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/pyramid.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -445,11 +528,11 @@ reflect the index state at the moment of the call; concurrent mutations may inva
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../advanced/search_allocator.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../indexes/sindi.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../advanced/extensibility.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/pyramid.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

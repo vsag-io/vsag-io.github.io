@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Index Introspection - VSAG Documentation</title>
+        <title>New Index Integration Checklist - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -304,138 +304,236 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="index-introspection"><a class="header" href="#index-introspection">Index Introspection</a></h1>
-<p>VSAG indexes expose three families of introspection APIs that let callers discover what an index
-can do, compute distances against existing vectors, and read back structured information about
-the built index without re-running a search:</p>
+                        <h1 id="new-index-integration-checklist"><a class="header" href="#new-index-integration-checklist">New Index Integration Checklist</a></h1>
+<p>Use this checklist when adding a new index implementation to VSAG. Keep the first pass small:
+make the index creatable through the public factory, support the lifecycle methods it advertises,
+and add feature flags only after the behavior is implemented and tested.</p>
+<h2 id="required"><a class="header" href="#required">Required</a></h2>
 <ul>
-<li><strong><code>CheckFeature(IndexFeature)</code></strong> — runtime capability discovery.</li>
-<li><strong><code>CalDistanceById(...)</code></strong> — distance from a query to specific stored ids.</li>
-<li><strong><code>GetIndexDetailInfos()</code> / <code>GetDetailDataByName(...)</code></strong> — structured per-index detail data.</li>
+<li>
+<p><input disabled="" type="checkbox"> Choose the public index name and type.</p>
+<ul>
+<li>Add the user-facing index name constant in <code>include/vsag/constants.h</code> or
+<code>src/inner_string_params.h</code> if the new index needs one.</li>
+<li>Add an <code>IndexType</code> value in <code>include/vsag/index.h</code> when callers must distinguish this index
+through <code>Index::GetIndexType()</code>.</li>
+<li>Keep the public name stable. <code>src/factory/index_registry.cpp</code> normalizes factory names to lower
+case before lookup.</li>
 </ul>
-<p>These APIs are read-only and safe to call concurrently with search.</p>
-<h2 id="capability-discovery--checkfeature"><a class="header" href="#capability-discovery--checkfeature">Capability Discovery — <code>CheckFeature</code></a></h2>
-<p><code>index-&gt;CheckFeature(vsag::SUPPORT_*)</code> returns <code>true</code> when the underlying index implementation
-advertises the given feature. Use it whenever a code path takes an <code>IndexPtr</code> of unknown concrete
-type (e.g. user-supplied configuration, polymorphic store):</p>
-<pre><code class="language-cpp">if (index-&gt;CheckFeature(vsag::SUPPORT_ESTIMATE_MEMORY)) {
-    uint64_t est = index-&gt;EstimateMemory(100'000);
-}
-
-if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
-    // Skip / fall back to remove + re-add via a different index.
-}
-</code></pre>
-<p>Feature flags cover almost every optional surface in the library: build / add /
-serialize variants, concurrent combinations, metric types, attribute and extra-info filters,
-<code>Clone</code>, <code>ExportModel</code>, <code>Tune</code>, and more. See <code>include/vsag/index_features.h</code> for the full
-enumeration.</p>
-<p>A runnable example is available at <code>examples/cpp/307_feature_check_features.cpp</code>.</p>
-<h2 id="distances-to-existing-ids--caldistancebyid"><a class="header" href="#distances-to-existing-ids--caldistancebyid">Distances to Existing Ids — <code>CalDistanceById</code></a></h2>
-<p><code>CalDistanceById</code> computes the distance between a query and one or more vectors that are
-<strong>already stored in the index</strong>, without running a search. This is useful for re-ranking, A/B
-evaluation, ground-truth checks, or computing pairwise distances to a known shortlist.</p>
-<p>Two overloads are provided:</p>
-<pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF)
-auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
-
-// Sparse vector indexes (SINDI) — wrap the query in a Dataset
-auto query_ds = vsag::Dataset::Make();
-query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
-auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
-</code></pre>
-<p>The result <code>Dataset</code> holds <code>count</code> distances in <code>GetDistances()</code>. A value of <code>-1.0F</code> means the
-corresponding id was invalid (not present in the index).</p>
-<h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
-<p>The trailing <code>bool</code> argument trades precision for latency:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Value</th><th>Behavior</th></tr>
-</thead>
-<tbody>
-<tr><td><code>true</code> (default)</td><td>Use the full-precision vector representation. May incur disk I/O on hybrid memory-disk indexes.</td></tr>
-<tr><td><code>false</code></td><td>Use the quantized / approximate representation cached for search. Faster, no I/O.</td></tr>
-</tbody>
-</table>
-</div>
-<p>A runnable example is available at <code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code>.</p>
-<h2 id="detail-data--getindexdetailinfos--getdetaildatabyname"><a class="header" href="#detail-data--getindexdetailinfos--getdetaildatabyname">Detail Data — <code>GetIndexDetailInfos</code> / <code>GetDetailDataByName</code></a></h2>
-<p><code>GetIndexDetailInfos()</code> returns a list of <code>IndexDetailInfo</code> records that describe every named
-piece of structured data the index can expose. Each record carries a <code>name</code>, a <code>description</code>, and
-a <code>type</code> enum that selects the right typed accessor on <code>DetailData</code>.</p>
-<p>Support is index-dependent — there is no dedicated <code>SUPPORT_*</code> flag for these two APIs. The
-<code>Index</code> base class throws <code>std::runtime_error("Index doesn't support ...")</code> by default
-(<code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> in <code>include/vsag/index.h:658,674</code>);
-HGraph / IVF / BruteForce / Pyramid / SINDI / WARP implement them through
-<code>InnerIndexInterface</code>. Always handle the <code>tl::expected</code> error path when calling these APIs.</p>
-<pre><code class="language-cpp">auto infos = index-&gt;GetIndexDetailInfos().value();
-for (const auto&amp; info : infos) {
-    std::cout &lt;&lt; info.name &lt;&lt; " : " &lt;&lt; info.description &lt;&lt; '\n';
-}
-</code></pre>
-<p>Once you know which entries are available, call <code>GetDetailDataByName(name, info)</code> to retrieve the
-typed payload:</p>
-<pre><code class="language-cpp">vsag::IndexDetailInfo info;
-auto detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_NUM_ELEMENTS, info).value();
-int64_t n = detail-&gt;GetDataScalarInt64();
-
-detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_NAME_LABEL_TABLE, info).value();
-auto table = detail-&gt;GetData2DArrayInt64();   // [row][col] int64 matrix
-
-detail = index-&gt;GetDetailDataByName(vsag::INDEX_DETAIL_DATA_TYPE, info).value();
-std::string dt = detail-&gt;GetDataScalarString();
-</code></pre>
-<h3 id="data-types"><a class="header" href="#data-types">Data Types</a></h3>
-<p><code>info.type</code> selects which accessor on <code>DetailData</code> is valid:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th><code>IndexDetailDataType</code></th><th>Accessor</th></tr>
-</thead>
-<tbody>
-<tr><td><code>TYPE_SCALAR_INT64</code></td><td><code>GetDataScalarInt64()</code></td></tr>
-<tr><td><code>TYPE_SCALAR_DOUBLE</code></td><td><code>GetDataScalarDouble()</code></td></tr>
-<tr><td><code>TYPE_SCALAR_BOOL</code></td><td><code>GetDataScalarBool()</code></td></tr>
-<tr><td><code>TYPE_SCALAR_STRING</code></td><td><code>GetDataScalarString()</code></td></tr>
-<tr><td><code>TYPE_1DArray_INT64</code></td><td><code>GetData1DArrayInt64()</code></td></tr>
-<tr><td><code>TYPE_2DArray_INT64</code></td><td><code>GetData2DArrayInt64()</code></td></tr>
-</tbody>
-</table>
-</div>
-<p>Standard detail names exposed as constants in <code>include/vsag/index_detail_info.h</code>:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Constant</th><th>Typical type</th><th>Meaning</th></tr>
-</thead>
-<tbody>
-<tr><td><code>INDEX_DETAIL_NAME_NUM_ELEMENTS</code></td><td><code>TYPE_SCALAR_INT64</code></td><td>Number of vectors currently in the index.</td></tr>
-<tr><td><code>INDEX_DETAIL_NAME_LABEL_TABLE</code></td><td><code>TYPE_2DArray_INT64</code></td><td>Per-vector label table (e.g. internal-to-user id mapping).</td></tr>
-<tr><td><code>INDEX_DETAIL_DATA_TYPE</code></td><td><code>TYPE_SCALAR_STRING</code></td><td>Underlying vector data type (e.g. <code>"float32"</code>).</td></tr>
-</tbody>
-</table>
-</div>
-<p>Individual indexes may expose additional names; iterate <code>GetIndexDetailInfos()</code> to discover them
-at runtime. A runnable example is available at <code>examples/cpp/317_feature_get_detail_data.cpp</code>.</p>
-<h2 id="notes-and-limitations"><a class="header" href="#notes-and-limitations">Notes and Limitations</a></h2>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Implement the index behind the public <code>Index</code> API.</p>
 <ul>
-<li><code>CheckFeature</code> is constant-time. Prefer it over <code>try</code> / <code>catch</code> around an unsupported call.</li>
-<li><code>CalDistanceById</code> requires the underlying index to retain enough information to recompute the
-distance. For purely quantized indexes (no raw vectors retained), <code>calculate_precise_distance = true</code> may return the quantized distance instead.</li>
-<li><code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> are read-only snapshots. The values returned
-reflect the index state at the moment of the call; concurrent mutations may invalidate them.</li>
+<li>Prefer the current <code>IndexImpl&lt;T&gt;</code> pattern in <code>src/index/index_impl.h</code> for new in-memory
+indexes: implement <code>T</code> as an <code>InnerIndexInterface</code> subclass under <code>src/algorithm/&lt;name&gt;/</code>.</li>
+<li>Implement <code>static CheckAndMappingExternalParam(const JsonType&amp;, const IndexCommonParam&amp;)</code> so
+<code>IndexImpl&lt;T&gt;</code> can validate external JSON and construct the internal parameter object.</li>
+<li>Implement <code>GetName()</code>, <code>GetIndexType()</code>, <code>GetNumElements()</code>, <code>Add()</code>, <code>KnnSearch()</code>,
+<code>Serialize(StreamWriter&amp;)</code>, and <code>Deserialize(StreamReader&amp;)</code> as required by the inner-index
+contract; implement <code>Build()</code> when the index supports it. <code>InnerIndexInterface::Add()</code> is pure
+virtual, so every subclass must override it even when the index only supports <code>Build()</code> and
+should throw <code>UNSUPPORTED_INDEX_OPERATION</code> without enabling the corresponding feature flag.</li>
+<li>Leave unsupported operations on the base class defaults instead of advertising them.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Wire creation through the factory and engine path.</p>
+<ul>
+<li>Add a creator in <code>src/factory/index_creators.cpp</code>.</li>
+<li>Register it in <code>register_all_index_creators()</code>.</li>
+<li>Use <code>IndexCommonParam::CheckAndCreate()</code> from <code>src/index_common_param.cpp</code> for shared fields:
+<code>dtype</code>, <code>metric_type</code>, <code>dim</code>, optional <code>repr</code>, optional <code>extra_info_size</code>, allocator, thread
+pool, and old serialization format compatibility.</li>
+<li>Add factory tests for the accepted name, invalid parameters, and unsupported parameter shapes in
+<code>src/factory/factory_test.cpp</code> or a focused test near the implementation.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Add build-system wiring.</p>
+<ul>
+<li>Add <code>src/algorithm/&lt;name&gt;/CMakeLists.txt</code> and include it from <code>src/algorithm/CMakeLists.txt</code>.</li>
+<li>Add new sources to the closest existing target rather than creating a parallel build path.</li>
+<li>Keep file suffixes as <code>.cpp</code>; do not edit <code>extern/</code> unless the dependency itself is part of the
+change.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Define and validate index parameters.</p>
+<ul>
+<li>Put implementation parameters in a <code>&lt;name&gt;_parameter.{h,cpp}</code> pair when the index has its own
+schema.</li>
+<li>Implement JSON parsing, <code>ToJson()</code>, and <code>CheckCompatibility()</code> for serialized/recreated
+parameter checks.</li>
+<li>Reject invalid dimensions, metric/data-type combinations, missing required blocks, and unknown
+modes with <code>ErrorType::INVALID_ARGUMENT</code> through the existing <code>CHECK_ARGUMENT</code> /
+<code>VsagException</code> flow.</li>
+<li>Update <code>docs/docs/{en,zh}/src/resources/index_parameters.md</code> and the per-index docs if the
+parameter becomes user-facing.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Implement lifecycle behavior deliberately.</p>
+<ul>
+<li>Decide whether the index supports <code>Train()</code>, <code>Build()</code>, <code>ContinueBuild()</code>, <code>Add()</code> after build,
+and <code>Add()</code> from empty.</li>
+<li>Decide whether <code>Remove()</code>, <code>UpdateId()</code>, <code>UpdateVector()</code>, <code>UpdateAttribute()</code>, and
+<code>UpdateExtraInfo()</code> are supported.</li>
+<li>For every supported mutation, test empty datasets, duplicate IDs if applicable, missing IDs,
+immutable index behavior, and search correctness after mutation.</li>
+<li>Keep <code>InitFeatures()</code> in sync with the implemented operations.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Implement search behavior and result packing.</p>
+<ul>
+<li>Support the public <code>KnnSearch()</code> overloads required by the index, including <code>BitsetPtr</code>,
+<code>std::function&lt;bool(int64_t)&gt;</code>, and <code>FilterPtr</code> filtering when advertised.</li>
+<li>Implement <code>SearchWithRequest()</code> if the index supports the newer request path.</li>
+<li>Return <code>Dataset</code> fields consistently: IDs, distances, <code>num_elements</code>, result dimension, and
+optional result statistics.</li>
+<li>Parse search parameters with the same nested index-name convention used by existing indexes
+such as HGraph.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Preserve serialization compatibility.</p>
+<ul>
+<li>Implement both <code>Serialize(StreamWriter&amp;)</code> and <code>Deserialize(StreamReader&amp;)</code>; the base
+<code>InnerIndexInterface</code> adapts these to <code>BinarySet</code>, <code>ReaderSet</code>, and streams.</li>
+<li>Store enough metadata to reject incompatible binaries, including parameter compatibility and
+<code>extra_info_size</code> when extra info is present.</li>
+<li>Add round-trip tests through <code>BinarySet</code> and <code>ReaderSet</code> when the index supports both.</li>
+<li>If the binary format changes for an existing index, update compatibility tests and document the
+migration path.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Add tests before advertising features.</p>
+<ul>
+<li>Unit tests should cover parameter parsing, build/add/search, serialization, feature flags,
+memory estimation if implemented, and error paths.</li>
+<li>Functional tests under <code>tests/</code> should cover public API behavior that users can reach through
+<code>Factory::CreateIndex()</code>.</li>
+<li>Keep C++ unit-test coverage for <code>src/</code> and <code>include/</code> at or above the project threshold.</li>
+</ul>
+</li>
+</ul>
+<h2 id="optional-adaptation-points"><a class="header" href="#optional-adaptation-points">Optional Adaptation Points</a></h2>
+<p>Add these only when the new index actually implements the behavior. When implemented, enable the
+matching <code>IndexFeature</code> values in <code>InitFeatures()</code> and add focused tests.</p>
+<ul>
+<li>
+<p><input disabled="" type="checkbox"> Extra info (<code>extra_info</code> / <code>extrainfo</code>).</p>
+<ul>
+<li>Parse <code>extra_info_size</code> through <code>IndexCommonParam</code>.</li>
+<li>Store fixed-size per-vector payloads from <code>Dataset::GetExtraInfos()</code> and validate
+<code>Dataset::GetExtraInfoSize()</code> during <code>Build()</code>, <code>Add()</code>, and <code>UpdateExtraInfo()</code>.</li>
+<li>Implement <code>GetExtraInfoByIds()</code> and populate search-result extra info when the feature is
+supported.</li>
+<li>If the index supports extra-info filtering, document and test the search parameter that switches
+<code>Filter::CheckValid(const char*)</code> on.</li>
+<li>See <code>docs/docs/en/src/advanced/extra_info.md</code> and <code>examples/cpp/320_feature_extra_info.cpp</code>.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Statistics and analysis.</p>
+<ul>
+<li>Implement <code>GetStats()</code> for static structure data that helps operators understand an index.</li>
+<li>Implement <code>AnalyzeIndexBySearch(const SearchRequest&amp;)</code> only for query-driven analysis.</li>
+<li>Include result statistics with <code>Dataset::Statistics()</code> when search-time metrics are useful.</li>
+<li>Keep tool output compatible with <code>tools/analyze_index</code> and
+<code>docs/docs/en/src/resources/analyze_index.md</code>.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Range search.</p>
+<ul>
+<li>Override the pure-virtual primary <code>RangeSearch(..., const FilterPtr&amp;, ...)</code> required by
+<code>InnerIndexInterface</code>, even when the algorithm does not support range search; in that case,
+throw <code>UNSUPPORTED_INDEX_OPERATION</code> without enabling the corresponding feature flag.</li>
+<li>Implement the other <code>RangeSearch()</code> overloads only when the algorithm can honor radius
+semantics and <code>limited_size</code>.</li>
+<li>Test no-limit, limited, filtered, and empty-result cases.</li>
+<li>See <code>docs/docs/en/src/advanced/range_search.md</code>.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Filters and attributes.</p>
+<ul>
+<li>Support <code>BitsetPtr</code>, <code>std::function&lt;bool(int64_t)&gt;</code>, or <code>FilterPtr</code> only when each path is
+wired through search.</li>
+<li>If attribute filtering is supported, implement attribute storage/update paths and document
+accepted attribute schemas.</li>
+<li>Test the difference between bitset invalidation and <code>Filter::CheckValid()</code> keep semantics.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Allocator, resource, and threading integration.</p>
+<ul>
+<li>Allocate long-lived structures with <code>IndexCommonParam::allocator_</code> or a derived allocator-aware
+component.</li>
+<li>Use the <code>Resource</code> thread pool when build/search work is parallelized.</li>
+<li>Verify custom allocator and custom thread-pool examples still describe the behavior accurately.</li>
+<li>Mark concurrency features only after add/search/delete/update interactions are tested.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Memory and introspection APIs.</p>
+<ul>
+<li>Implement <code>EstimateMemory()</code>, <code>EstimateBuildMemory()</code>, <code>GetMemoryUsage()</code>, and
+<code>GetMemoryUsageDetail()</code> when the index can report meaningful numbers.</li>
+<li>Implement <code>GetMinAndMaxId()</code>, <code>CheckIdExist()</code>, <code>ExportIDs()</code>, <code>GetVectorByIds()</code>,
+<code>GetDataByIds()</code>, <code>GetIndexDetailInfos()</code>, or <code>GetDetailDataByName()</code> only when the backing
+storage supports them.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Model export, clone, merge, tune, feedback, and cache import/export.</p>
+<ul>
+<li>Implement <code>Clone()</code> and <code>ExportModel()</code> when the index can be copied without sharing mutable
+storage incorrectly.</li>
+<li>Implement <code>Merge()</code> only when parameter compatibility, ID remapping, and deletion semantics are
+clear.</li>
+<li>Implement <code>Tune()</code>, <code>Feedback()</code>, <code>ExportCache()</code>, and <code>ImportCache()</code> only with explicit
+parameter parsing and tests.</li>
+</ul>
+</li>
+<li>
+<p><input disabled="" type="checkbox"> Bindings, examples, benchmarks, and docs.</p>
+<ul>
+<li>Python bindings usually need updates only when the public API surface changes; current
+<code>pyvsag</code> users create indexes through names and JSON parameters.</li>
+<li>Add C++ examples under <code>examples/cpp/</code> when the index introduces a new user workflow.</li>
+<li>Add Python examples/tests under <code>tests/python/</code> if the behavior is reachable from <code>pyvsag</code>.</li>
+<li>Add benchmark YAML under <code>benchs/</code> when reviewers need repeatable performance data.</li>
+<li>Add English and Chinese website docs under <code>docs/docs/{en,zh}/src/</code> for user-facing indexes or
+parameters.</li>
+</ul>
+</li>
+</ul>
+<h2 id="review-checklist"><a class="header" href="#review-checklist">Review Checklist</a></h2>
+<ul>
+<li><input disabled="" type="checkbox"> <code>Factory::CreateIndex()</code> and <code>Engine::CreateIndex()</code> create the index by the documented name.</li>
+<li><input disabled="" type="checkbox"> <code>CheckFeature()</code> returns true only for implemented and tested behavior.</li>
+<li><input disabled="" type="checkbox"> Unsupported operations return <code>UNSUPPORTED_INDEX_OPERATION</code> through existing wrappers.</li>
+<li><input disabled="" type="checkbox"> Serialization round trips preserve IDs, vectors or compressed codes, parameters, deletions,
+attributes, and extra info that the index claims to support.</li>
+<li><input disabled="" type="checkbox"> Search results remain valid after every supported lifecycle transition.</li>
+<li><input disabled="" type="checkbox"> Documentation lists user-facing parameters, supported metrics/data types, and unsupported
+operations.</li>
+<li><input disabled="" type="checkbox"> Practical validation has run: unit/functional tests for changed code, plus formatting or
+<code>git diff --check</code> for documentation-only changes.</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../advanced/search_allocator.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../development/code_structure.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../advanced/extensibility.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../development/building.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -445,11 +543,11 @@ reflect the index state at the moment of the call; concurrent mutations may inva
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../advanced/search_allocator.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../development/code_structure.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../advanced/extensibility.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../development/building.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
