@@ -17,6 +17,7 @@
 - [LazyHGraph](indexes/lazy_hgraph.md)
 - [IVF](indexes/ivf.md)
 - [SINDI](indexes/sindi.md)
+- [SIMQ](indexes/simq.md)
 - [Pyramid](indexes/pyramid.md)
 - [BruteForce](indexes/brute_force.md)
 
@@ -36,6 +37,7 @@
 # Developer Guide
 
 - [Code Structure](development/code_structure.md)
+- [New Index Integration Checklist](development/new_index_checklist.md)
 - [Building](development/building.md)
 - [Offline / Air-gapped Builds](development/offline_build.md)
 - [Running Tests](development/testing.md)
