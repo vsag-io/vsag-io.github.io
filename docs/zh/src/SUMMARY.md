@@ -17,6 +17,7 @@
 - [LazyHGraph](indexes/lazy_hgraph.md)
 - [IVF](indexes/ivf.md)
 - [SINDI](indexes/sindi.md)
+- [SIMQ](indexes/simq.md)
 - [Pyramid](indexes/pyramid.md)
 - [BruteForce](indexes/brute_force.md)
 
@@ -36,6 +37,7 @@
 # 开发者指南
 
 - [代码目录结构](development/code_structure.md)
+- [新索引接入检查清单](development/new_index_checklist.md)
 - [编译构建](development/building.md)
 - [离线 / 内网环境构建](development/offline_build.md)
 - [运行测试](development/testing.md)
