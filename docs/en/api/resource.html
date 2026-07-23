@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-511e3c2e.js";
+            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8253392c.js"></script>
+        <script src="../toc-6ff2fd81.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -432,6 +432,21 @@ vsag::Options::Instance().set_logger(&amp;my_logger);
 created to choose <code>trace</code>, <code>debug</code>, <code>info</code>, <code>warn</code>/<code>warning</code>, <code>error</code>, <code>critical</code>, or <code>off</code>. Invalid
 values are ignored and keep the default level. An explicit <code>SetLevel</code> call still overrides the
 environment-derived level.</p>
+<h3 id="startup-init-banner"><a class="header" href="#startup-init-banner">Startup init banner</a></h3>
+<p>VSAG logs a startup initialization banner when <code>vsag::init()</code> runs. To suppress that banner, set
+<code>VSAG_SUPPRESS_INIT_BANNER</code> before starting the process. This is useful for tests, CI jobs, or
+applications that need quieter startup logs.</p>
+<p>Truthy values are <code>1</code>, <code>on</code>, and <code>true</code>; matching for <code>on</code> and <code>true</code> is ASCII case-insensitive, so
+<code>ON</code>, <code>On</code>, and <code>TRUE</code> also work. Other values leave the banner enabled.</p>
+<p>Set the variable before process start. VSAG also runs <code>vsag::init()</code> during static initialization,
+so setting the variable later from inside the process cannot suppress the first banner.</p>
+<p>The banner includes an <code>instance spec</code> value such as <code>48C503G</code>, combining the cpuinfo core count
+with total physical memory. Memory is reported in whole GiB using floor division by <code>1024^3</code>; if the
+platform query fails, the memory portion is shown as <code>?G</code>. SIMD lines, including <code>neon</code> and <code>sve</code>,
+retain their existing distribution/platform/using capability semantics.</p>
+<pre><code class="language-bash">VSAG_SUPPRESS_INIT_BANNER=1 ./your_vsag_app
+VSAG_SUPPRESS_INIT_BANNER=true ./your_vsag_test
+</code></pre>
 <pre><code class="language-cpp">class Logger {
 public:
     enum Level : int {

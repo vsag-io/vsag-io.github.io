@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-511e3c2e.js";
+            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8253392c.js"></script>
+        <script src="../toc-6ff2fd81.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -376,6 +376,7 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>Threads used to parallelise build</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Enable duplicate-ID detection on insert</td></tr>
+<tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>Share vector storage between duplicates; requires <code>support_duplicate: true</code></td></tr>
 <tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Duplicate-detection distance threshold. When greater than <code>0</code>, deduplicate by the nearest candidate distance; when <code>0</code>, fall back to the current code <code>memcmp</code> check</td></tr>
 <tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable graph delete-tracking metadata used by mark-remove recovery paths</td></tr>
 <tr><td><code>support_force_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>RemoveMode::FORCE_REMOVE</code> and its extra synchronization on the built index</td></tr>
@@ -387,6 +388,22 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 </tbody>
 </table>
 </div>
+<h3 id="deduplicating-vector-storage"><a class="header" href="#deduplicating-vector-storage">Deduplicating vector storage</a></h3>
+<p>Set both <code>support_duplicate: true</code> and <code>deduplicate_storage: true</code> to let duplicate
+vectors share one physical code slot while retaining their individual labels. This option
+currently supports only dense-vector HGraph indexes using <code>graph_type: "nsw"</code>; it is not
+available for the separate HNSW index or for <code>graph_type: "odescent"</code>.</p>
+<p>The following operations and configurations are not supported while storage deduplication
+is enabled:</p>
+<ul>
+<li>force removal (<code>support_force_remove: true</code>);</li>
+<li>cache-assisted build after <code>ImportCache()</code>;</li>
+<li><code>Merge</code>;</li>
+<li>legacy v0.14 serialization.</li>
+</ul>
+<p><code>UpdateVector</code> is supported only for IDs whose vector storage is not shared with another
+duplicate-group member.</p>
+<p>Current serialization and streaming serialization are supported.</p>
 <h2 id="supported-input-data-types"><a class="header" href="#supported-input-data-types">Supported input data types</a></h2>
 <p>The <code>dtype</code> field in the top-level build config selects how <code>Dataset</code> interprets the raw vector
 bytes. HGraph supports four input types; the <code>dtype</code> value, the corresponding <code>Dataset</code> setter,

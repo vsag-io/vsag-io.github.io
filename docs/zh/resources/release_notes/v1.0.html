@@ -1,0 +1,560 @@
+<!DOCTYPE HTML>
+<html lang="zh" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>VSAG 1.0 - VSAG文档</title>
+
+
+        <!-- Custom HTML head -->
+        <!-- Google tag (gtag.js) -->
+        <!-- Shared with docs/{docs,blog}/{en,zh}/theme/head.hbs and docs/landing/index.html. Keep these five copies in sync. -->
+        <!-- Hostname-gated so local mdBook previews and fork deploys do not pollute the production GA4 property. -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-2VKGDGDEQV"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          if (location.hostname === 'vsag.io') {
+            gtag('config', 'G-2VKGDGDEQV');
+          }
+        </script>
+        
+        <!-- Language toggle button injected into mdBook's top menu bar. -->
+        <!-- Shared across docs/{en,zh} and blog/{en,zh}. Keep these four copies in sync. -->
+        <style>
+          #lang-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2.2em;
+            height: 2.2em;
+            padding: 0 0.55em;
+            margin-left: 0.2em;
+            border: 0;
+            border-radius: 4px;
+            background: transparent;
+            color: var(--icons);
+            font: inherit;
+            font-size: 0.95em;
+            line-height: 1;
+            cursor: pointer;
+            text-decoration: none;
+            user-select: none;
+          }
+          #lang-toggle:hover {
+            color: var(--icons-hover);
+            background: var(--theme-hover, rgba(0, 0, 0, 0.05));
+          }
+          #lang-toggle[aria-busy="true"] {
+            opacity: 0.6;
+            cursor: progress;
+          }
+        </style>
+        <script>
+          (function () {
+            // Site layout (deployed at https://vsag.io/):
+            //   /docs/en/...   /docs/zh/...
+            //   /blogs/en/...  /blogs/zh/...
+            // mdBook sources in this repo live under docs/docs/{en,zh} and docs/blog/{en,zh};
+            // the deploy workflow renames blog -> blogs, so runtime paths use /blogs/.
+            var PAIRS = [
+              { a: '/docs/en/',  b: '/docs/zh/'  },
+              { a: '/blogs/en/', b: '/blogs/zh/' }
+            ];
+        
+            function detect(pathname) {
+              for (var i = 0; i < PAIRS.length; i++) {
+                var p = PAIRS[i];
+                if (pathname.indexOf(p.a) === 0) {
+                  return { current: 'en', other: 'zh', currentRoot: p.a, otherRoot: p.b };
+                }
+                if (pathname.indexOf(p.b) === 0) {
+                  return { current: 'zh', other: 'en', currentRoot: p.b, otherRoot: p.a };
+                }
+              }
+              return null;
+            }
+        
+            function buildTargetUrl(info, pathname) {
+              var rest = pathname.slice(info.currentRoot.length);
+              return info.otherRoot + rest;
+            }
+        
+            function insertButton() {
+              var bar = document.querySelector('.right-buttons');
+              if (!bar) return false;
+              if (document.getElementById('lang-toggle')) return true;
+        
+              var info = detect(window.location.pathname);
+              // On local `mdbook serve`, paths look like "/" instead of "/docs/en/";
+              // hide the button in that case to avoid sending users to nonexistent URLs.
+              if (!info) return true;
+        
+              // Use a real <button> so keyboard activation (Enter/Space) and focus
+              // styles match the other icons in mdBook's .right-buttons toolbar.
+              var btn = document.createElement('button');
+              btn.id = 'lang-toggle';
+              btn.type = 'button';
+              // Show the *target* language so users know what clicking does. Set
+              // `lang` so screen readers pronounce "中" / "EN" in the right voice.
+              btn.textContent = info.other === 'zh' ? '\u4e2d' : 'EN';
+              btn.lang = info.other;
+              btn.title = info.other === 'zh' ? '\u5207\u6362\u4e3a\u4e2d\u6587' : 'Switch to English';
+              btn.setAttribute('aria-label', btn.title);
+        
+              btn.addEventListener('click', function () {
+                // Guard against rapid double-clicks firing concurrent probes.
+                if (btn.getAttribute('aria-busy') === 'true') return;
+                var target = buildTargetUrl(info, window.location.pathname);
+                var hash = window.location.hash || '';
+                btn.setAttribute('aria-busy', 'true');
+                // Bound the HEAD probe so a stalled network does not leave the
+                // toggle stuck in the busy state forever.
+                var controller = (typeof AbortController === 'function') ? new AbortController() : null;
+                var timer = setTimeout(function () { if (controller) controller.abort(); }, 3000);
+                var opts = { method: 'HEAD' };
+                if (controller) opts.signal = controller.signal;
+                // Prefer HEAD to check existence without downloading the page.
+                fetch(target, opts).then(function (r) {
+                  clearTimeout(timer);
+                  window.location.assign(r.ok ? (target + hash) : info.otherRoot);
+                }).catch(function () {
+                  clearTimeout(timer);
+                  // Network error / CORS / offline / timeout -> fall back to language root.
+                  window.location.assign(info.otherRoot);
+                });
+              });
+        
+              bar.insertBefore(btn, bar.firstChild);
+              return true;
+            }
+        
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', insertButton);
+            } else {
+              insertButton();
+            }
+          })();
+        </script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../../searchindex-887d0446.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../../toc-42b2e1de.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">VSAG文档</h1>
+
+                    <div class="right-buttons">
+                        <a href="../../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="vsag-10-版本日志"><a class="header" href="#vsag-10-版本日志">VSAG 1.0 版本日志</a></h1>
+<p><code>v1.0.0</code> 于项目启动三周年当天（2026 年 7 月 12 日）发布。</p>
+<ul>
+<li><a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0">GitHub 官方 Release</a></li>
+<li><a href="https://github.com/antgroup/vsag/compare/v0.18.0...v1.0.0">v0.18.0…v1.0.0 完整变更</a></li>
+<li>标签对应提交：<code>efdaf17a10e96cdb5222baf558d50dfacbdc672e</code></li>
+</ul>
+<h2 id="版本概览"><a class="header" href="#版本概览">版本概览</a></h2>
+<p>VSAG 1.0 是项目首个长期支持（LTS）大版本。截至该版本发布时，
+公开的 <code>0.x</code> 历史包含从 <code>v0.11</code> 到 <code>v0.18</code> 的 81 个版本标签。
+<code>v1.0.0</code> 汇总了这一阶段的主线成果，覆盖稠密向量、稀疏向量、结构化过滤、
+层级检索和多向量检索。</p>
+<p><code>v1.0.0</code> 官方 Release 收录了 <code>v0.18.0</code> 以来的 375 项变化：
+48 项新增功能、134 项改进、105 项缺陷修复和 88 项其他变化。
+<code>v0.11.0...v1.0.0</code> 主线对比包含 1,252 个提交。</p>
+<p>本文仅描述 <code>v1.0.0</code> 标签中可用的 API 与功能。</p>
+<h2 id="主要能力"><a class="header" href="#主要能力">主要能力</a></h2>
+<h3 id="索引体系"><a class="header" href="#索引体系">索引体系</a></h3>
+<p>下图按职责展示 VSAG 1.0 的索引体系：Pyramid 和 LazyHGraph 提供组合与自适应能力，
+下层展示 BruteForce、HGraph、IVF、SINDI 和 SIMQ 五个核心索引族。</p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../../figures/indexes/index-matrix.svg" alt="VSAG 1.0 索引矩阵"><span class="img-wrapper"><img src="../../figures/indexes/index-matrix.svg" alt="VSAG 1.0 索引矩阵"></span></label></p>
+<p>组合与自适应索引：</p>
+<ul>
+<li>分区索引 <strong>Pyramid</strong>：支持将同一条向量加入多个 Pyramid 路径，
+并按指定路径限定检索范围，适合多租户与层级检索
+（<a href="https://github.com/antgroup/vsag/pull/2226">PR #2226</a>）。</li>
+<li>自伸缩图索引 <strong>LazyHGraph</strong>：在数据量较小时使用精确 BruteForce，
+达到可配置阈值后转换为 HGraph，适合持续增长但初始规模较小的集合
+（<a href="https://github.com/antgroup/vsag/pull/2151">PR #2151</a>）。</li>
+</ul>
+<p>核心索引族：</p>
+<ul>
+<li>暴力搜索索引 <strong>BruteForce</strong>：支持单向量和多向量精确检索，是精确检索基线，也是小规模集合的精确检索选项。</li>
+<li>图索引 <strong>HGraph</strong>：面向高召回、低延迟的稠密向量检索。从最初的
+<a href="https://github.com/antgroup/vsag/pull/114">HGraph 实现</a>发展至今，
+已支持量化、过滤、范围与迭代检索、更新、标记/强制删除、缓存导入导出、
+诊断和内存+磁盘配置。</li>
+<li>空间划分索引 <strong>IVF</strong>：面向大规模数据、批量查询和大 <code>top-k</code> 场景，支持量化、
+重排、属性过滤、并行构建/检索和磁盘分桶存储。参见最初的
+<a href="https://github.com/antgroup/vsag/pull/505">IVF PR</a>。</li>
+<li>稀疏向量索引 <strong>SINDI</strong>：面向 BM25 风格和学习型稀疏表示，
+支持词项 ID 重映射、索引分析、不可变读取、FP16 稀疏值、词项列表压缩和
+<a href="https://github.com/antgroup/vsag/pull/2424">低内存不可变构建</a>。</li>
+<li>多向量索引 <strong>SIMQ</strong>：面向 ColBERT 等 late-interaction 多向量检索，
+先在聚类级别生成候选，再用精确 MaxSim 重排，以平衡召回率和延迟
+（<a href="https://github.com/antgroup/vsag/pull/2357">PR #2357</a>）。</li>
+</ul>
+<p>各索引的参数与使用说明参见<a href="../../indexes/">索引</a>。</p>
+<h3 id="量化数据类型与硬件加速"><a class="header" href="#量化数据类型与硬件加速">量化、数据类型与硬件加速</a></h3>
+<p>VSAG 1.0 提供多种输入格式、量化方法、向量变换与硬件加速路径：</p>
+<ul>
+<li>FP32、INT8、FP16、BF16 稠密输入，以及稀疏与多向量数据集；
+FP16/BF16 可直接输入（<a href="https://github.com/antgroup/vsag/pull/1731">PR #1731</a>）；</li>
+<li>SQ4/SQ8 及对应的均匀量化变体；</li>
+<li>Product Quantization 和 PQ FastScan
+（<a href="https://github.com/antgroup/vsag/pull/626">PR #626</a>、
+<a href="https://github.com/antgroup/vsag/pull/691">PR #691</a>）；</li>
+<li>RaBitQ、扩展位宽与 x+y split 的基础/重排布局、FHT/PCA 变换和专用 SIMD 内核；</li>
+<li>Transform Quantizer 链与 MRL-E 降维；</li>
+<li>x86_64 上的 SSE、AVX、AVX2、AVX-512 和部分 AMX 内核，以及 ARM NEON、SVE；</li>
+<li>SQ8U 内积和 KMeans BF16 GEMM 的 AMX 加速
+（<a href="https://github.com/antgroup/vsag/pull/2032">PR #2032</a>）。</li>
+</ul>
+<p>支持组合与调参建议参见<a href="../../quantization/">量化</a>。</p>
+<h3 id="检索过滤与索引管理"><a class="header" href="#检索过滤与索引管理">检索、过滤与索引管理</a></h3>
+<ul>
+<li><strong>基础检索：</strong> <code>KnnSearch</code> 提供 KNN 查询，<code>RangeSearch</code> 提供可限制结果数量的范围查询。</li>
+<li><strong>统一请求接口：</strong> <code>SearchRequest</code> 与 <code>Index::SearchWithRequest</code> 使用一个请求对象选择 KNN 或范围检索，并传递索引专用 JSON 参数、受支持的过滤条件和诊断输入。v1.0 中 HGraph、IVF 和 BruteForce 实现了该接口，可用字段因索引而异。</li>
+<li><strong>过滤：</strong> 支持 ID 回调/<code>FilterPtr</code>、bitset 和 SQL 风格属性表达式。HGraph、IVF 和 BruteForce 支持基于属性倒排索引的结构化过滤；HGraph 还支持迭代过滤，并可在有效数据比例不高于 <code>hgraph.brute_force_threshold</code> 时切换到暴力检索。</li>
+<li><strong>训练与模型复用：</strong> <code>Train</code>、<code>Clone</code>、<code>ExportModel</code> 和 <code>Tune</code> 分别用于独立训练、索引深拷贝、训练模型导出和索引调优。</li>
+<li><strong>数据维护与读取：</strong> 支持批量删除、标记/强制删除、ID/向量/属性更新、Source ID、<code>extra_info</code>、索引详情读取和 <code>CalcDistanceById</code>。</li>
+<li><strong>漏召回诊断：</strong> <code>SearchRequest::expected_labels_</code> 可在 HGraph、IVF 和 BruteForce 中分析目标向量未被召回的原因，推理报告随结果 <code>Dataset</code> 返回（<a href="https://github.com/antgroup/vsag/pull/1838">PR #1838</a>）。</li>
+<li><strong>统计与容量规划：</strong> 检索、I/O、内存和索引专用统计用于观测运行状态；内存估算、索引内省和分析工具用于容量评估与问题定位。</li>
+</ul>
+<p>具体支持范围因索引而异；可通过 <code>Index::CheckFeature(IndexFeature)</code> 查询其中已声明的能力。</p>
+<h3 id="序列化与兼容性"><a class="header" href="#序列化与兼容性">序列化与兼容性</a></h3>
+<p>VSAG 1.0 并行维护两套序列化接口：既有 <code>Serialize</code>/<code>Deserialize</code> 接口继续维护，
+用于保持现有接入的兼容性；新的<a href="https://github.com/antgroup/vsag/pull/2256">流式序列化接口</a>
+采用头部先行（header-first）、仅需顺序读取的格式，并扩展以下能力：</p>
+<ul>
+<li><code>SerializeStreaming</code> 先写元数据，再写带类型的 TLV 数据块；</li>
+<li><code>DeserializeStreaming</code> 将数据恢复到已创建、为空且兼容的索引对象；</li>
+<li><code>Index::Load</code> 读取元数据、创建对应索引，并应用受支持的存储放置策略；</li>
+<li>BruteForce、HGraph、IVF、可变 SINDI 和 Pyramid 已支持 v1.0 流式序列化；
+不可变 SINDI 运行态在 v1.0 中暂不支持。</li>
+</ul>
+<p>两套接口会并行保留，但两种格式<strong>不兼容</strong>，文件必须使用对应的接口读取。
+既有用户可继续使用原接口；新接入建议优先使用流式序列化接口。
+格式和数据块版本细节参见
+<a href="../../advanced/new_serialization.html">新序列化格式</a>。</p>
+<p>跨版本索引测试样本和<a href="../check_compatibility.html">兼容性检查工具</a>
+可用于重复验证旧索引的升级过程。</p>
+<h3 id="平台绑定与工具"><a class="header" href="#平台绑定与工具">平台、绑定与工具</a></h3>
+<ul>
+<li>VSAG 核心 C++ 库支持 Linux 和 macOS，主要研发和完整验证链路以 Linux 为主。
+Linux x86_64 与 AArch64 均通过 CI，macOS 当前验证 arm64 构建
+（<a href="https://github.com/antgroup/vsag/pull/1439">源码构建</a>、
+<a href="https://github.com/antgroup/vsag/pull/1930">PR CI</a>）。
+预编译 C++ 发布包目前仅面向 Linux x86_64。</li>
+<li>Python 绑定的包名为 <code>pyvsag</code>；v1.0.0 声明支持 CPython 3.6-3.14，并为这一版本范围配置了 wheel 构建。
+Python 构建已迁移到原生 CMake 集成
+（<a href="https://github.com/antgroup/vsag/pull/1599">PR #1599</a>）；
+绑定还支持更多索引操作、FP16/BF16 输入、稀疏向量和稀疏 HDF5 辅助工具。</li>
+<li>VSAG 新增 C API 与
+<a href="https://github.com/antgroup/vsag/pull/1812">Node.js/TypeScript 绑定</a>，并提供
+快速入门示例。各语言绑定独立发布，使用时请确认对应包版本。</li>
+<li>构建支持系统级 OpenBLAS/fmt、自定义依赖下载镜像和可安装的 CMake 包配置。</li>
+<li><code>eval_performance</code> 支持稠密、稀疏和多向量数据集；<code>analyze_index</code>、
+<code>check_compatibility</code>、<code>visualize_index</code> 和 HTTP 监控服务补齐了分析、兼容性验证、
+序列化检查与监控工具。</li>
+</ul>
+<h3 id="稳定性与验证"><a class="header" href="#稳定性与验证">稳定性与验证</a></h3>
+<p>功能与回归测试覆盖内存分配、泄漏与内存不足路径，以及多线程下的构建、写入、
+检索、更新、删除和析构。CI 通过 ASan 持续检查内存安全，并通过 TSan 检查数据竞争；
+兼容性测试样本用于验证历史索引的升级路径。</p>
+<h2 id="从-v018-升级的兼容性说明"><a class="header" href="#从-v018-升级的兼容性说明">从 v0.18 升级的兼容性说明</a></h2>
+<p>VSAG 1.0 是大版本升级，包含源码级 API 变化。升级前请重点检查：</p>
+<ol>
+<li><strong><code>Remove</code> 返回删除数量并支持批量操作。</strong> v0.18 的
+<code>tl::expected&lt;bool, Error&gt; Remove(int64_t)</code> 调整为
+<code>tl::expected&lt;uint32_t, Error&gt;</code>，并增加批量重载和显式删除模式
+（<a href="https://github.com/antgroup/vsag/pull/1551">PR #1551</a>）。
+v1.0 最终提供 <code>RemoveMode::MARK_REMOVE</code> 和 <code>RemoveMode::FORCE_REMOVE</code>；
+HGraph 强制删除由
+<a href="https://github.com/antgroup/vsag/pull/1810">PR #1810</a>实现。</li>
+<li><strong>不支持的操作通常改为返回错误。</strong>
+许多返回 <code>tl::expected</code> 的默认方法不再抛出
+<code>std::runtime_error</code>，而是返回带
+<code>ErrorType::UNSUPPORTED_INDEX_OPERATION</code> 的 <code>tl::unexpected</code>
+（<a href="https://github.com/antgroup/vsag/pull/2141">PR #2141</a>）。调用 <code>.value()</code> 前
+应先检查 <code>tl::expected</code> 返回值。</li>
+<li><strong>内存统计接口签名发生变化。</strong> <code>GetMemoryUsage</code> 使用 <code>uint64_t</code>，
+<code>GetMemoryUsageDetail</code> 返回 <code>std::unordered_map&lt;std::string, uint64_t&gt;</code>，
+<code>GetEstimateBuildMemory</code> 更名为 <code>EstimateBuildMemory</code>
+（<a href="https://github.com/antgroup/vsag/pull/2388">PR #2388</a>）。</li>
+<li><strong>检索接口可以渐进迁移。</strong> 新接入优先使用 <code>SearchRequest</code> 和
+<code>SearchWithRequest</code>，既有检索重载在 v1.0 中仍然保留。</li>
+<li><strong>不要混用两套序列化格式。</strong>
+旧格式输出必须使用旧反序列化接口；
+流式序列化输出必须使用 <code>DeserializeStreaming</code> 或 <code>Index::Load</code>。</li>
+<li><strong>SINDI 自动选择堆插入策略。</strong> 旧的 <code>use_term_lists_heap_insert</code> 检索参数
+会被忽略。SINDI 根据 <code>doc_prune_ratio</code> 和 <code>query_prune_ratio</code> 推导策略；依赖
+强制指定旧路径的配置需要调整。</li>
+<li><strong>Intel MKL 改为显式开启。</strong> 默认值为 <code>OFF</code>。通过 Makefile 构建时设置
+<code>VSAG_ENABLE_INTEL_MKL=ON</code>，直接使用 CMake 时设置
+<code>-DENABLE_INTEL_MKL=ON</code>。</li>
+</ol>
+<p>对于持久化索引，建议在测试环境验证明确的源版本与目标版本组合。
+序列化兼容性可能因索引类型、功能开关和格式家族而异。</p>
+<h2 id="从-v0x-走向-10"><a class="header" href="#从-v0x-走向-10">从 v0.x 走向 1.0</a></h2>
+<p><code>v0.11.0</code> 是 VSAG 开源后的首个正式发布版本。此前的版本号仅用于内部迭代，未作为 GitHub Release 对外发布，因此本节从 <code>v0.11</code> 开始回顾。</p>
+<h3 id="基础建设v011-v014"><a class="header" href="#基础建设v011-v014">基础建设：v0.11-v0.14</a></h3>
+<ul>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.11.0">v0.11</a>，2024 年 9 月：</strong>
+建立 HNSW/DiskANN、C++/Python、预过滤、余弦距离、锁和序列化的初始基线。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.12.0">v0.12</a>，2024 年 12 月：</strong>
+引入 DataCell、I/O 与图抽象、HGraph、SQ4/SQ8/INT8、Engine/Factory 和
+<code>pyvsag</code> 打包。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.13.0">v0.13</a>，2025 年 2 月：</strong>
+新增 BruteForce，并扩展 Pyramid、内存估算、IndexFeature、过滤提示和
+<code>eval_performance</code>。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.14.0">v0.14</a>，2025 年 4 月：</strong>
+引入 IVF、FP16/BF16、RaBitQ、异步/缓冲 I/O、稀疏数据、HGraph
+<code>extra_info</code>、迭代过滤与系统化兼容性检查。</li>
+</ul>
+<h3 id="生产能力扩展v015-v018"><a class="header" href="#生产能力扩展v015-v018">生产能力扩展：v0.15-v0.18</a></h3>
+<ul>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.15.0">v0.15</a>，2025 年 6 月：</strong>
+新增 Train/Clone/ExportModel、PQ/PQ FastScan、属性表达式、压缩图、HGraph
+合并/标记删除，以及带兼容性 CI 的既有格式自描述序列化。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.16.0">v0.16</a>，2025 年 8 月：</strong>
+新增 mmap HGraph、SINDI、并行 IVF、属性更新、原始向量读取和参数兼容性检查，并
+通过长期补丁线持续解决 ABI、并发和旧索引兼容问题。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.17.0">v0.17</a>，2025 年 10 月：</strong>
+扩展 <code>SearchRequest</code> 以覆盖主要检索场景，并增加检索超时、
+更广泛的 <code>extra_info</code>、Transform Quantizer、HGraph 单查询并行、
+数据导出与更完整的 SINDI 生命周期和统计能力。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.18.0">v0.18</a>，2026 年 1 月：</strong>
+新增 C API、自动构建 Python wheel、稀疏 Python 绑定、磁盘 IVF、索引详情/检索/I/O
+统计、MRL-E 与 HGraph 调优、扩展 RaBitQ，并继续完善 SINDI 和 Pyramid。</li>
+</ul>
+<p>完整提交历史参见
+<a href="https://github.com/antgroup/vsag/compare/v0.11.0...v1.0.0">v0.11.0…v1.0.0 对比</a>。</p>
+<h2 id="v10-补丁版本"><a class="header" href="#v10-补丁版本">v1.0 补丁版本</a></h2>
+<ul>
+<li><a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0"><strong>v1.0.0</strong></a>
+（2026 年 7 月 12 日）：首个长期支持大版本。</li>
+</ul>
+<p>后续 <code>v1.0.x</code> 补丁版本会追加到本节。
+完整 PR 清单和各版本贡献者名单继续维护在 GitHub Releases。</p>
+<h2 id="致谢"><a class="header" href="#致谢">致谢</a></h2>
+<p>VSAG 1.0 是蚂蚁集团 VSAG 团队与开源社区共同贡献的成果。
+感谢所有参与算法设计、功能实现、问题反馈、代码评审、
+测试改进和文档建设的贡献者。</p>
+<p>完整名单参见<a href="../../misc/contributors.html">贡献者页面</a>和
+<a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0">官方 Release</a>。</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../../resources/release_notes.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../../resources/roadmap_2025.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../../resources/release_notes.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../../resources/roadmap_2025.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../../mark-09e88c2c.min.js"></script>
+        <script src="../../searcher-09f2665d.js"></script>
+
+        <script src="../../clipboard-1626706a.min.js"></script>
+        <script src="../../highlight-abc7f01d.js"></script>
+        <script src="../../book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4a8d5bff.js";
+            window.path_to_searchindex_js = "../searchindex-887d0446.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-5433fefd.js"></script>
+        <script src="../toc-42b2e1de.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -430,6 +430,20 @@ vsag::Options::Instance().set_logger(&amp;my_logger);
 <p>内置 logger 默认使用 <code>info</code>。在内置 logger 创建前设置 <code>VSAG_LOG_LEVEL</code>，可选择 <code>trace</code>、
 <code>debug</code>、<code>info</code>、<code>warn</code>/<code>warning</code>、<code>error</code>、<code>critical</code> 或 <code>off</code>。无效值会被忽略，并保留默认等级。
 显式调用 <code>SetLevel</code> 仍会覆盖从环境变量得到的等级。</p>
+<h3 id="启动-init-banner"><a class="header" href="#启动-init-banner">启动 init banner</a></h3>
+<p>VSAG 会在 <code>vsag::init()</code> 运行时输出启动初始化 banner。如需隐藏该 banner，
+请在进程启动前设置 <code>VSAG_SUPPRESS_INIT_BANNER</code>。这适用于测试、CI 任务，
+或需要更安静启动日志的应用。</p>
+<p>可识别的真值为 <code>1</code>、<code>on</code> 和 <code>true</code>；<code>on</code> 与 <code>true</code> 按 ASCII 大小写不敏感匹配，
+因此 <code>ON</code>、<code>On</code> 和 <code>TRUE</code> 也有效。其他值会保留 banner 输出。</p>
+<p>请务必在进程启动前设置该变量。VSAG 也会在静态初始化阶段运行
+<code>vsag::init()</code>，因此在进程内部稍后再设置该变量，无法隐藏首次 banner。</p>
+<p>banner 包含类似 <code>48C503G</code> 的 <code>instance spec</code> 值，将 cpuinfo 获取的核心数与物理内存总量合并展示。
+内存使用 <code>1024^3</code> 字节进行整 GiB 向下取整；如果平台查询失败，内存部分显示为 <code>?G</code>。包括
+<code>neon</code> 和 <code>sve</code> 在内的 SIMD 行，仍保持原有的 distribution/platform/using 能力语义。</p>
+<pre><code class="language-bash">VSAG_SUPPRESS_INIT_BANNER=1 ./your_vsag_app
+VSAG_SUPPRESS_INIT_BANNER=true ./your_vsag_test
+</code></pre>
 <pre><code class="language-cpp">class Logger {
 public:
     enum Level : int {

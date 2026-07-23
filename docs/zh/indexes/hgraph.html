@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4a8d5bff.js";
+            window.path_to_searchindex_js = "../searchindex-887d0446.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-5433fefd.js"></script>
+        <script src="../toc-42b2e1de.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -370,6 +370,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>构建阶段并发线程数</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否在插入时做重复 ID 检测</td></tr>
+<tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>让重复向量共享存储；需同时设置 <code>support_duplicate: true</code></td></tr>
 <tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>重复判定距离阈值。大于 <code>0</code> 时按最近候选的距离判重；等于 <code>0</code> 时退化为当前编码 <code>memcmp</code> 判重</td></tr>
 <tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>是否启用 mark-remove 恢复路径所需的图删除追踪元数据</td></tr>
 <tr><td><code>support_force_remove</code></td><td>bool</td><td><code>false</code></td><td>是否启用 <code>RemoveMode::FORCE_REMOVE</code> 及其额外同步</td></tr>
@@ -381,6 +382,19 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
+<h3 id="向量存储去重"><a class="header" href="#向量存储去重">向量存储去重</a></h3>
+<p>同时设置 <code>support_duplicate: true</code> 和 <code>deduplicate_storage: true</code> 后，重复向量会共享
+同一个物理编码槽位，但仍保留各自的标签。该选项目前仅支持使用 <code>graph_type: "nsw"</code> 的
+稠密向量 HGraph 索引；独立的 HNSW 索引以及 <code>graph_type: "odescent"</code> 均不支持。</p>
+<p>启用存储去重后，暂不支持以下操作和配置：</p>
+<ul>
+<li>强制删除（<code>support_force_remove: true</code>）；</li>
+<li>调用 <code>ImportCache()</code> 后基于缓存加速构建；</li>
+<li><code>Merge</code>；</li>
+<li>v0.14 旧版序列化格式。</li>
+</ul>
+<p><code>UpdateVector</code> 仅支持尚未与其他重复组成员共享向量存储的 ID。</p>
+<p>当前序列化格式和 streaming serialization 均受支持。</p>
 <h2 id="支持的输入数据类型"><a class="header" href="#支持的输入数据类型">支持的输入数据类型</a></h2>
 <p>顶层构建配置中的 <code>dtype</code> 字段决定 <code>Dataset</code> 如何解释原始向量字节。HGraph 支持四种输入类型，
 <code>dtype</code> 值、对应的 <code>Dataset</code> setter 与演示示例见下表。</p>

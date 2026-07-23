@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-511e3c2e.js";
+            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8253392c.js"></script>
+        <script src="../toc-6ff2fd81.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -325,7 +325,9 @@ values to shrink memory further.</li>
 <li><strong>Scoring.</strong> At query time, SINDI iterates the non-zero terms of the query,
 walks the corresponding inverted lists in each window, aggregates contributions
 into a max-heap of size <code>n_candidate</code>, and returns the top-k. When <code>use_reorder</code>
-is enabled, the candidates are re-scored against a high-precision flat copy.</li>
+is enabled, the candidates are re-scored against a forward store. The default
+forward store keeps fp32 values, while <code>rerank_type: "dmq8"</code> uses a compressed
+DMQ store to reduce rerank memory.</li>
 </ol>
 <p>Distance is returned as <code>1 - inner_product</code> so results sort ascending as in the
 dense indexes.</p>
@@ -376,7 +378,8 @@ and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window (range: 10 000 – 60 000).</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight terms dropped per doc at build time (0.0 – 0.9).</td></tr>
 <tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>Quantize stored term values to cut memory; when enabled, uses 8-bit scalar quantization (SQ8).</td></tr>
-<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision flat copy and rescore results (~2× memory).</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a forward store and rescore candidates after coarse SINDI scoring.</td></tr>
+<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Forward-store type used when <code>use_reorder</code> is enabled. <code>fp32</code> keeps exact values; <code>dmq8</code> stores compressed 8-bit DMQ codes.</td></tr>
 <tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>Remap term IDs before indexing; useful when term IDs are sparse or have large gaps.</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>Hint for memory estimation only.</td></tr>
 </tbody>
@@ -419,11 +422,13 @@ ratios instead.</p>
 <li>Hybrid dense+sparse pipelines where SINDI handles the sparse leg in parallel with
 HGraph / IVF for dense embeddings.</li>
 <li>Memory-constrained deployments of sparse corpora (<code>use_quantization: true</code>
-roughly halves memory with a small recall loss; <code>use_reorder: true</code> trades
-memory for recall).</li>
+roughly halves inverted-list memory with a small recall loss; <code>use_reorder: true</code> trades forward-store memory for recall, and <code>rerank_type: "dmq8"</code> reduces
+that forward-store overhead).</li>
 </ul>
 <p>SINDI does <strong>not</strong> accept dense vectors and supports only inner-product similarity.
-Range search and id-based filtering are supported; see the example for usage.</p>
+Range search and id-based filtering are supported; see the example for usage.
+When <code>rerank_type</code> is <code>dmq8</code>, codebooks are fixed by the initial build, so incremental
+<code>Add</code> after the model is established and <code>UpdateVector</code> are not supported.</p>
 <h2 id="practical-guidance"><a class="header" href="#practical-guidance">Practical guidance</a></h2>
 <ul>
 <li>For Chinese corpora, we recommend encoding sparse vectors with BGE-M3. For
@@ -448,6 +453,9 @@ high-recall baseline.</li>
 (<code>use_reorder: true</code>), and enable quantization to shrink inverted-list memory
 (<code>use_quantization: true</code>). This is a common balance between memory and
 recall.</li>
+<li>Pruned high-accuracy index with compressed reranking. Use the same pruning and
+inverted-list quantization as above, but set <code>rerank_type: "dmq8"</code> together
+with <code>use_reorder: true</code> to reduce forward-store memory.</li>
 <li>Very large sparse vocabularies. When term IDs are sparse within the <code>uint32</code>
 range, such as hash-based tokenizers, external vocabulary IDs, or vocabularies
 with large gaps, enable <code>remap_term_ids: true</code>. This avoids managing many

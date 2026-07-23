@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-4a8d5bff.js";
+            window.path_to_searchindex_js = "searchindex-887d0446.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-5433fefd.js"></script>
+        <script src="toc-42b2e1de.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -850,6 +850,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>构建阶段并发线程数</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否在插入时做重复 ID 检测</td></tr>
+<tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>让重复向量共享存储；需同时设置 <code>support_duplicate: true</code></td></tr>
 <tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>重复判定距离阈值。大于 <code>0</code> 时按最近候选的距离判重；等于 <code>0</code> 时退化为当前编码 <code>memcmp</code> 判重</td></tr>
 <tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>是否启用 mark-remove 恢复路径所需的图删除追踪元数据</td></tr>
 <tr><td><code>support_force_remove</code></td><td>bool</td><td><code>false</code></td><td>是否启用 <code>RemoveMode::FORCE_REMOVE</code> 及其额外同步</td></tr>
@@ -861,6 +862,19 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
+<h3 id="向量存储去重"><a class="header" href="#向量存储去重">向量存储去重</a></h3>
+<p>同时设置 <code>support_duplicate: true</code> 和 <code>deduplicate_storage: true</code> 后，重复向量会共享
+同一个物理编码槽位，但仍保留各自的标签。该选项目前仅支持使用 <code>graph_type: "nsw"</code> 的
+稠密向量 HGraph 索引；独立的 HNSW 索引以及 <code>graph_type: "odescent"</code> 均不支持。</p>
+<p>启用存储去重后，暂不支持以下操作和配置：</p>
+<ul>
+<li>强制删除（<code>support_force_remove: true</code>）；</li>
+<li>调用 <code>ImportCache()</code> 后基于缓存加速构建；</li>
+<li><code>Merge</code>；</li>
+<li>v0.14 旧版序列化格式。</li>
+</ul>
+<p><code>UpdateVector</code> 仅支持尚未与其他重复组成员共享向量存储的 ID。</p>
+<p>当前序列化格式和 streaming serialization 均受支持。</p>
 <h2 id="支持的输入数据类型"><a class="header" href="#支持的输入数据类型">支持的输入数据类型</a></h2>
 <p>顶层构建配置中的 <code>dtype</code> 字段决定 <code>Dataset</code> 如何解释原始向量字节。HGraph 支持四种输入类型，
 <code>dtype</code> 值、对应的 <code>Dataset</code> setter 与演示示例见下表。</p>
@@ -1266,7 +1280,8 @@ auto result = index-&gt;KnnSearch(
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>scan_buckets_count</code></td><td>int</td><td>—（必填）</td><td>每次查询扫描的桶数，须 ≤ <code>buckets_count</code></td></tr>
+<tr><td><code>scan_buckets_count</code></td><td>int</td><td>—（必填）</td><td>每次查询扫描的桶数，须 ≤ <code>buckets_count</code>（<code>disable_bucket_scan</code> 为 true 时可更大，空槽位补 <code>-1</code>）</td></tr>
+<tr><td><code>disable_bucket_scan</code></td><td>bool</td><td><code>false</code></td><td>返回桶 ID 及到桶中心距离，不扫描桶内向量。支持批量查询。</td></tr>
 <tr><td><code>factor</code></td><td>float</td><td><code>2.0</code></td><td>启用精排时，粗排阶段会预取 <code>factor * topk</code> 个候选再重打分</td></tr>
 <tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>即使索引构建时启用了 reorder，也可以在单次请求里设为 <code>false</code> 跳过最终精排</td></tr>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>单次查询内扫描桶时使用的线程数</td></tr>
@@ -1315,8 +1330,9 @@ auto result = index-&gt;KnnSearch(
 <li><strong>可选的剪枝与量化。</strong> 构建时可通过 <code>doc_prune_ratio</code> 按文档粒度丢弃权重最低的词项；
 通过 <code>use_quantization</code> 压缩词项权重以进一步节省内存。</li>
 <li><strong>打分。</strong> 检索时，SINDI 遍历查询向量的非零项，按窗口访问对应的倒排表，使用大小为
-<code>n_candidate</code> 的大顶堆聚合得分，最后取 top-k。启用 <code>use_reorder</code> 时，候选会在高精度
-扁平副本上重打分。</li>
+<code>n_candidate</code> 的大顶堆聚合得分，最后取 top-k。启用 <code>use_reorder</code> 时，候选会在正排
+存储上重打分。默认正排存储保留 fp32 值；设置 <code>rerank_type: "dmq8"</code> 时使用压缩的
+DMQ 正排以降低重排内存。</li>
 </ol>
 <p>返回的距离为 <code>1 - inner_product</code>，使结果与稠密索引一样按升序排序。</p>
 <h2 id="快速开始-4"><a class="header" href="#快速开始-4">快速开始</a></h2>
@@ -1366,7 +1382,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>每个窗口容纳的文档数（取值范围 10 000 – 60 000）</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建阶段按文档丢弃权重最低词项的比例（0.0 – 0.9）</td></tr>
 <tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>是否量化词项权重以降低内存；开启后使用 8-bit 标量量化（SQ8）</td></tr>
-<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留一份高精度扁平副本用于精排（内存约翻倍）</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留一份正排存储，在 SINDI 粗排后对候选做精排</td></tr>
+<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>use_reorder</code> 开启时使用的正排存储类型。<code>fp32</code> 保留精确值；<code>dmq8</code> 使用压缩的 8-bit DMQ 编码</td></tr>
 <tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>是否在建索引前重映射词项 ID，适用于词项 ID 很稀疏或存在大量空洞的词表</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>仅用于内存估算</td></tr>
 </tbody>
@@ -1403,11 +1420,13 @@ auto result = index-&gt;KnnSearch(
 <ul>
 <li>使用 BM25、SPLADE、uniCOIL 等学习稀疏编码器的稀疏检索场景。</li>
 <li>稠密 + 稀疏的混合检索管线：SINDI 负责稀疏一路，HGraph / IVF 负责稠密 embedding。</li>
-<li>稀疏语料的内存受限部署：<code>use_quantization: true</code> 大致能把内存减半，略损召回；
-<code>use_reorder: true</code> 以内存换召回。</li>
+<li>稀疏语料的内存受限部署：<code>use_quantization: true</code> 大致能把倒排内存减半，略损召回；
+<code>use_reorder: true</code> 以正排内存换召回，<code>rerank_type: "dmq8"</code> 可降低这部分正排开销。</li>
 </ul>
 <p>SINDI <strong>不支持</strong> 稠密向量，只支持内积相似度。范围检索与基于 ID 的过滤均已支持，
-具体用法参见示例代码。</p>
+具体用法参见示例代码。
+当 <code>rerank_type</code> 为 <code>dmq8</code> 时，码本由首次构建固定，因此模型建立后的增量 <code>Add</code>
+和 <code>UpdateVector</code> 不受支持。</p>
 <h2 id="实践建议"><a class="header" href="#实践建议">实践建议</a></h2>
 <ul>
 <li>中文数据集的稀疏向量，推荐使用 BGE-M3 编码；英文数据集更常见的默认选择是
@@ -1427,6 +1446,8 @@ SPLADE。</li>
 <li>剪枝高精索引。构建时剪掉大部分低权重词项（<code>doc_prune_ratio: 0.4</code>），保留正排索引
 用于重排（<code>use_reorder: true</code>），并开启量化减少倒排索引内存
 （<code>use_quantization: true</code>）。这是常见的精度与内存折中配置。</li>
+<li>压缩正排重排索引。在上一种配置基础上，设置 <code>rerank_type: "dmq8"</code>，与
+<code>use_reorder: true</code> 一起使用，以降低正排重排内存。</li>
 <li>超大稀疏词表支持。对于词项 ID 在 <code>uint32</code> 范围内非常稀疏的场景，例如基于哈希的
 分词器、外部词表 ID，或存在大量空白区间的词表，建议设置 <code>remap_term_ids: true</code>。
 这样可以避免管理大量空倒排列表带来的内存浪费，也能降低触达 <code>term_id_limit</code>
@@ -6581,6 +6602,13 @@ auto result = index-&gt;SearchWithRequest(request);
 </tbody>
 </table>
 </div>
+<h3 id="ivf-桶路由"><a class="header" href="#ivf-桶路由">IVF 桶路由</a></h3>
+<p>IVF 可通过 <code>params_str_</code> 接收
+<code>{"ivf":{"scan_buckets_count":N,"disable_bucket_scan":true}}</code>。该仅路由模式按查询返回
+<code>N</code> 个 bucket ID，而非向量 label。<code>NumElements()</code> 为查询数，<code>Dim()</code> 为
+<code>scan_buckets_count</code>，<code>GetIds()</code> 包含桶 ID（空槽位为 <code>-1</code>），
+<code>GetDistances()</code> 为到各桶中心的距离。不扫描桶内向量，因此过滤器、<code>topk</code>、范围限制、精排和
+reasoning 选项均会被忽略。</p>
 <h3 id="过滤字段"><a class="header" href="#过滤字段">过滤字段</a></h3>
 <p>有三种过滤机制可用；当启用了多于一种时，它们以逻辑**与（AND）**组合。</p>
 <div class="table-wrapper">
@@ -6945,6 +6973,20 @@ vsag::Options::Instance().set_logger(&amp;my_logger);
 <p>内置 logger 默认使用 <code>info</code>。在内置 logger 创建前设置 <code>VSAG_LOG_LEVEL</code>，可选择 <code>trace</code>、
 <code>debug</code>、<code>info</code>、<code>warn</code>/<code>warning</code>、<code>error</code>、<code>critical</code> 或 <code>off</code>。无效值会被忽略，并保留默认等级。
 显式调用 <code>SetLevel</code> 仍会覆盖从环境变量得到的等级。</p>
+<h3 id="启动-init-banner"><a class="header" href="#启动-init-banner">启动 init banner</a></h3>
+<p>VSAG 会在 <code>vsag::init()</code> 运行时输出启动初始化 banner。如需隐藏该 banner，
+请在进程启动前设置 <code>VSAG_SUPPRESS_INIT_BANNER</code>。这适用于测试、CI 任务，
+或需要更安静启动日志的应用。</p>
+<p>可识别的真值为 <code>1</code>、<code>on</code> 和 <code>true</code>；<code>on</code> 与 <code>true</code> 按 ASCII 大小写不敏感匹配，
+因此 <code>ON</code>、<code>On</code> 和 <code>TRUE</code> 也有效。其他值会保留 banner 输出。</p>
+<p>请务必在进程启动前设置该变量。VSAG 也会在静态初始化阶段运行
+<code>vsag::init()</code>，因此在进程内部稍后再设置该变量，无法隐藏首次 banner。</p>
+<p>banner 包含类似 <code>48C503G</code> 的 <code>instance spec</code> 值，将 cpuinfo 获取的核心数与物理内存总量合并展示。
+内存使用 <code>1024^3</code> 字节进行整 GiB 向下取整；如果平台查询失败，内存部分显示为 <code>?G</code>。包括
+<code>neon</code> 和 <code>sve</code> 在内的 SIMD 行，仍保持原有的 distribution/platform/using 能力语义。</p>
+<pre><code class="language-bash">VSAG_SUPPRESS_INIT_BANNER=1 ./your_vsag_app
+VSAG_SUPPRESS_INIT_BANNER=true ./your_vsag_test
+</code></pre>
 <pre><code class="language-cpp">class Logger {
 public:
     enum Level : int {
@@ -8487,52 +8529,262 @@ HGraph 可以在图遍历过程中基于这段字节做过滤。
 <a href="#extra-info附加信息">Extra Info（附加信息）</a>。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="版本日志"><a class="header" href="#版本日志">版本日志</a></h1>
-<p>VSAG 的正式发布历史与变更说明维护在 GitHub Releases 页面：</p>
+<p>VSAG 网站的版本日志按 <code>MAJOR.MINOR</code> 系列维护。
+每个系列页面覆盖首个发布版本以及该系列后续的全部补丁版本。
+GitHub Releases 仍是逐补丁 PR 清单、发布产物和贡献者名单的完整来源。</p>
+<h2 id="版本系列"><a class="header" href="#版本系列">版本系列</a></h2>
 <ul>
-<li><a href="https://github.com/antgroup/vsag/releases">Releases on GitHub</a></li>
-</ul>
-<p>每个发布版本包含：</p>
+<li><a href="#vsag-10-版本日志">VSAG 1.0</a>
 <ul>
-<li><strong>新增功能</strong>（Features）</li>
-<li><strong>改进</strong>（Improvements）</li>
-<li><strong>缺陷修复</strong>（Bug Fixes）</li>
-<li><strong>不兼容变更</strong>（Breaking Changes，如有）</li>
-<li><strong>贡献者名单</strong></li>
+<li>首个版本：<a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0">v1.0.0</a>，
+2026 年 7 月 12 日</li>
+<li>最新补丁版本：<code>v1.0.0</code></li>
+<li>状态：稳定版本</li>
 </ul>
-<h2 id="版本号规范"><a class="header" href="#版本号规范">版本号规范</a></h2>
-<p>VSAG 遵循 <a href="https://semver.org/">Semantic Versioning 2.0</a>：</p>
-<ul>
-<li><code>MAJOR.MINOR.PATCH</code></li>
-<li><code>MAJOR</code> 通常伴随 API / 序列化格式的不兼容修改；</li>
-<li><code>MINOR</code> 新增功能但保持向后兼容；</li>
-<li><code>PATCH</code> 仅包含缺陷修复与性能改进。</li>
+</li>
 </ul>
-<h2 id="如何获取对应版本"><a class="header" href="#如何获取对应版本">如何获取对应版本</a></h2>
+<p>后续版本沿用相同结构，例如 <code>v1.1</code>、<code>v1.2</code>、<code>v2.0</code>。
+补丁版本直接更新所属系列页面，不再为每个补丁单独创建网站页面。</p>
+<h2 id="版本与日志归档方式"><a class="header" href="#版本与日志归档方式">版本与日志归档方式</a></h2>
+<p>Release tag 使用 <code>vMAJOR.MINOR.PATCH</code> 形式。
+网站按 <code>MAJOR.MINOR</code> 聚合，便于在一个页面说明整个版本系列；
+GitHub Releases 则记录每个 tag 的准确内容。</p>
+<h2 id="如何获取特定版本"><a class="header" href="#如何获取特定版本">如何获取特定版本</a></h2>
 <h3 id="c--源码"><a class="header" href="#c--源码">C++ / 源码</a></h3>
 <pre><code class="language-bash">git checkout vX.Y.Z
 make release
 </code></pre>
 <h3 id="python"><a class="header" href="#python">Python</a></h3>
+<p>先在 <a href="https://pypi.org/project/pyvsag/">PyPI</a> 查看可用的绑定版本，再安装对应的精确版本：</p>
 <pre><code class="language-bash">pip install pyvsag==X.Y.Z
 </code></pre>
-<h3 id="nodejs--typescript"><a class="header" href="#nodejs--typescript">Node.js / TypeScript</a></h3>
-<pre><code class="language-bash">npm install vsag@X.Y.Z
-</code></pre>
+<p>绑定版本不一定与每个 C++ core tag 对应。
+仓库还包含 C 和 Node.js/TypeScript 绑定。
+各绑定的具体支持范围与打包状态，
+请以对应版本系列页面和仓库示例为准。</p>
 <h2 id="升级建议"><a class="header" href="#升级建议">升级建议</a></h2>
 <ul>
-<li>跨大版本升级前，请先阅读对应 Release 的 <strong>Breaking Changes</strong> 部分；</li>
-<li>涉及序列化格式变更时，建议先在测试环境验证反序列化兼容性；</li>
-<li>对于 SINDI，旧版 <code>use_term_lists_heap_insert</code> 检索参数会被忽略。SINDI 现在根据
-<code>doc_prune_ratio</code> 和 <code>query_prune_ratio</code> 自动推导堆插入策略；如果配置曾依赖直接指定
-该路径，请改用剪枝比例。</li>
-<li>生产环境灰度升级，结合 <a href="#性能评估工具eval_performance">性能评估工具</a> 对比召回与延迟。</li>
+<li>升级前先阅读目标版本系列的兼容性说明；</li>
+<li>序列化格式发生变化时，先在测试环境使用
+<a href="#兼容性检查工具check_compatibility">兼容性检查工具</a>验证旧索引产物；</li>
+<li>生产环境灰度升级，并使用
+<a href="#性能评估工具eval_performance">性能评估工具</a>对比召回、延迟和资源消耗。</li>
 </ul>
+<p>完整的逐补丁发布历史请查看
+<a href="https://github.com/antgroup/vsag/releases">GitHub 上的全部 VSAG Releases</a>。</p>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="路线图"><a class="header" href="#路线图">路线图</a></h1>
-<p>当下，随着 AI 能力的持续增强和优秀开源大模型的普及，非结构化数据检索需求激增。向量算法作为非结构化数据检索技术的关键，其重要性不言而喻。VSAG 社区将会持续投入算法研发，帮助社区的合作伙伴，提升数据检索性能，提高数据检索实时性，持续降低检索服务成本。</p>
-<p>在 2025 年，我们计划发布第一个大版本：</p>
+<h1 id="vsag-10-版本日志"><a class="header" href="#vsag-10-版本日志">VSAG 1.0 版本日志</a></h1>
+<p><code>v1.0.0</code> 于项目启动三周年当天（2026 年 7 月 12 日）发布。</p>
 <ul>
-<li>VSAG 1.0 完整支持图和倒排两类索引结构，以及纯内存、内存+磁盘混合的检索方式，并提供较低的内存成本和卓越的检索性能。</li>
+<li><a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0">GitHub 官方 Release</a></li>
+<li><a href="https://github.com/antgroup/vsag/compare/v0.18.0...v1.0.0">v0.18.0…v1.0.0 完整变更</a></li>
+<li>标签对应提交：<code>efdaf17a10e96cdb5222baf558d50dfacbdc672e</code></li>
+</ul>
+<h2 id="版本概览"><a class="header" href="#版本概览">版本概览</a></h2>
+<p>VSAG 1.0 是项目首个长期支持（LTS）大版本。截至该版本发布时，
+公开的 <code>0.x</code> 历史包含从 <code>v0.11</code> 到 <code>v0.18</code> 的 81 个版本标签。
+<code>v1.0.0</code> 汇总了这一阶段的主线成果，覆盖稠密向量、稀疏向量、结构化过滤、
+层级检索和多向量检索。</p>
+<p><code>v1.0.0</code> 官方 Release 收录了 <code>v0.18.0</code> 以来的 375 项变化：
+48 项新增功能、134 项改进、105 项缺陷修复和 88 项其他变化。
+<code>v0.11.0...v1.0.0</code> 主线对比包含 1,252 个提交。</p>
+<p>本文仅描述 <code>v1.0.0</code> 标签中可用的 API 与功能。</p>
+<h2 id="主要能力"><a class="header" href="#主要能力">主要能力</a></h2>
+<h3 id="索引体系"><a class="header" href="#索引体系">索引体系</a></h3>
+<p>下图按职责展示 VSAG 1.0 的索引体系：Pyramid 和 LazyHGraph 提供组合与自适应能力，
+下层展示 BruteForce、HGraph、IVF、SINDI 和 SIMQ 五个核心索引族。</p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/indexes/index-matrix.svg" alt="VSAG 1.0 索引矩阵"><span class="img-wrapper"><img src="figures/indexes/index-matrix.svg" alt="VSAG 1.0 索引矩阵"></span></label></p>
+<p>组合与自适应索引：</p>
+<ul>
+<li>分区索引 <strong>Pyramid</strong>：支持将同一条向量加入多个 Pyramid 路径，
+并按指定路径限定检索范围，适合多租户与层级检索
+（<a href="https://github.com/antgroup/vsag/pull/2226">PR #2226</a>）。</li>
+<li>自伸缩图索引 <strong>LazyHGraph</strong>：在数据量较小时使用精确 BruteForce，
+达到可配置阈值后转换为 HGraph，适合持续增长但初始规模较小的集合
+（<a href="https://github.com/antgroup/vsag/pull/2151">PR #2151</a>）。</li>
+</ul>
+<p>核心索引族：</p>
+<ul>
+<li>暴力搜索索引 <strong>BruteForce</strong>：支持单向量和多向量精确检索，是精确检索基线，也是小规模集合的精确检索选项。</li>
+<li>图索引 <strong>HGraph</strong>：面向高召回、低延迟的稠密向量检索。从最初的
+<a href="https://github.com/antgroup/vsag/pull/114">HGraph 实现</a>发展至今，
+已支持量化、过滤、范围与迭代检索、更新、标记/强制删除、缓存导入导出、
+诊断和内存+磁盘配置。</li>
+<li>空间划分索引 <strong>IVF</strong>：面向大规模数据、批量查询和大 <code>top-k</code> 场景，支持量化、
+重排、属性过滤、并行构建/检索和磁盘分桶存储。参见最初的
+<a href="https://github.com/antgroup/vsag/pull/505">IVF PR</a>。</li>
+<li>稀疏向量索引 <strong>SINDI</strong>：面向 BM25 风格和学习型稀疏表示，
+支持词项 ID 重映射、索引分析、不可变读取、FP16 稀疏值、词项列表压缩和
+<a href="https://github.com/antgroup/vsag/pull/2424">低内存不可变构建</a>。</li>
+<li>多向量索引 <strong>SIMQ</strong>：面向 ColBERT 等 late-interaction 多向量检索，
+先在聚类级别生成候选，再用精确 MaxSim 重排，以平衡召回率和延迟
+（<a href="https://github.com/antgroup/vsag/pull/2357">PR #2357</a>）。</li>
+</ul>
+<p>各索引的参数与使用说明参见<a href="indexes">索引</a>。</p>
+<h3 id="量化数据类型与硬件加速"><a class="header" href="#量化数据类型与硬件加速">量化、数据类型与硬件加速</a></h3>
+<p>VSAG 1.0 提供多种输入格式、量化方法、向量变换与硬件加速路径：</p>
+<ul>
+<li>FP32、INT8、FP16、BF16 稠密输入，以及稀疏与多向量数据集；
+FP16/BF16 可直接输入（<a href="https://github.com/antgroup/vsag/pull/1731">PR #1731</a>）；</li>
+<li>SQ4/SQ8 及对应的均匀量化变体；</li>
+<li>Product Quantization 和 PQ FastScan
+（<a href="https://github.com/antgroup/vsag/pull/626">PR #626</a>、
+<a href="https://github.com/antgroup/vsag/pull/691">PR #691</a>）；</li>
+<li>RaBitQ、扩展位宽与 x+y split 的基础/重排布局、FHT/PCA 变换和专用 SIMD 内核；</li>
+<li>Transform Quantizer 链与 MRL-E 降维；</li>
+<li>x86_64 上的 SSE、AVX、AVX2、AVX-512 和部分 AMX 内核，以及 ARM NEON、SVE；</li>
+<li>SQ8U 内积和 KMeans BF16 GEMM 的 AMX 加速
+（<a href="https://github.com/antgroup/vsag/pull/2032">PR #2032</a>）。</li>
+</ul>
+<p>支持组合与调参建议参见<a href="quantization">量化</a>。</p>
+<h3 id="检索过滤与索引管理"><a class="header" href="#检索过滤与索引管理">检索、过滤与索引管理</a></h3>
+<ul>
+<li><strong>基础检索：</strong> <code>KnnSearch</code> 提供 KNN 查询，<code>RangeSearch</code> 提供可限制结果数量的范围查询。</li>
+<li><strong>统一请求接口：</strong> <code>SearchRequest</code> 与 <code>Index::SearchWithRequest</code> 使用一个请求对象选择 KNN 或范围检索，并传递索引专用 JSON 参数、受支持的过滤条件和诊断输入。v1.0 中 HGraph、IVF 和 BruteForce 实现了该接口，可用字段因索引而异。</li>
+<li><strong>过滤：</strong> 支持 ID 回调/<code>FilterPtr</code>、bitset 和 SQL 风格属性表达式。HGraph、IVF 和 BruteForce 支持基于属性倒排索引的结构化过滤；HGraph 还支持迭代过滤，并可在有效数据比例不高于 <code>hgraph.brute_force_threshold</code> 时切换到暴力检索。</li>
+<li><strong>训练与模型复用：</strong> <code>Train</code>、<code>Clone</code>、<code>ExportModel</code> 和 <code>Tune</code> 分别用于独立训练、索引深拷贝、训练模型导出和索引调优。</li>
+<li><strong>数据维护与读取：</strong> 支持批量删除、标记/强制删除、ID/向量/属性更新、Source ID、<code>extra_info</code>、索引详情读取和 <code>CalcDistanceById</code>。</li>
+<li><strong>漏召回诊断：</strong> <code>SearchRequest::expected_labels_</code> 可在 HGraph、IVF 和 BruteForce 中分析目标向量未被召回的原因，推理报告随结果 <code>Dataset</code> 返回（<a href="https://github.com/antgroup/vsag/pull/1838">PR #1838</a>）。</li>
+<li><strong>统计与容量规划：</strong> 检索、I/O、内存和索引专用统计用于观测运行状态；内存估算、索引内省和分析工具用于容量评估与问题定位。</li>
+</ul>
+<p>具体支持范围因索引而异；可通过 <code>Index::CheckFeature(IndexFeature)</code> 查询其中已声明的能力。</p>
+<h3 id="序列化与兼容性"><a class="header" href="#序列化与兼容性">序列化与兼容性</a></h3>
+<p>VSAG 1.0 并行维护两套序列化接口：既有 <code>Serialize</code>/<code>Deserialize</code> 接口继续维护，
+用于保持现有接入的兼容性；新的<a href="https://github.com/antgroup/vsag/pull/2256">流式序列化接口</a>
+采用头部先行（header-first）、仅需顺序读取的格式，并扩展以下能力：</p>
+<ul>
+<li><code>SerializeStreaming</code> 先写元数据，再写带类型的 TLV 数据块；</li>
+<li><code>DeserializeStreaming</code> 将数据恢复到已创建、为空且兼容的索引对象；</li>
+<li><code>Index::Load</code> 读取元数据、创建对应索引，并应用受支持的存储放置策略；</li>
+<li>BruteForce、HGraph、IVF、可变 SINDI 和 Pyramid 已支持 v1.0 流式序列化；
+不可变 SINDI 运行态在 v1.0 中暂不支持。</li>
+</ul>
+<p>两套接口会并行保留，但两种格式<strong>不兼容</strong>，文件必须使用对应的接口读取。
+既有用户可继续使用原接口；新接入建议优先使用流式序列化接口。
+格式和数据块版本细节参见
+<a href="#新序列化格式">新序列化格式</a>。</p>
+<p>跨版本索引测试样本和<a href="#兼容性检查工具check_compatibility">兼容性检查工具</a>
+可用于重复验证旧索引的升级过程。</p>
+<h3 id="平台绑定与工具"><a class="header" href="#平台绑定与工具">平台、绑定与工具</a></h3>
+<ul>
+<li>VSAG 核心 C++ 库支持 Linux 和 macOS，主要研发和完整验证链路以 Linux 为主。
+Linux x86_64 与 AArch64 均通过 CI，macOS 当前验证 arm64 构建
+（<a href="https://github.com/antgroup/vsag/pull/1439">源码构建</a>、
+<a href="https://github.com/antgroup/vsag/pull/1930">PR CI</a>）。
+预编译 C++ 发布包目前仅面向 Linux x86_64。</li>
+<li>Python 绑定的包名为 <code>pyvsag</code>；v1.0.0 声明支持 CPython 3.6-3.14，并为这一版本范围配置了 wheel 构建。
+Python 构建已迁移到原生 CMake 集成
+（<a href="https://github.com/antgroup/vsag/pull/1599">PR #1599</a>）；
+绑定还支持更多索引操作、FP16/BF16 输入、稀疏向量和稀疏 HDF5 辅助工具。</li>
+<li>VSAG 新增 C API 与
+<a href="https://github.com/antgroup/vsag/pull/1812">Node.js/TypeScript 绑定</a>，并提供
+快速入门示例。各语言绑定独立发布，使用时请确认对应包版本。</li>
+<li>构建支持系统级 OpenBLAS/fmt、自定义依赖下载镜像和可安装的 CMake 包配置。</li>
+<li><code>eval_performance</code> 支持稠密、稀疏和多向量数据集；<code>analyze_index</code>、
+<code>check_compatibility</code>、<code>visualize_index</code> 和 HTTP 监控服务补齐了分析、兼容性验证、
+序列化检查与监控工具。</li>
+</ul>
+<h3 id="稳定性与验证"><a class="header" href="#稳定性与验证">稳定性与验证</a></h3>
+<p>功能与回归测试覆盖内存分配、泄漏与内存不足路径，以及多线程下的构建、写入、
+检索、更新、删除和析构。CI 通过 ASan 持续检查内存安全，并通过 TSan 检查数据竞争；
+兼容性测试样本用于验证历史索引的升级路径。</p>
+<h2 id="从-v018-升级的兼容性说明"><a class="header" href="#从-v018-升级的兼容性说明">从 v0.18 升级的兼容性说明</a></h2>
+<p>VSAG 1.0 是大版本升级，包含源码级 API 变化。升级前请重点检查：</p>
+<ol>
+<li><strong><code>Remove</code> 返回删除数量并支持批量操作。</strong> v0.18 的
+<code>tl::expected&lt;bool, Error&gt; Remove(int64_t)</code> 调整为
+<code>tl::expected&lt;uint32_t, Error&gt;</code>，并增加批量重载和显式删除模式
+（<a href="https://github.com/antgroup/vsag/pull/1551">PR #1551</a>）。
+v1.0 最终提供 <code>RemoveMode::MARK_REMOVE</code> 和 <code>RemoveMode::FORCE_REMOVE</code>；
+HGraph 强制删除由
+<a href="https://github.com/antgroup/vsag/pull/1810">PR #1810</a>实现。</li>
+<li><strong>不支持的操作通常改为返回错误。</strong>
+许多返回 <code>tl::expected</code> 的默认方法不再抛出
+<code>std::runtime_error</code>，而是返回带
+<code>ErrorType::UNSUPPORTED_INDEX_OPERATION</code> 的 <code>tl::unexpected</code>
+（<a href="https://github.com/antgroup/vsag/pull/2141">PR #2141</a>）。调用 <code>.value()</code> 前
+应先检查 <code>tl::expected</code> 返回值。</li>
+<li><strong>内存统计接口签名发生变化。</strong> <code>GetMemoryUsage</code> 使用 <code>uint64_t</code>，
+<code>GetMemoryUsageDetail</code> 返回 <code>std::unordered_map&lt;std::string, uint64_t&gt;</code>，
+<code>GetEstimateBuildMemory</code> 更名为 <code>EstimateBuildMemory</code>
+（<a href="https://github.com/antgroup/vsag/pull/2388">PR #2388</a>）。</li>
+<li><strong>检索接口可以渐进迁移。</strong> 新接入优先使用 <code>SearchRequest</code> 和
+<code>SearchWithRequest</code>，既有检索重载在 v1.0 中仍然保留。</li>
+<li><strong>不要混用两套序列化格式。</strong>
+旧格式输出必须使用旧反序列化接口；
+流式序列化输出必须使用 <code>DeserializeStreaming</code> 或 <code>Index::Load</code>。</li>
+<li><strong>SINDI 自动选择堆插入策略。</strong> 旧的 <code>use_term_lists_heap_insert</code> 检索参数
+会被忽略。SINDI 根据 <code>doc_prune_ratio</code> 和 <code>query_prune_ratio</code> 推导策略；依赖
+强制指定旧路径的配置需要调整。</li>
+<li><strong>Intel MKL 改为显式开启。</strong> 默认值为 <code>OFF</code>。通过 Makefile 构建时设置
+<code>VSAG_ENABLE_INTEL_MKL=ON</code>，直接使用 CMake 时设置
+<code>-DENABLE_INTEL_MKL=ON</code>。</li>
+</ol>
+<p>对于持久化索引，建议在测试环境验证明确的源版本与目标版本组合。
+序列化兼容性可能因索引类型、功能开关和格式家族而异。</p>
+<h2 id="从-v0x-走向-10"><a class="header" href="#从-v0x-走向-10">从 v0.x 走向 1.0</a></h2>
+<p><code>v0.11.0</code> 是 VSAG 开源后的首个正式发布版本。此前的版本号仅用于内部迭代，未作为 GitHub Release 对外发布，因此本节从 <code>v0.11</code> 开始回顾。</p>
+<h3 id="基础建设v011-v014"><a class="header" href="#基础建设v011-v014">基础建设：v0.11-v0.14</a></h3>
+<ul>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.11.0">v0.11</a>，2024 年 9 月：</strong>
+建立 HNSW/DiskANN、C++/Python、预过滤、余弦距离、锁和序列化的初始基线。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.12.0">v0.12</a>，2024 年 12 月：</strong>
+引入 DataCell、I/O 与图抽象、HGraph、SQ4/SQ8/INT8、Engine/Factory 和
+<code>pyvsag</code> 打包。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.13.0">v0.13</a>，2025 年 2 月：</strong>
+新增 BruteForce，并扩展 Pyramid、内存估算、IndexFeature、过滤提示和
+<code>eval_performance</code>。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.14.0">v0.14</a>，2025 年 4 月：</strong>
+引入 IVF、FP16/BF16、RaBitQ、异步/缓冲 I/O、稀疏数据、HGraph
+<code>extra_info</code>、迭代过滤与系统化兼容性检查。</li>
+</ul>
+<h3 id="生产能力扩展v015-v018"><a class="header" href="#生产能力扩展v015-v018">生产能力扩展：v0.15-v0.18</a></h3>
+<ul>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.15.0">v0.15</a>，2025 年 6 月：</strong>
+新增 Train/Clone/ExportModel、PQ/PQ FastScan、属性表达式、压缩图、HGraph
+合并/标记删除，以及带兼容性 CI 的既有格式自描述序列化。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.16.0">v0.16</a>，2025 年 8 月：</strong>
+新增 mmap HGraph、SINDI、并行 IVF、属性更新、原始向量读取和参数兼容性检查，并
+通过长期补丁线持续解决 ABI、并发和旧索引兼容问题。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.17.0">v0.17</a>，2025 年 10 月：</strong>
+扩展 <code>SearchRequest</code> 以覆盖主要检索场景，并增加检索超时、
+更广泛的 <code>extra_info</code>、Transform Quantizer、HGraph 单查询并行、
+数据导出与更完整的 SINDI 生命周期和统计能力。</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.18.0">v0.18</a>，2026 年 1 月：</strong>
+新增 C API、自动构建 Python wheel、稀疏 Python 绑定、磁盘 IVF、索引详情/检索/I/O
+统计、MRL-E 与 HGraph 调优、扩展 RaBitQ，并继续完善 SINDI 和 Pyramid。</li>
+</ul>
+<p>完整提交历史参见
+<a href="https://github.com/antgroup/vsag/compare/v0.11.0...v1.0.0">v0.11.0…v1.0.0 对比</a>。</p>
+<h2 id="v10-补丁版本"><a class="header" href="#v10-补丁版本">v1.0 补丁版本</a></h2>
+<ul>
+<li><a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0"><strong>v1.0.0</strong></a>
+（2026 年 7 月 12 日）：首个长期支持大版本。</li>
+</ul>
+<p>后续 <code>v1.0.x</code> 补丁版本会追加到本节。
+完整 PR 清单和各版本贡献者名单继续维护在 GitHub Releases。</p>
+<h2 id="致谢"><a class="header" href="#致谢">致谢</a></h2>
+<p>VSAG 1.0 是蚂蚁集团 VSAG 团队与开源社区共同贡献的成果。
+感谢所有参与算法设计、功能实现、问题反馈、代码评审、
+测试改进和文档建设的贡献者。</p>
+<p>完整名单参见<a href="#贡献者列表">贡献者页面</a>和
+<a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0">官方 Release</a>。</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="2025-路线图"><a class="header" href="#2025-路线图">2025 路线图</a></h1>
+<blockquote>
+<p>本页记录了通往 VSAG 1.0 的历史路线图。<code>v1.0.0</code> 已于 2026 年 7 月 12 日发布。
+实际交付内容参见 <a href="#vsag-10-版本日志">VSAG 1.0 版本日志</a>。</p>
+</blockquote>
+<p>当下，随着 AI 能力的持续增强和优秀开源大模型的普及，
+非结构化数据检索需求激增。
+向量算法作为非结构化数据检索技术的关键，其重要性不言而喻。
+VSAG 社区将会持续投入算法研发，帮助社区的合作伙伴，
+提升数据检索性能，提高数据检索实时性，持续降低检索服务成本。</p>
+<p>当时的路线图将首个大版本定义为：</p>
+<ul>
+<li>VSAG 1.0 将提供全面的图索引和倒排索引支持，
+同时覆盖纯内存和内存+磁盘混合检索模式，
+并提供较低的内存成本和卓越的检索性能。</li>
 </ul>
 <p>以下是一些算法或功能的规划：</p>
 <ul>
@@ -8565,12 +8817,14 @@ make release
 </li>
 <li>支持资源隔离，提供细粒度的运行资源可配置
 <ul>
-<li>内存资源：支持以索引为单位设置内存分配器，以实现类似租户级内存管理</li>
+<li>内存资源：支持以索引为单位设置内存分配器，
+以实现类似租户级内存管理</li>
 <li>CPU 资源：支持注入线程池，从而提升写入吞吐和搜索吞吐</li>
 </ul>
 </li>
 </ul>
-<p>除此之外，我们还有很多功能特性会在开源社区讨论-开发-实现，如果你对此感兴趣，请关注 VSAG 项目！</p>
+<p>除此之外，我们还有很多功能特性会在开源社区讨论、开发和实现。
+如果你对此感兴趣，请关注 VSAG 项目！</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="开源社区"><a class="header" href="#开源社区">开源社区</a></h1>
 <p>VSAG 是一个由蚂蚁集团开源并持续在 GitHub 上维护的项目，欢迎开发者、研究者和使用者加入社区。</p>

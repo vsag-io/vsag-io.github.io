@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-511e3c2e.js";
+            window.path_to_searchindex_js = "searchindex-3f95ec7b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8253392c.js"></script>
+        <script src="toc-6ff2fd81.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -843,6 +843,7 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>Threads used to parallelise build</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Enable duplicate-ID detection on insert</td></tr>
+<tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>Share vector storage between duplicates; requires <code>support_duplicate: true</code></td></tr>
 <tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Duplicate-detection distance threshold. When greater than <code>0</code>, deduplicate by the nearest candidate distance; when <code>0</code>, fall back to the current code <code>memcmp</code> check</td></tr>
 <tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable graph delete-tracking metadata used by mark-remove recovery paths</td></tr>
 <tr><td><code>support_force_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>RemoveMode::FORCE_REMOVE</code> and its extra synchronization on the built index</td></tr>
@@ -854,6 +855,22 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 </tbody>
 </table>
 </div>
+<h3 id="deduplicating-vector-storage"><a class="header" href="#deduplicating-vector-storage">Deduplicating vector storage</a></h3>
+<p>Set both <code>support_duplicate: true</code> and <code>deduplicate_storage: true</code> to let duplicate
+vectors share one physical code slot while retaining their individual labels. This option
+currently supports only dense-vector HGraph indexes using <code>graph_type: "nsw"</code>; it is not
+available for the separate HNSW index or for <code>graph_type: "odescent"</code>.</p>
+<p>The following operations and configurations are not supported while storage deduplication
+is enabled:</p>
+<ul>
+<li>force removal (<code>support_force_remove: true</code>);</li>
+<li>cache-assisted build after <code>ImportCache()</code>;</li>
+<li><code>Merge</code>;</li>
+<li>legacy v0.14 serialization.</li>
+</ul>
+<p><code>UpdateVector</code> is supported only for IDs whose vector storage is not shared with another
+duplicate-group member.</p>
+<p>Current serialization and streaming serialization are supported.</p>
 <h2 id="supported-input-data-types"><a class="header" href="#supported-input-data-types">Supported input data types</a></h2>
 <p>The <code>dtype</code> field in the top-level build config selects how <code>Dataset</code> interprets the raw vector
 bytes. HGraph supports four input types; the <code>dtype</code> value, the corresponding <code>Dataset</code> setter,
@@ -1295,7 +1312,8 @@ corpus size.</p>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>scan_buckets_count</code></td><td>int</td><td>— (required)</td><td>Number of buckets probed per query. Must be ≤ <code>buckets_count</code>.</td></tr>
+<tr><td><code>scan_buckets_count</code></td><td>int</td><td>— (required)</td><td>Number of buckets probed per query. Must be ≤ <code>buckets_count</code> (except when <code>disable_bucket_scan</code> is true, where larger values are allowed and unavailable slots are padded with <code>-1</code>).</td></tr>
+<tr><td><code>disable_bucket_scan</code></td><td>bool</td><td><code>false</code></td><td>Return bucket IDs and distances. Supports batch queries.</td></tr>
 <tr><td><code>factor</code></td><td>float</td><td><code>2.0</code></td><td>With reordering enabled, pulls <code>factor * topk</code> coarse candidates before the precise rescore.</td></tr>
 <tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>Set to <code>false</code> to skip the final reorder stage for this request even when the index was built with reorder enabled.</td></tr>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Threads used to scan buckets in parallel for a single query.</td></tr>
@@ -1351,7 +1369,9 @@ values to shrink memory further.</li>
 <li><strong>Scoring.</strong> At query time, SINDI iterates the non-zero terms of the query,
 walks the corresponding inverted lists in each window, aggregates contributions
 into a max-heap of size <code>n_candidate</code>, and returns the top-k. When <code>use_reorder</code>
-is enabled, the candidates are re-scored against a high-precision flat copy.</li>
+is enabled, the candidates are re-scored against a forward store. The default
+forward store keeps fp32 values, while <code>rerank_type: "dmq8"</code> uses a compressed
+DMQ store to reduce rerank memory.</li>
 </ol>
 <p>Distance is returned as <code>1 - inner_product</code> so results sort ascending as in the
 dense indexes.</p>
@@ -1402,7 +1422,8 @@ and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window (range: 10 000 – 60 000).</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight terms dropped per doc at build time (0.0 – 0.9).</td></tr>
 <tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>Quantize stored term values to cut memory; when enabled, uses 8-bit scalar quantization (SQ8).</td></tr>
-<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision flat copy and rescore results (~2× memory).</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a forward store and rescore candidates after coarse SINDI scoring.</td></tr>
+<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Forward-store type used when <code>use_reorder</code> is enabled. <code>fp32</code> keeps exact values; <code>dmq8</code> stores compressed 8-bit DMQ codes.</td></tr>
 <tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>Remap term IDs before indexing; useful when term IDs are sparse or have large gaps.</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>Hint for memory estimation only.</td></tr>
 </tbody>
@@ -1445,11 +1466,13 @@ ratios instead.</p>
 <li>Hybrid dense+sparse pipelines where SINDI handles the sparse leg in parallel with
 HGraph / IVF for dense embeddings.</li>
 <li>Memory-constrained deployments of sparse corpora (<code>use_quantization: true</code>
-roughly halves memory with a small recall loss; <code>use_reorder: true</code> trades
-memory for recall).</li>
+roughly halves inverted-list memory with a small recall loss; <code>use_reorder: true</code> trades forward-store memory for recall, and <code>rerank_type: "dmq8"</code> reduces
+that forward-store overhead).</li>
 </ul>
 <p>SINDI does <strong>not</strong> accept dense vectors and supports only inner-product similarity.
-Range search and id-based filtering are supported; see the example for usage.</p>
+Range search and id-based filtering are supported; see the example for usage.
+When <code>rerank_type</code> is <code>dmq8</code>, codebooks are fixed by the initial build, so incremental
+<code>Add</code> after the model is established and <code>UpdateVector</code> are not supported.</p>
 <h2 id="practical-guidance"><a class="header" href="#practical-guidance">Practical guidance</a></h2>
 <ul>
 <li>For Chinese corpora, we recommend encoding sparse vectors with BGE-M3. For
@@ -1474,6 +1497,9 @@ high-recall baseline.</li>
 (<code>use_reorder: true</code>), and enable quantization to shrink inverted-list memory
 (<code>use_quantization: true</code>). This is a common balance between memory and
 recall.</li>
+<li>Pruned high-accuracy index with compressed reranking. Use the same pruning and
+inverted-list quantization as above, but set <code>rerank_type: "dmq8"</code> together
+with <code>use_reorder: true</code> to reduce forward-store memory.</li>
 <li>Very large sparse vocabularies. When term IDs are sparse within the <code>uint32</code>
 range, such as hash-based tokenizers, external vocabulary IDs, or vocabularies
 with large gaps, enable <code>remap_term_ids: true</code>. This avoids managing many
@@ -7006,6 +7032,13 @@ auto result = index-&gt;SearchWithRequest(request);
 </tbody>
 </table>
 </div>
+<h3 id="ivf-bucket-routing"><a class="header" href="#ivf-bucket-routing">IVF bucket routing</a></h3>
+<p>IVF accepts <code>{"ivf":{"scan_buckets_count":N,"disable_bucket_scan":true}}</code> through
+<code>params_str_</code>. This routing-only mode returns the <code>N</code> selected bucket IDs per query in the
+result <code>Dataset</code> instead of vector labels. <code>NumElements()</code> equals the number of queries,
+<code>Dim()</code> equals <code>scan_buckets_count</code>, <code>GetIds()</code> contains bucket IDs (with <code>-1</code> for empty
+slots), and <code>GetDistances()</code> has distances to bucket centroids. No vector scan is performed,
+so filters, <code>topk</code>, range limits, reordering, and reasoning options are ignored.</p>
 <h3 id="filtering-fields"><a class="header" href="#filtering-fields">Filtering fields</a></h3>
 <p>Three filtering mechanisms are available and are combined with logical <strong>AND</strong> when more than one is
 enabled.</p>
@@ -7383,6 +7416,21 @@ vsag::Options::Instance().set_logger(&amp;my_logger);
 created to choose <code>trace</code>, <code>debug</code>, <code>info</code>, <code>warn</code>/<code>warning</code>, <code>error</code>, <code>critical</code>, or <code>off</code>. Invalid
 values are ignored and keep the default level. An explicit <code>SetLevel</code> call still overrides the
 environment-derived level.</p>
+<h3 id="startup-init-banner"><a class="header" href="#startup-init-banner">Startup init banner</a></h3>
+<p>VSAG logs a startup initialization banner when <code>vsag::init()</code> runs. To suppress that banner, set
+<code>VSAG_SUPPRESS_INIT_BANNER</code> before starting the process. This is useful for tests, CI jobs, or
+applications that need quieter startup logs.</p>
+<p>Truthy values are <code>1</code>, <code>on</code>, and <code>true</code>; matching for <code>on</code> and <code>true</code> is ASCII case-insensitive, so
+<code>ON</code>, <code>On</code>, and <code>TRUE</code> also work. Other values leave the banner enabled.</p>
+<p>Set the variable before process start. VSAG also runs <code>vsag::init()</code> during static initialization,
+so setting the variable later from inside the process cannot suppress the first banner.</p>
+<p>The banner includes an <code>instance spec</code> value such as <code>48C503G</code>, combining the cpuinfo core count
+with total physical memory. Memory is reported in whole GiB using floor division by <code>1024^3</code>; if the
+platform query fails, the memory portion is shown as <code>?G</code>. SIMD lines, including <code>neon</code> and <code>sve</code>,
+retain their existing distribution/platform/using capability semantics.</p>
+<pre><code class="language-bash">VSAG_SUPPRESS_INIT_BANNER=1 ./your_vsag_app
+VSAG_SUPPRESS_INIT_BANNER=true ./your_vsag_test
+</code></pre>
 <pre><code class="language-cpp">class Logger {
 public:
     enum Level : int {
@@ -9029,59 +9077,288 @@ to brute-force scanning.</p>
 <a href="#attribute-filter-hybrid-search">Attribute Filter</a>, <a href="#extra-info">Extra Info</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="release-notes"><a class="header" href="#release-notes">Release Notes</a></h1>
-<p>VSAG’s official release history and change notes are maintained on GitHub Releases:</p>
+<p>VSAG website release notes are maintained by <code>MAJOR.MINOR</code> series. Each series page covers the
+first release and every later patch release in that line. GitHub Releases remains the source for
+the complete per-patch pull request list, assets, and contributor credits.</p>
+<h2 id="release-series"><a class="header" href="#release-series">Release Series</a></h2>
 <ul>
-<li><a href="https://github.com/antgroup/vsag/releases">Releases on GitHub</a></li>
-</ul>
-<p>Each release includes:</p>
+<li><a href="#vsag-10-release-notes">VSAG 1.0</a>
 <ul>
-<li><strong>Features</strong> — new functionality</li>
-<li><strong>Improvements</strong></li>
-<li><strong>Bug Fixes</strong></li>
-<li><strong>Breaking Changes</strong> (when applicable)</li>
-<li><strong>Contributor credits</strong></li>
+<li>First release: <a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0">v1.0.0</a>,
+July 12, 2026</li>
+<li>Latest patch: <code>v1.0.0</code></li>
+<li>Status: stable</li>
 </ul>
-<h2 id="versioning"><a class="header" href="#versioning">Versioning</a></h2>
-<p>VSAG follows <a href="https://semver.org/">Semantic Versioning 2.0</a>:</p>
-<ul>
-<li><code>MAJOR.MINOR.PATCH</code></li>
-<li><code>MAJOR</code> generally comes with incompatible API or serialization changes.</li>
-<li><code>MINOR</code> adds functionality while remaining backward compatible.</li>
-<li><code>PATCH</code> contains only bug fixes and performance improvements.</li>
+</li>
 </ul>
+<p>Future release notes follow the same layout: <code>v1.1</code>, <code>v1.2</code>, <code>v2.0</code>, and so on. Patch releases
+update their existing series page instead of creating a separate website page.</p>
+<h2 id="version-and-note-grouping"><a class="header" href="#version-and-note-grouping">Version and Note Grouping</a></h2>
+<p>Release tags use the <code>vMAJOR.MINOR.PATCH</code> form. The website groups them by <code>MAJOR.MINOR</code> so each
+page can explain the full series, while GitHub Releases records the exact contents of each tag.</p>
 <h2 id="getting-a-specific-version"><a class="header" href="#getting-a-specific-version">Getting a Specific Version</a></h2>
 <h3 id="c--source"><a class="header" href="#c--source">C++ / source</a></h3>
 <pre><code class="language-bash">git checkout vX.Y.Z
 make release
 </code></pre>
 <h3 id="python"><a class="header" href="#python">Python</a></h3>
+<p>Check <a href="https://pypi.org/project/pyvsag/">PyPI</a> for an available binding version, then install that
+exact version:</p>
 <pre><code class="language-bash">pip install pyvsag==X.Y.Z
 </code></pre>
-<h3 id="nodejs--typescript-1"><a class="header" href="#nodejs--typescript-1">Node.js / TypeScript</a></h3>
-<pre><code class="language-bash">npm install vsag@X.Y.Z
-</code></pre>
+<p>Binding releases may not match every core C++ tag. The repository also contains C and
+Node.js/TypeScript bindings. See the corresponding release series page and repository examples for
+their support and packaging state.</p>
 <h2 id="upgrade-guidance"><a class="header" href="#upgrade-guidance">Upgrade Guidance</a></h2>
 <ul>
-<li>Read the <strong>Breaking Changes</strong> section of the corresponding release before upgrading across major
-versions.</li>
-<li>When the serialization format changes, validate deserialization compatibility in a staging
-environment first.</li>
-<li>For SINDI, the legacy <code>use_term_lists_heap_insert</code> search parameter is ignored. SINDI
-now derives the heap-insertion strategy from <code>doc_prune_ratio</code> and <code>query_prune_ratio</code>;
-update configs that relied on forcing this path directly.</li>
+<li>Read the compatibility section of the target release series before upgrading.</li>
+<li>When a serialization format changes, validate old artifacts with the
+<a href="#compatibility-check-tool-check_compatibility">compatibility check tool</a> in a staging environment.</li>
 <li>Roll out gradually in production and use the
-<a href="#performance-evaluation-tool-eval_performance">performance evaluation tool</a> to compare recall and latency.</li>
+<a href="#performance-evaluation-tool-eval_performance">performance evaluation tool</a> to compare recall, latency, and resource use.</li>
 </ul>
+<p>For complete patch-level history, see
+<a href="https://github.com/antgroup/vsag/releases">all VSAG releases on GitHub</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="roadmap"><a class="header" href="#roadmap">Roadmap</a></h1>
+<h1 id="vsag-10-release-notes"><a class="header" href="#vsag-10-release-notes">VSAG 1.0 Release Notes</a></h1>
+<p><code>v1.0.0</code> was released on July 12, 2026, the project’s third anniversary.</p>
+<ul>
+<li><a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0">Official GitHub Release</a></li>
+<li><a href="https://github.com/antgroup/vsag/compare/v0.18.0...v1.0.0">Full v0.18.0…v1.0.0 changelog</a></li>
+<li>Tag commit: <code>efdaf17a10e96cdb5222baf558d50dfacbdc672e</code></li>
+</ul>
+<h2 id="overview"><a class="header" href="#overview">Overview</a></h2>
+<p>VSAG 1.0 is the project’s first long-term support (LTS) major release. At the time of its release,
+the public <code>v0.x</code> history comprised 81 tags from <code>v0.11</code> through <code>v0.18</code>. <code>v1.0.0</code> brings that
+work together across dense, sparse, hierarchical, and multi-vector retrieval with structured
+filtering.</p>
+<p>The official <code>v1.0.0</code> release contains 375 changes since <code>v0.18.0</code>: 48 features,
+134 improvements, 105 bug fixes, and 88 other changes. The broader
+<code>v0.11.0...v1.0.0</code> history contains 1,252 mainline commits.</p>
+<p>This note covers only the APIs and features available in the <code>v1.0.0</code> tag.</p>
+<h2 id="highlights"><a class="header" href="#highlights">Highlights</a></h2>
+<h3 id="index-families"><a class="header" href="#index-families">Index families</a></h3>
+<p>The following matrix groups VSAG 1.0 indexes by role: Pyramid and LazyHGraph provide composite or
+adaptive behavior, while the lower row presents the five core index families.</p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/indexes/index-matrix.svg" alt="VSAG 1.0 index matrix"><span class="img-wrapper"><img src="figures/indexes/index-matrix.svg" alt="VSAG 1.0 index matrix"></span></label></p>
+<p>Composite and adaptive indexes:</p>
+<ul>
+<li>The partitioned index <strong>Pyramid</strong> supports assigning one vector to multiple Pyramid paths and
+scoping searches to a selected path for hierarchical and multi-tenant retrieval
+(<a href="https://github.com/antgroup/vsag/pull/2226">PR #2226</a>).</li>
+<li>The self-scaling graph index <strong>LazyHGraph</strong> starts with exact BruteForce search and converts to
+HGraph after a configurable threshold, avoiding graph-build overhead for small, growing
+collections
+(<a href="https://github.com/antgroup/vsag/pull/2151">PR #2151</a>).</li>
+</ul>
+<p>Core index families:</p>
+<ul>
+<li>The brute-force index <strong>BruteForce</strong> supports exact search for both single-vector and
+multi-vector datasets. It is the exact-search baseline and an option for smaller collections.</li>
+<li>The graph index <strong>HGraph</strong> targets high-recall, low-latency dense-vector search. Since its
+<a href="https://github.com/antgroup/vsag/pull/114">initial implementation</a>, it has added quantization,
+filtering, range and iterator searches, updates, mark and force-removal modes, cache import and
+export, diagnostics, and memory-plus-disk configurations.</li>
+<li>The space-partitioning index <strong>IVF</strong> targets large datasets, batch queries, and large <code>top-k</code>
+workloads. It supports quantization, reordering, attribute filters, parallel build and search,
+and on-disk bucket storage. See the original
+<a href="https://github.com/antgroup/vsag/pull/505">IVF PR</a>.</li>
+<li>The sparse-vector index <strong>SINDI</strong> supports BM25-style and learned sparse retrieval, including
+term-ID remapping, index analysis, immutable reads, FP16 sparse values, term-list compaction, and
+a <a href="https://github.com/antgroup/vsag/pull/2424">low-memory immutable build</a>.</li>
+<li>The multi-vector index <strong>SIMQ</strong> targets ColBERT-style late-interaction retrieval. It generates
+candidates at the cluster level, then performs exact MaxSim reranking to balance recall and
+latency
+(<a href="https://github.com/antgroup/vsag/pull/2357">PR #2357</a>).</li>
+</ul>
+<p>For configuration and usage details, see <a href="indexes">Indexes</a>.</p>
+<h3 id="quantization-data-types-and-hardware-acceleration"><a class="header" href="#quantization-data-types-and-hardware-acceleration">Quantization, data types, and hardware acceleration</a></h3>
+<p>VSAG 1.0 supports the following input formats, quantizers, transforms, and hardware-acceleration
+paths:</p>
+<ul>
+<li>FP32, INT8, FP16, and BF16 dense inputs, plus sparse and multi-vector datasets, with direct
+FP16/BF16 input support (<a href="https://github.com/antgroup/vsag/pull/1731">PR #1731</a>).</li>
+<li>SQ4/SQ8 and their uniform variants.</li>
+<li>Product Quantization and PQ FastScan
+(<a href="https://github.com/antgroup/vsag/pull/626">PR #626</a>,
+<a href="https://github.com/antgroup/vsag/pull/691">PR #691</a>).</li>
+<li>RaBitQ, extended-bit and x+y split base/reorder layouts, FHT/PCA-assisted transforms, and
+dedicated SIMD kernels.</li>
+<li>Transform Quantizer chains and MRL-E dimension reduction.</li>
+<li>x86_64 dispatch across SSE, AVX, AVX2, AVX-512, and selected AMX kernels, plus ARM NEON and SVE.</li>
+<li>AMX acceleration for SQ8U inner product and KMeans BF16 GEMM
+(<a href="https://github.com/antgroup/vsag/pull/2032">PR #2032</a>).</li>
+</ul>
+<p>See <a href="quantization">Quantization</a> for supported combinations and tuning guidance.</p>
+<h3 id="search-filtering-and-index-management"><a class="header" href="#search-filtering-and-index-management">Search, filtering, and index management</a></h3>
+<ul>
+<li><strong>Basic search:</strong> <code>KnnSearch</code> provides KNN queries, while <code>RangeSearch</code> provides range queries
+with an optional result limit.</li>
+<li><strong>Unified request API:</strong> <code>SearchRequest</code> and <code>Index::SearchWithRequest</code> use one request object to
+select KNN or range search and carry index-specific JSON parameters, supported filters, and
+diagnostic inputs. In v1.0, HGraph, IVF, and BruteForce implement this interface; supported
+fields vary by index.</li>
+<li><strong>Filtering:</strong> ID callbacks/<code>FilterPtr</code>, bitsets, and SQL-like attribute expressions are
+available. HGraph, IVF, and BruteForce support structured filtering with inverted attribute
+indexes. HGraph also supports iterator filtering and can switch to brute-force search when the
+valid ratio is at or below <code>hgraph.brute_force_threshold</code>.</li>
+<li><strong>Training and model reuse:</strong> <code>Train</code>, <code>Clone</code>, <code>ExportModel</code>, and <code>Tune</code> cover standalone
+training, deep copies, trained-model export, and index tuning.</li>
+<li><strong>Data maintenance and access:</strong> The APIs cover batch removal, mark/force removal,
+ID/vector/attribute updates, source IDs, <code>extra_info</code>, index-detail reads, and
+<code>CalcDistanceById</code>.</li>
+<li><strong>Missed-recall diagnosis:</strong> <code>SearchRequest::expected_labels_</code> helps HGraph, IVF, and BruteForce
+explain why expected vectors were not recalled. The result <code>Dataset</code> carries the reasoning report
+(<a href="https://github.com/antgroup/vsag/pull/1838">PR #1838</a>).</li>
+<li><strong>Statistics and capacity planning:</strong> Search, I/O, memory, and index-specific statistics expose
+runtime state, while memory estimates, index introspection, and analysis tools support capacity
+planning and troubleshooting.</li>
+</ul>
+<p>Support varies by index; <code>Index::CheckFeature(IndexFeature)</code> reports capabilities represented by
+<code>IndexFeature</code>.</p>
+<h3 id="serialization-and-compatibility"><a class="header" href="#serialization-and-compatibility">Serialization and compatibility</a></h3>
+<p>VSAG 1.0 maintains two serialization families in parallel. The legacy <code>Serialize</code>/<code>Deserialize</code>
+APIs remain maintained for compatibility with existing integrations. The newer
+<a href="https://github.com/antgroup/vsag/pull/2256">streaming serialization APIs</a> use a header-first,
+forward-only format and extend the interface with the following capabilities:</p>
+<ul>
+<li><code>SerializeStreaming</code> writes metadata followed by typed TLV blocks.</li>
+<li><code>DeserializeStreaming</code> restores into an existing compatible, empty index object.</li>
+<li><code>Index::Load</code> reads metadata, creates the matching index, and applies supported placement policy.</li>
+<li>The v1.0 streaming path supports BruteForce, HGraph, IVF, mutable SINDI, and Pyramid. Streaming
+serialization of immutable SINDI indexes is not supported in v1.0.</li>
+</ul>
+<p>Both API families remain available, but their formats are <strong>not compatible</strong>; a file must be read
+by the matching family. Existing integrations can continue to use the legacy APIs, while new
+integrations should prefer the streaming APIs. See
+<a href="#new-serialization">New Serialization</a> for format and block-version details.</p>
+<p>Cross-version index fixtures and the <a href="#compatibility-check-tool-check_compatibility">compatibility check tool</a>
+provide a repeatable way to validate old artifacts before an upgrade.</p>
+<h3 id="platforms-bindings-and-tooling"><a class="header" href="#platforms-bindings-and-tooling">Platforms, bindings, and tooling</a></h3>
+<ul>
+<li>The VSAG core C++ library supports Linux and macOS, with most development and the full validation
+pipeline centered on Linux. Linux x86_64 and AArch64 are both covered by CI, while macOS
+validation currently targets arm64 builds
+(<a href="https://github.com/antgroup/vsag/pull/1439">source build</a>,
+<a href="https://github.com/antgroup/vsag/pull/1930">PR CI</a>). Prebuilt C++ release archives are currently
+limited to Linux x86_64.</li>
+<li>The Python bindings are packaged as <code>pyvsag</code>; v1.0.0 declares support for CPython 3.6-3.14 and
+configures wheel builds for that range. Its build uses native CMake integration
+(<a href="https://github.com/antgroup/vsag/pull/1599">PR #1599</a>); the bindings also provide broader index
+operations, FP16/BF16 inputs, sparse-vector support, and sparse HDF5 helpers.</li>
+<li>VSAG now includes a C API and
+<a href="https://github.com/antgroup/vsag/pull/1812">Node.js/TypeScript bindings</a> with quickstart
+examples. Language bindings are released independently; check the corresponding package version
+before use.</li>
+<li>Builds support system OpenBLAS/fmt dependencies, custom dependency mirrors, and installable CMake
+package metadata.</li>
+<li><code>eval_performance</code> supports dense, sparse, and multi-vector datasets. <code>analyze_index</code>,
+<code>check_compatibility</code>, <code>visualize_index</code>, and the HTTP monitor support index analysis,
+compatibility testing, serialization inspection, and monitoring.</li>
+</ul>
+<h3 id="reliability-and-validation"><a class="header" href="#reliability-and-validation">Reliability and validation</a></h3>
+<p>Functional and regression tests cover allocation, leaks, out-of-memory paths, and concurrent
+build, insertion, search, update, removal, and destruction. CI reinforces these checks with ASan
+for memory safety and TSan for data races. Compatibility fixtures validate legacy-index upgrade
+paths.</p>
+<h2 id="compatibility-and-upgrade-notes-from-v018"><a class="header" href="#compatibility-and-upgrade-notes-from-v018">Compatibility and Upgrade Notes from v0.18</a></h2>
+<p>VSAG 1.0 is a major release and includes source-level API changes. Review these points before
+upgrading:</p>
+<ol>
+<li><strong><code>Remove</code> returns a count and supports batches.</strong> The v0.18 method
+<code>tl::expected&lt;bool, Error&gt; Remove(int64_t)</code> now returns
+<code>tl::expected&lt;uint32_t, Error&gt;</code>. v1.0 also adds a vector overload and explicit remove modes
+(<a href="https://github.com/antgroup/vsag/pull/1551">PR #1551</a>). The final API exposes
+<code>RemoveMode::MARK_REMOVE</code> and <code>RemoveMode::FORCE_REMOVE</code>; HGraph force removal landed in
+<a href="https://github.com/antgroup/vsag/pull/1810">PR #1810</a>.</li>
+<li><strong>Unsupported operations usually return an error.</strong> Many default methods that return
+<code>tl::expected</code> now return <code>tl::unexpected</code> with
+<code>ErrorType::UNSUPPORTED_INDEX_OPERATION</code> instead of throwing <code>std::runtime_error</code>
+(<a href="https://github.com/antgroup/vsag/pull/2141">PR #2141</a>). Check the <code>tl::expected</code> result before
+calling <code>.value()</code>.</li>
+<li><strong>Memory-statistics signatures changed.</strong> <code>GetMemoryUsage</code> uses <code>uint64_t</code>,
+<code>GetMemoryUsageDetail</code> returns a <code>std::unordered_map&lt;std::string, uint64_t&gt;</code>, and
+<code>GetEstimateBuildMemory</code> became <code>EstimateBuildMemory</code>
+(<a href="https://github.com/antgroup/vsag/pull/2388">PR #2388</a>).</li>
+<li><strong>Search migration can be incremental.</strong> Prefer <code>SearchRequest</code> /
+<code>SearchWithRequest</code> for new integration work, but the existing search overloads remain in
+v1.0.</li>
+<li><strong>Do not mix serialization families.</strong> Legacy output must use legacy deserialization; streaming
+output must use <code>DeserializeStreaming</code> or <code>Index::Load</code>.</li>
+<li><strong>SINDI heap insertion is automatic.</strong> The legacy <code>use_term_lists_heap_insert</code> search parameter
+is ignored. SINDI derives the strategy from <code>doc_prune_ratio</code> and <code>query_prune_ratio</code>; update
+configurations that forced the old path.</li>
+<li><strong>Intel MKL is opt-in.</strong> The default is <code>OFF</code>. Enable it with
+<code>VSAG_ENABLE_INTEL_MKL=ON</code> through the Makefile or <code>-DENABLE_INTEL_MKL=ON</code> through CMake when
+required.</li>
+</ol>
+<p>For persisted indexes, validate the exact source and target versions in staging. Serialization
+compatibility can differ by index, feature flags, and format family.</p>
+<h2 id="the-v0x-journey-to-10"><a class="header" href="#the-v0x-journey-to-10">The v0.x Journey to 1.0</a></h2>
+<p><code>v0.11.0</code> was VSAG’s first formal release after the project was open-sourced. Earlier version
+numbers were used only for internal iterations and were not published as GitHub Releases, so this
+history begins with <code>v0.11</code>.</p>
+<h3 id="foundations-v011-v014"><a class="header" href="#foundations-v011-v014">Foundations: v0.11-v0.14</a></h3>
+<ul>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.11.0">v0.11</a>, September 2024:</strong> established
+the initial HNSW/DiskANN, C++/Python, pre-filter, cosine-distance, locking, and serialization
+baseline.</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.12.0">v0.12</a>, December 2024:</strong> introduced
+DataCell, I/O, and graph abstractions; HGraph; SQ4/SQ8/INT8 paths; the Engine/factory model; and
+pyvsag packaging.</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.13.0">v0.13</a>, February 2025:</strong> added
+BruteForce, expanded Pyramid, memory estimation, index feature discovery, filter hints, and the
+<code>eval_performance</code> tool.</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.14.0">v0.14</a>, April 2025:</strong> introduced IVF,
+FP16/BF16 and RaBitQ support, async/buffer I/O, sparse datasets, HGraph <code>extra_info</code>, iterator
+filtering, and systematic compatibility checks.</li>
+</ul>
+<h3 id="expansion-v015-v018"><a class="header" href="#expansion-v015-v018">Expansion: v0.15-v0.18</a></h3>
+<ul>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.15.0">v0.15</a>, June 2025:</strong> added
+Train/Clone/ExportModel, PQ/PQ FastScan, attribute expressions, compressed graphs, HGraph merge
+and mark-delete, and self-describing legacy serialization with compatibility CI.</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.16.0">v0.16</a>, August 2025:</strong> added mmap
+HGraph, SINDI, parallel IVF, attribute updates, raw-vector access, parameter compatibility
+checks, and numerous ABI, concurrency, and legacy-index fixes in subsequent patches.</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.17.0">v0.17</a>, October 2025:</strong> expanded
+<code>SearchRequest</code> to cover the main search cases and added search timeouts, broader <code>extra_info</code>,
+Transform Quantizer support, single-query parallel HGraph search, export APIs, and richer SINDI
+lifecycle and statistics support.</li>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v0.18.0">v0.18</a>, January 2026:</strong> added the C API,
+automated Python wheels, sparse-vector Python bindings, on-disk IVF, index detail/search/I/O
+statistics, MRL-E and HGraph tuning, extended RaBitQ, and additional SINDI and Pyramid
+capabilities.</li>
+</ul>
+<p>See the <a href="https://github.com/antgroup/vsag/compare/v0.11.0...v1.0.0">v0.11.0…v1.0.0 comparison</a>
+for the complete commit history.</p>
+<h2 id="v10-patch-releases"><a class="header" href="#v10-patch-releases">v1.0 Patch Releases</a></h2>
+<ul>
+<li><strong><a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0">v1.0.0</a> — July 12, 2026:</strong> first
+long-term support major release.</li>
+</ul>
+<p>Future <code>v1.0.x</code> patches will be added to this section. Their complete PR list and contributor
+credits remain on GitHub Releases.</p>
+<h2 id="acknowledgments"><a class="header" href="#acknowledgments">Acknowledgments</a></h2>
+<p>VSAG 1.0 is the result of work by the Ant Group VSAG team and the wider open-source community.
+Thank you to every contributor who designed algorithms, implemented features, reported issues,
+reviewed changes, improved tests, and wrote documentation.</p>
+<p>See the <a href="#contributors">contributors page</a> and the
+<a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0">official release</a> for contributor details.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="roadmap-2025"><a class="header" href="#roadmap-2025">Roadmap 2025</a></h1>
+<blockquote>
+<p>This historical roadmap led to VSAG 1.0. <code>v1.0.0</code> was released on July 12, 2026.
+See the <a href="#vsag-10-release-notes">VSAG 1.0 Release Notes</a> for the delivered result.</p>
+</blockquote>
 <p>As AI capabilities keep advancing and strong open-source LLMs become widespread, demand for
 unstructured-data retrieval has exploded. Vector algorithms are the cornerstone of unstructured
 retrieval, and the VSAG community will keep investing in algorithmic research to help partners
 improve retrieval performance, reduce latency, and cut costs.</p>
-<p>In 2025 we plan to ship the first major release:</p>
+<p>The roadmap defined the first major release as follows:</p>
 <ul>
-<li>VSAG 1.0 provides comprehensive support for both graph-based and inverted-index structures, as
-well as in-memory and memory-plus-disk hybrid retrieval modes, delivering low memory cost and
+<li>VSAG 1.0 would provide comprehensive support for both graph-based and inverted-index structures,
+as well as in-memory and memory-plus-disk hybrid retrieval modes, delivering low memory cost and
 outstanding search performance.</li>
 </ul>
 <p>Planned algorithms and features:</p>

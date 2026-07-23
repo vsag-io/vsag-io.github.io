@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4a8d5bff.js";
+            window.path_to_searchindex_js = "../searchindex-887d0446.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-5433fefd.js"></script>
+        <script src="../toc-42b2e1de.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -343,6 +343,13 @@ auto result = index-&gt;SearchWithRequest(request);
 </tbody>
 </table>
 </div>
+<h3 id="ivf-桶路由"><a class="header" href="#ivf-桶路由">IVF 桶路由</a></h3>
+<p>IVF 可通过 <code>params_str_</code> 接收
+<code>{"ivf":{"scan_buckets_count":N,"disable_bucket_scan":true}}</code>。该仅路由模式按查询返回
+<code>N</code> 个 bucket ID，而非向量 label。<code>NumElements()</code> 为查询数，<code>Dim()</code> 为
+<code>scan_buckets_count</code>，<code>GetIds()</code> 包含桶 ID（空槽位为 <code>-1</code>），
+<code>GetDistances()</code> 为到各桶中心的距离。不扫描桶内向量，因此过滤器、<code>topk</code>、范围限制、精排和
+reasoning 选项均会被忽略。</p>
 <h3 id="过滤字段"><a class="header" href="#过滤字段">过滤字段</a></h3>
 <p>有三种过滤机制可用；当启用了多于一种时，它们以逻辑**与（AND）**组合。</p>
 <div class="table-wrapper">

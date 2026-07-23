@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-511e3c2e.js";
+            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8253392c.js"></script>
+        <script src="../toc-6ff2fd81.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -343,6 +343,13 @@ auto result = index-&gt;SearchWithRequest(request);
 </tbody>
 </table>
 </div>
+<h3 id="ivf-bucket-routing"><a class="header" href="#ivf-bucket-routing">IVF bucket routing</a></h3>
+<p>IVF accepts <code>{"ivf":{"scan_buckets_count":N,"disable_bucket_scan":true}}</code> through
+<code>params_str_</code>. This routing-only mode returns the <code>N</code> selected bucket IDs per query in the
+result <code>Dataset</code> instead of vector labels. <code>NumElements()</code> equals the number of queries,
+<code>Dim()</code> equals <code>scan_buckets_count</code>, <code>GetIds()</code> contains bucket IDs (with <code>-1</code> for empty
+slots), and <code>GetDistances()</code> has distances to bucket centroids. No vector scan is performed,
+so filters, <code>topk</code>, range limits, reordering, and reasoning options are ignored.</p>
 <h3 id="filtering-fields"><a class="header" href="#filtering-fields">Filtering fields</a></h3>
 <p>Three filtering mechanisms are available and are combined with logical <strong>AND</strong> when more than one is
 enabled.</p>

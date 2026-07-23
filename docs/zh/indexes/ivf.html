@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-4a8d5bff.js";
+            window.path_to_searchindex_js = "../searchindex-887d0446.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-5433fefd.js"></script>
+        <script src="../toc-42b2e1de.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -398,7 +398,8 @@ auto result = index-&gt;KnnSearch(
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>scan_buckets_count</code></td><td>int</td><td>—（必填）</td><td>每次查询扫描的桶数，须 ≤ <code>buckets_count</code></td></tr>
+<tr><td><code>scan_buckets_count</code></td><td>int</td><td>—（必填）</td><td>每次查询扫描的桶数，须 ≤ <code>buckets_count</code>（<code>disable_bucket_scan</code> 为 true 时可更大，空槽位补 <code>-1</code>）</td></tr>
+<tr><td><code>disable_bucket_scan</code></td><td>bool</td><td><code>false</code></td><td>返回桶 ID 及到桶中心距离，不扫描桶内向量。支持批量查询。</td></tr>
 <tr><td><code>factor</code></td><td>float</td><td><code>2.0</code></td><td>启用精排时，粗排阶段会预取 <code>factor * topk</code> 个候选再重打分</td></tr>
 <tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>即使索引构建时启用了 reorder，也可以在单次请求里设为 <code>false</code> 跳过最终精排</td></tr>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>单次查询内扫描桶时使用的线程数</td></tr>
