@@ -1,0 +1,45 @@
+name: Validate VSAG Docs Snapshot
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  validate-source-snapshot:
+    if: startsWith(github.event.pull_request.head.ref, 'docs-sync/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+
+      - name: Checkout current VSAG docs source
+        uses: actions/checkout@v4
+        with:
+          repository: antgroup/vsag
+          ref: main
+          path: source-vsag
+          fetch-depth: 0
+
+      - name: Reject stale source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="${GITHUB_HEAD_REF#docs-sync/}"
+          if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid docs-sync branch: $GITHUB_HEAD_REF" >&2
+            exit 1
+          fi
+          latest_docs_sha="$(git -C source-vsag log -1 --format=%H -- docs)"
+          if [[ "$source_sha" != "$latest_docs_sha" ]]; then
+            echo "Stale VSAG docs snapshot: $source_sha (latest: $latest_docs_sha)" >&2
+            echo "A newer docs snapshot must be promoted first; this PR cannot silently roll it back." >&2
+            exit 1
+          fi
+          echo "Validated current VSAG docs source: $source_sha"
