@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -439,16 +439,18 @@ factory and will be rejected.</li>
 </table>
 </div>
 <h3 id="hgraph-external-mapping"><a class="header" href="#hgraph-external-mapping">HGraph external mapping</a></h3>
-<p>When using HGraph, two top-level shortcuts are mapped into the nested quantizer params
-(<code>src/algorithm/hgraph.cpp:370-385</code>):</p>
+<p>When using HGraph, top-level shortcuts are mapped into the nested quantizer params:</p>
 <ul>
 <li><code>tq_chain</code> → <code>base_codes.quantization_params.tq_chain</code></li>
 <li><code>rabitq_pca_dim</code> → <code>base_codes.quantization_params.pca_dim</code></li>
+<li><code>mrle_dim</code> → <code>base_codes.quantization_params.mrle_dim</code></li>
 </ul>
 <p>The name <code>rabitq_pca_dim</code> predates Transform Quantizer; when the chain includes <code>pca</code>, it
 drives the <strong><code>pca</code> transformer’s output dim</strong> (it is not RaBitQ-specific). When the chain
 ends in <code>rabitq</code> without <code>pca</code>, the same key configures RaBitQ’s own PCA preprocessing
 (<code>src/quantization/rabitq_quantization/rabitq_quantizer_parameter.cpp:30</code>).</p>
+<p><code>mrle_dim</code> accepts an integer in <code>[0, dim]</code>; <code>0</code> means the input dimension. It has an effect when
+<code>tq_chain</code> includes <code>mrle</code>, which must remain the first transform in the chain.</p>
 <h2 id="reordering-and-the-precise-codes-store"><a class="header" href="#reordering-and-the-precise-codes-store">Reordering and the precise codes store</a></h2>
 <p>Transform chains lose some information by design (rotation is lossless, but <code>pca</code> /
 <code>sq*_uniform</code> / <code>rabitq</code> are not). Combining <code>tq</code> with <strong>reorder</strong> — keep a precise (typically

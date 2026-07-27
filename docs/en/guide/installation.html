@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -316,16 +316,21 @@ docker run -it --rm -v $(pwd):/work -w /work vsaglib/vsag:ubuntu bash
 <h2 id="building-from-source"><a class="header" href="#building-from-source">Building from Source</a></h2>
 <h3 id="requirements"><a class="header" href="#requirements">Requirements</a></h3>
 <ul>
-<li><strong>Operating System</strong>: Ubuntu 20.04+ or CentOS 7+</li>
-<li><strong>Compiler</strong>: GCC 9.4.0+ or Clang 13.0.0+</li>
+<li><strong>Operating System</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 14+ on Apple Silicon</li>
+<li><strong>Compiler</strong>: GCC 9.4.0+, Clang 13.0.0+, or Apple Clang from Xcode Command Line Tools</li>
 <li><strong>CMake</strong>: 3.18.0+</li>
 <li><strong>clang-format / clang-tidy</strong>: exactly version <strong>15</strong> (enforced by <code>make fmt</code> / <code>make lint</code>)</li>
 </ul>
 <h3 id="build"><a class="header" href="#build">Build</a></h3>
 <pre><code class="language-bash">git clone https://github.com/antgroup/vsag.git
 cd vsag
+./scripts/deps/install_deps.sh
 make release
 </code></pre>
+<p>The dependency script detects Linux versus macOS. On macOS it installs or locates the
+Homebrew dependencies and uses Apple’s Accelerate framework where appropriate. The supported
+macOS path is the arm64 C++ library build; published C++ archives and <code>pyvsag</code> wheels remain
+Linux-focused.</p>
 <p>Other common Makefile targets:</p>
 <ul>
 <li><code>make debug</code> — plain debug build (no sanitizers; tests/tools/examples disabled by default).</li>
@@ -349,12 +354,14 @@ make release
 <ul>
 <li><code>ENABLE_INTEL_MKL=ON</code> — Intel MKL acceleration.</li>
 <li><code>ENABLE_LIBAIO=ON</code> — Linux AIO for DiskANN async IO.</li>
+<li><code>ENABLE_LIBURING=ON</code> — Linux <code>io_uring</code> backend; requires liburing.</li>
 <li><code>ENABLE_TOOLS=ON</code> — build tools under <code>tools/</code> (including <code>eval_performance</code>).</li>
 <li><code>ENABLE_EXAMPLES=ON</code> — build sample programs under <code>examples/cpp/</code>.</li>
 </ul>
 <p>If you build through the project Makefile, the corresponding environment variables are
 <code>VSAG_ENABLE_INTEL_MKL=ON</code>, <code>VSAG_ENABLE_LIBAIO=ON</code>, <code>VSAG_ENABLE_TOOLS=ON</code>, and
-<code>VSAG_ENABLE_EXAMPLES=ON</code>.</p>
+<code>VSAG_ENABLE_EXAMPLES=ON</code>. <code>ENABLE_LIBURING</code> is currently a direct CMake option; configure it
+with <code>cmake -S . -B build-release -DENABLE_LIBURING=ON</code>.</p>
 
                     </main>
 

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -414,10 +414,11 @@ for (int64_t i = 0; i &lt; result_count; ++i) {
 </div>
 <ul>
 <li><strong><code>dim</code></strong> — 所有文档和查询中的所有 token 共享同一维度</li>
-<li><strong><code>base_io_type</code></strong> — 可选值：<code>async_io</code>、<code>memory_io</code>、
-<code>block_memory_io</code>、<code>buffer_io</code>、<code>mmap_io</code>、<code>reader_io</code></li>
+<li><strong><code>base_io_type</code></strong> — 可选值：<code>async_io</code>、<code>uring_io</code>、<code>memory_io</code>、
+<code>block_memory_io</code>、<code>buffer_io</code>、<code>mmap_io</code>、<code>reader_io</code>。原生 <code>uring_io</code>
+需要以 liburing 构建，否则回退到 <code>buffer_io</code></li>
 <li><strong><code>base_file_path</code></strong> — 默认值为占位符，使用磁盘类型（<code>async_io</code>、
-<code>buffer_io</code>、<code>mmap_io</code>）时需提供真实路径</li>
+<code>uring_io</code>、<code>buffer_io</code>、<code>mmap_io</code>）时需提供真实路径</li>
 <li><strong><code>init_cluster_ratio</code></strong> — 取值范围 <code>(0, 1]</code>。值越小簇越少越大，
 值越大簇越多越细</li>
 <li><strong><code>max_cluster_size</code></strong> — 必须 &gt; 1</li>
@@ -455,6 +456,31 @@ for (int64_t i = 0; i &lt; result_count; ++i) {
     query, topk,
     R"({"simq": {"coarse_k": 600, "rerank_k": 5000}})").value();
 </code></pre>
+<h2 id="搜索统计"><a class="header" href="#搜索统计">搜索统计</a></h2>
+<p><code>KnnSearch</code> 与 <code>RangeSearch</code> 会在返回的 dataset 上附带 JSON 统计对象。可以读取完整对象，
+也可以按 key 获取单项值：</p>
+<pre><code class="language-cpp">std::cout &lt;&lt; result-&gt;GetStatistics() &lt;&lt; '\n';
+auto values = result-&gt;GetStatistics(
+    {"simq_coarse_candidate_count", "simq_rerank_candidate_count"});
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dist_cmp</code></td><td>精排阶段执行的精确 MaxSim 距离计算次数</td></tr>
+<tr><td><code>simq_coarse_dist_cmp</code></td><td>代表图搜索执行的距离计算次数</td></tr>
+<tr><td><code>simq_coarse_probe_count</code></td><td>所有 query token 探测的代表簇数量</td></tr>
+<tr><td><code>simq_coarse_candidate_count</code></td><td>粗排产生且尚未应用 <code>rerank_k</code> 的唯一文档候选数</td></tr>
+<tr><td><code>simq_rerank_candidate_count</code></td><td>应用 <code>rerank_k</code> 后保留的候选数</td></tr>
+<tr><td><code>simq_filtered_candidate_count</code></td><td>被调用方 filter 排除的精排候选数</td></tr>
+<tr><td><code>simq_result_count</code></td><td>精排并应用 range/top-k 限制后最终返回的结果数</td></tr>
+<tr><td><code>simq_limited_size_applied</code></td><td><code>RangeSearch</code> 是否因 <code>limited_size</code> 截断结果</td></tr>
+</tbody>
+</table>
+</div>
+<p>这些计数器可以在调节召回和延迟时，区分候选池过窄、过滤、精排和输出上限各自的影响。</p>
 <h2 id="何时选择-simq"><a class="header" href="#何时选择-simq">何时选择 SIMQ</a></h2>
 <ul>
 <li><strong>Late-interaction 检索</strong>：使用 ColBERT 等模型，每篇文档是一组 token 向量，

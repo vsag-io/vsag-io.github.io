@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -498,8 +498,8 @@ error). See <a href="../advanced/range_search.html">Range Search</a> and <code>e
 <tbody>
 <tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const float* vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>Distance from a dense query to the stored vector <code>id</code>.</td></tr>
 <tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const DatasetPtr&amp; vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>Same, accepting a <code>DatasetPtr</code> (works for sparse indexes such as SINDI).</td></tr>
-<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true) const</code></td><td>Batch variant; <code>-1</code> in the result marks an invalid distance.</td></tr>
-<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true) const</code></td><td>Batch variant accepting a <code>DatasetPtr</code> query.</td></tr>
+<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>Batch variant; <code>topk &gt; 0</code> returns sorted smallest distances with IDs, and invalid <code>-1</code> distances are ordered last.</td></tr>
+<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>DatasetPtr batch variant. For <code>query-&gt;GetNumElements() &gt; 1</code>, indexes must advertise <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>; <code>ids</code> contains <code>NumElements * count</code> row-major entries. With <code>topk &gt; 0</code>, each query returns <code>min(topk, count)</code> sorted distances with matching IDs.</td></tr>
 </tbody>
 </table>
 </div>
@@ -586,6 +586,9 @@ and <code>examples/cpp/401_persistent_kv.cpp</code> / <code>402_persistent_strea
 </tbody>
 </table>
 </div>
+<p>HGraph matches cache entries by <code>Dataset::SourceID</code>. Import into an empty compatible index before
+<code>Build()</code>; see <a href="../advanced/build_cache.html">HGraph Build Cache</a> for the complete workflow,
+<code>persist_source_id</code>, and hit-rate diagnostics.</p>
 <h2 id="statistics--introspection"><a class="header" href="#statistics--introspection">Statistics &amp; introspection</a></h2>
 <p>Unless noted, these return values directly. <strong>The methods marked “throws” raise
 <code>std::runtime_error</code></strong> (not <code>tl::expected</code>) when the index does not support them.</p>

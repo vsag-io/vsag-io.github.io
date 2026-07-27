@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -310,7 +310,7 @@
 top-k —— 没有图遍历、没有倒排表、不做近似。它的主要用途是为 HGraph、IVF 等近似索引提供
 <strong>ground truth 基准</strong>，也适合用于小规模语料或对召回率有严格要求的生产场景。</p>
 <ul>
-<li>源码：<code>src/algorithm/brute_force.{h,cpp}</code></li>
+<li>源码：<code>src/algorithm/bruteforce/bruteforce.{h,cpp}</code></li>
 <li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a></li>
 </ul>
 <h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
@@ -410,6 +410,25 @@ auto r2 = index-&gt;KnnSearch(query, topk, R"({"parallelism": 8})").value();
 auto r3 = index-&gt;RangeSearch(query, radius, R"({"parallelism": 8})").value();
 </code></pre>
 <p>范围查询语义参见 <a href="../advanced/range_search.html">范围搜索</a>。</p>
+<h2 id="删除向量"><a class="header" href="#删除向量">删除向量</a></h2>
+<p>BruteForce 同时支持 <code>RemoveMode::MARK_REMOVE</code> 与 <code>RemoveMode::FORCE_REMOVE</code>；两种模式都不需要
+配置 HGraph 专用的 <code>support_force_remove</code>。</p>
+<ul>
+<li><code>MARK_REMOVE</code> 是默认模式。它只写入墓碑标记，后续搜索会过滤该 id，但向量存储仍保持已分配状态。
+<code>GetNumElements()</code> 不计已标记的 id，<code>GetNumberRemoved()</code> 返回其数量。</li>
+<li><code>FORCE_REMOVE</code> 会物理删除请求的每条向量。必要时它用最后一个内部槽位覆盖被删除槽位，并保留被移动
+向量的外部 id。成功的物理删除不会新增墓碑；之前已标记删除的数量仍由 <code>GetNumberRemoved()</code> 反映。</li>
+</ul>
+<pre><code class="language-cpp">index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2}, vsag::RemoveMode::MARK_REMOVE);
+index-&gt;Remove(std::vector&lt;int64_t&gt;{id3, id4}, vsag::RemoveMode::FORCE_REMOVE);
+</code></pre>
+<p>物理删除是同步操作，开销高于标记删除。它会获取索引的全局独占锁，因此会等待进行中的搜索，并在
+槽位交换与删除完成前阻止新的搜索。应尽可能批量传入 id，避免在延迟敏感路径上执行物理删除。</p>
+<p>BruteForce 默认使用 <code>block_memory_io</code> 存储向量。每个成功的物理删除批次之后，逻辑大小会收缩到
+存活条目数，并释放末尾完整的内存块；最后一个未填满的块会保留。可选额外信息存储也遵循相同的块粒度
+回收行为。为避免反复复制整张标签表，标签表会在存活条目数不超过当前容量一半时回收其底层分配。
+之后 <code>GetMemoryUsage()</code> 会反映紧凑后的索引。它衡量的是索引分配量，不保证进程分配器会立即把内存归还
+操作系统，也不保证 RSS 立即下降。</p>
 <h2 id="索引能力"><a class="header" href="#索引能力">索引能力</a></h2>
 <p>BruteForce 声明的能力标志如下（参见 <code>BruteForce::InitFeatures</code>，
 <code>src/algorithm/brute_force.cpp</code>）：</p>
@@ -423,7 +442,7 @@ auto r3 = index-&gt;RangeSearch(query, radius, R"({"parallelism": 8})").value();
 <tr><td><code>SUPPORT_ADD_FROM_EMPTY</code></td><td>仅在非训练型量化器（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>）下可用。</td></tr>
 <tr><td><code>SUPPORT_KNN_SEARCH</code> / <code>SUPPORT_KNN_SEARCH_WITH_ID_FILTER</code> / <code>SUPPORT_SEARCH_CONCURRENT</code></td><td>标准 top-k 查询、id 列表过滤，以及并发搜索。</td></tr>
 <tr><td><code>SUPPORT_RANGE_SEARCH</code> / <code>SUPPORT_RANGE_SEARCH_WITH_ID_FILTER</code></td><td>仅在非训练型量化器（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>）下可用。</td></tr>
-<tr><td><code>SUPPORT_DELETE_BY_ID</code> / <code>SUPPORT_DELETE_CONCURRENT</code></td><td>支持按 id 删除，且并发安全。</td></tr>
+<tr><td><code>SUPPORT_DELETE_BY_ID</code> / <code>SUPPORT_DELETE_CONCURRENT</code></td><td>支持按 id 删除。查询和删除操作会同步；<code>FORCE_REMOVE</code> 会获取独占锁。</td></tr>
 <tr><td><code>SUPPORT_CAL_DISTANCE_BY_ID</code></td><td>与已存储向量计算距离（仅非训练型量化器）。</td></tr>
 <tr><td><code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code></td><td>仅当 <code>base_quantization_type = fp32</code>，且度量不是 <code>cosine</code> 或底层量化器持有向量范数（<code>hold_molds</code>）时才声明。量化的 BruteForce 索引<strong>不会</strong>声明该能力。</td></tr>
 <tr><td><code>SUPPORT_CHECK_ID_EXIST</code> / <code>SUPPORT_CLONE</code> / <code>SUPPORT_ESTIMATE_MEMORY</code> / <code>SUPPORT_GET_MEMORY_USAGE</code></td><td>标准的内省与生命周期接口。</td></tr>

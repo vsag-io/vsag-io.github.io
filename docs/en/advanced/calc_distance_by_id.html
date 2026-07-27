@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -345,15 +345,22 @@ tl::expected&lt;DatasetPtr, Error&gt;
 CalDistanceById(const float* query,
                 const int64_t* ids,
                 int64_t count,
-                bool calculate_precise_distance = true) const;
+                bool calculate_precise_distance = true,
+                int64_t topk = -1) const;
 
 // Batch, DatasetPtr (dense or sparse).
 tl::expected&lt;DatasetPtr, Error&gt;
 CalDistanceById(const DatasetPtr&amp; query,
                 const int64_t* ids,
                 int64_t count,
-                bool calculate_precise_distance = true) const;
+                bool calculate_precise_distance = true,
+                int64_t topk = -1) const;
 </code></pre>
+<p>For <code>DatasetPtr</code> queries with <code>NumElements() &gt; 1</code>, check
+<code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code> first. <code>count</code> is the number of IDs per query, <code>ids</code> must
+contain <code>NumElements() * count</code> row-major IDs, and returned distances use the same layout. When
+<code>topk &gt; 0</code>, each query returns <code>min(topk, count)</code> entries sorted by distance in ascending order,
+and the result also contains the corresponding IDs.</p>
 <p>Declarations live in
 <a href="https://github.com/antgroup/vsag/blob/main/include/vsag/index.h"><code>include/vsag/index.h</code></a>.</p>
 <h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
@@ -367,9 +374,12 @@ the index already keeps in memory. Faster, but the returned distance is approxim
 <h3 id="return-semantics"><a class="header" href="#return-semantics">Return Semantics</a></h3>
 <ul>
 <li>The single-ID overload returns the distance as a <code>float</code>.</li>
-<li>The batch overload returns a <code>DatasetPtr</code> whose <code>GetDistances()</code> array has <code>count</code> entries
-aligned with the input <code>ids</code>. A value of <strong><code>-1</code></strong> in that array indicates an <strong>invalid ID</strong>
-(e.g. the ID does not exist in the index).</li>
+<li>With <code>topk == -1</code>, the raw-pointer batch overload returns one row with <code>count</code> distances. The
+<code>DatasetPtr</code> overload returns <code>NumElements()</code> rows with <code>count</code> distances each. Both preserve
+input order and do not return IDs.</li>
+<li>With <code>topk &gt; 0</code>, the batch overload returns the smallest <code>min(topk, count)</code> distances per
+query, sorted ascending, and <code>GetIds()</code> contains the corresponding IDs. Invalid IDs (<code>-1</code>
+distances) are ordered after valid distances and only appear if there are not enough valid IDs.</li>
 <li>The distance metric (IP / L2 / cosine) follows the <code>metric_type</code> chosen at index
 construction; see <a href="../resources/metric_semantics.html">Metric Semantics</a>.</li>
 </ul>
@@ -400,6 +410,40 @@ if (result.has_value()) {
     }
 }
 </code></pre>
+<h2 id="multiple-queries"><a class="header" href="#multiple-queries">Multiple Queries</a></h2>
+<p>The <code>DatasetPtr</code> batch overload accepts more than one query when the index advertises
+<code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>. Candidate IDs and outputs are row-major. For LazyHGraph, the
+call is delegated to the active internal index, so actual support can change after a phase
+transition even though the wrapper advertises the feature; handle a returned error:</p>
+<pre><code class="language-cpp">// Two dense queries and three candidate IDs per query.
+auto queries = vsag::Dataset::Make()
+                   -&gt;NumElements(2)
+                   -&gt;Dim(dim)
+                   -&gt;Float32Vectors(query_vectors.data())
+                   -&gt;Owner(false);
+std::vector&lt;int64_t&gt; candidate_ids = {
+    10, 11, 12,  // candidates for query 0
+    20, 21, 22   // candidates for query 1
+};
+
+if (index-&gt;CheckFeature(vsag::SUPPORT_BATCH_CALC_DISTANCE_BY_ID)) {
+    auto result = index-&gt;CalDistanceById(queries, candidate_ids.data(), 3, true, /*topk=*/2);
+    if (result.has_value()) {
+        auto batch = result.value();
+        // batch has NumElements() == 2 and Dim() == 2.
+        for (int64_t q = 0; q &lt; batch-&gt;GetNumElements(); ++q) {
+            for (int64_t j = 0; j &lt; batch-&gt;GetDim(); ++j) {
+                const int64_t offset = q * batch-&gt;GetDim() + j;
+                std::cout &lt;&lt; batch-&gt;GetIds()[offset] &lt;&lt; ": "
+                          &lt;&lt; batch-&gt;GetDistances()[offset] &lt;&lt; '\n';
+            }
+        }
+    }
+}
+</code></pre>
+<p>With <code>topk == -1</code>, <code>GetDim()</code> is <code>count</code> and position <code>q * count + j</code> corresponds to input ID
+<code>ids[q * count + j]</code>. With positive <code>topk</code>, the row stride is <code>GetDim()</code>, and each row contains
+the closest valid candidates followed by invalid IDs only when fewer than <code>topk</code> valid IDs exist.</p>
 <p>A runnable example is provided in
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/306_feature_calculate_distance_by_id.cpp"><code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code></a>.</p>
 <h2 id="sparse-vectors"><a class="header" href="#sparse-vectors">Sparse Vectors</a></h2>
@@ -415,14 +459,17 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Index type</th><th>Dense overload (<code>const float*</code>)</th><th>DatasetPtr overload</th><th>Notes</th></tr>
+<tr><th>Index type</th><th>Single-ID dense (<code>const float*</code>)</th><th>Single-ID DatasetPtr</th><th>Multi-query DatasetPtr batch</th><th>Notes</th></tr>
 </thead>
 <tbody>
-<tr><td>hgraph</td><td>yes</td><td>yes</td><td>Honors <code>calculate_precise_distance</code>.</td></tr>
-<tr><td>ivf</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
-<tr><td>brute_force</td><td>yes</td><td>yes (default loop)</td><td>Always precise (no quantization).</td></tr>
-<tr><td>pyramid</td><td>yes</td><td>yes (default loop)</td><td></td></tr>
-<tr><td>sindi</td><td>no</td><td>yes</td><td>Sparse vectors only.</td></tr>
+<tr><td>hgraph</td><td>yes</td><td>yes</td><td>when the feature is advertised</td><td>Honors <code>calculate_precise_distance</code>.</td></tr>
+<tr><td>ivf</td><td>yes</td><td>yes</td><td>when the feature is advertised</td><td>Availability depends on retained precise storage.</td></tr>
+<tr><td>brute_force</td><td>yes</td><td>yes</td><td>when the feature is advertised</td><td>Dense single-vector indexes only.</td></tr>
+<tr><td>pyramid</td><td>yes</td><td>yes</td><td>yes</td><td></td></tr>
+<tr><td>lazy_hgraph</td><td>yes</td><td>no</td><td>depends on the active internal index</td><td>DatasetPtr batch calls delegate to the active BruteForce/HGraph; availability can change after a phase transition.</td></tr>
+<tr><td>sindi</td><td>no</td><td>yes</td><td>yes</td><td>Sparse vectors only.</td></tr>
+<tr><td>hnsw</td><td>yes</td><td>no</td><td>no</td><td>Dense batch supports <code>topk == -1</code> only.</td></tr>
+<tr><td>diskann</td><td>yes</td><td>no</td><td>no</td><td>Dense batch supports <code>topk == -1</code> only.</td></tr>
 </tbody>
 </table>
 </div>

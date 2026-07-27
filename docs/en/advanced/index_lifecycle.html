@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -390,6 +390,21 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2, id3});
 <p><code>Remove</code> returns the number of ids that were successfully removed. Ids that did not exist are
 silently skipped and not counted.</p>
 <p>A runnable example is available at <code>examples/cpp/303_feature_remove.cpp</code>.</p>
+<h3 id="bruteforce-deletion"><a class="header" href="#bruteforce-deletion">BruteForce Deletion</a></h3>
+<p>BruteForce also supports both modes, but it does <strong>not</strong> use HGraph’s
+<code>support_force_remove</code> setting. <code>MARK_REMOVE</code> writes a tombstone and keeps vector storage.
+<code>FORCE_REMOVE</code> needs no extra configuration: it physically removes entries, moving the final
+internal slot when necessary while keeping external ids intact.</p>
+<p>BruteForce uses <code>block_memory_io</code> by default. Every successful force-removal batch reduces its
+logical vector and optional extra-information storage to the live entry count and releases trailing
+complete blocks; its final partial block remains allocated. The label table reclaims its backing
+allocation when its live entry count falls to at most half of its current capacity, avoiding repeated
+full-table copies. <code>GetMemoryUsage()</code> reflects the compacted index allocation. This does not guarantee that the
+process allocator immediately returns memory to the operating system or that RSS decreases. Force removal is synchronous and takes the
+BruteForce global exclusive lock, so it waits for in-flight searches and blocks new searches while
+it runs; batch ids and avoid it on latency-sensitive paths.</p>
+<pre><code class="language-cpp">index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2}, vsag::RemoveMode::FORCE_REMOVE);
+</code></pre>
 <h2 id="updating-vectors-and-ids"><a class="header" href="#updating-vectors-and-ids">Updating Vectors and Ids</a></h2>
 <h3 id="updatevector"><a class="header" href="#updatevector"><code>UpdateVector</code></a></h3>
 <p><code>UpdateVector(id, new_base, force_update = false)</code> replaces the vector data of an existing id in

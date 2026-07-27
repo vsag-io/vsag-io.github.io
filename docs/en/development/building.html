@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -308,11 +308,12 @@
 <p>This page documents how to build VSAG from source.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
-<li><strong>OS</strong>: Ubuntu 20.04+ or CentOS 7+</li>
-<li><strong>Compiler</strong>: GCC 9.4.0+ or Clang 13.0.0+</li>
+<li><strong>OS</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 14+ on Apple Silicon</li>
+<li><strong>Compiler</strong>: GCC 9.4.0+, Clang 13.0.0+, or Apple Clang from Xcode Command Line Tools</li>
 <li><strong>CMake</strong>: 3.18.0+</li>
 <li><strong>clang-format / clang-tidy</strong>: exactly version 15 (enforced)</li>
-<li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for DiskANN async IO), Intel MKL.</li>
+<li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for DiskANN async IO),
+liburing (for <code>uring_io</code> on Linux), Intel MKL.</li>
 </ul>
 <p>We recommend using the official Docker dev image, which already contains the matching toolchain:</p>
 <pre><code class="language-bash">docker pull vsaglib/vsag:ubuntu
@@ -339,8 +340,11 @@ clean       Remove build trees
 <h2 id="step-by-step"><a class="header" href="#step-by-step">Step-by-Step</a></h2>
 <pre><code class="language-bash">git clone https://github.com/antgroup/vsag.git
 cd vsag
+./scripts/deps/install_deps.sh
 make release
 </code></pre>
+<p>The dependency script selects the matching Linux distribution or macOS installer. macOS support
+currently targets the arm64 C++ build; published archives and Python wheels remain Linux-focused.</p>
 <p>Resulting binaries from a plain <code>make release</code>:</p>
 <ul>
 <li>Library: <code>build-release/src/libvsag.{a,so}</code></li>
@@ -361,6 +365,7 @@ cache options (<code>ENABLE_*</code>). Defaults below reflect a plain <code>make
 <tr><td><code>VSAG_ENABLE_LIBAIO</code></td><td><code>ENABLE_LIBAIO</code></td><td><code>ON</code> on Linux</td><td>Enable DiskANN async IO via libaio</td></tr>
 <tr><td><code>VSAG_ENABLE_TOOLS</code></td><td><code>ENABLE_TOOLS</code></td><td><code>OFF</code></td><td>Build utilities under <code>tools/</code></td></tr>
 <tr><td><code>VSAG_ENABLE_EXAMPLES</code></td><td><code>ENABLE_EXAMPLES</code></td><td><code>OFF</code></td><td>Build sample programs under <code>examples/cpp/</code></td></tr>
+<tr><td>n/a</td><td><code>ENABLE_LIBURING</code></td><td><code>OFF</code></td><td>Enable the Linux <code>uring_io</code> backend when liburing is installed</td></tr>
 <tr><td>n/a</td><td><code>CMAKE_BUILD_TYPE</code></td><td>driven by Makefile target</td><td>Debug / Release</td></tr>
 </tbody>
 </table>
@@ -369,6 +374,9 @@ cache options (<code>ENABLE_*</code>). Defaults below reflect a plain <code>make
 <pre><code class="language-bash">cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DENABLE_INTEL_MKL=ON
 cmake --build build-release -j
 </code></pre>
+<p>To enable <code>io_uring</code>, install liburing and add <code>-DENABLE_LIBURING=ON</code>. On non-Linux systems or
+when liburing is unavailable, VSAG compiles without native <code>io_uring</code> support; a configuration
+that requests <code>uring_io</code> then logs a one-time warning and falls back to <code>buffer_io</code>.</p>
 <h2 id="offline--air-gapped-builds"><a class="header" href="#offline--air-gapped-builds">Offline / Air-gapped Builds</a></h2>
 <p>VSAG downloads its third-party libraries at configure/build time. In offline or
 restricted-network environments, set the per-dependency <code>VSAG_THIRDPARTY_*</code>

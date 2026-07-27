@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -344,8 +344,12 @@ auto query_ds = vsag::Dataset::Make();
 query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
 auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
 </code></pre>
-<p>The result <code>Dataset</code> holds <code>count</code> distances in <code>GetDistances()</code>. A value of <code>-1.0F</code> means the
-corresponding id was invalid (not present in the index).</p>
+<p>The raw-pointer overload returns one row of <code>count</code> distances. The <code>DatasetPtr</code> overload can
+process several queries on indexes that advertise <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>: candidate
+IDs and distances then form <code>NumElements() * count</code> row-major matrices. A value of <code>-1.0F</code> means
+the corresponding ID was invalid. A positive <code>topk</code> returns the nearest candidates per row,
+sorted by distance, together with their IDs. See
+<a href="calc_distance_by_id.html">Calculate Distance by ID</a> for the layout and support matrix.</p>
 <h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
 <p>The trailing <code>bool</code> argument trades precision for latency:</p>
 <div class="table-wrapper">

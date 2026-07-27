@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -340,8 +340,11 @@ auto query_ds = vsag::Dataset::Make();
 query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
 auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
 </code></pre>
-<p>结果 <code>Dataset</code> 中 <code>GetDistances()</code> 持有 <code>count</code> 个距离。若某个 id 无效（不在索引中），对应位置
-返回 <code>-1.0F</code>。</p>
+<p>裸指针重载返回一行 <code>count</code> 个距离。对于公布 <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code> 能力的
+索引，<code>DatasetPtr</code> 重载可以处理多个 query，此时候选 ID 和距离是
+<code>NumElements() * count</code> 的 row-major 矩阵。无效 ID 对应 <code>-1.0F</code>。传入正数 <code>topk</code>
+时，每行会返回按距离排序的最近候选及其 ID。完整布局和支持矩阵见
+<a href="calc_distance_by_id.html">按 ID 计算距离</a>。</p>
 <h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
 <p>末尾的 <code>bool</code> 参数在精度与延迟之间做取舍：</p>
 <div class="table-wrapper">

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -493,8 +493,8 @@ RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; pa
 <tbody>
 <tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const float* vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>稠密查询到已存向量 <code>id</code> 的距离。</td></tr>
 <tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const DatasetPtr&amp; vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>同上，接收 <code>DatasetPtr</code>（适用于 SINDI 等稀疏索引）。</td></tr>
-<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true) const</code></td><td>批量版本；结果中的 <code>-1</code> 表示无效距离。</td></tr>
-<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true) const</code></td><td>接收 <code>DatasetPtr</code> 查询的批量版本。</td></tr>
+<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>批量版本；<code>topk &gt; 0</code> 时返回按距离升序排列的最小距离及对应 ID，无效 <code>-1</code> 距离排在最后。</td></tr>
+<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>接收 <code>DatasetPtr</code> 查询的批量版本。<code>query-&gt;GetNumElements() &gt; 1</code> 时索引需声明 <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>；<code>ids</code> 包含 <code>NumElements * count</code> 个 row-major 条目。<code>topk &gt; 0</code> 时每个 query 返回 <code>min(topk, count)</code> 个排序距离及对应 ID。</td></tr>
 </tbody>
 </table>
 </div>
@@ -580,6 +580,8 @@ RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; pa
 </tbody>
 </table>
 </div>
+<p>HGraph 通过 <code>Dataset::SourceID</code> 匹配缓存条目。应在 <code>Build()</code> 前导入空的兼容索引；完整流程、
+<code>persist_source_id</code> 与命中率诊断见 <a href="../advanced/build_cache.html">HGraph 构建缓存</a>。</p>
 <h2 id="统计与自省"><a class="header" href="#统计与自省">统计与自省</a></h2>
 <p>除非另有说明，这些方法直接返回值。<strong>标注为“抛出”的方法在索引不支持时会抛出 <code>std::runtime_error</code></strong>
 （而非 <code>tl::expected</code>）。</p>

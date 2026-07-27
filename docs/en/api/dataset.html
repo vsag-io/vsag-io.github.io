@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -358,7 +358,8 @@ DatasetPtr DeepCopy(Allocator* allocator = nullptr) const;  // independent copy
 </table>
 </div>
 <h2 id="vector-payloads"><a class="header" href="#vector-payloads">Vector payloads</a></h2>
-<p>A dataset carries exactly one vector representation, chosen to match the index’s <code>dtype</code>:</p>
+<p>A dataset carries exactly one vector representation. Select the payload setter from both the
+index’s scalar <code>dtype</code> and record-layout <code>repr</code>:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -372,7 +373,9 @@ DatasetPtr DeepCopy(Allocator* allocator = nullptr) const;  // independent copy
 </tbody>
 </table>
 </div>
-<p>Dense vectors are laid out row-major: element <code>i</code>, dimension <code>j</code> lives at <code>vectors[i * dim + j]</code>.</p>
+<p>Dense vectors are laid out row-major: element <code>i</code>, dimension <code>j</code> lives at <code>vectors[i * dim + j]</code>.
+Multi-vector datasets use <code>repr: multi_vector</code> with a scalar <code>dtype</code>, normally <code>float32</code>, and the
+payload described below.</p>
 <h3 id="multi-vector-payloads"><a class="header" href="#multi-vector-payloads">Multi-vector payloads</a></h3>
 <p>For documents that hold several dense sub-vectors each:</p>
 <div class="table-wrapper">
@@ -399,12 +402,13 @@ DatasetPtr DeepCopy(Allocator* allocator = nullptr) const;  // independent copy
 <tr><td><code>ExtraInfoSize(int64_t)</code></td><td><code>GetExtraInfoSize()</code></td><td><code>int64_t</code></td><td>Bytes per extra-info blob.</td></tr>
 <tr><td><code>Paths(const std::string*)</code></td><td><code>GetPaths()</code></td><td><code>const std::string*</code></td><td>Hierarchy paths (Pyramid). Default hierarchy.</td></tr>
 <tr><td><code>Paths(const std::string&amp; hierarchy, const std::string*)</code></td><td><code>GetPaths(const std::string&amp; hierarchy)</code></td><td><code>const std::string*</code></td><td>Paths for a named hierarchy.</td></tr>
-<tr><td><code>SourceID(const std::string*)</code></td><td><code>GetSourceID()</code></td><td><code>const std::string*</code></td><td>Optional source identifier.</td></tr>
+<tr><td><code>SourceID(const std::string*)</code></td><td><code>GetSourceID()</code></td><td><code>const std::string*</code></td><td>Optional stable source identifier per element; HGraph uses it to match build-cache entries across snapshots.</td></tr>
 </tbody>
 </table>
 </div>
-<p>See <a href="../advanced/attribute_filter.html">Attribute Filter (Hybrid Search)</a> and
-<a href="../advanced/extra_info.html">Extra Info</a>.</p>
+<p>See <a href="../advanced/attribute_filter.html">Attribute Filter (Hybrid Search)</a>,
+<a href="../advanced/extra_info.html">Extra Info</a>, and
+<a href="../advanced/build_cache.html">HGraph Build Cache</a>.</p>
 <h2 id="diagnostics-payloads"><a class="header" href="#diagnostics-payloads">Diagnostics payloads</a></h2>
 <div class="table-wrapper">
 <table>

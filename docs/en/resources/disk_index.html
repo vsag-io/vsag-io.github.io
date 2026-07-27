@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -374,6 +374,7 @@ own <strong>IO backend</strong>. That is what enables “hot in memory, cold on 
 <tr><td><code>buffer_io</code></td><td>Disk (buffered <code>pread</code>)</td><td>Yes</td><td>Portable disk reads; works everywhere</td></tr>
 <tr><td><code>mmap_io</code></td><td>Disk (mmap + page cache)</td><td>Yes</td><td>Near-memory speed when the working set fits the page cache</td></tr>
 <tr><td><code>async_io</code></td><td>Disk (Linux libaio)</td><td>Yes</td><td>High-concurrency disk reads; <strong>Linux + libaio only</strong>, otherwise falls back to <code>buffer_io</code></td></tr>
+<tr><td><code>uring_io</code></td><td>Disk (Linux io_uring)</td><td>Yes</td><td>Optional io_uring backend; requires a build with <code>ENABLE_LIBURING=ON</code>, otherwise falls back to <code>buffer_io</code></td></tr>
 <tr><td><code>reader_io</code></td><td>Custom <code>Reader</code></td><td>No</td><td>Read through a user <code>ReaderSet</code> at load time (e.g. remote / object storage)</td></tr>
 </tbody>
 </table>
@@ -381,8 +382,32 @@ own <strong>IO backend</strong>. That is what enables “hot in memory, cold on 
 <p>Each cell is wired with a flat pair of build parameters: <code>graph_io_type</code> / <code>graph_file_path</code>,
 <code>base_io_type</code> / <code>base_file_path</code>, <code>precise_io_type</code> / <code>precise_file_path</code>, and
 <code>raw_vector_io_type</code> / <code>raw_vector_file_path</code>. A <code>*_file_path</code> is <strong>required</strong> whenever the
-matching <code>*_io_type</code> is disk-backed (<code>buffer_io</code>, <code>mmap_io</code>, or <code>async_io</code>); the in-memory
+matching <code>*_io_type</code> is disk-backed (<code>buffer_io</code>, <code>mmap_io</code>, <code>async_io</code>, or <code>uring_io</code>); the in-memory
 backends ignore it. All cells default to <code>block_memory_io</code> (fully in memory).</p>
+<h3 id="enabling-uring_io"><a class="header" href="#enabling-uring_io">Enabling <code>uring_io</code></a></h3>
+<p><code>uring_io</code> is an optional Linux backend. Install liburing and enable it when configuring CMake:</p>
+<pre><code class="language-bash">cmake -S . -B build-release \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DENABLE_LIBURING=ON \
+    -DENABLE_EXAMPLES=ON
+cmake --build build-release --target 325_feature_uring_io -j
+</code></pre>
+<p>Select it with any supported disk cell parameter, for example:</p>
+<pre><code class="language-json">{
+    "index_param": {
+        "base_io_type": "uring_io",
+        "base_file_path": "/data/vsag/hgraph_base.data",
+        "base_direct_read": true
+    }
+}
+</code></pre>
+<p>For HGraph, <code>base_direct_read</code> and <code>precise_direct_read</code> default to <code>false</code>. Set the matching flag
+to <code>true</code> to open a <code>uring_io</code> file with direct IO and bypass the page cache. Confirm that the
+target filesystem supports direct IO and benchmark both modes for the workload.</p>
+<p>When VSAG is built without liburing, the same configuration remains loadable but logs a one-time
+warning and uses <code>buffer_io</code>. This fallback is functional, but it does not provide io_uring
+submission/completion batching. See <code>examples/cpp/325_feature_uring_io.cpp</code> for an end-to-end load
+example.</p>
 <h2 id="recommended-configuration-base-in-memory-precise-on-disk"><a class="header" href="#recommended-configuration-base-in-memory-precise-on-disk">Recommended configuration: base in memory, precise on disk</a></h2>
 <p>The workhorse layout keeps a very compact 3-bit RaBitQ base in memory for traversal and pushes
 a higher-precision <code>sq8</code> copy to disk for reorder, with <code>use_reorder</code> turned on so the
@@ -424,6 +449,9 @@ set these flags to turn libaio back on if a previous build disabled it. When lib
 (including on macOS), <code>async_io</code> logs a one-time warning and falls back to <code>buffer_io</code>, so
 configs remain portable but lose asynchronous batching. For production throughput, build on
 Linux with libaio.</li>
+<li><strong><code>uring_io</code> requires Linux with liburing and is opt-in.</strong> Configure with
+<code>-DENABLE_LIBURING=ON</code>; otherwise it falls back to <code>buffer_io</code>. Benchmark <code>uring_io</code> and
+<code>async_io</code> with the target kernel, queue depth, and SSD rather than assuming one always wins.</li>
 <li><strong>Warm the page cache</strong> for <code>mmap_io</code> cells after load (e.g. a sequential read of the file,
 or a warm-up query pass) so early queries do not pay cold-miss latency.</li>
 <li><strong>Plan file paths and lifecycle.</strong> Disk-backed cells write to the <code>*_file_path</code> you supply;

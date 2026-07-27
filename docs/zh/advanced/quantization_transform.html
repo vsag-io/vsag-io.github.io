@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -426,16 +426,18 @@ token 两侧的空白会被自动 trim
 </table>
 </div>
 <h3 id="hgraph-顶层映射"><a class="header" href="#hgraph-顶层映射">HGraph 顶层映射</a></h3>
-<p>使用 HGraph 时，两个顶层快捷键会被映射到嵌套的量化器参数中
-（<code>src/algorithm/hgraph.cpp:370-385</code>）：</p>
+<p>使用 HGraph 时，顶层快捷键会被映射到嵌套的量化器参数中：</p>
 <ul>
 <li><code>tq_chain</code> → <code>base_codes.quantization_params.tq_chain</code></li>
 <li><code>rabitq_pca_dim</code> → <code>base_codes.quantization_params.pca_dim</code></li>
+<li><code>mrle_dim</code> → <code>base_codes.quantization_params.mrle_dim</code></li>
 </ul>
 <p><code>rabitq_pca_dim</code> 这个名字早于 Transform Quantizer 引入；当链中包含 <code>pca</code> 时，它实际
 驱动的是 <strong><code>pca</code> 变换的输出维</strong>（与 RaBitQ 无关）。如果链以 <code>rabitq</code> 结尾且未使用
 <code>pca</code>，则同一个键会配置 RaBitQ 自身的 PCA 预处理
 （<code>src/quantization/rabitq_quantization/rabitq_quantizer_parameter.cpp:30</code>）。</p>
+<p><code>mrle_dim</code> 接受 <code>[0, dim]</code> 内的整数；<code>0</code> 表示输入维度。它在 <code>tq_chain</code> 包含
+<code>mrle</code> 时生效，且 <code>mrle</code> 必须保持为链中的第一个变换。</p>
 <h2 id="reorder-与精确码存储"><a class="header" href="#reorder-与精确码存储">Reorder 与精确码存储</a></h2>
 <p>变换链在设计上一定有信息损失（旋转无损，但 <code>pca</code> / <code>sq*_uniform</code> / <code>rabitq</code> 有损）。
 把 <code>tq</code> 与 <strong>reorder</strong> 组合使用 —— 即额外保留一份精确（通常是 <code>fp32</code>）副本，对 top 候选

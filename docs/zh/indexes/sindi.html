@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -319,7 +319,7 @@
 <li><strong>基于窗口的倒排表。</strong> 文档按固定窗口大小（<code>window_size</code>）分组，每个窗口独立维护一套
 倒排表——即“词项 → <code>(doc_id, value)</code> 列表”的映射。</li>
 <li><strong>可选的剪枝与量化。</strong> 构建时可通过 <code>doc_prune_ratio</code> 按文档粒度丢弃权重最低的词项；
-通过 <code>use_quantization</code> 压缩词项权重以进一步节省内存。</li>
+<code>use_quantization: true</code> 使用 SQ8，<code>use_quantization: "fp16"</code> 使用半精度值。</li>
 <li><strong>打分。</strong> 检索时，SINDI 遍历查询向量的非零项，按窗口访问对应的倒排表，使用大小为
 <code>n_candidate</code> 的大顶堆聚合得分，最后取 top-k。启用 <code>use_reorder</code> 时，候选会在正排
 存储上重打分。默认正排存储保留 fp32 值；设置 <code>rerank_type: "dmq8"</code> 时使用压缩的
@@ -372,11 +372,13 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>词项 ID 的上界（应 ≥ 最大词项 ID + 1，最高 50 000 000）</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>每个窗口容纳的文档数（取值范围 10 000 – 60 000）</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建阶段按文档丢弃权重最低词项的比例（0.0 – 0.9）</td></tr>
-<tr><td><code>use_quantization</code></td><td>bool</td><td><code>false</code></td><td>是否量化词项权重以降低内存；开启后使用 8-bit 标量量化（SQ8）</td></tr>
+<tr><td><code>use_quantization</code></td><td>bool 或 string</td><td><code>false</code></td><td><code>false</code> 存 FP32，<code>true</code> 存 SQ8，<code>"fp16"</code> 存 FP16</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留一份正排存储，在 SINDI 粗排后对候选做精排</td></tr>
 <tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>use_reorder</code> 开启时使用的正排存储类型。<code>fp32</code> 保留精确值；<code>dmq8</code> 使用压缩的 8-bit DMQ 编码</td></tr>
+<tr><td><code>dmq_shared_codebook_threshold</code></td><td>int</td><td><code>1024</code></td><td><code>rerank_type: "dmq8"</code> 时，出现次数不超过该值的 term 共用一个 codebook；更高频的 term 保持独立 codebook。设为 <code>0</code> 可关闭共享</td></tr>
 <tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>是否在建索引前重映射词项 ID，适用于词项 ID 很稀疏或存在大量空洞的词表</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>仅用于内存估算</td></tr>
+<tr><td><code>immutable</code></td><td>bool</td><td><code>false</code></td><td>构建或加载紧凑的只读运行态；<code>Build()</code> 会逐窗口压缩以降低峰值内存，增量 <code>Add()</code> 会被拒绝</td></tr>
 </tbody>
 </table>
 </div>
@@ -385,6 +387,44 @@ auto result = index-&gt;KnnSearch(
 <code>dim</code> 为 <code>3</code>（三个非零项），而 <code>term_id_limit</code> 至少应为 <code>178</code>（最大词项 ID + 1）。
 <code>term_id_limit</code> 要按词表大小估计，这是使用时最常见的坑。</p>
 </blockquote>
+<h3 id="稀疏值格式"><a class="header" href="#稀疏值格式">稀疏值格式</a></h3>
+<p><code>use_quantization</code> 保留原有 bool 行为，同时新增一个字符串取值：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>取值</th><th>存储格式</th><th>取舍</th></tr>
+</thead>
+<tbody>
+<tr><td><code>false</code></td><td>FP32</td><td>词项权重精度最高，posting payload 最大</td></tr>
+<tr><td><code>true</code></td><td>SQ8</td><td>权重存储最小；首次构建时学习量化范围</td></tr>
+<tr><td><code>"fp16"</code></td><td>FP16</td><td>权重字节数为 FP32 的一半，不需要 SQ8 范围校准</td></tr>
+</tbody>
+</table>
+</div>
+<p>使用 <code>false</code> 或 <code>true</code> 构建的索引仍保留旧版序列化表示。旧版本 VSAG 无法解析使用新
+<code>"fp16"</code> 格式的 SINDI 索引；部署 FP16 产物前应先升级读取端。</p>
+<h3 id="不可变低内存构建"><a class="header" href="#不可变低内存构建">不可变低内存构建</a></h3>
+<p>完成后的 SINDI 只读时，可以设置 <code>immutable: true</code>：</p>
+<pre><code class="language-json">{
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
+        "window_size": 50000,
+        "use_quantization": "fp16",
+        "remap_term_ids": true,
+        "immutable": true
+    }
+}
+</code></pre>
+<p><code>Build()</code> 会把每个完成的可变窗口压缩成不可变 payload，并在继续构建前释放临时窗口。该功能
+提交时的 Sparse4M FP16 实测中，构建峰值内存从 27.03 GB 降到 6.08 GB（降低 77.51%），
+构建时间则从约 330 秒增加到 599 秒。这些数字是特定负载的实测证据，不是容量保证。</p>
+<p>不可变运行态支持 KNN、范围搜索以及旧版 <code>Serialize</code>/<code>Deserialize</code>。它不支持增量
+<code>Add</code>、<code>GetSparseVectorByInnerId</code>、<code>CalcDistanceById</code> 与 <code>CalDistanceById</code>。
+不可变 SINDI 不支持流式序列化；需要流式格式时应保持索引可变，或使用匹配的旧版序列化接口。
+反序列化时，新建 SINDI 的 <code>immutable</code> 设置必须与存储格式一致。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>sindi</code> 子对象下：</p>
 <div class="table-wrapper">
@@ -411,8 +451,10 @@ auto result = index-&gt;KnnSearch(
 <ul>
 <li>使用 BM25、SPLADE、uniCOIL 等学习稀疏编码器的稀疏检索场景。</li>
 <li>稠密 + 稀疏的混合检索管线：SINDI 负责稀疏一路，HGraph / IVF 负责稠密 embedding。</li>
-<li>稀疏语料的内存受限部署：<code>use_quantization: true</code> 大致能把倒排内存减半，略损召回；
+<li>稀疏语料的内存受限部署：<code>use_quantization: true</code> 选择 SQ8，<code>"fp16"</code> 把 FP32
+权重字节数减半；
 <code>use_reorder: true</code> 以正排内存换召回，<code>rerank_type: "dmq8"</code> 可降低这部分正排开销。</li>
+<li>需要降低构建峰值内存的只读快照：使用 <code>immutable: true</code>，接受更慢的构建和不能增量写入。</li>
 </ul>
 <p>SINDI <strong>不支持</strong> 稠密向量，只支持内积相似度。范围检索与基于 ID 的过滤均已支持，
 具体用法参见示例代码。
@@ -443,6 +485,9 @@ SPLADE。</li>
 分词器、外部词表 ID，或存在大量空白区间的词表，建议设置 <code>remap_term_ids: true</code>。
 这样可以避免管理大量空倒排列表带来的内存浪费，也能降低触达 <code>term_id_limit</code>
 上限的风险。</li>
+<li>只读低内存构建。当构建峰值内存比构建速度更重要，且完成后不再增量写入时，增加
+<code>immutable: true</code>，通常配合 <code>use_quantization: "fp16"</code> 与
+<code>remap_term_ids: true</code> 使用。</li>
 </ol>
 <h2 id="标记删除"><a class="header" href="#标记删除">标记删除</a></h2>
 <p>SINDI 支持 <code>RemoveMode::MARK_REMOVE</code>。调用 <code>Remove(ids)</code>（默认模式）会为给定的 id

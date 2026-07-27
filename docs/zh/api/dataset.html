@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -357,7 +357,8 @@ DatasetPtr DeepCopy(Allocator* allocator = nullptr) const;  // 独立副本
 </table>
 </div>
 <h2 id="向量负载"><a class="header" href="#向量负载">向量负载</a></h2>
-<p>一个 dataset 只携带一种向量表示，需与索引的 <code>dtype</code> 匹配：</p>
+<p>一个 dataset 只携带一种向量表示。需要同时根据索引的标量 <code>dtype</code> 与记录布局 <code>repr</code>
+选择对应的 payload setter：</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -371,7 +372,9 @@ DatasetPtr DeepCopy(Allocator* allocator = nullptr) const;  // 独立副本
 </tbody>
 </table>
 </div>
-<p>稠密向量按行主序排列：元素 <code>i</code> 的维度 <code>j</code> 位于 <code>vectors[i * dim + j]</code>。</p>
+<p>稠密向量按行主序排列：元素 <code>i</code> 的维度 <code>j</code> 位于 <code>vectors[i * dim + j]</code>。
+多向量数据集使用 <code>repr: multi_vector</code>，并配合标量 <code>dtype</code>（通常为 <code>float32</code>）及下文的
+多向量 payload。</p>
 <h3 id="多向量负载"><a class="header" href="#多向量负载">多向量负载</a></h3>
 <p>用于每篇文档包含多个稠密子向量的场景：</p>
 <div class="table-wrapper">
@@ -398,12 +401,13 @@ DatasetPtr DeepCopy(Allocator* allocator = nullptr) const;  // 独立副本
 <tr><td><code>ExtraInfoSize(int64_t)</code></td><td><code>GetExtraInfoSize()</code></td><td><code>int64_t</code></td><td>每个 extra-info 数据块的字节数。</td></tr>
 <tr><td><code>Paths(const std::string*)</code></td><td><code>GetPaths()</code></td><td><code>const std::string*</code></td><td>层级路径（Pyramid）。默认层级。</td></tr>
 <tr><td><code>Paths(const std::string&amp; hierarchy, const std::string*)</code></td><td><code>GetPaths(const std::string&amp; hierarchy)</code></td><td><code>const std::string*</code></td><td>命名层级的路径。</td></tr>
-<tr><td><code>SourceID(const std::string*)</code></td><td><code>GetSourceID()</code></td><td><code>const std::string*</code></td><td>可选的来源标识。</td></tr>
+<tr><td><code>SourceID(const std::string*)</code></td><td><code>GetSourceID()</code></td><td><code>const std::string*</code></td><td>每个元素可选的稳定来源标识；HGraph 用它跨快照匹配构建缓存条目。</td></tr>
 </tbody>
 </table>
 </div>
-<p>见 <a href="../advanced/attribute_filter.html">属性过滤（混合搜索）</a> 与
-<a href="../advanced/extra_info.html">Extra Info（附加信息）</a>。</p>
+<p>见 <a href="../advanced/attribute_filter.html">属性过滤（混合搜索）</a>、
+<a href="../advanced/extra_info.html">Extra Info（附加信息）</a>与
+<a href="../advanced/build_cache.html">HGraph 构建缓存</a>。</p>
 <h2 id="诊断负载"><a class="header" href="#诊断负载">诊断负载</a></h2>
 <div class="table-wrapper">
 <table>

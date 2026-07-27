@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -371,9 +371,15 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per graph node</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size during build (higher = better recall, slower build)</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td>Graph algorithm: <code>nsw</code> or <code>odescent</code></td></tr>
+<tr><td><code>use_reverse_edges</code></td><td>bool</td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup. Roughly doubles edge storage and is unsupported with <code>graph_storage_type: "compressed"</code>.</td></tr>
+<tr><td><code>label_remap_type</code></td><td>string</td><td><code>"pg"</code></td><td>Label-to-inner-ID map implementation: <code>"pg"</code> or <code>"robin"</code>. Keep the same value when restoring or combining compatible indexes.</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse search</td></tr>
+<tr><td><code>reorder_source</code></td><td>string</td><td><code>"precise"</code></td><td>Reorder from <code>"precise"</code> codes or directly from <code>"base"</code> codes. RaBitQ x+y split sets <code>"base"</code> automatically.</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (takes effect only with <code>use_reorder: true</code>)</td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default.</td></tr>
+<tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Output dimension for an MRLE transform in <code>tq_chain</code>; allowed range <code>[0, dim]</code>, where <code>0</code> means the input dimension.</td></tr>
+<tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use the fast multi-bit RaBitQ encoder; set to <code>false</code> for the previous exact encoder.</td></tr>
+<tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Fast RaBitQ coordinate-refinement rounds, in <code>[1, 32]</code>.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>Threads used to parallelise build</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Enable duplicate-ID detection on insert</td></tr>
 <tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>Share vector storage between duplicates; requires <code>support_duplicate: true</code></td></tr>
@@ -382,12 +388,20 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 <tr><td><code>support_force_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>RemoveMode::FORCE_REMOVE</code> and its extra synchronization on the built index</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Keep the raw vector in addition to the quantized copy (useful for <code>cosine</code>)</td></tr>
 <tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>Auto-tune search parameters after build</td></tr>
-<tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend (<code>memory_io</code>, <code>block_memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>mmap_io</code>)</td></tr>
-<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>File path; required when the corresponding <code>*_io_type</code> is disk-backed (<code>buffer_io</code>, <code>async_io</code>, <code>mmap_io</code>)</td></tr>
+<tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend (<code>memory_io</code>, <code>block_memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>mmap_io</code>)</td></tr>
+<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>File path; required when the corresponding <code>*_io_type</code> is disk-backed (<code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>mmap_io</code>)</td></tr>
+<tr><td><code>base_direct_read</code> / <code>precise_direct_read</code></td><td>bool</td><td><code>false</code></td><td>With <code>uring_io</code>, open the corresponding file using direct IO instead of the page cache.</td></tr>
 <tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>Initial capacity hint (doesn’t cap the final size)</td></tr>
+<tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>Persist source-ID metadata during serialization so a restored index can later export a reusable build cache.</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>use_reverse_edges</code> is intended for workloads that need fast incoming-neighbor inspection, graph
+analysis, or future graph-maintenance algorithms. It is disabled by default because maintaining
+the reverse adjacency approximately doubles edge storage.</p>
+<p><code>label_remap_type</code> changes the internal label map, not user-visible IDs. <code>"pg"</code> is the default;
+<code>"robin"</code> selects the alternate robin-map implementation. Benchmark the target ID distribution
+before changing it.</p>
 <h3 id="deduplicating-vector-storage"><a class="header" href="#deduplicating-vector-storage">Deduplicating vector storage</a></h3>
 <p>Set both <code>support_duplicate: true</code> and <code>deduplicate_storage: true</code> to let duplicate
 vectors share one physical code slot while retaining their individual labels. This option
@@ -512,7 +526,7 @@ still controlled by <code>base_quantization_type</code> (and optionally <code>pr
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ef_search</code></td><td>int</td><td>— (required)</td><td>Size of the search frontier. Larger = higher recall, slower query.</td></tr>
+<tr><td><code>ef_search</code></td><td>int64</td><td>— (required)</td><td>Positive search-frontier size. Any value up to <code>INT64_MAX</code> is accepted; there is no <code>topk</code>-relative upper bound. Larger values increase recall, latency, and frontier memory.</td></tr>
 <tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Hard cap on the number of hops the beam search performs before returning the current frontier.</td></tr>
 <tr><td><code>skip_ratio</code></td><td>float</td><td><code>0.2</code></td><td>Performance tuning parameter for filtered search. Controls the ratio of invalid points to skip, in range <code>[0.0, 1.0]</code>. <code>skip_ratio=0.2</code> means skip 20% of invalid points and only check 80%. Higher values improve performance but may reduce recall. Only applies to searches with filters. See <a href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy</a> below.</td></tr>
 <tr><td><code>skip_strategy</code></td><td>string</td><td><code>"deterministic_accumulative"</code></td><td>Strategy for filter skipping. Options: <code>"random"</code> (random skipping) or <code>"deterministic_accumulative"</code> (deterministic cumulative skipping). See <a href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy</a> below.</td></tr>
@@ -630,6 +644,9 @@ auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
 <li>Memory-constrained deployments that benefit from <code>sq8</code> / <code>sq4_uniform</code> / <code>pq</code> — often
 in combination with <code>use_reorder</code> to recover recall.</li>
 </ul>
+<p>For repeated daily or snapshot builds with stable source identifiers, see
+<a href="../advanced/build_cache.html">HGraph Build Cache</a>. It documents <code>Dataset::SourceID</code>,
+<code>ExportCache</code>/<code>ImportCache</code>, <code>persist_source_id</code>, and cache hit-rate diagnostics.</p>
 <p>If your workload is partition-heavy (coarse-grained buckets scanned per query) or
 strongly I/O-bound on a SSD, compare against <a href="ivf.html">IVF</a> before committing to HGraph.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>

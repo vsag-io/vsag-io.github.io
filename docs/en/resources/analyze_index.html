@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -320,14 +320,16 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 <ul>
 <li><strong>Input</strong>: a <code>SearchRequest</code> (query dataset + <code>topk</code> + search parameter JSON).</li>
 <li><strong>Output</strong>: a JSON-formatted string containing dynamic, query-driven metrics.</li>
-<li><strong>Supported indexes</strong>: currently <code>HGraph</code>, <code>IVF</code>, and <code>SINDI</code>. <code>Pyramid</code> only supports static
-analysis through <code>GetStats()</code> — it does not yet override <code>AnalyzeIndexBySearch</code>. Indexes that do
-not implement this API will throw an exception when called.</li>
+<li><strong>Supported indexes</strong>: currently <code>HGraph</code>, <code>IVF</code>, and <code>SINDI</code>. Indexes that do not
+implement this API will throw an exception when called.</li>
 </ul>
 <p>It is complementary to <code>Index::GetStats()</code>, which reports static structural properties of the
 index without needing query data. For graph-based indexes, additional graph-health details such
 as degree distribution, entry-point quality, sub-index recall and low-recall hot-spots are
 exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBySearch</code>.</p>
+<p>Pyramid exposes its analyzer only through <code>GetStats()</code>. It does not currently override
+<code>AnalyzeIndexBySearch</code>, so calling that API—or using <code>analyze_index --query_path</code> with a Pyramid
+index—throws <code>UNSUPPORTED_INDEX_OPERATION</code>.</p>
 <h3 id="static-metrics-from-getstats"><a class="header" href="#static-metrics-from-getstats">Static metrics from <code>GetStats()</code></a></h3>
 <h4 id="hgraph-metrics"><a class="header" href="#hgraph-metrics">HGraph metrics</a></h4>
 <div class="table-wrapper">
@@ -352,6 +354,25 @@ exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBy
 <tr><td><code>quantization_inversion_count_rate</code></td><td>Rate of distance-order inversions caused by quantization</td></tr>
 <tr><td><code>build_cache_hit_rate</code></td><td>Fraction of nodes warm-started from an imported cache during the last <code>Build()</code>; emits a <code>skipped_reason</code> when the index was not built from a cache imported via <code>ImportCache()</code></td></tr>
 <tr><td><code>build_cache_hit_nodes</code> / <code>build_cache_missed_nodes</code></td><td>Node counts behind <code>build_cache_hit_rate</code> (only present when the index was built from an imported cache)</td></tr>
+</tbody>
+</table>
+</div>
+<h4 id="pyramid-metrics"><a class="header" href="#pyramid-metrics">Pyramid metrics</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>total_count</code></td><td>Total number of vectors in the index</td></tr>
+<tr><td><code>index_node_structure</code></td><td>Path-tree node count, depth, nodes by level, and node-status distribution</td></tr>
+<tr><td><code>leaf_node_size_distribution</code></td><td>Distribution of vector counts across leaf nodes</td></tr>
+<tr><td><code>subindex_quality</code></td><td>Per-leaf GRAPH/FLAT status and size, plus graph/flat counts and vector coverage</td></tr>
+<tr><td><code>recall_base</code></td><td>Size-weighted recall across graph-backed nodes; present when sampling and analysis search parameters are available</td></tr>
+<tr><td><code>graph_node_count</code> / <code>total_graph_size</code></td><td>Number and combined size of graph-backed nodes included in recall analysis</td></tr>
+<tr><td><code>skipped_node_count</code> / <code>low_recall_nodes</code></td><td>Nodes excluded from recall analysis and details of nodes below the recall threshold</td></tr>
+<tr><td><code>duplicate_ratio</code></td><td>Duplicate-vector ratio within the hierarchy</td></tr>
+<tr><td><code>hierarchy_count</code> / <code>hierarchies</code></td><td>Multi-hierarchy count and a per-name object containing the metrics above; single unnamed hierarchies expose them at the top level</td></tr>
 </tbody>
 </table>
 </div>
@@ -441,12 +462,11 @@ needs the query and index postings.</p>
 <tr><td><code>HGraph</code></td><td><code>quantization_inversion_count_rate_query</code></td><td>Quantization-induced ordering errors during search</td></tr>
 <tr><td><code>IVF</code></td><td><code>quantization_bias_ratio</code></td><td>Quantization bias observed during search (only when <code>use_reorder_</code> is enabled)</td></tr>
 <tr><td><code>IVF</code></td><td><code>quantization_inversion_count_rate</code></td><td>Quantization-induced ordering errors during search (only when <code>use_reorder_</code> is enabled)</td></tr>
+<tr><td>For static structure and health information, including degree distributions, entry-point</td><td></td><td></td></tr>
+<tr><td>analysis, and Pyramid subindex quality, use the <code>GetStats()</code> JSON.</td><td></td><td></td></tr>
 </tbody>
 </table>
 </div>
-<p>If you also need degree distribution, entry-point analysis or sub-index quality breakdown, look
-in the <code>GetStats()</code> JSON instead — <code>AnalyzeIndexBySearch</code> focuses on dynamic, query-driven
-signals.</p>
 <h2 id="the-analyze_index-tool"><a class="header" href="#the-analyze_index-tool">The <code>analyze_index</code> Tool</a></h2>
 <p><code>analyze_index</code> is the user-facing wrapper around the analyzer APIs. It loads a serialized VSAG
 index from disk, prints its metadata and <code>GetStats()</code> output, and (optionally) runs

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -377,6 +377,18 @@ the PCA, base/query bit, and FHT keys for its base quantizer. The
 <code>use_fht</code> key and is rewritten by the index layer.
 <code>fast_encode_rabitq</code> and <code>fast_encode_rabitq_rounds</code> are available on HGraph,
 IVF, and Pyramid and are propagated to both base and precise RaBitQ quantizers.</p>
+<p>For a normal first HGraph build with split RaBitQ and <code>fast_encode_rabitq=true</code>,
+HGraph first encodes all vectors into one unsigned-byte scalar code per dimension, together
+with the standard RaBitQ metadata and a separate 8-byte code sum per vector. It waits for
+that parallel encoding phase before starting graph tasks. Those tasks use scalar SIMD kernels
+for code-code distances; the raw inner-product kernels are independent of the configured
+<code>x+y</code> bit count, while the quantizer still applies the matching quantization range and
+center. After construction, the scalar codes are packed
+once into bit planes and written to the persistent filter and supplement stores without
+rerunning PCA, ROM/FHT, or RaBitQ quantization. The temporary scalar records and code sums
+are released before <code>Build</code> returns. For an 8-bit total code the scalar and packed
+payloads have the same size; lower total bit counts trade extra build memory for faster
+graph-distance evaluation.</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",

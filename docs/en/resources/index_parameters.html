@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -313,7 +313,9 @@ enumeration, consult the source:</p>
 <li>Per-index examples: the <code>examples/cpp/*_index_*.cpp</code> files (e.g. <code>103_index_hgraph.cpp</code>).</li>
 </ul>
 <h2 id="common-fields"><a class="header" href="#common-fields">Common Fields</a></h2>
-<p>Every index requires these top-level fields at build time:</p>
+<p>Every index accepts these top-level fields at build time. <code>dtype</code> and <code>metric_type</code> are required;
+<code>repr</code> is optional. <code>dim</code> is required for non-sparse data and defaults to <code>4096</code> for
+<code>dtype: "sparse"</code> when omitted:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -321,11 +323,16 @@ enumeration, consult the source:</p>
 </thead>
 <tbody>
 <tr><td><code>dim</code></td><td>positive integer</td><td>Vector dimensionality; cannot change after build</td></tr>
-<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code></td><td>Vector data type; determines internal representation</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code> / <code>sparse</code></td><td>Scalar value type. <code>sparse</code> is retained for sparse-index compatibility.</td></tr>
+<tr><td><code>repr</code></td><td><code>dense</code> / <code>sparse</code> / <code>multi_vector</code></td><td>Optional data layout. When omitted, VSAG infers <code>sparse</code> from <code>dtype: "sparse"</code> and otherwise uses <code>dense</code>.</td></tr>
 <tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Distance metric</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>dtype</code> and <code>repr</code> describe different properties: <code>dtype</code> is the scalar encoding, while <code>repr</code>
+is the record layout. <code>dtype: "sparse"</code> requires <code>repr: "sparse"</code> when <code>repr</code> is explicit.
+Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a scalar <code>dtype</code> such as
+<code>float32</code>.</p>
 <h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
 <p>HGraph places its build parameters under the generic <code>index_param</code> key (see
 <code>examples/cpp/103_index_hgraph.cpp</code>); the <code>hgraph</code> key is reserved for search-time parameters.</p>
@@ -349,12 +356,21 @@ enumeration, consult the source:</p>
 <tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
 <tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
 <tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage — see the <a href="../quantization/README.html">Quantization chapter</a> for all supported values</td></tr>
+<tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup; roughly doubles edge storage and is unsupported with compressed graph storage</td></tr>
+<tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>Label-map implementation: <code>pg</code> (default) or <code>robin</code></td></tr>
+<tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>Reorder from the <code>precise</code> store or directly from <code>base</code>; RaBitQ x+y split selects <code>base</code> automatically</td></tr>
+<tr><td><code>persist_source_id</code></td><td><code>false</code></td><td>Include HGraph source-ID metadata in serialization; useful when a restored index must later export a build cache</td></tr>
+<tr><td><code>mrle_dim</code></td><td><code>0</code></td><td>MRLE output dimension in <code>[0, dim]</code>; <code>0</code> means input dimension</td></tr>
+<tr><td><code>fast_encode_rabitq</code></td><td><code>true</code></td><td>Use fast multi-bit RaBitQ encoding; <code>false</code> restores the exact encoder</td></tr>
+<tr><td><code>fast_encode_rabitq_rounds</code></td><td><code>6</code></td><td>Fast-encoder refinement rounds in <code>[1, 32]</code></td></tr>
 </tbody>
 </table>
 </div>
 <p>At search time:</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
+<p><code>ef_search</code> accepts any positive signed 64-bit integer. It is no longer capped relative to
+<code>topk</code>; very large values can substantially increase latency and memory used by the frontier.</p>
 <p>The <code>hgraph</code> search-param object also accepts <code>brute_force_threshold</code> (a float
 in <code>[0.0, 1.0]</code>, default <code>0.0</code>). When set above zero and the request carries a
 filter whose <code>ValidRatio()</code> is at most this threshold, HGraph skips the graph
@@ -419,10 +435,13 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
 </code></pre>
 <p>No extra parameters.</p>
 <h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
-<p>Pyramid supports organising multiple subgraphs by tag:</p>
+<p>Pyramid build parameters also live under <code>index_param</code>:</p>
 <pre><code class="language-json">{
-    "pyramid": {
-        "tag_dim": 1,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
         "max_degree": 24,
         "ef_construction": 300
     }
@@ -430,12 +449,17 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
 </code></pre>
 <h2 id="sindi-sparse-vectors"><a class="header" href="#sindi-sparse-vectors">SINDI (sparse vectors)</a></h2>
 <pre><code class="language-json">{
-    "sindi": {
-        "top_k": 32,
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
         "doc_prune_ratio": 0.1
     }
 }
 </code></pre>
+<p>See the <a href="../indexes/sindi.html">SINDI page</a> for <code>use_quantization</code>, immutable builds, and search
+parameters such as <code>n_candidate</code>.</p>
 <h2 id="runtime-parameters"><a class="header" href="#runtime-parameters">Runtime Parameters</a></h2>
 <p>Beyond build-time parameters, <code>Index::Tune</code> and <code>SearchParam</code> tweak runtime settings such as
 <code>ef_search</code> and <code>nprobe</code>. See <a href="../advanced/optimizer.html">Optimizer</a> and the

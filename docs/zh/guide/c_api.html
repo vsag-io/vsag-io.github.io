@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="en" class="light sidebar-visible" dir="ltr">
+<html lang="zh" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>BruteForce - VSAG Documentation</title>
+        <title>C API - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f27a726.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG Documentation</h1>
+                    <h1 class="menu-title">VSAG文档</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,201 +304,105 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="bruteforce"><a class="header" href="#bruteforce">BruteForce</a></h1>
-<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/indexes/brute_force-overview.svg" alt="BruteForce: vectors live in a flat store; the query is compared against every stored vector, with optional intra-query parallelism splitting the scan across threads, and the smallest distances are kept in a top-k heap"><span class="img-wrapper"><img src="../figures/indexes/brute_force-overview.svg" alt="BruteForce: vectors live in a flat store; the query is compared against every stored vector, with optional intra-query parallelism splitting the scan across threads, and the smallest distances are kept in a top-k heap"></span></label></p>
-<p>BruteForce is VSAG’s <strong>exact, flat</strong> index. At query time it scores the query against every
-vector in the corpus and returns the true top-k — no graph traversal, no inverted lists, no
-approximation. Its main role is to be the <strong>ground-truth baseline</strong> that approximate indexes
-(HGraph, IVF, …) are evaluated against, but it is also a reasonable production choice for small
-corpora or for workloads where 100% recall is mandatory.</p>
-<ul>
-<li>Source: <code>src/algorithm/bruteforce/bruteforce.{h,cpp}</code></li>
-<li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a></li>
-</ul>
-<h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
+                        <h1 id="c-api"><a class="header" href="#c-api">C API</a></h1>
+<p>VSAG 在 <code>include/vsag/vsag_c_api.h</code> 中导出 C ABI。它封装了与 C++ API 相同的索引实现，
+适合需要不透明句柄和 C 风格函数的应用及语言绑定。</p>
+<p>当前安装的头文件不能直接被 C 编译单元包含：其中使用了未加条件保护的 <code>extern "C"</code>
+代码块和 C++ <code>bool</code>。请将包含该头文件的编译单元按 C++ 编译（例如使用 <code>.cpp</code> 文件）。
+如果应用的其余部分使用 C，请在这个 C++ 编译单元中封装所需操作，再导出应用自己的
+C 接口。</p>
+<h2 id="生命周期"><a class="header" href="#生命周期">生命周期</a></h2>
+<p>在 C++ 编译单元中包含安装后的头文件，并链接普通 VSAG 库：</p>
+<pre><code class="language-cpp">#include &lt;vsag/vsag_c_api.h&gt;
+</code></pre>
+<p>基本生命周期如下：</p>
 <ol>
-<li><strong>Build.</strong> Vectors are stored in a single flat data cell encoded by <code>base_quantization_type</code>
-(default <code>fp32</code> — i.e. raw). No graph, no clustering, no training is performed for the
-uncompressed quantizers; PQ/SQ-style quantizers that require training will still run their
-training pass when used.</li>
-<li><strong>Add.</strong> New vectors are appended to the flat store. There is no rebalancing or rebuild cost.</li>
-<li><strong>Search.</strong> For each query the distance is computed against every stored vector under the
-configured <code>metric_type</code> (<code>l2</code>, <code>ip</code>, or <code>cosine</code>), then a top-k heap returns the closest
-ids. Search uses SIMD kernels and supports <strong>intra-query parallelism</strong> — a single query can
-be split across multiple threads via the <code>parallelism</code> search parameter (see
-<code>BruteForce::SearchWithRequest</code> in <code>src/algorithm/brute_force.cpp</code>).</li>
+<li>使用 <code>vsag_index_factory</code> 创建不透明的 <code>vsag_index_t</code>。</li>
+<li>构建索引，或先训练再增量添加向量。</li>
+<li>执行搜索、更新、序列化或读取操作。</li>
+<li>使用 <code>vsag_index_destroy</code> 释放句柄。</li>
 </ol>
-<p>Because the index keeps every vector verbatim (modulo the chosen quantizer), the result is
-<strong>exact</strong> when <code>base_quantization_type</code> is <code>fp32</code> and is the standard reference used to compute
-ground truth in the <code>eval_performance</code> tool.</p>
-<h2 id="quick-start"><a class="header" href="#quick-start">Quick start</a></h2>
-<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+<p>创建失败时，<code>vsag_index_factory</code> 返回 <code>nullptr</code>。其他函数返回 <code>Error_t</code>；
+<code>code == VSAG_SUCCESS</code> 表示成功，否则可从 <code>message</code> 读取错误详情。</p>
+<pre><code class="language-cpp">const char* build_params =
+    "{\"dtype\":\"float32\",\"metric_type\":\"l2\",\"dim\":128,"
+    "\"index_param\":{\"base_quantization_type\":\"fp32\","
+    "\"max_degree\":32,\"ef_construction\":200}}";
 
-std::string params = R"({
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128
-})";
-auto index = vsag::Factory::CreateIndex("brute_force", params).value();
-
-// Build.
-auto base = vsag::Dataset::Make();
-base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
-index-&gt;Build(base);
-
-// Search — no index-specific knobs; pass an empty JSON object (or set `parallelism`).
-auto query = vsag::Dataset::Make();
-query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
-auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
-</code></pre>
-<p>A full runnable program is at
-<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>.</p>
-<h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
-<p>The minimal config consists of the three top-level fields (<code>dtype</code>, <code>metric_type</code>, <code>dim</code>).
-For most uses no <code>index_param</code> is needed — that is the form shown in
-<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp">example 105</a>.
-Advanced users can pass an <code>index_param</code> object to enable quantization or storage tweaks:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="../quantization/README.html">Quantization chapter</a> for per-quantizer details</td></tr>
-<tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Enable attribute-based filtering (see <a href="../advanced/attribute_filter.html">Attribute Filter</a>)</td></tr>
-</tbody>
-</table>
-</div>
-<blockquote>
-<p><strong>Note on <code>store_raw_vector</code>.</strong> The <code>store_raw_vector</code> flag is parsed by the shared
-<code>InnerIndexParameter</code> but BruteForce does <strong>not</strong> consult it when deciding whether
-<code>GetRawVectorByIds</code> is available. On BruteForce, raw-vector retrieval is enabled strictly
-when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the
-quantizer is configured to hold the per-vector norms (<code>hold_molds</code>). Setting
-<code>store_raw_vector: true</code> on BruteForce currently has no observable effect on the
-capability flags — use HGraph or IVF if you need a quantized index that still answers
-<code>GetRawVectorByIds</code>.</p>
-</blockquote>
-<p>Example with <code>sq8</code> quantization for memory savings while keeping linear scan semantics:</p>
-<pre><code class="language-json">{
-    "dtype": "float32",
-    "metric_type": "ip",
-    "dim": 128,
-    "index_param": {
-        "base_quantization_type": "sq8"
-    }
+vsag_index_t index = vsag_index_factory("hgraph", build_params);
+if (index == nullptr) {
+    /* 处理创建失败 */
 }
-</code></pre>
-<p>When <code>base_quantization_type</code> is set to a quantizer that requires training (<code>sq8</code>,
-<code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>), <code>Build</code> will run the training pass on
-the supplied dataset before adding vectors; the resulting recall is no longer 100%. Only
-<code>fp32</code>, <code>fp16</code>, and <code>bf16</code> skip training and preserve exact distances (modulo numeric
-precision).</p>
-<h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
-<p>BruteForce does not expose any index-specific search knobs (no <code>ef</code>, <code>nprobe</code>, etc.), but the
-generic <code>IndexSearchParameter</code> fields are honored:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Split the linear scan of a single query across this many threads in the index’s internal thread pool. It applies to both <code>KnnSearch</code> and <code>RangeSearch</code>. Larger values cut single-query latency on large corpora at the cost of using more cores. Values <code>&lt;= 0</code> are clamped to <code>1</code>.</td></tr>
-</tbody>
-</table>
-</div>
-<pre><code class="language-cpp">// Single-threaded scan (default).
-auto r1 = index-&gt;KnnSearch(query, topk, "{}").value();
 
-// Use 8 threads to scan a single query in parallel.
-auto r2 = index-&gt;KnnSearch(query, topk, R"({"parallelism": 8})").value();
+Error_t error = vsag_index_build(index, base, ids, 128, count);
+if (error.code != VSAG_SUCCESS) {
+    /* 检查 error.message */
+}
 
-// RangeSearch uses the same parallelism parameter.
-auto r3 = index-&gt;RangeSearch(query, radius, R"({"parallelism": 8})").value();
+vsag_index_destroy(index);
 </code></pre>
-<p>For range search semantics, see <a href="../advanced/range_search.html">Range Search</a>.</p>
-<h2 id="removing-vectors"><a class="header" href="#removing-vectors">Removing vectors</a></h2>
-<p>BruteForce supports both <code>RemoveMode::MARK_REMOVE</code> and <code>RemoveMode::FORCE_REMOVE</code>; neither mode
-needs an HGraph-style <code>support_force_remove</code> setting.</p>
-<ul>
-<li><code>MARK_REMOVE</code> is the default. It records a tombstone, so the id is excluded from later searches
-while its vector storage remains allocated. <code>GetNumElements()</code> excludes marked ids and
-<code>GetNumberRemoved()</code> reports their count.</li>
-<li><code>FORCE_REMOVE</code> physically removes each requested vector. It moves the last internal slot into
-the vacated slot when necessary and keeps the moved vector’s external id intact. Successful
-force removals do not add tombstones; pre-existing marked removals remain reflected by
-<code>GetNumberRemoved()</code>.</li>
-</ul>
-<pre><code class="language-cpp">index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2}, vsag::RemoveMode::MARK_REMOVE);
-index-&gt;Remove(std::vector&lt;int64_t&gt;{id3, id4}, vsag::RemoveMode::FORCE_REMOVE);
+<h2 id="搜索结果缓冲区"><a class="header" href="#搜索结果缓冲区">搜索结果缓冲区</a></h2>
+<p><code>SearchResult_t</code> 中的 <code>ids</code> 与 <code>dists</code> 缓冲区由调用方持有。执行 KNN 或范围
+搜索前，两个缓冲区都至少分配 <code>k</code> 个元素。VSAG 最多写入 <code>k</code> 条结果，并把实际
+数量写入 <code>count</code>。</p>
+<pre><code class="language-cpp">int64_t result_ids[10];
+float result_dists[10];
+SearchResult_t result{};
+result.dists = result_dists;
+result.ids = result_ids;
+
+Error_t error =
+    vsag_index_knn_search(index, query, 128, 10, "{\"hgraph\":{\"ef_search\":100}}", &amp;result);
 </code></pre>
-<p>Physical removal is synchronous and more expensive than marking. It takes the index’s exclusive
-global lock, so it waits for in-flight searches and prevents new searches while the swap-and-remove
-operation runs. Batch ids when possible and avoid force removal on latency-critical paths.</p>
-<p>By default, BruteForce uses <code>block_memory_io</code> for vector storage. After every successful
-force-removal batch, its logical size is reduced to the live entry count and trailing complete blocks
-are released; the final partial block remains allocated. The optional extra-information store follows
-the same block-granular behavior. To avoid repeated full-table copies, the label table reclaims its
-backing allocation when its live entry count falls to at most half of its current capacity.
-<code>GetMemoryUsage()</code> then reflects the compacted index. This is index allocation accounting,
-not a promise that the process allocator
-immediately returns memory to the operating system or that RSS drops.</p>
-<h2 id="capabilities"><a class="header" href="#capabilities">Capabilities</a></h2>
-<p>BruteForce advertises the following capability flags (see <code>BruteForce::InitFeatures</code> in
-<code>src/algorithm/brute_force.cpp</code>):</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Capability</th><th>Notes</th></tr>
-</thead>
-<tbody>
-<tr><td><code>SUPPORT_BUILD</code> / <code>SUPPORT_ADD_AFTER_BUILD</code> / <code>SUPPORT_ADD_CONCURRENT</code></td><td>Build once, append later, concurrent inserts.</td></tr>
-<tr><td><code>SUPPORT_ADD_FROM_EMPTY</code></td><td>Available with non-training quantizers (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>).</td></tr>
-<tr><td><code>SUPPORT_KNN_SEARCH</code> / <code>SUPPORT_KNN_SEARCH_WITH_ID_FILTER</code> / <code>SUPPORT_SEARCH_CONCURRENT</code></td><td>Standard top-k API and id-list filters, with concurrent search.</td></tr>
-<tr><td><code>SUPPORT_RANGE_SEARCH</code> / <code>SUPPORT_RANGE_SEARCH_WITH_ID_FILTER</code></td><td>Available with non-training quantizers (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>).</td></tr>
-<tr><td><code>SUPPORT_DELETE_BY_ID</code> / <code>SUPPORT_DELETE_CONCURRENT</code></td><td><code>Remove</code> by id is supported. Searches and delete operations are synchronized; <code>FORCE_REMOVE</code> takes an exclusive lock.</td></tr>
-<tr><td><code>SUPPORT_CAL_DISTANCE_BY_ID</code></td><td>Distance lookup against stored vectors (non-training quantizers only).</td></tr>
-<tr><td><code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code></td><td>Available only when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the underlying quantizer holds molds (<code>hold_molds</code>). Quantized BruteForce indexes do <strong>not</strong> advertise this flag.</td></tr>
-<tr><td><code>SUPPORT_CHECK_ID_EXIST</code> / <code>SUPPORT_CLONE</code> / <code>SUPPORT_ESTIMATE_MEMORY</code> / <code>SUPPORT_GET_MEMORY_USAGE</code></td><td>Standard introspection and lifecycle.</td></tr>
-<tr><td><code>SUPPORT_SERIALIZE_BINARY_SET</code> / <code>SUPPORT_SERIALIZE_FILE</code> / <code>SUPPORT_SERIALIZE_WRITE_FUNC</code></td><td>Full save surface.</td></tr>
-<tr><td><code>SUPPORT_DESERIALIZE_BINARY_SET</code> / <code>SUPPORT_DESERIALIZE_FILE</code> / <code>SUPPORT_DESERIALIZE_READER_SET</code></td><td>Full load surface. (There is no <code>DESERIALIZE_WRITE_FUNC</code> counterpart — read paths use <code>READER_SET</code> instead.)</td></tr>
-<tr><td><code>NEED_TRAIN</code></td><td>Set when <code>base_quantization_type</code> is one of <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>.</td></tr>
-</tbody>
-</table>
-</div>
-<p>Notably <strong>not</strong> supported by BruteForce: <code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code>,
-<code>SUPPORT_UPDATE_ID_CONCURRENT</code>, and <code>SUPPORT_EXPORT_MODEL</code>.</p>
-<h2 id="when-to-use-bruteforce"><a class="header" href="#when-to-use-bruteforce">When to use BruteForce</a></h2>
+<p>带过滤器的重载接收 <code>FilterFunc_t</code>。回调返回 <code>true</code> 表示该 ID 有效，可以出现
+在结果中。</p>
+<h2 id="范围搜索结果上限"><a class="header" href="#范围搜索结果上限">范围搜索结果上限</a></h2>
+<p>两个 C 范围搜索接口都要求显式传入正数结果上限：</p>
+<pre><code class="language-cpp">Error_t
+vsag_index_range_search(vsag_index_t index,
+                        const float* query,
+                        uint64_t dim,
+                        float radius,
+                        int64_t k,
+                        const char* parameters,
+                        SearchResult_t* result);
+</code></pre>
+<p><code>k</code> 必须至少为 <code>1</code>。它会传递给 C++ 范围搜索的 <code>limited_size</code> 参数，同时保护
+调用方缓冲区：<code>result.count</code> 不会超过 <code>k</code>。从旧签名升级时，需要为
+<code>vsag_index_range_search</code> 和 <code>vsag_index_range_search_with_filter</code> 同时补上该参数。</p>
+<h2 id="接口分组"><a class="header" href="#接口分组">接口分组</a></h2>
 <ul>
-<li><strong>Recall baseline.</strong> Compute the ground truth that approximate indexes are scored against
-(this is what the <code>eval_performance</code> tool does).</li>
-<li><strong>Tiny corpora.</strong> A few hundred to a few hundred thousand vectors, where the cost of a full
-scan is acceptable and you want to skip tuning altogether.</li>
-<li><strong>Strict-recall requirements.</strong> Use cases that cannot tolerate any approximation error.</li>
-<li><strong>Quantization experiments at small scale.</strong> Reuse the same scan pipeline but compare
-different <code>base_quantization_type</code> settings without the confounding effect of a graph or
-inverted-list structure.</li>
+<li><strong>创建与释放：</strong> <code>vsag_index_factory</code>、<code>vsag_index_destroy</code>。</li>
+<li><strong>写入数据：</strong> <code>vsag_index_build</code>、<code>vsag_index_train</code>、<code>vsag_index_add</code>。</li>
+<li><strong>搜索：</strong> <code>vsag_index_knn_search</code>、<code>vsag_index_range_search</code> 及其过滤器重载。</li>
+<li><strong>读取与更新：</strong> <code>vsag_index_calculate_distance_by_ids</code>、
+<code>vsag_index_get_vector_by_ids</code>、<code>vsag_index_update_ids</code>、<code>vsag_index_update_vector</code>
+及 <code>vsag_index_update_vector_force</code>。</li>
+<li><strong>复制与复用：</strong> <code>vsag_index_clone</code>、<code>vsag_index_export_model</code>。</li>
+<li><strong>持久化：</strong> <code>vsag_serialize_file</code>、<code>vsag_deserialize_file</code>、
+<code>vsag_serialize_write_func</code> 及 <code>vsag_deserialize_read_func</code>。</li>
 </ul>
-<p>For anything larger, prefer <a href="hgraph.html">HGraph</a> (latency-sensitive, high recall) or
-<a href="ivf.html">IVF</a> (throughput-oriented, memory-friendly).</p>
-<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
-<ul>
-<li><a href="../guide/create_index.html">Creating an Index</a></li>
-<li><a href="../guide/knn_search.html">k-Nearest Neighbor Search</a></li>
-<li><a href="../advanced/range_search.html">Range Search</a></li>
-<li><a href="../advanced/attribute_filter.html">Attribute Filter (Hybrid Search)</a></li>
-<li><a href="../resources/eval.html">Evaluation Tool</a></li>
-</ul>
+<p>具体接口是否可用仍取决于索引类型。不支持的操作返回
+<code>VSAG_UNSUPPORTED_INDEX_OPERATION</code>。</p>
+<h2 id="持久化错误"><a class="header" href="#持久化错误">持久化错误</a></h2>
+<p><code>vsag_serialize_file</code> 与 <code>vsag_deserialize_file</code> 会校验目标文件是否成功打开。
+不要假定文件操作已经完成；应检查返回的 <code>Error_t</code> 是否为 <code>VSAG_READ_ERROR</code>、
+<code>VSAG_MISSING_FILE</code> 或其他非成功状态。</p>
+<p>应用自行管理存储时，可以使用基于回调的持久化接口。回调中的 offset 和 size
+使用头文件里声明的 <code>OffsetType</code> 与 <code>SizeType</code>。</p>
+<h2 id="参考"><a class="header" href="#参考">参考</a></h2>
+<p><code>include/vsag/vsag_c_api.h</code> 是函数签名、错误码、回调和结构体的完整源码级
+参考。搜索参数 JSON 与对应<a href="../indexes/README.html">索引页面</a>中的 C++ API 相同。</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../indexes/pyramid.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../guide/knn_search.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../quantization/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../guide/pyvsag.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -508,11 +412,11 @@ inverted-list structure.</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../indexes/pyramid.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../guide/knn_search.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../quantization/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../guide/pyvsag.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

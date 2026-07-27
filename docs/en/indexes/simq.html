@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -420,10 +420,11 @@ for (int64_t i = 0; i &lt; result_count; ++i) {
 </div>
 <ul>
 <li><strong><code>dim</code></strong> — shared across all documents and queries.</li>
-<li><strong><code>base_io_type</code></strong> — supported values: <code>async_io</code>, <code>memory_io</code>,
-<code>block_memory_io</code>, <code>buffer_io</code>, <code>mmap_io</code>, <code>reader_io</code>.</li>
+<li><strong><code>base_io_type</code></strong> — supported values: <code>async_io</code>, <code>uring_io</code>, <code>memory_io</code>,
+<code>block_memory_io</code>, <code>buffer_io</code>, <code>mmap_io</code>, <code>reader_io</code>. Native <code>uring_io</code>
+requires a build with liburing; otherwise it falls back to <code>buffer_io</code>.</li>
 <li><strong><code>base_file_path</code></strong> — the default is a placeholder; provide a real path
-when using a disk-backed type (<code>async_io</code>, <code>buffer_io</code>, <code>mmap_io</code>).</li>
+when using a disk-backed type (<code>async_io</code>, <code>uring_io</code>, <code>buffer_io</code>, <code>mmap_io</code>).</li>
 <li><strong><code>init_cluster_ratio</code></strong> — range <code>(0, 1]</code>. Smaller values yield fewer,
 larger clusters; larger values produce more, finer-grained clusters.</li>
 <li><strong><code>max_cluster_size</code></strong> — must be &gt; 1.</li>
@@ -464,6 +465,32 @@ when explicitly set.</li>
     query, topk,
     R"({"simq": {"coarse_k": 600, "rerank_k": 5000}})").value();
 </code></pre>
+<h2 id="search-statistics"><a class="header" href="#search-statistics">Search statistics</a></h2>
+<p><code>KnnSearch</code> and <code>RangeSearch</code> attach a JSON statistics object to the returned dataset. Read the
+complete object or request individual values:</p>
+<pre><code class="language-cpp">std::cout &lt;&lt; result-&gt;GetStatistics() &lt;&lt; '\n';
+auto values = result-&gt;GetStatistics(
+    {"simq_coarse_candidate_count", "simq_rerank_candidate_count"});
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dist_cmp</code></td><td>Exact MaxSim distance comparisons during reranking</td></tr>
+<tr><td><code>simq_coarse_dist_cmp</code></td><td>Distance comparisons performed by representative-graph searches</td></tr>
+<tr><td><code>simq_coarse_probe_count</code></td><td>Representative clusters probed across all query tokens</td></tr>
+<tr><td><code>simq_coarse_candidate_count</code></td><td>Unique document candidates produced by coarse search before applying <code>rerank_k</code></td></tr>
+<tr><td><code>simq_rerank_candidate_count</code></td><td>Candidates retained after applying <code>rerank_k</code></td></tr>
+<tr><td><code>simq_filtered_candidate_count</code></td><td>Rerank candidates rejected by the supplied filter</td></tr>
+<tr><td><code>simq_result_count</code></td><td>Results returned after reranking and range/top-k limits</td></tr>
+<tr><td><code>simq_limited_size_applied</code></td><td>Whether <code>RangeSearch</code> truncated matches to <code>limited_size</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>These counters make it possible to distinguish a narrow coarse candidate pool from filtering,
+reranking, and output-limit effects when tuning recall and latency.</p>
 <h2 id="when-to-use-simq"><a class="header" href="#when-to-use-simq">When to use SIMQ</a></h2>
 <ul>
 <li><strong>Late-interaction retrieval</strong> with ColBERT or similar models where each

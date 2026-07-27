@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -312,7 +312,8 @@
 <li>每个索引的示例：<code>examples/cpp/*_index_*.cpp</code>（例如 <code>103_index_hgraph.cpp</code>）</li>
 </ul>
 <h2 id="通用参数"><a class="header" href="#通用参数">通用参数</a></h2>
-<p>所有索引在构建时都需要提供以下顶层字段：</p>
+<p>所有索引在构建时都接受以下顶层字段。其中 <code>dtype</code>、<code>metric_type</code> 必填，<code>repr</code> 可选。
+非稀疏数据必须提供 <code>dim</code>；<code>dtype: "sparse"</code> 省略 <code>dim</code> 时默认使用 <code>4096</code>：</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -320,11 +321,15 @@
 </thead>
 <tbody>
 <tr><td><code>dim</code></td><td>正整数</td><td>向量维度，构建后不可更改</td></tr>
-<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code></td><td>向量数据类型，决定索引内部表示</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>fp16</code> / <code>bf16</code> / <code>int8</code> / <code>sparse</code></td><td>标量值类型；<code>sparse</code> 为稀疏索引兼容取值</td></tr>
+<tr><td><code>repr</code></td><td><code>dense</code> / <code>sparse</code> / <code>multi_vector</code></td><td>可选的数据布局；省略时，<code>dtype: "sparse"</code> 推断为 <code>sparse</code>，其他类型推断为 <code>dense</code></td></tr>
 <tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>距离度量</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>dtype</code> 与 <code>repr</code> 描述不同维度：前者是标量编码，后者是记录布局。显式设置 <code>repr</code> 时，
+<code>dtype: "sparse"</code> 要求 <code>repr: "sparse"</code>。受支持的多向量索引使用
+<code>repr: "multi_vector"</code>，并配合 <code>float32</code> 等标量 <code>dtype</code>。</p>
 <h2 id="hgraph"><a class="header" href="#hgraph">HGraph</a></h2>
 <p>HGraph 的构建参数使用通用的 <code>index_param</code> 键（参见 <code>examples/cpp/103_index_hgraph.cpp</code>）；
 <code>hgraph</code> 键则保留给搜索期参数。</p>
@@ -348,12 +353,21 @@
 <tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
 <tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
 <tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略 —— 支持的全部取值见<a href="../quantization/README.html">量化章节</a></td></tr>
+<tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>跟踪入边，实现 O(1) 反向邻居查找；边存储约翻倍，且压缩图存储不支持</td></tr>
+<tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>label map 实现：默认 <code>pg</code>，或 <code>robin</code></td></tr>
+<tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>从 <code>precise</code> 存储或直接从 <code>base</code> 重排；RaBitQ x+y split 会自动选择 <code>base</code></td></tr>
+<tr><td><code>persist_source_id</code></td><td><code>false</code></td><td>序列化 HGraph 时保留 Source ID 元数据；适用于恢复索引后继续导出构建缓存</td></tr>
+<tr><td><code>mrle_dim</code></td><td><code>0</code></td><td>MRLE 输出维度，范围 <code>[0, dim]</code>；<code>0</code> 表示输入维度</td></tr>
+<tr><td><code>fast_encode_rabitq</code></td><td><code>true</code></td><td>使用多 bit RaBitQ 快速编码；设为 <code>false</code> 恢复精确编码器</td></tr>
+<tr><td><code>fast_encode_rabitq_rounds</code></td><td><code>6</code></td><td>快速编码器微调轮数，范围 <code>[1, 32]</code></td></tr>
 </tbody>
 </table>
 </div>
 <p>搜索时：</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
+<p><code>ef_search</code> 接受任意正的有符号 64 位整数，不再存在与 <code>topk</code> 相关的上限。非常大的取值会
+明显增加延迟和搜索前沿占用的内存。</p>
 <p><code>hgraph</code> 搜索参数还接受 <code>brute_force_threshold</code>（<code>[0.0, 1.0]</code> 区间的 float，
 默认 <code>0.0</code>）。当取值 <code>&gt; 0</code> 且当前请求的 filter 的 <code>ValidRatio()</code> 不超过该
 阈值时，HGraph 会跳过图遍历，直接在通过过滤的 id 上做精确暴扫。详见
@@ -414,10 +428,13 @@
 </code></pre>
 <p>无需额外参数。</p>
 <h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
-<p>Pyramid 支持按 tag 组织多棵子图：</p>
+<p>Pyramid 构建参数同样放在 <code>index_param</code> 下：</p>
 <pre><code class="language-json">{
-    "pyramid": {
-        "tag_dim": 1,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
         "max_degree": 24,
         "ef_construction": 300
     }
@@ -425,12 +442,17 @@
 </code></pre>
 <h2 id="sindi稀疏向量"><a class="header" href="#sindi稀疏向量">SINDI（稀疏向量）</a></h2>
 <pre><code class="language-json">{
-    "sindi": {
-        "top_k": 32,
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
         "doc_prune_ratio": 0.1
     }
 }
 </code></pre>
+<p><code>use_quantization</code>、不可变构建与 <code>n_candidate</code> 等搜索参数见
+<a href="../indexes/sindi.html">SINDI 页面</a>。</p>
 <h2 id="运行期参数"><a class="header" href="#运行期参数">运行期参数</a></h2>
 <p>除构建参数外，<code>Index::Tune</code> 与 <code>SearchParam</code> 可在运行时调整 <code>ef_search</code>、<code>nprobe</code> 等参数。参考
 <a href="../advanced/optimizer.html">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>

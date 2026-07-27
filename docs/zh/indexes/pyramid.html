@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -391,6 +391,10 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>no_build_levels</code></td><td>int[]</td><td><code>[]</code></td><td>跳过构图的层级（从根节点开始的 0-based 下标）</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型</td></tr>
+<tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>对 RaBitQ 底层或精排存储使用多 bit 快速编码器；设为 <code>false</code> 使用精确编码器</td></tr>
+<tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>RaBitQ 快速编码的微调轮数，范围 <code>[1, 32]</code></td></tr>
+<tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>底层与精排存储后端；以 liburing 构建时可用 <code>uring_io</code></td></tr>
+<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td><code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>mmap_io</code> 等磁盘存储必须设置</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>子索引的最小规模；小于该值的分区会退化为线性扫描</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否允许重复 ID</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>构建阶段并发线程数</td></tr>
@@ -515,6 +519,9 @@ new_index-&gt;Deserialize(binary_set);
 构图的分区。</li>
 </ul>
 <p>如果不需要按路径限定查询范围，<a href="hgraph.html">HGraph</a> 更简洁，性能通常也更高。</p>
+<p>可以通过<a href="../resources/analyze_index.html">索引分析</a>检查 Pyramid 的树结构、子索引质量、
+<code>GetStats()</code> 输出的 base 采样召回率和重复比例。Pyramid 目前不通过
+<code>AnalyzeIndexBySearch</code> 提供查询驱动指标。</p>
 <h2 id="标记删除"><a class="header" href="#标记删除">标记删除</a></h2>
 <p>Pyramid 支持 <code>RemoveMode::MARK_REMOVE</code>。调用 <code>Remove(ids)</code>（默认模式）会为给定的 id
 打上删除标记：它们会从后续检索结果中排除，<code>GetNumElements()</code> 相应减少，

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -340,15 +340,21 @@ tl::expected&lt;DatasetPtr, Error&gt;
 CalDistanceById(const float* query,
                 const int64_t* ids,
                 int64_t count,
-                bool calculate_precise_distance = true) const;
+                bool calculate_precise_distance = true,
+                int64_t topk = -1) const;
 
 // 批量 ID，DatasetPtr（稠密或稀疏）
 tl::expected&lt;DatasetPtr, Error&gt;
 CalDistanceById(const DatasetPtr&amp; query,
                 const int64_t* ids,
                 int64_t count,
-                bool calculate_precise_distance = true) const;
+                bool calculate_precise_distance = true,
+                int64_t topk = -1) const;
 </code></pre>
+<p>对于 <code>NumElements() &gt; 1</code> 的 <code>DatasetPtr</code> 查询，请先检查
+<code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>。<code>count</code> 表示每个 query 的 ID 数，<code>ids</code> 需要包含
+<code>NumElements() * count</code> 个 row-major ID，返回距离使用相同布局。当 <code>topk &gt; 0</code> 时，
+每个 query 返回按距离升序排列的 <code>min(topk, count)</code> 个结果，并同时返回对应 ID。</p>
 <p>声明位于
 <a href="https://github.com/antgroup/vsag/blob/main/include/vsag/index.h"><code>include/vsag/index.h</code></a>。</p>
 <h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
@@ -360,8 +366,11 @@ CalDistanceById(const DatasetPtr&amp; query,
 <h3 id="返回值含义"><a class="header" href="#返回值含义">返回值含义</a></h3>
 <ul>
 <li>单 ID 重载返回 <code>float</code> 距离值。</li>
-<li>批量重载返回 <code>DatasetPtr</code>，其 <code>GetDistances()</code> 数组长度为 <code>count</code>，与输入 <code>ids</code> 一一
-对应。值为 <strong><code>-1</code></strong> 表示对应的 ID <strong>无效</strong>（如该 ID 不在索引中）。</li>
+<li><code>topk == -1</code> 时，裸指针批量重载返回一行 <code>count</code> 个距离；<code>DatasetPtr</code> 重载返回
+<code>NumElements()</code> 行、每行 <code>count</code> 个距离。两者都保持输入顺序，且不返回 ID。</li>
+<li><code>topk &gt; 0</code> 时，批量重载每个 query 返回按距离升序排列的最小 <code>min(topk, count)</code> 个
+距离，<code>GetIds()</code> 包含对应 ID。无效 ID（距离为 <code>-1</code>）排在有效距离之后，仅在有效 ID
+不足时才出现在结果中。</li>
 <li>距离的语义由建索引时设置的 <code>metric_type</code>（IP / L2 / cosine）决定，参见
 <a href="../resources/metric_semantics.html">度量语义</a>。</li>
 </ul>
@@ -392,6 +401,39 @@ if (result.has_value()) {
     }
 }
 </code></pre>
+<h2 id="多查询"><a class="header" href="#多查询">多查询</a></h2>
+<p>当索引公布 <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code> 能力时，<code>DatasetPtr</code> 批量重载可以一次接收
+多个 query。候选 ID 和输出都采用 row-major 布局。对于 LazyHGraph，调用会委托给当前生效的
+内部索引；即使 wrapper 公布了该能力，实际支持也可能在 phase 切换后改变，因此仍需处理返回错误：</p>
+<pre><code class="language-cpp">// 两个稠密 query，每个 query 三个候选 ID。
+auto queries = vsag::Dataset::Make()
+                   -&gt;NumElements(2)
+                   -&gt;Dim(dim)
+                   -&gt;Float32Vectors(query_vectors.data())
+                   -&gt;Owner(false);
+std::vector&lt;int64_t&gt; candidate_ids = {
+    10, 11, 12,  // query 0 的候选
+    20, 21, 22   // query 1 的候选
+};
+
+if (index-&gt;CheckFeature(vsag::SUPPORT_BATCH_CALC_DISTANCE_BY_ID)) {
+    auto result = index-&gt;CalDistanceById(queries, candidate_ids.data(), 3, true, /*topk=*/2);
+    if (result.has_value()) {
+        auto batch = result.value();
+        // batch 的 NumElements() == 2，Dim() == 2。
+        for (int64_t q = 0; q &lt; batch-&gt;GetNumElements(); ++q) {
+            for (int64_t j = 0; j &lt; batch-&gt;GetDim(); ++j) {
+                const int64_t offset = q * batch-&gt;GetDim() + j;
+                std::cout &lt;&lt; batch-&gt;GetIds()[offset] &lt;&lt; ": "
+                          &lt;&lt; batch-&gt;GetDistances()[offset] &lt;&lt; '\n';
+            }
+        }
+    }
+}
+</code></pre>
+<p><code>topk == -1</code> 时，<code>GetDim()</code> 等于 <code>count</code>，位置 <code>q * count + j</code> 对应输入 ID
+<code>ids[q * count + j]</code>。<code>topk</code> 为正数时，行跨度为 <code>GetDim()</code>；每行先放最近的有效候选，
+只有有效 ID 少于 <code>topk</code> 时才会在行尾保留无效 ID。</p>
 <p>可运行的完整示例见
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/306_feature_calculate_distance_by_id.cpp"><code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code></a>。</p>
 <h2 id="稀疏向量"><a class="header" href="#稀疏向量">稀疏向量</a></h2>
@@ -406,14 +448,17 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>索引类型</th><th>稠密重载（<code>const float*</code>）</th><th>DatasetPtr 重载</th><th>说明</th></tr>
+<tr><th>索引类型</th><th>单 ID 稠密重载（<code>const float*</code>）</th><th>单 ID DatasetPtr</th><th>多查询 DatasetPtr 批量重载</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td>hgraph</td><td>支持</td><td>支持</td><td>遵循 <code>calculate_precise_distance</code>。</td></tr>
-<tr><td>ivf</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
-<tr><td>brute_force</td><td>支持</td><td>支持（默认循环）</td><td>总是精确（无量化）。</td></tr>
-<tr><td>pyramid</td><td>支持</td><td>支持（默认循环）</td><td></td></tr>
-<tr><td>sindi</td><td>不支持</td><td>支持</td><td>仅稀疏向量。</td></tr>
+<tr><td>hgraph</td><td>支持</td><td>支持</td><td>公布能力时支持</td><td>遵循 <code>calculate_precise_distance</code>。</td></tr>
+<tr><td>ivf</td><td>支持</td><td>支持</td><td>公布能力时支持</td><td>可用性取决于是否保留精确存储。</td></tr>
+<tr><td>brute_force</td><td>支持</td><td>支持</td><td>公布能力时支持</td><td>仅稠密单向量索引。</td></tr>
+<tr><td>pyramid</td><td>支持</td><td>支持</td><td>支持</td><td></td></tr>
+<tr><td>lazy_hgraph</td><td>支持</td><td>不支持</td><td>取决于当前生效的内部索引</td><td>DatasetPtr 批量调用会委托给当前 BruteForce/HGraph；可用性可能在 phase 切换后改变。</td></tr>
+<tr><td>sindi</td><td>不支持</td><td>支持</td><td>支持</td><td>仅稀疏向量。</td></tr>
+<tr><td>hnsw</td><td>支持</td><td>不支持</td><td>不支持</td><td>稠密批量接口仅支持 <code>topk == -1</code>。</td></tr>
+<tr><td>diskann</td><td>支持</td><td>不支持</td><td>不支持</td><td>稠密批量接口仅支持 <code>topk == -1</code>。</td></tr>
 </tbody>
 </table>
 </div>

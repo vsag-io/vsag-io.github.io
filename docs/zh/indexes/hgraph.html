@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -365,9 +365,15 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>图节点最大出度</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>构建阶段的候选集大小（越大召回越高，构建越慢）</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td>构图算法：<code>nsw</code> 或 <code>odescent</code></td></tr>
+<tr><td><code>use_reverse_edges</code></td><td>bool</td><td><code>false</code></td><td>跟踪入边，实现 O(1) 反向邻居查找；边存储约翻倍，且 <code>graph_storage_type: "compressed"</code> 不支持</td></tr>
+<tr><td><code>label_remap_type</code></td><td>string</td><td><code>"pg"</code></td><td>label 到内部 ID 的 map 实现：<code>"pg"</code> 或 <code>"robin"</code>；恢复或组合兼容索引时应保持一致</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否额外保留一份高精度副本用于精排</td></tr>
+<tr><td><code>reorder_source</code></td><td>string</td><td><code>"precise"</code></td><td>从 <code>"precise"</code> 编码或直接从 <code>"base"</code> 编码重排；RaBitQ x+y split 会自动设置为 <code>"base"</code></td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型（仅在 <code>use_reorder: true</code> 时生效）</td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
+<tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td><code>tq_chain</code> 中 MRLE 的输出维度，范围 <code>[0, dim]</code>；<code>0</code> 表示输入维度</td></tr>
+<tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>使用多 bit RaBitQ 快速编码；设为 <code>false</code> 使用原有精确编码器</td></tr>
+<tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>RaBitQ 快速编码的坐标微调轮数，范围 <code>[1, 32]</code></td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>构建阶段并发线程数</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否在插入时做重复 ID 检测</td></tr>
 <tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>让重复向量共享存储；需同时设置 <code>support_duplicate: true</code></td></tr>
@@ -376,12 +382,18 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>support_force_remove</code></td><td>bool</td><td><code>false</code></td><td>是否启用 <code>RemoveMode::FORCE_REMOVE</code> 及其额外同步</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>除量化副本外再保留原始向量（<code>cosine</code> 场景有用）</td></tr>
 <tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>构建完成后自动调优检索参数</td></tr>
-<tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>mmap_io</code>）</td></tr>
-<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>磁盘后端时的文件路径（使用 <code>mmap_io</code> / <code>async_io</code> / <code>buffer_io</code> 时必填）</td></tr>
+<tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>mmap_io</code>）</td></tr>
+<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>磁盘后端时的文件路径（使用 <code>mmap_io</code> / <code>async_io</code> / <code>uring_io</code> / <code>buffer_io</code> 时必填）</td></tr>
+<tr><td><code>base_direct_read</code> / <code>precise_direct_read</code></td><td>bool</td><td><code>false</code></td><td>使用 <code>uring_io</code> 时，以 direct IO 打开对应文件而非经过页缓存</td></tr>
 <tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>初始容量提示（不会限制最终规模）</td></tr>
+<tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>序列化时保留 Source ID 元数据，使恢复后的索引仍可导出可复用的构建缓存</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>use_reverse_edges</code> 面向需要快速检查入邻居、图分析或图维护算法的负载。维护反向邻接表会让边
+存储约翻倍，因此默认关闭。</p>
+<p><code>label_remap_type</code> 只改变内部 label map，不改变用户 ID。默认值为 <code>"pg"</code>；
+<code>"robin"</code> 选择另一种 robin-map 实现，建议针对实际 ID 分布实测后再调整。</p>
 <h3 id="向量存储去重"><a class="header" href="#向量存储去重">向量存储去重</a></h3>
 <p>同时设置 <code>support_duplicate: true</code> 和 <code>deduplicate_storage: true</code> 后，重复向量会共享
 同一个物理编码槽位，但仍保留各自的标签。该选项目前仅支持使用 <code>graph_type: "nsw"</code> 的
@@ -496,7 +508,7 @@ base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ef_search</code></td><td>int</td><td>—（必填）</td><td>搜索前沿候选集的大小，越大召回越高、查询越慢。</td></tr>
+<tr><td><code>ef_search</code></td><td>int64</td><td>—（必填）</td><td>正数搜索前沿大小；接受到 <code>INT64_MAX</code>，不存在与 <code>topk</code> 相关的上限。值越大，召回、延迟和前沿内存通常都越高。</td></tr>
 <tr><td><code>hops_limit</code></td><td>int</td><td>不限</td><td>beam search 在返回当前前沿前允许的最大跳数。</td></tr>
 <tr><td><code>skip_ratio</code></td><td>float</td><td><code>0.2</code></td><td>过滤场景下的性能调优参数。控制跳过无效点的比例，取值范围 <code>[0.0, 1.0]</code>。<code>skip_ratio=0.2</code> 表示跳过 20% 的无效点，只检查 80% 的无效点。值越大性能越好但召回率可能越低。仅在带 filter 的搜索中生效。详见下文<a href="#过滤跳过策略skip_ratio-与-skip_strategy">过滤跳过策略</a>。</td></tr>
 <tr><td><code>skip_strategy</code></td><td>string</td><td><code>"deterministic_accumulative"</code></td><td>过滤跳过的策略。可选值：<code>"random"</code>（随机跳过）或 <code>"deterministic_accumulative"</code>（确定性累积跳过）。详见下文<a href="#过滤跳过策略skip_ratio-与-skip_strategy">过滤跳过策略</a>。</td></tr>
@@ -602,6 +614,9 @@ auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
 <li>需要增量插入（可选通过 <code>support_force_remove</code> 打开物理删除）的混合负载。</li>
 <li>内存受限环境，可用 <code>sq8</code> / <code>sq4_uniform</code> / <code>pq</code> 压缩，再配合 <code>use_reorder</code> 弥补召回。</li>
 </ul>
+<p>对于 Source ID 稳定的每日构建或快照构建，参见
+<a href="../advanced/build_cache.html">HGraph 构建缓存</a>。其中说明了 <code>Dataset::SourceID</code>、
+<code>ExportCache</code>/<code>ImportCache</code>、<code>persist_source_id</code> 与缓存命中率诊断。</p>
 <p>如果你的业务偏向粗粒度分桶（每次查询只扫部分桶）或严重受 SSD I/O 制约，建议先对比
 <a href="ivf.html">IVF</a> 再决定是否选择 HGraph。</p>
 <h2 id="相关文档"><a class="header" href="#相关文档">相关文档</a></h2>

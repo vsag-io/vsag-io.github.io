@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -372,6 +372,22 @@ eval_case1:
 <li><strong>Latency</strong>: average, P50/P95/P99</li>
 <li><strong>Resource</strong>: peak memory usage</li>
 </ul>
+<h3 id="search-measurement-semantics"><a class="header" href="#search-measurement-semantics">Search Measurement Semantics</a></h3>
+<ul>
+<li><strong>Latency</strong> is the elapsed wall duration of each measured <code>Index::KnnSearch</code> call, measured
+with the monotonic <code>std::chrono::steady_clock</code>.</li>
+<li><strong>QPS</strong> is the number of successful queries divided by the wall duration, in seconds, of the
+measured search pass.</li>
+<li>Statistics extraction, recall calculation, and memory sampling run outside the performance
+pass and do not contribute to latency or QPS.</li>
+<li>Every measured query is included, including the first query on each worker. The tool does not
+apply an implicit warm-up; run any desired warm-up explicitly before the measured pass.</li>
+</ul>
+<p>JSON results include <code>measurement_method</code>, <code>measurement_sample_count</code>,
+<code>measurement_successful_query_count</code>, and <code>measurement_duration(s)</code> so the measurement population
+and method can be audited.</p>
+<p>Results produced by older versions that measured intervals between monitor callbacks are not
+directly comparable with results that use these semantics.</p>
 <h2 id="search-modes"><a class="header" href="#search-modes">Search Modes</a></h2>
 <p><code>search_mode</code> accepts <code>knn</code>, <code>range</code>, <code>knn_filter</code>, and <code>range_filter</code>.</p>
 <h2 id="output-formats-and-destinations"><a class="header" href="#output-formats-and-destinations">Output Formats and Destinations</a></h2>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -366,6 +366,7 @@
 <tr><td><code>buffer_io</code></td><td>磁盘（带缓冲 <code>pread</code>）</td><td>是</td><td>通用磁盘读取，各平台可用</td></tr>
 <tr><td><code>mmap_io</code></td><td>磁盘（mmap + 页缓存）</td><td>是</td><td>工作集能放入页缓存时接近内存速度</td></tr>
 <tr><td><code>async_io</code></td><td>磁盘（Linux libaio）</td><td>是</td><td>高并发磁盘读；<strong>仅限 Linux + libaio</strong>，否则回退 <code>buffer_io</code></td></tr>
+<tr><td><code>uring_io</code></td><td>磁盘（Linux io_uring）</td><td>是</td><td>可选 io_uring 后端；需以 <code>ENABLE_LIBURING=ON</code> 构建，否则回退 <code>buffer_io</code></td></tr>
 <tr><td><code>reader_io</code></td><td>自定义 <code>Reader</code></td><td>否</td><td>加载期通过用户 <code>ReaderSet</code> 读取（如远程 / 对象存储）</td></tr>
 </tbody>
 </table>
@@ -373,7 +374,31 @@
 <p>每个 cell 通过一组扁平参数配置：<code>graph_io_type</code> / <code>graph_file_path</code>、<code>base_io_type</code> /
 <code>base_file_path</code>、<code>precise_io_type</code> / <code>precise_file_path</code>，以及 <code>raw_vector_io_type</code> /
 <code>raw_vector_file_path</code>。当对应的 <code>*_io_type</code> 为磁盘型（<code>buffer_io</code>、<code>mmap_io</code>、<code>async_io</code>）时，
-<code>*_file_path</code> <strong>必填</strong>；内存型后端会忽略它。所有 cell 默认均为 <code>block_memory_io</code>（全内存）。</p>
+<code>*_file_path</code> <strong>必填</strong>；这里的磁盘型后端包括 <code>buffer_io</code>、<code>mmap_io</code>、<code>async_io</code> 与
+<code>uring_io</code>。内存型后端会忽略路径。所有 cell 默认均为 <code>block_memory_io</code>（全内存）。</p>
+<h3 id="启用-uring_io"><a class="header" href="#启用-uring_io">启用 <code>uring_io</code></a></h3>
+<p><code>uring_io</code> 是可选的 Linux 后端。安装 liburing，并在配置 CMake 时开启：</p>
+<pre><code class="language-bash">cmake -S . -B build-release \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DENABLE_LIBURING=ON \
+    -DENABLE_EXAMPLES=ON
+cmake --build build-release --target 325_feature_uring_io -j
+</code></pre>
+<p>它可以用于支持磁盘 IO 的 cell，例如：</p>
+<pre><code class="language-json">{
+    "index_param": {
+        "base_io_type": "uring_io",
+        "base_file_path": "/data/vsag/hgraph_base.data",
+        "base_direct_read": true
+    }
+}
+</code></pre>
+<p>HGraph 的 <code>base_direct_read</code> 与 <code>precise_direct_read</code> 默认都是 <code>false</code>。将对应参数设为
+<code>true</code>，可让 <code>uring_io</code> 通过 direct IO 打开文件并绕过页缓存。请确认目标文件系统支持
+direct IO，并针对实际负载对比两种模式。</p>
+<p>如果 VSAG 构建时没有找到 liburing，相同配置仍可加载，但会打印一次性告警并回退到
+<code>buffer_io</code>。回退后功能保持可用，但不具备 io_uring 的提交/完成批处理能力。完整加载示例见
+<code>examples/cpp/325_feature_uring_io.cpp</code>。</p>
 <h2 id="推荐配置base-留内存precise-落磁盘"><a class="header" href="#推荐配置base-留内存precise-落磁盘">推荐配置：base 留内存，precise 落磁盘</a></h2>
 <p>最常用的分层方案：内存里保留极为紧凑的 3 位 RaBitQ base 用于遍历，把精度更高的 <code>sq8</code> 副本下沉磁盘，
 并开启 <code>use_reorder</code>，让入围候选用它重排：</p>
@@ -409,6 +434,9 @@
 Makefile 也会自动传入 <code>VSAG_ENABLE_LIBAIO=ON</code>；只有当此前的构建关闭过 libaio 时，才需要用这些
 开关把它重新打开。当 libaio 缺失时（包括 macOS），<code>async_io</code> 会打印一次性告警并回退
 <code>buffer_io</code>，配置因此保持可移植但失去异步批量能力。生产吞吐场景请在 Linux 上编译进 libaio。</li>
+<li><strong><code>uring_io</code> 需要 Linux + liburing，且默认关闭。</strong> 使用
+<code>-DENABLE_LIBURING=ON</code> 开启；否则会回退到 <code>buffer_io</code>。请在目标内核、队列深度和 SSD
+上实测 <code>uring_io</code> 与 <code>async_io</code>，不要假定其中一个始终更快。</li>
 <li><strong>预热页缓存。</strong> 对 <code>mmap_io</code> 的 cell，加载后先做一次预热（如顺序读一遍文件、或跑一轮预热
 查询），避免最初的查询承担冷未命中延迟。</li>
 <li><strong>规划文件路径与生命周期。</strong> 磁盘型 cell 会写入你提供的 <code>*_file_path</code>；请放在快速、专用、

@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>BruteForce - VSAG Documentation</title>
+        <title>HGraph Build Cache - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -304,201 +304,122 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="bruteforce"><a class="header" href="#bruteforce">BruteForce</a></h1>
-<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/indexes/brute_force-overview.svg" alt="BruteForce: vectors live in a flat store; the query is compared against every stored vector, with optional intra-query parallelism splitting the scan across threads, and the smallest distances are kept in a top-k heap"><span class="img-wrapper"><img src="../figures/indexes/brute_force-overview.svg" alt="BruteForce: vectors live in a flat store; the query is compared against every stored vector, with optional intra-query parallelism splitting the scan across threads, and the smallest distances are kept in a top-k heap"></span></label></p>
-<p>BruteForce is VSAG’s <strong>exact, flat</strong> index. At query time it scores the query against every
-vector in the corpus and returns the true top-k — no graph traversal, no inverted lists, no
-approximation. Its main role is to be the <strong>ground-truth baseline</strong> that approximate indexes
-(HGraph, IVF, …) are evaluated against, but it is also a reasonable production choice for small
-corpora or for workloads where 100% recall is mandatory.</p>
+                        <h1 id="hgraph-build-cache"><a class="header" href="#hgraph-build-cache">HGraph Build Cache</a></h1>
+<p>HGraph can export graph-neighbor information from one build and import it before a later
+<code>Build()</code>. Vectors are matched by stable string source IDs, so unchanged data can warm-start from
+the previous graph while new or changed data is refined normally.</p>
+<p>This workflow is intended for recurring snapshot builds, such as rebuilding an index every day
+from a mostly overlapping corpus. It is a build accelerator, not an index serialization format:
+use the normal <a href="serialization.html">Serialization</a> APIs to persist a searchable index.</p>
+<h2 id="requirements"><a class="header" href="#requirements">Requirements</a></h2>
 <ul>
-<li>Source: <code>src/algorithm/bruteforce/bruteforce.{h,cpp}</code></li>
-<li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a></li>
+<li>The index type must be HGraph.</li>
+<li>Every base dataset used in the workflow must set <code>Dataset::SourceID</code>.</li>
+<li>Source IDs must be stable and unique for the logical records you want to match across builds.</li>
+<li>Import the cache into a fresh, empty, compatible HGraph before calling <code>Build()</code>.</li>
+<li>Keep dimensions, metrics, and storage/quantization parameters compatible between builds.</li>
 </ul>
-<h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
-<ol>
-<li><strong>Build.</strong> Vectors are stored in a single flat data cell encoded by <code>base_quantization_type</code>
-(default <code>fp32</code> — i.e. raw). No graph, no clustering, no training is performed for the
-uncompressed quantizers; PQ/SQ-style quantizers that require training will still run their
-training pass when used.</li>
-<li><strong>Add.</strong> New vectors are appended to the flat store. There is no rebalancing or rebuild cost.</li>
-<li><strong>Search.</strong> For each query the distance is computed against every stored vector under the
-configured <code>metric_type</code> (<code>l2</code>, <code>ip</code>, or <code>cosine</code>), then a top-k heap returns the closest
-ids. Search uses SIMD kernels and supports <strong>intra-query parallelism</strong> — a single query can
-be split across multiple threads via the <code>parallelism</code> search parameter (see
-<code>BruteForce::SearchWithRequest</code> in <code>src/algorithm/brute_force.cpp</code>).</li>
-</ol>
-<p>Because the index keeps every vector verbatim (modulo the chosen quantizer), the result is
-<strong>exact</strong> when <code>base_quantization_type</code> is <code>fp32</code> and is the standard reference used to compute
-ground truth in the <code>eval_performance</code> tool.</p>
-<h2 id="quick-start"><a class="header" href="#quick-start">Quick start</a></h2>
-<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+<p>The numeric label in <code>Dataset::Ids</code> may change between snapshots. Cache matching uses the
+corresponding <code>SourceID</code> string instead.</p>
+<h2 id="first-build-and-cache-export"><a class="header" href="#first-build-and-cache-export">First build and cache export</a></h2>
+<p>Provide one source ID per vector when building the source index:</p>
+<pre><code class="language-cpp">std::vector&lt;std::string&gt; source_ids = load_stable_source_ids();
 
-std::string params = R"({
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128
-})";
-auto index = vsag::Factory::CreateIndex("brute_force", params).value();
-
-// Build.
 auto base = vsag::Dataset::Make();
-base-&gt;NumElements(n)-&gt;Dim(128)-&gt;Ids(ids)-&gt;Float32Vectors(data)-&gt;Owner(false);
-index-&gt;Build(base);
+base-&gt;NumElements(count)
+    -&gt;Dim(dim)
+    -&gt;Ids(ids.data())
+    -&gt;Float32Vectors(vectors.data())
+    -&gt;SourceID(source_ids.data())
+    -&gt;Owner(false);
 
-// Search — no index-specific knobs; pass an empty JSON object (or set `parallelism`).
-auto query = vsag::Dataset::Make();
-query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
-auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
+auto index = vsag::Factory::CreateIndex("hgraph", build_params).value();
+index-&gt;Build(base).value();
+
+std::ofstream cache_out("hgraph.cache", std::ios::binary);
+index-&gt;ExportCache(cache_out).value();
 </code></pre>
-<p>A full runnable program is at
-<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>.</p>
-<h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
-<p>The minimal config consists of the three top-level fields (<code>dtype</code>, <code>metric_type</code>, <code>dim</code>).
-For most uses no <code>index_param</code> is needed — that is the form shown in
-<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp">example 105</a>.
-Advanced users can pass an <code>index_param</code> object to enable quantization or storage tweaks:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="../quantization/README.html">Quantization chapter</a> for per-quantizer details</td></tr>
-<tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Enable attribute-based filtering (see <a href="../advanced/attribute_filter.html">Attribute Filter</a>)</td></tr>
-</tbody>
-</table>
-</div>
-<blockquote>
-<p><strong>Note on <code>store_raw_vector</code>.</strong> The <code>store_raw_vector</code> flag is parsed by the shared
-<code>InnerIndexParameter</code> but BruteForce does <strong>not</strong> consult it when deciding whether
-<code>GetRawVectorByIds</code> is available. On BruteForce, raw-vector retrieval is enabled strictly
-when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the
-quantizer is configured to hold the per-vector norms (<code>hold_molds</code>). Setting
-<code>store_raw_vector: true</code> on BruteForce currently has no observable effect on the
-capability flags — use HGraph or IVF if you need a quantized index that still answers
-<code>GetRawVectorByIds</code>.</p>
-</blockquote>
-<p>Example with <code>sq8</code> quantization for memory savings while keeping linear scan semantics:</p>
+<p>Keep the <code>std::string</code> array alive for the duration of <code>Build()</code>. The cache contains source-ID to
+neighbor information used by a later build; it is not directly searchable.</p>
+<h2 id="warm-starting-a-later-build"><a class="header" href="#warm-starting-a-later-build">Warm-starting a later build</a></h2>
+<p>Create an empty compatible HGraph, import the previous cache, and then build with the new snapshot:</p>
+<pre><code class="language-cpp">auto next_index = vsag::Factory::CreateIndex("hgraph", build_params).value();
+
+std::ifstream cache_in("hgraph.cache", std::ios::binary);
+next_index-&gt;ImportCache(cache_in).value();
+
+auto next_base = vsag::Dataset::Make();
+next_base-&gt;NumElements(next_count)
+    -&gt;Dim(dim)
+    -&gt;Ids(next_ids.data())
+    -&gt;Float32Vectors(next_vectors.data())
+    -&gt;SourceID(next_source_ids.data())
+    -&gt;Owner(false);
+
+next_index-&gt;Build(next_base).value();
+</code></pre>
+<p><code>Build()</code> automatically takes the cache-assisted path after <code>ImportCache()</code>. Source IDs found in
+both snapshots are warm-started from cached neighbors; unmatched records are treated as cache
+misses and refined by the normal build path. Calling cache-assisted <code>Build()</code> without
+<code>Dataset::SourceID</code> returns an invalid-argument error.</p>
+<h2 id="persisting-source-ids-with-the-index"><a class="header" href="#persisting-source-ids-with-the-index">Persisting source IDs with the index</a></h2>
+<p>Source-ID metadata is not included in HGraph serialization by default. Set
+<code>persist_source_id: true</code> in <code>index_param</code> when a deserialized index must later call
+<code>ExportCache()</code>:</p>
 <pre><code class="language-json">{
     "dtype": "float32",
-    "metric_type": "ip",
+    "metric_type": "l2",
     "dim": 128,
     "index_param": {
-        "base_quantization_type": "sq8"
+        "base_quantization_type": "sq8",
+        "max_degree": 32,
+        "ef_construction": 400,
+        "persist_source_id": true
     }
 }
 </code></pre>
-<p>When <code>base_quantization_type</code> is set to a quantizer that requires training (<code>sq8</code>,
-<code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>), <code>Build</code> will run the training pass on
-the supplied dataset before adding vectors; the resulting recall is no longer 100%. Only
-<code>fp32</code>, <code>fp16</code>, and <code>bf16</code> skip training and preserve exact distances (modulo numeric
-precision).</p>
-<h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
-<p>BruteForce does not expose any index-specific search knobs (no <code>ef</code>, <code>nprobe</code>, etc.), but the
-generic <code>IndexSearchParameter</code> fields are honored:</p>
+<p>This option adds source-ID metadata to the serialized index. It is unnecessary if cache export
+always happens from the original in-memory build and the restored index never needs the source
+mapping.</p>
+<h2 id="measuring-cache-reuse"><a class="header" href="#measuring-cache-reuse">Measuring cache reuse</a></h2>
+<p>After the warm-started build, call <code>GetStats()</code> and inspect:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+<tr><th>Field</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Split the linear scan of a single query across this many threads in the index’s internal thread pool. It applies to both <code>KnnSearch</code> and <code>RangeSearch</code>. Larger values cut single-query latency on large corpora at the cost of using more cores. Values <code>&lt;= 0</code> are clamped to <code>1</code>.</td></tr>
+<tr><td><code>build_cache_hit_rate</code></td><td>Fraction of nodes warm-started from the imported cache</td></tr>
+<tr><td><code>build_cache_hit_nodes</code></td><td>Matched node count</td></tr>
+<tr><td><code>build_cache_missed_nodes</code></td><td>Nodes built without a matching cache entry</td></tr>
 </tbody>
 </table>
 </div>
-<pre><code class="language-cpp">// Single-threaded scan (default).
-auto r1 = index-&gt;KnnSearch(query, topk, "{}").value();
-
-// Use 8 threads to scan a single query in parallel.
-auto r2 = index-&gt;KnnSearch(query, topk, R"({"parallelism": 8})").value();
-
-// RangeSearch uses the same parallelism parameter.
-auto r3 = index-&gt;RangeSearch(query, radius, R"({"parallelism": 8})").value();
-</code></pre>
-<p>For range search semantics, see <a href="../advanced/range_search.html">Range Search</a>.</p>
-<h2 id="removing-vectors"><a class="header" href="#removing-vectors">Removing vectors</a></h2>
-<p>BruteForce supports both <code>RemoveMode::MARK_REMOVE</code> and <code>RemoveMode::FORCE_REMOVE</code>; neither mode
-needs an HGraph-style <code>support_force_remove</code> setting.</p>
+<p>When no imported cache participated in the last build, the statistics include a
+<code>skipped_reason</code> instead. See <a href="../resources/analyze_index.html">Index Analysis</a> for the rest of the
+HGraph statistics.</p>
+<h2 id="limitations-and-operational-guidance"><a class="header" href="#limitations-and-operational-guidance">Limitations and operational guidance</a></h2>
 <ul>
-<li><code>MARK_REMOVE</code> is the default. It records a tombstone, so the id is excluded from later searches
-while its vector storage remains allocated. <code>GetNumElements()</code> excludes marked ids and
-<code>GetNumberRemoved()</code> reports their count.</li>
-<li><code>FORCE_REMOVE</code> physically removes each requested vector. It moves the last internal slot into
-the vacated slot when necessary and keeps the moved vector’s external id intact. Successful
-force removals do not add tombstones; pre-existing marked removals remain reflected by
-<code>GetNumberRemoved()</code>.</li>
+<li>Import before <code>Build()</code>; cache-assisted build requires an empty index.</li>
+<li>A build cache is tied to compatible HGraph configuration and should be regenerated after
+incompatible parameter changes.</li>
+<li><code>deduplicate_storage: true</code> cannot be combined with cache-assisted build.</li>
+<li>Validate recall and build time against a full rebuild before adopting the cache in production.</li>
+<li>Check stream-open and API return values. A cache file is separate from the searchable serialized
+index and should be versioned or replaced atomically with the snapshot that produced it.</li>
 </ul>
-<pre><code class="language-cpp">index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2}, vsag::RemoveMode::MARK_REMOVE);
-index-&gt;Remove(std::vector&lt;int64_t&gt;{id3, id4}, vsag::RemoveMode::FORCE_REMOVE);
-</code></pre>
-<p>Physical removal is synchronous and more expensive than marking. It takes the index’s exclusive
-global lock, so it waits for in-flight searches and prevents new searches while the swap-and-remove
-operation runs. Batch ids when possible and avoid force removal on latency-critical paths.</p>
-<p>By default, BruteForce uses <code>block_memory_io</code> for vector storage. After every successful
-force-removal batch, its logical size is reduced to the live entry count and trailing complete blocks
-are released; the final partial block remains allocated. The optional extra-information store follows
-the same block-granular behavior. To avoid repeated full-table copies, the label table reclaims its
-backing allocation when its live entry count falls to at most half of its current capacity.
-<code>GetMemoryUsage()</code> then reflects the compacted index. This is index allocation accounting,
-not a promise that the process allocator
-immediately returns memory to the operating system or that RSS drops.</p>
-<h2 id="capabilities"><a class="header" href="#capabilities">Capabilities</a></h2>
-<p>BruteForce advertises the following capability flags (see <code>BruteForce::InitFeatures</code> in
-<code>src/algorithm/brute_force.cpp</code>):</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Capability</th><th>Notes</th></tr>
-</thead>
-<tbody>
-<tr><td><code>SUPPORT_BUILD</code> / <code>SUPPORT_ADD_AFTER_BUILD</code> / <code>SUPPORT_ADD_CONCURRENT</code></td><td>Build once, append later, concurrent inserts.</td></tr>
-<tr><td><code>SUPPORT_ADD_FROM_EMPTY</code></td><td>Available with non-training quantizers (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>).</td></tr>
-<tr><td><code>SUPPORT_KNN_SEARCH</code> / <code>SUPPORT_KNN_SEARCH_WITH_ID_FILTER</code> / <code>SUPPORT_SEARCH_CONCURRENT</code></td><td>Standard top-k API and id-list filters, with concurrent search.</td></tr>
-<tr><td><code>SUPPORT_RANGE_SEARCH</code> / <code>SUPPORT_RANGE_SEARCH_WITH_ID_FILTER</code></td><td>Available with non-training quantizers (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>).</td></tr>
-<tr><td><code>SUPPORT_DELETE_BY_ID</code> / <code>SUPPORT_DELETE_CONCURRENT</code></td><td><code>Remove</code> by id is supported. Searches and delete operations are synchronized; <code>FORCE_REMOVE</code> takes an exclusive lock.</td></tr>
-<tr><td><code>SUPPORT_CAL_DISTANCE_BY_ID</code></td><td>Distance lookup against stored vectors (non-training quantizers only).</td></tr>
-<tr><td><code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code></td><td>Available only when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the underlying quantizer holds molds (<code>hold_molds</code>). Quantized BruteForce indexes do <strong>not</strong> advertise this flag.</td></tr>
-<tr><td><code>SUPPORT_CHECK_ID_EXIST</code> / <code>SUPPORT_CLONE</code> / <code>SUPPORT_ESTIMATE_MEMORY</code> / <code>SUPPORT_GET_MEMORY_USAGE</code></td><td>Standard introspection and lifecycle.</td></tr>
-<tr><td><code>SUPPORT_SERIALIZE_BINARY_SET</code> / <code>SUPPORT_SERIALIZE_FILE</code> / <code>SUPPORT_SERIALIZE_WRITE_FUNC</code></td><td>Full save surface.</td></tr>
-<tr><td><code>SUPPORT_DESERIALIZE_BINARY_SET</code> / <code>SUPPORT_DESERIALIZE_FILE</code> / <code>SUPPORT_DESERIALIZE_READER_SET</code></td><td>Full load surface. (There is no <code>DESERIALIZE_WRITE_FUNC</code> counterpart — read paths use <code>READER_SET</code> instead.)</td></tr>
-<tr><td><code>NEED_TRAIN</code></td><td>Set when <code>base_quantization_type</code> is one of <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>.</td></tr>
-</tbody>
-</table>
-</div>
-<p>Notably <strong>not</strong> supported by BruteForce: <code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code>,
-<code>SUPPORT_UPDATE_ID_CONCURRENT</code>, and <code>SUPPORT_EXPORT_MODEL</code>.</p>
-<h2 id="when-to-use-bruteforce"><a class="header" href="#when-to-use-bruteforce">When to use BruteForce</a></h2>
-<ul>
-<li><strong>Recall baseline.</strong> Compute the ground truth that approximate indexes are scored against
-(this is what the <code>eval_performance</code> tool does).</li>
-<li><strong>Tiny corpora.</strong> A few hundred to a few hundred thousand vectors, where the cost of a full
-scan is acceptable and you want to skip tuning altogether.</li>
-<li><strong>Strict-recall requirements.</strong> Use cases that cannot tolerate any approximation error.</li>
-<li><strong>Quantization experiments at small scale.</strong> Reuse the same scan pipeline but compare
-different <code>base_quantization_type</code> settings without the confounding effect of a graph or
-inverted-list structure.</li>
-</ul>
-<p>For anything larger, prefer <a href="hgraph.html">HGraph</a> (latency-sensitive, high recall) or
-<a href="ivf.html">IVF</a> (throughput-oriented, memory-friendly).</p>
-<h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
-<ul>
-<li><a href="../guide/create_index.html">Creating an Index</a></li>
-<li><a href="../guide/knn_search.html">k-Nearest Neighbor Search</a></li>
-<li><a href="../advanced/range_search.html">Range Search</a></li>
-<li><a href="../advanced/attribute_filter.html">Attribute Filter (Hybrid Search)</a></li>
-<li><a href="../resources/eval.html">Evaluation Tool</a></li>
-</ul>
+<p>API signatures are listed under <a href="../api/index_class.html#cache-build-acceleration">Index Cache</a>, and
+the source-ID dataset field is documented on the <a href="../api/dataset.html">Dataset</a> page.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../indexes/pyramid.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../advanced/build_and_train.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../quantization/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/range_search.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -508,11 +429,11 @@ inverted-list structure.</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../indexes/pyramid.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../advanced/build_and_train.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../quantization/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/range_search.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

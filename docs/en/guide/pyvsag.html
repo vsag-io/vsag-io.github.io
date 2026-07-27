@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-3f95ec7b.js";
+            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-6ff2fd81.js"></script>
+        <script src="../toc-3f27a726.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -355,6 +355,50 @@ print(result_ids, result_dists)
 new_index = pyvsag.Index("hgraph", index_params)
 new_index.load("index.bin")
 </code></pre>
+<p>The current <code>save</code> and <code>load</code> wrappers do not propagate errors returned by the underlying
+serialization and deserialization operations. Verify that the output file was created and
+round-trip important indexes before relying on persisted data.</p>
+<h2 id="index-operations"><a class="header" href="#index-operations">Index Operations</a></h2>
+<p>The Python binding exposes the following index-management methods in addition to build, search,
+save, and load:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Result</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>get_num_elements()</code></td><td><code>int</code></td><td>Current number of elements.</td></tr>
+<tr><td><code>get_memory_usage()</code></td><td><code>int</code></td><td>Index memory usage in bytes.</td></tr>
+<tr><td><code>check_id_exist(id)</code></td><td><code>bool</code></td><td>Whether an ID currently exists.</td></tr>
+<tr><td><code>get_min_max_id()</code></td><td><code>(min_id, max_id)</code></td><td>Returns <code>(-1, -1)</code> if the operation fails.</td></tr>
+<tr><td><code>add(vectors, ids, num_elements, dim)</code></td><td><code>None</code></td><td>Adds a contiguous dense vector matrix; dtype must match the index.</td></tr>
+<tr><td><code>remove(ids)</code></td><td><code>int</code></td><td>Removes a one-dimensional <code>int64</code> ID array. Returns <code>0</code> both when no ID is removed and when the underlying operation fails.</td></tr>
+<tr><td><code>cal_distance_by_id(query, ids)</code></td><td><code>numpy.ndarray</code></td><td>Returns one float32 distance per ID. Invalid IDs produce <code>-1</code>; an underlying operation failure leaves the entire result at <code>-1</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<pre><code class="language-python"># Add two dense vectors.
+new_vectors = np.random.random((2, dim)).astype(np.float32)
+new_ids = np.array([10_001, 10_002], dtype=np.int64)
+index.add(new_vectors, new_ids, len(new_ids), dim)
+
+assert index.check_id_exist(10_001)
+print(index.get_num_elements(), index.get_memory_usage())
+print(index.get_min_max_id())
+
+# Calculate distances from one query to a candidate list.
+candidate_ids = np.array([10_001, 10_002], dtype=np.int64)
+distances = index.cal_distance_by_id(query, candidate_ids)
+
+# Remove IDs; the return value is the number actually removed.
+removed = index.remove(candidate_ids)
+</code></pre>
+<p><code>add</code> accepts a flat contiguous array or a row-major two-dimensional matrix. For
+<code>dtype: "float16"</code>, pass <code>numpy.float16</code>; for <code>dtype: "bfloat16"</code>, pass a <code>numpy.uint16</code>
+array containing BF16 bit patterns. Operation support remains index-dependent. Input validation
+and operations such as <code>add</code> raise Python exceptions, but <code>remove</code>, <code>cal_distance_by_id</code>, <code>save</code>,
+and <code>load</code> use the sentinel or unchecked behaviors described above instead of consistently
+propagating underlying operation failures.</p>
 <h2 id="relationship-with-the-c-library"><a class="header" href="#relationship-with-the-c-library">Relationship with the C++ Library</a></h2>
 <p><code>pyvsag</code> wraps the same <code>vsag::Index</code> API as C++ and shares the underlying index binaries. You can
 build an index in Python and load it in C++ (and vice versa) as long as parameters match.</p>
@@ -365,7 +409,7 @@ build an index in Python and load it in C++ (and vice versa) as long as paramete
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../guide/knn_search.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../guide/c_api.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -379,7 +423,7 @@ build an index in Python and load it in C++ (and vice versa) as long as paramete
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../guide/knn_search.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../guide/c_api.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

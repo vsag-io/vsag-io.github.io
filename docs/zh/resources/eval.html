@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -367,6 +367,21 @@ eval_case1:
 <li><strong>延迟</strong>：平均延迟、P50/P95/P99 延迟</li>
 <li><strong>资源</strong>：峰值内存占用</li>
 </ul>
+<h3 id="搜索指标计量语义"><a class="header" href="#搜索指标计量语义">搜索指标计量语义</a></h3>
+<ul>
+<li><strong>延迟</strong>是每次被测 <code>Index::KnnSearch</code> 调用的墙钟耗时，使用单调时钟
+<code>std::chrono::steady_clock</code> 测量。</li>
+<li><strong>QPS</strong> 是成功查询数除以被测搜索阶段的墙钟时间（秒）。</li>
+<li>统计信息提取、召回率计算和内存采样在性能测试阶段之外执行，不计入延迟
+或 QPS。</li>
+<li>所有被测查询均计入结果，包括每个工作线程的首个查询。工具不会隐式预热；
+如有需要，应在被测阶段之前显式执行预热。</li>
+</ul>
+<p>JSON 结果会输出 <code>measurement_method</code>、<code>measurement_sample_count</code>、
+<code>measurement_successful_query_count</code> 和 <code>measurement_duration(s)</code>，用于核对测量方法
+及其样本范围。</p>
+<p>旧版本使用相邻监控回调间隔计算指标，其结果不能与采用上述语义的结果
+直接比较。</p>
 <h2 id="搜索模式"><a class="header" href="#搜索模式">搜索模式</a></h2>
 <p><code>search_mode</code> 支持 <code>knn</code>、<code>range</code>、<code>knn_filter</code>、<code>range_filter</code> 四种。</p>
 <h2 id="输出格式与导出目标"><a class="header" href="#输出格式与导出目标">输出格式与导出目标</a></h2>

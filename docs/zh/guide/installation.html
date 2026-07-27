@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-887d0446.js";
+            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-42b2e1de.js"></script>
+        <script src="../toc-f97b9f91.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,7 +305,9 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="安装"><a class="header" href="#安装">安装</a></h1>
-<p>VSAG 是一个向量检索库，支持在 C++、Python 和 Node.js / TypeScript 程序中使用。VSAG 核心库使用 C++ 编写，由于依赖的部分第三方库是 Linux 特有的，当前 VSAG <strong>仅支持在 Linux 系统上运行</strong>。</p>
+<p>VSAG 是一个向量检索库，支持在 C++、Python 和 Node.js / TypeScript 程序中使用。核心 C++
+库支持 Linux，也支持在 Apple Silicon 上使用 macOS 14 或更高版本从源码构建。完整 CI
+仍以 Linux 为主；预编译 C++ 包和 <code>pyvsag</code> wheel 当前也主要面向 Linux。</p>
 <p>如果使用的是 Python，可以从官方第三方包仓库 PyPI 下载，包名为 <a href="https://pypi.org/project/pyvsag/"><code>pyvsag</code></a>。<code>pyvsag</code> 的版本与源代码版本一一对应，版本功能可以直接参考 <a href="https://github.com/antgroup/vsag/releases">GitHub 发布日志</a>。Python 包使用 manylinux2014 构建，可以在绝大部分 Linux 环境中运行。通过如下命令获得最新版本：</p>
 <pre><code class="language-bash">pip install pyvsag
 </code></pre>
@@ -326,19 +328,23 @@
 </code></pre>
 <p>镜像内的工具版本（clang-format / clang-tidy 等）与项目要求保持一致。</p>
 <h2 id="从源代码构建"><a class="header" href="#从源代码构建">从源代码构建</a></h2>
-<p>VSAG 可以使用 CMake 从源代码构建，支持 <code>x86_64</code> 和 <code>aarch64</code> 架构的 Linux 环境，包括在 Apple Silicon 上运行的 Linux 容器。</p>
+<p>VSAG 可以使用 CMake 从源代码构建，支持 Linux <code>x86_64</code> / <code>aarch64</code>，以及 macOS
+arm64。macOS 当前验证范围是核心 C++ 库的 <code>make debug</code>、<code>make release</code> 与
+<code>make test</code>；Python wheel 打包仍以 Linux 为主。</p>
 <p>构建依赖：</p>
 <ul>
 <li>操作系统：
 <ul>
 <li><strong>Ubuntu 20.04</strong> 或更高版本</li>
 <li>或 <strong>CentOS 7</strong> 或更高版本</li>
+<li>或 <strong>macOS 14</strong> 或更高版本（Apple Silicon）</li>
 </ul>
 </li>
 <li>编译器：
 <ul>
 <li><strong>GCC 9.4.0</strong> 或更高版本</li>
 <li>或 <strong>Clang 13.0.0</strong> 或更高版本</li>
+<li>macOS 使用 Xcode Command Line Tools 提供的 Apple Clang</li>
 </ul>
 </li>
 <li>构建工具：
@@ -350,21 +356,23 @@
 </li>
 <li>其他依赖项：
 <ul>
-<li>gfortran</li>
-<li>openmp</li>
-<li>libaio</li>
-<li>Python 3.6+</li>
-<li>curl</li>
+<li>Linux：gfortran、OpenMP、libaio、Python 3.6+、curl</li>
+<li>macOS：Xcode Command Line Tools、Homebrew</li>
 </ul>
 </li>
 </ul>
 <p>依赖项可以通过以下脚本安装：</p>
-<pre><code class="language-bash"># Debian / Ubuntu
-./scripts/deps/install_deps_ubuntu.sh
+<pre><code class="language-bash"># 自动识别当前平台
+./scripts/deps/install_deps.sh
 
-# CentOS / AliOS
-./scripts/deps/install_deps_centos.sh
+# 也可以直接调用平台脚本
+./scripts/deps/install_deps_ubuntu.sh  # Debian / Ubuntu
+./scripts/deps/install_deps_centos.sh  # CentOS / AliOS
+./scripts/deps/install_deps_macos.sh   # macOS
 </code></pre>
+<p>如需 Linux <code>io_uring</code> 存储后端，请安装 liburing，并在直接配置 CMake 时添加
+<code>-DENABLE_LIBURING=ON</code>。未启用时，<code>uring_io</code> 配置会回退到 <code>buffer_io</code>。用法与
+限制见<a href="../resources/disk_index.html#启用-uring_io">磁盘索引</a>。</p>
 <p>VSAG 使用 CMake 管理工程，常用构建目标封装在项目根目录的 <code>Makefile</code> 中。运行以下命令可以在发布模式下编译并安装：</p>
 <pre><code class="language-bash">make release &amp;&amp; make install
 </code></pre>
