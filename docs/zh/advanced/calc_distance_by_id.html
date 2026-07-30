@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
+            window.path_to_searchindex_js = "../searchindex-73366d13.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f97b9f91.js"></script>
@@ -310,16 +310,13 @@
 <p>接口分为两种形式：</p>
 <ul>
 <li><code>CalcDistanceById</code>  — 单个 ID，返回单个距离值。</li>
-<li><code>CalDistanceById</code>   — 一批 ID，返回一个包含距离数组的 <code>DatasetPtr</code>。</li>
+<li><code>CalcDistancesById</code> — 一批 ID，返回一个包含距离数组的 <code>DatasetPtr</code>。</li>
 </ul>
 <p>每种形式都有两个重载：一个接收 <code>const float*</code>（稠密向量），另一个接收 <code>DatasetPtr</code>
 （稠密或稀疏均可）。</p>
 <blockquote>
-<p><strong>关于命名的说明。</strong> 批量接口目前拼作 <code>CalDistanceById</code>（<code>Calc</code> 少了一个 <code>c</code>）。
-这是批量重载最初加入时遗留的拼写笔误，两个名字<strong>并不表示语义差异</strong>，区别仅在于
-<em>单个 vs. 批量</em>。出于向后兼容当前仍保留这一拼写，预计未来某个版本会将其
-<strong>标记为弃用（deprecated）</strong>，并改用拼写正确的新名（建议为
-<code>CalcDistancesById</code>）。建议新代码通过一层薄封装来调用，方便后续迁移。跟踪请见
+<p><strong>迁移说明。</strong> <code>CalDistanceById</code> 是批量接口的历史拼写。为兼容已有代码，1.1 迁移窗口内
+仍保留该弃用别名；新代码应使用 <code>CalcDistancesById</code>。两者语义完全相同。详情参见
 <a href="https://github.com/antgroup/vsag/issues/2068">issue #2068</a>。</p>
 </blockquote>
 <h2 id="接口概览"><a class="header" href="#接口概览">接口概览</a></h2>
@@ -337,7 +334,7 @@ CalcDistanceById(const DatasetPtr&amp; vector,
 
 // 批量 ID，稠密浮点指针
 tl::expected&lt;DatasetPtr, Error&gt;
-CalDistanceById(const float* query,
+CalcDistancesById(const float* query,
                 const int64_t* ids,
                 int64_t count,
                 bool calculate_precise_distance = true,
@@ -345,7 +342,7 @@ CalDistanceById(const float* query,
 
 // 批量 ID，DatasetPtr（稠密或稀疏）
 tl::expected&lt;DatasetPtr, Error&gt;
-CalDistanceById(const DatasetPtr&amp; query,
+CalcDistancesById(const DatasetPtr&amp; query,
                 const int64_t* ids,
                 int64_t count,
                 bool calculate_precise_distance = true,
@@ -389,7 +386,7 @@ if (d.has_value()) {
 
 // 3. 批量 ID 距离
 std::vector&lt;int64_t&gt; ids = { 1, 2, 3, 4, 5 };
-auto result = index-&gt;CalDistanceById(query_vector.data(), ids.data(), ids.size());
+auto result = index-&gt;CalcDistancesById(query_vector.data(), ids.data(), ids.size());
 if (result.has_value()) {
     const float* dists = result.value()-&gt;GetDistances();
     for (size_t i = 0; i &lt; ids.size(); ++i) {

@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
+            window.path_to_searchindex_js = "../searchindex-73366d13.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f97b9f91.js"></script>
@@ -493,8 +493,9 @@ RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; pa
 <tbody>
 <tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const float* vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>稠密查询到已存向量 <code>id</code> 的距离。</td></tr>
 <tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const DatasetPtr&amp; vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>同上，接收 <code>DatasetPtr</code>（适用于 SINDI 等稀疏索引）。</td></tr>
-<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>批量版本；<code>topk &gt; 0</code> 时返回按距离升序排列的最小距离及对应 ID，无效 <code>-1</code> 距离排在最后。</td></tr>
-<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>接收 <code>DatasetPtr</code> 查询的批量版本。<code>query-&gt;GetNumElements() &gt; 1</code> 时索引需声明 <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>；<code>ids</code> 包含 <code>NumElements * count</code> 个 row-major 条目。<code>topk &gt; 0</code> 时每个 query 返回 <code>min(topk, count)</code> 个排序距离及对应 ID。</td></tr>
+<tr><td><code>CalcDistancesById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalcDistancesById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>规范的批量版本；<code>topk &gt; 0</code> 时返回按距离升序排列的最小距离及对应 ID，无效 <code>-1</code> 距离排在最后。</td></tr>
+<tr><td><code>CalcDistancesById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalcDistancesById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>规范的 <code>DatasetPtr</code> 查询批量版本。<code>query-&gt;GetNumElements() &gt; 1</code> 时索引需声明 <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>；<code>ids</code> 包含 <code>NumElements * count</code> 个 row-major 条目。<code>topk &gt; 0</code> 时每个 query 返回 <code>min(topk, count)</code> 个排序距离及对应 ID。</td></tr>
+<tr><td><code>CalDistanceById</code></td><td>与 <code>CalcDistancesById</code> 相同的签名</td><td>已弃用的兼容别名；新代码请使用 <code>CalcDistancesById</code>。</td></tr>
 </tbody>
 </table>
 </div>

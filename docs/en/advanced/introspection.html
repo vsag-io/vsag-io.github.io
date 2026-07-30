@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
+            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-3f27a726.js"></script>
@@ -310,7 +310,7 @@ can do, compute distances against existing vectors, and read back structured inf
 the built index without re-running a search:</p>
 <ul>
 <li><strong><code>CheckFeature(IndexFeature)</code></strong> — runtime capability discovery.</li>
-<li><strong><code>CalDistanceById(...)</code></strong> — distance from a query to specific stored ids.</li>
+<li><strong><code>CalcDistancesById(...)</code></strong> — distances from a query to specific stored ids.</li>
 <li><strong><code>GetIndexDetailInfos()</code> / <code>GetDetailDataByName(...)</code></strong> — structured per-index detail data.</li>
 </ul>
 <p>These APIs are read-only and safe to call concurrently with search.</p>
@@ -331,18 +331,18 @@ serialize variants, concurrent combinations, metric types, attribute and extra-i
 <code>Clone</code>, <code>ExportModel</code>, <code>Tune</code>, and more. See <code>include/vsag/index_features.h</code> for the full
 enumeration.</p>
 <p>A runnable example is available at <code>examples/cpp/307_feature_check_features.cpp</code>.</p>
-<h2 id="distances-to-existing-ids--caldistancebyid"><a class="header" href="#distances-to-existing-ids--caldistancebyid">Distances to Existing Ids — <code>CalDistanceById</code></a></h2>
-<p><code>CalDistanceById</code> computes the distance between a query and one or more vectors that are
+<h2 id="distances-to-existing-ids--calcdistancesbyid"><a class="header" href="#distances-to-existing-ids--calcdistancesbyid">Distances to Existing Ids — <code>CalcDistancesById</code></a></h2>
+<p><code>CalcDistancesById</code> computes the distance between a query and one or more vectors that are
 <strong>already stored in the index</strong>, without running a search. This is useful for re-ranking, A/B
 evaluation, ground-truth checks, or computing pairwise distances to a known shortlist.</p>
 <p>Two overloads are provided:</p>
 <pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF)
-auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
+auto r = index-&gt;CalcDistancesById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
 
 // Sparse vector indexes (SINDI) — wrap the query in a Dataset
 auto query_ds = vsag::Dataset::Make();
 query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
-auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
+auto r = index-&gt;CalcDistancesById(query_ds, ids, count, /*calculate_precise_distance=*/true);
 </code></pre>
 <p>The raw-pointer overload returns one row of <code>count</code> distances. The <code>DatasetPtr</code> overload can
 process several queries on indexes that advertise <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>: candidate
@@ -425,7 +425,7 @@ at runtime. A runnable example is available at <code>examples/cpp/317_feature_ge
 <h2 id="notes-and-limitations"><a class="header" href="#notes-and-limitations">Notes and Limitations</a></h2>
 <ul>
 <li><code>CheckFeature</code> is constant-time. Prefer it over <code>try</code> / <code>catch</code> around an unsupported call.</li>
-<li><code>CalDistanceById</code> requires the underlying index to retain enough information to recompute the
+<li><code>CalcDistancesById</code> requires the underlying index to retain enough information to recompute the
 distance. For purely quantized indexes (no raw vectors retained), <code>calculate_precise_distance = true</code> may return the quantized distance instead.</li>
 <li><code>GetIndexDetailInfos</code> and <code>GetDetailDataByName</code> are read-only snapshots. The values returned
 reflect the index state at the moment of the call; concurrent mutations may invalidate them.</li>

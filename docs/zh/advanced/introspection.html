@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f2a79bda.js";
+            window.path_to_searchindex_js = "../searchindex-73366d13.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f97b9f91.js"></script>
@@ -309,7 +309,7 @@
 索引的结构化信息，而无需重新执行一次搜索：</p>
 <ul>
 <li><strong><code>CheckFeature(IndexFeature)</code></strong> —— 运行时能力探测。</li>
-<li><strong><code>CalDistanceById(...)</code></strong> —— 计算 query 到已存入向量 id 的距离。</li>
+<li><strong><code>CalcDistancesById(...)</code></strong> —— 计算 query 到已存入向量 id 的距离。</li>
 <li><strong><code>GetIndexDetailInfos()</code> / <code>GetDetailDataByName(...)</code></strong> —— 读取索引各项结构化详情数据。</li>
 </ul>
 <p>这些 API 均为只读操作，可与搜索并发调用。</p>
@@ -328,17 +328,17 @@ if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
 过滤、extra-info 过滤、<code>Clone</code>、<code>ExportModel</code>、<code>Tune</code> 等。完整枚举见
 <code>include/vsag/index_features.h</code>。</p>
 <p>可运行示例：<code>examples/cpp/307_feature_check_features.cpp</code>。</p>
-<h2 id="到已有-id-的距离--caldistancebyid"><a class="header" href="#到已有-id-的距离--caldistancebyid">到已有 id 的距离 —— <code>CalDistanceById</code></a></h2>
-<p><code>CalDistanceById</code> 计算 query 与索引中<strong>已存在</strong>的一个或多个向量之间的距离，<strong>无需</strong>执行一次
+<h2 id="到已有-id-的距离--calcdistancesbyid"><a class="header" href="#到已有-id-的距离--calcdistancesbyid">到已有 id 的距离 —— <code>CalcDistancesById</code></a></h2>
+<p><code>CalcDistancesById</code> 计算 query 与索引中<strong>已存在</strong>的一个或多个向量之间的距离，<strong>无需</strong>执行一次
 搜索。它适用于 re-rank、A/B 评估、ground-truth 校验，或对已知候选集合做成对距离计算。</p>
 <p>提供两个重载：</p>
 <pre><code class="language-cpp">// 稠密向量索引（HGraph、BruteForce、IVF）
-auto r = index-&gt;CalDistanceById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
+auto r = index-&gt;CalcDistancesById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
 
 // 稀疏向量索引（SINDI）—— 用 Dataset 封装查询
 auto query_ds = vsag::Dataset::Make();
 query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
-auto r = index-&gt;CalDistanceById(query_ds, ids, count, /*calculate_precise_distance=*/true);
+auto r = index-&gt;CalcDistancesById(query_ds, ids, count, /*calculate_precise_distance=*/true);
 </code></pre>
 <p>裸指针重载返回一行 <code>count</code> 个距离。对于公布 <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code> 能力的
 索引，<code>DatasetPtr</code> 重载可以处理多个 query，此时候选 ID 和距离是
@@ -419,7 +419,7 @@ std::string dt = detail-&gt;GetDataScalarString();
 <h2 id="注意事项与限制"><a class="header" href="#注意事项与限制">注意事项与限制</a></h2>
 <ul>
 <li><code>CheckFeature</code> 是常数时间复杂度。相比对不支持的调用做 <code>try</code> / <code>catch</code>，应优先使用它。</li>
-<li><code>CalDistanceById</code> 要求底层索引保留足够信息以重新计算距离。对于纯量化索引（不保留原始向量），
+<li><code>CalcDistancesById</code> 要求底层索引保留足够信息以重新计算距离。对于纯量化索引（不保留原始向量），
 即使传入 <code>calculate_precise_distance = true</code>，也可能返回量化距离。</li>
 <li><code>GetIndexDetailInfos</code> 与 <code>GetDetailDataByName</code> 是只读快照。返回的数值反映调用瞬间的索引状态，
 并发修改可能使其失效。</li>

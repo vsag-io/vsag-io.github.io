@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
+            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-3f27a726.js"></script>
@@ -498,8 +498,9 @@ error). See <a href="../advanced/range_search.html">Range Search</a> and <code>e
 <tbody>
 <tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const float* vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>Distance from a dense query to the stored vector <code>id</code>.</td></tr>
 <tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const DatasetPtr&amp; vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>Same, accepting a <code>DatasetPtr</code> (works for sparse indexes such as SINDI).</td></tr>
-<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>Batch variant; <code>topk &gt; 0</code> returns sorted smallest distances with IDs, and invalid <code>-1</code> distances are ordered last.</td></tr>
-<tr><td><code>CalDistanceById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalDistanceById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>DatasetPtr batch variant. For <code>query-&gt;GetNumElements() &gt; 1</code>, indexes must advertise <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>; <code>ids</code> contains <code>NumElements * count</code> row-major entries. With <code>topk &gt; 0</code>, each query returns <code>min(topk, count)</code> sorted distances with matching IDs.</td></tr>
+<tr><td><code>CalcDistancesById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalcDistancesById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>Canonical batch variant; <code>topk &gt; 0</code> returns sorted smallest distances with IDs, and invalid <code>-1</code> distances are ordered last.</td></tr>
+<tr><td><code>CalcDistancesById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalcDistancesById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>Canonical DatasetPtr batch variant. For <code>query-&gt;GetNumElements() &gt; 1</code>, indexes must advertise <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>; <code>ids</code> contains <code>NumElements * count</code> row-major entries. With <code>topk &gt; 0</code>, each query returns <code>min(topk, count)</code> sorted distances with matching IDs.</td></tr>
+<tr><td><code>CalDistanceById</code></td><td>Same signatures as <code>CalcDistancesById</code></td><td>Deprecated compatibility alias; use <code>CalcDistancesById</code> for new code.</td></tr>
 </tbody>
 </table>
 </div>

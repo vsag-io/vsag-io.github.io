@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-20a568f9.js";
+            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-3f27a726.js"></script>
@@ -312,20 +312,15 @@ pipelines on top of VSAG.</p>
 <p>Two flavors are provided:</p>
 <ul>
 <li><code>CalcDistanceById</code>  — single ID, returns one distance.</li>
-<li><code>CalDistanceById</code>   — batch of IDs, returns a <code>DatasetPtr</code> containing distances.</li>
+<li><code>CalcDistancesById</code> — batch of IDs, returns a <code>DatasetPtr</code> containing distances.</li>
 </ul>
 <p>Each flavor has two overloads: one taking a raw <code>const float*</code> (dense vectors) and one taking
 a <code>DatasetPtr</code> (works for both dense and sparse vectors).</p>
 <blockquote>
-<p><strong>Note on naming.</strong> The batch method is currently spelled <code>CalDistanceById</code>
-(missing the <code>c</code> in <code>Calc</code>). This is a historical typo introduced when the
-batch overload was first added; the two names do <strong>not</strong> indicate any
-semantic difference beyond <em>single vs. batch</em>. The current spelling is
-kept for backward compatibility and is expected to be <strong>deprecated</strong> in a
-future release in favor of a correctly spelled name (proposed:
-<code>CalcDistancesById</code>). New code is encouraged to centralize calls behind a
-thin wrapper to ease the eventual migration. See
-<a href="https://github.com/antgroup/vsag/issues/2068">issue #2068</a> for tracking.</p>
+<p><strong>Migration note.</strong> <code>CalDistanceById</code> is the historical spelling of the batch method. It remains
+available as a deprecated alias through the 1.1 migration window; new code should use
+<code>CalcDistancesById</code>. The two names have identical semantics. See
+<a href="https://github.com/antgroup/vsag/issues/2068">issue #2068</a>.</p>
 </blockquote>
 <h2 id="api-overview"><a class="header" href="#api-overview">API Overview</a></h2>
 <pre><code class="language-cpp">// Single, dense float pointer.
@@ -342,7 +337,7 @@ CalcDistanceById(const DatasetPtr&amp; vector,
 
 // Batch, dense float pointer.
 tl::expected&lt;DatasetPtr, Error&gt;
-CalDistanceById(const float* query,
+CalcDistancesById(const float* query,
                 const int64_t* ids,
                 int64_t count,
                 bool calculate_precise_distance = true,
@@ -350,7 +345,7 @@ CalDistanceById(const float* query,
 
 // Batch, DatasetPtr (dense or sparse).
 tl::expected&lt;DatasetPtr, Error&gt;
-CalDistanceById(const DatasetPtr&amp; query,
+CalcDistancesById(const DatasetPtr&amp; query,
                 const int64_t* ids,
                 int64_t count,
                 bool calculate_precise_distance = true,
@@ -398,7 +393,7 @@ if (d.has_value()) {
 
 // 3. Batch IDs.
 std::vector&lt;int64_t&gt; ids = { 1, 2, 3, 4, 5 };
-auto result = index-&gt;CalDistanceById(query_vector.data(), ids.data(), ids.size());
+auto result = index-&gt;CalcDistancesById(query_vector.data(), ids.data(), ids.size());
 if (result.has_value()) {
     const float* dists = result.value()-&gt;GetDistances();
     for (size_t i = 0; i &lt; ids.size(); ++i) {
