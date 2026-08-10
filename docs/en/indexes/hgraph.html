@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
+            window.path_to_searchindex_js = "../searchindex-8622c5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f27a726.js"></script>
+        <script src="../toc-01f057d3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -374,7 +374,7 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 <tr><td><code>use_reverse_edges</code></td><td>bool</td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup. Roughly doubles edge storage and is unsupported with <code>graph_storage_type: "compressed"</code>.</td></tr>
 <tr><td><code>label_remap_type</code></td><td>string</td><td><code>"pg"</code></td><td>Label-to-inner-ID map implementation: <code>"pg"</code> or <code>"robin"</code>. Keep the same value when restoring or combining compatible indexes.</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse search</td></tr>
-<tr><td><code>reorder_source</code></td><td>string</td><td><code>"precise"</code></td><td>Reorder from <code>"precise"</code> codes or directly from <code>"base"</code> codes. RaBitQ x+y split sets <code>"base"</code> automatically.</td></tr>
+<tr><td><code>reorder_source</code></td><td>string</td><td><code>"precise"</code></td><td>Reorder from <code>"precise"</code> codes or directly from <code>"base"</code> codes. RaBitQ x+y split, including <code>tq_chain: "mrle, rabitq"</code>, sets <code>"base"</code> automatically.</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (takes effect only with <code>use_reorder: true</code>)</td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default.</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Output dimension for an MRLE transform in <code>tq_chain</code>; allowed range <code>[0, dim]</code>, where <code>0</code> means the input dimension.</td></tr>
@@ -393,6 +393,7 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 <tr><td><code>base_direct_read</code> / <code>precise_direct_read</code></td><td>bool</td><td><code>false</code></td><td>With <code>uring_io</code>, open the corresponding file using direct IO instead of the page cache.</td></tr>
 <tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>Initial capacity hint (doesn’t cap the final size)</td></tr>
 <tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>Persist source-ID metadata during serialization so a restored index can later export a reusable build cache.</td></tr>
+<tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td><code>log2</code> of the slot-growth batch. Valid range is <code>1</code> to <code>31</code>; <code>1</code> grows in 2-slot batches and <code>10</code> in 1,024-slot batches. Smaller values reduce preallocation but can increase reallocations.</td></tr>
 </tbody>
 </table>
 </div>

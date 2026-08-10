@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-73366d13.js";
+            window.path_to_searchindex_js = "../searchindex-5fe46a41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f97b9f91.js"></script>
+        <script src="../toc-c66d9976.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -334,7 +334,7 @@ auto result = index-&gt;SearchWithRequest(request);
 <tr><th>字段</th><th>类型</th><th>默认值</th><th>含义</th></tr>
 </thead>
 <tbody>
-<tr><td><code>query_</code></td><td><code>DatasetPtr</code></td><td><code>nullptr</code></td><td>查询。只允许恰好一个查询向量。</td></tr>
+<tr><td><code>query_</code></td><td><code>DatasetPtr</code></td><td><code>nullptr</code></td><td>查询。IVF KNN 请求支持多个查询向量，其他请求只允许一个。</td></tr>
 <tr><td><code>mode_</code></td><td><code>SearchMode</code></td><td><code>KNN_SEARCH</code></td><td>KNN 还是范围搜索。</td></tr>
 <tr><td><code>topk_</code></td><td><code>int64_t</code></td><td><code>10</code></td><td>要返回的邻居数（KNN 模式）。必须为正。</td></tr>
 <tr><td><code>radius_</code></td><td><code>float</code></td><td><code>0.5</code></td><td>距离阈值（范围模式）。非负。</td></tr>
@@ -343,6 +343,38 @@ auto result = index-&gt;SearchWithRequest(request);
 </tbody>
 </table>
 </div>
+<h3 id="自定义查询距离回调"><a class="header" href="#自定义查询距离回调">自定义查询距离回调</a></h3>
+<p><code>distance_batch_func_</code> 可选地让应用提供 query 到向量的分数。它接收稳定的外部向量 ID，
+因此闭包可以在 VSAG 之外持有 query 和该 query 的上下文：</p>
+<pre><code class="language-cpp">request.distance_batch_size_ = 32;
+request.distance_batch_func_ = [query](const int64_t* ids, uint64_t count, float* scores) {
+    for (uint64_t i = 0; i &lt; count; ++i) {
+        scores[i] = Score(query, ids[i]);
+    }
+};
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>默认值</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>distance_batch_func_</code></td><td><code>SearchDistanceBatchFunc</code></td><td><code>nullptr</code></td><td>按输入外部 ID 的顺序填写对应分数。分数越小越好，且必须是有限值。</td></tr>
+<tr><td><code>distance_batch_size_</code></td><td><code>uint64_t</code></td><td><code>1</code></td><td>单次回调的最大 ID 数。批量推理或外部数据访问应设置为 scorer 的高效批大小；设置回调时必须为正。</td></tr>
+</tbody>
+</table>
+</div>
+<p>回调仅属于当前请求，不参与序列化。它可以捕获 query。<code>hgraph</code> 的回调模式允许 <code>query_</code> 为 null，
+但 <code>ivf</code> 仍需要一个查询向量用于桶路由。回调在一次请求内必须稳定；若调用方启用并行执行则必须
+线程安全；不得抛异常，且只能写入有限分数。</p>
+<p><code>brute_force</code> 用该回调执行精确 KNN 和范围搜索。<code>hgraph</code> 仅支持 KNN：回调驱动图遍历和最终
+排序，但图仍由配置的内置 metric 构建，因此无法保证该回调分数下的 recall。HGraph 可能为保持
+图连通性而计算被过滤的遍历节点，但不会返回这些节点。
+回调 HGraph 不支持并行检索或 <code>brute_force_threshold</code>；这些配置会被拒绝，而不会静默改变检索语义。</p>
+<p><code>ivf</code> 支持带回调的 KNN，但必须提供一个非空的单查询向量。IVF 先以配置的内置 metric 选出
+<code>scan_buckets_count</code> 个桶，再对这些桶中的候选调用回调。回调决定候选排序，但无法召回未被选中的
+桶内向量；增大 <code>scan_buckets_count</code> 可提高 recall。回调 IVF 不支持范围搜索、<code>disable_bucket_scan</code>、
+bucket graph 或并行搜索，这些配置会被拒绝。回调模式会自动关闭精排。其他索引不支持该回调。</p>
 <h3 id="ivf-桶路由"><a class="header" href="#ivf-桶路由">IVF 桶路由</a></h3>
 <p>IVF 可通过 <code>params_str_</code> 接收
 <code>{"ivf":{"scan_buckets_count":N,"disable_bucket_scan":true}}</code>。该仅路由模式按查询返回
@@ -350,6 +382,36 @@ auto result = index-&gt;SearchWithRequest(request);
 <code>scan_buckets_count</code>，<code>GetIds()</code> 包含桶 ID（空槽位为 <code>-1</code>），
 <code>GetDistances()</code> 为到各桶中心的距离。不扫描桶内向量，因此过滤器、<code>topk</code>、范围限制、精排和
 reasoning 选项均会被忽略。</p>
+<h3 id="ivf-桶-id-旁路"><a class="header" href="#ivf-桶-id-旁路">IVF 桶 ID 旁路</a></h3>
+<p><code>bucket_ids_</code> 字段允许调用方提供预选的桶 ID，绕过 IVF 的内部桶路由（<code>ClassifyDatasForSearch</code>）。
+当非空时，搜索跳过基于质心的选择，仅扫描指定的桶。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>默认值</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>bucket_ids_</code></td><td><code>std::vector&lt;std::vector&lt;int64_t&gt;&gt;</code></td><td><code>{}</code></td><td>用于绕过 IVF 路由的预选桶 ID。</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>语义：</strong></p>
+<ul>
+<li><strong>空</strong>（默认）：使用正常的桶路由（<code>ClassifyDatasForSearch</code>）。</li>
+<li><strong>非空</strong>：跳过路由，仅扫描提供的桶 ID。</li>
+<li><strong>批量 IVF KNN</strong>：<code>bucket_ids_</code> 外层每项对应一个查询向量。
+结果为矩形：<code>NumElements()</code> 是查询数，<code>Dim()</code> 是 <code>topk_</code>。
+缺失邻居用 <code>-1</code> 和无穷距离填充。</li>
+</ul>
+<p><strong>约束：</strong></p>
+<ul>
+<li>批量 IVF 搜索仅支持 KNN；不支持自定义查询距离和 reasoning labels。</li>
+<li>非空外层向量必须为每个查询向量提供一个非空条目。</li>
+<li>每个桶 ID 必须在 <code>[0, bucket_count)</code> 范围内。</li>
+<li>重复的桶 ID 会被拒绝。</li>
+<li>与 <code>disable_bucket_scan</code> 模式不兼容。</li>
+<li>调用方负责桶 ID 的排序（不会自动排序）。</li>
+</ul>
 <h3 id="过滤字段"><a class="header" href="#过滤字段">过滤字段</a></h3>
 <p>有三种过滤机制可用；当启用了多于一种时，它们以逻辑**与（AND）**组合。</p>
 <div class="table-wrapper">

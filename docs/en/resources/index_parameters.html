@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
+            window.path_to_searchindex_js = "../searchindex-8622c5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f27a726.js"></script>
+        <script src="../toc-01f057d3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -358,7 +358,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage — see the <a href="../quantization/README.html">Quantization chapter</a> for all supported values</td></tr>
 <tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup; roughly doubles edge storage and is unsupported with compressed graph storage</td></tr>
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>Label-map implementation: <code>pg</code> (default) or <code>robin</code></td></tr>
-<tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>Reorder from the <code>precise</code> store or directly from <code>base</code>; RaBitQ x+y split selects <code>base</code> automatically</td></tr>
+<tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>Reorder from the <code>precise</code> store or directly from <code>base</code>; RaBitQ x+y split, including <code>tq_chain="mrle, rabitq"</code>, selects <code>base</code> automatically</td></tr>
 <tr><td><code>persist_source_id</code></td><td><code>false</code></td><td>Include HGraph source-ID metadata in serialization; useful when a restored index must later export a build cache</td></tr>
 <tr><td><code>mrle_dim</code></td><td><code>0</code></td><td>MRLE output dimension in <code>[0, dim]</code>; <code>0</code> means input dimension</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td><code>true</code></td><td>Use fast multi-bit RaBitQ encoding; <code>false</code> restores the exact encoder</td></tr>
@@ -447,6 +447,12 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
     }
 }
 </code></pre>
+<p>MRLE with split RaBitQ uses <code>base_quantization_type: "tq"</code>,
+<code>tq_chain: "mrle, rabitq"</code>, <code>mrle_dim</code>, and the
+<code>rabitq_bits_per_dim_base</code>/<code>rabitq_bits_per_dim_precise</code> pair. It automatically reorders from the
+split base codes and retains original FP32 vectors for decode-only operations. See the
+<a href="../indexes/pyramid.html#mrle-with-split-rabitq">Pyramid page</a> for a complete configuration and
+storage/recall tradeoffs.</p>
 <h2 id="sindi-sparse-vectors"><a class="header" href="#sindi-sparse-vectors">SINDI (sparse vectors)</a></h2>
 <pre><code class="language-json">{
     "dtype": "sparse",

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-73366d13.js";
+            window.path_to_searchindex_js = "../searchindex-5fe46a41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f97b9f91.js"></script>
+        <script src="../toc-c66d9976.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,7 +305,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="rabitq-xy-split"><a class="header" href="#rabitq-xy-split">RaBitQ x+y Split</a></h1>
-<p>RaBitQ x+y split 是 HGraph 面向低比特底库码的存储与搜索模式。每条向量拆成
+<p>RaBitQ x+y split 是 HGraph 和 Pyramid 面向低比特底库码的存储与搜索模式。每条向量拆成
 两条记录：</p>
 <ul>
 <li>图遍历和 lower-bound 过滤只读取 <code>x</code> 个 filter bits。</li>
@@ -316,7 +316,7 @@
 它也支持把 filter record 留在内存中，把访问频率更低的 supplement record 放到磁盘。</p>
 <h2 id="启用-split-模式"><a class="header" href="#启用-split-模式">启用 split 模式</a></h2>
 <p>当 base 和 precise 的量化类型都为 <code>rabitq</code>，并且配置了
-<code>rabitq_bits_per_dim_precise</code> 时，HGraph 自动选择 split 模式：</p>
+<code>rabitq_bits_per_dim_precise</code> 时，HGraph 和 Pyramid 自动选择 split 模式：</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -356,7 +356,7 @@
 1 &lt;= y &lt;= 8
 x + y &lt;= 8
 </code></pre>
-<p>如果不配置 <code>rabitq_bits_per_dim_precise</code>，HGraph 使用 standard RaBitQ 路径，
+<p>如果不配置 <code>rabitq_bits_per_dim_precise</code>，HGraph 和 Pyramid 使用 standard RaBitQ 路径，
 不会创建 split storage。</p>
 <p>使用以下搜索参数启用 filter/lower-bound 搜索路径：</p>
 <pre><code class="language-json">{
@@ -384,7 +384,7 @@ supplement record。</li>
 <li>最终距离把 filter contribution 与 supplement contribution 合成为
 <code>x+y</code>-bit RaBitQ 估计。</li>
 </ol>
-<p>因此，HGraph 不会为每个访问到的向量都计算 <code>x+y</code> 距离并放入搜索堆。图遍历由
+<p>因此，图搜索不会为每个访问到的向量都计算 <code>x+y</code> 距离并放入搜索堆。图遍历由
 低成本的 x-bit 距离驱动，更精确的距离只在候选重排阶段计算。</p>
 <h2 id="编码和-bit-plane"><a class="header" href="#编码和-bit-plane">编码和 bit-plane</a></h2>
 <p>定义：</p>
@@ -490,7 +490,7 @@ scalar 实现作为可移植 fallback。关键入口为：</p>
     = 2^y * sum_i q_i * f_i
       + sum_i q_i * s_i
 </code></pre>
-<p>对使用 x-bit lookup filter 的 L2 搜索，HGraph 会把之前计算的 filter distance
+<p>对使用 x-bit lookup filter 的 L2 搜索，HGraph 和 Pyramid 会把之前计算的 filter distance
 作为 hint 传给 reorder。<code>ComputeDistWithSplitCodeAndFilterDist</code> 从 hint 恢复第一项，
 只从 y 个 supplement planes 计算第二项：</p>
 <pre><code class="language-text">full contribution = shifted filter contribution + supplement contribution
@@ -563,14 +563,14 @@ x/y bit 数和 query bits。修改编码参数需要重建索引；只调整搜�
 </div>
 <h2 id="使用注意"><a class="header" href="#使用注意">使用注意</a></h2>
 <ul>
-<li>split storage 当前是 HGraph 功能，并且要求 fp32 query code。</li>
+<li>split storage 当前可用于 HGraph 和 Pyramid，并且要求 fp32 query code。Pyramid 的 split 索引默认启用 one-bit split 搜索路径；如需强制使用普通搜索路径，可以在 <code>pyramid</code> 搜索参数下传 <code>rabitq_one_bit_search: false</code>。</li>
 <li>支持 <code>l2</code>、<code>ip</code> 和 <code>cosine</code>；利用 filter hint 的 reorder 快速路径当前针对 L2。</li>
 <li>除非已经验证仅靠 x-bit 遍历距离能满足召回要求，否则应保持
 <code>use_reorder: true</code>。</li>
 <li>修改 x、y、metric 或 transform 参数后必须重建索引；在搜索参数中覆盖
 <code>hgraph.rabitq_error_rate</code> 不需要重建。</li>
 <li>RaBitQ 通用说明见 <a href="rabitq.html">RaBitQ</a>，完整 HGraph 参数见
-<a href="../indexes/hgraph.html">HGraph 索引</a>。</li>
+<a href="../indexes/hgraph.html">HGraph 索引</a>和 <a href="../indexes/pyramid.html">Pyramid 索引</a>。</li>
 </ul>
 
                     </main>

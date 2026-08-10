@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
+            window.path_to_searchindex_js = "../searchindex-8622c5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f27a726.js"></script>
+        <script src="../toc-01f057d3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -329,16 +329,11 @@ proportionally.</li>
 …), which actually stores the codes. The whole chain is referred to as <strong><code>tq</code> (Transform
 Quantizer)</strong>.</p>
 <h2 id="quick-start"><a class="header" href="#quick-start">Quick start</a></h2>
-<p><code>tq</code> is currently exposed as a <strong>public, externally configurable</strong> quantization type only by
-<strong>HGraph</strong>. HGraph maps the top-level keys <code>tq_chain</code> and <code>rabitq_pca_dim</code> into the nested
-<code>base_codes.quantization_params</code> JSON via its external-parameter mapping
-(<code>src/algorithm/hgraph.cpp:370-385</code>). IVF, BruteForce, Pyramid and WARP all internally render
-a <code>tq_chain</code> field into their inner JSON template, but none of them expose <code>tq_chain</code> (or any
-other TQ parameter) in their external mapping today. <code>CheckAndMappingExternalParam</code> rejects
-unknown external keys with <code>invalid config param</code>
-(<code>src/utils/util_functions.cpp:50-53</code>), so passing <code>tq_chain</code> in the <code>index_param</code> JSON of
-those indexes will fail at index construction. Configuring TQ on non-HGraph indexes
-therefore requires code-side changes to add the external mapping.</p>
+<p><code>tq</code> is exposed as a public, externally configurable quantization type by <strong>HGraph</strong> and
+<strong>Pyramid</strong>. Both map <code>tq_chain</code> and dimension parameters into
+<code>base_codes.quantization_params</code>. The MRLE + RaBitQ x+y split combination is available in both
+indexes and automatically reorders from the base split datacell. IVF, BruteForce and WARP do
+not currently expose <code>tq_chain</code> through their external parameter mapping.</p>
 <pre><code class="language-cpp">std::string params = R"({
     "dtype": "float32",
     "metric_type": "l2",
@@ -382,6 +377,7 @@ one final quantizer name. Whitespace around tokens is trimmed
 <tr><td><code>"pca, rom, sq8_uniform"</code></td><td>PCA reduction, random rotation, then 8-bit uniform — the example chain.</td></tr>
 <tr><td><code>"pca, rom, rabitq"</code></td><td>PCA + rotation feeding the RaBitQ binary quantizer.</td></tr>
 <tr><td><code>"mrle, fp32"</code></td><td>MRLE projection then store as fp32 (MRLE must be first).</td></tr>
+<tr><td><code>"mrle, rabitq"</code></td><td>MRLE reduction followed by RaBitQ; with x+y split storage, filter and supplement codes are produced by the terminal RaBitQ.</td></tr>
 </tbody>
 </table>
 </div>
@@ -397,6 +393,9 @@ factory does not have a dispatch branch for <code>int8</code>/<code>tq</code> an
 when <code>is_transform_quantizer</code> is true (<code>src/datacell/flatten_interface.cpp:166</code>), so using
 any of those three as the terminal quantizer fails at index construction with an
 “unsupported quantization type” error.</li>
+<li>RaBitQ x+y split storage supports TQ only for the exact chain <code>"mrle, rabitq"</code>. The split
+datacell reuses the terminal RaBitQ encoder and keeps RaBitQ internal FHT/ROM rotation
+behavior unchanged. Other transformed split chains are rejected.</li>
 <li>Any unrecognized transformer name raises <code>INVALID_ARGUMENT: invalid transformer name</code>
 (<code>transform_quantizer.h:225-227</code>).</li>
 </ul>

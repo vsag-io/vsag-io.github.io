@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-73366d13.js";
+            window.path_to_searchindex_js = "../searchindex-5fe46a41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f97b9f91.js"></script>
+        <script src="../toc-c66d9976.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -368,7 +368,7 @@ ExternalProject_Add (antlr4
 <tr><td><code>VSAG_THIRDPARTY_JSON</code></td><td>nlohmann/json 3.11.3</td><td><code>github.com/nlohmann/json/.../v3.11.3.tar.gz</code></td><td>始终</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_ANTLR4</code></td><td>ANTLR4 runtime 4.13.2</td><td><code>github.com/antlr/antlr4/.../4.13.2.tar.gz</code></td><td>始终</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_BOOST</code></td><td>Boost 1.67.0（头文件）</td><td><code>archives.boost.io/.../boost_1_67_0.tar.gz</code></td><td>始终</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.23</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.23.tar.gz</code></td><td>默认 BLAS 后端（未使用系统库 / MKL 时）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.24</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.24.tar.gz</code></td><td>默认 BLAS 后端（未使用系统库 / MKL 时）</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_CPUINFO</code></td><td>pytorch/cpuinfo</td><td><code>github.com/pytorch/cpuinfo/archive/ca678952...tar.gz</code></td><td>始终</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_FMT</code></td><td>fmt 10.2.1</td><td><code>github.com/fmtlib/fmt/.../10.2.1.tar.gz</code></td><td>始终（除非使用系统 fmt）</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_THREAD_POOL</code></td><td>log4cplus/ThreadPool</td><td><code>github.com/log4cplus/ThreadPool/archive/3507796e...tar.gz</code></td><td>始终</td></tr>
@@ -414,7 +414,7 @@ export VSAG_MIRROR=https://mirror.corp.example.com/vsag-thirdparty
 export VSAG_THIRDPARTY_JSON=$VSAG_MIRROR/v3.11.3.tar.gz
 export VSAG_THIRDPARTY_ANTLR4=$VSAG_MIRROR/antlr4-4.13.2.tar.gz
 export VSAG_THIRDPARTY_BOOST=$VSAG_MIRROR/boost_1_67_0.tar.gz
-export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.24.tar.gz
 export VSAG_THIRDPARTY_CPUINFO=$VSAG_MIRROR/cpuinfo-ca678952.tar.gz
 export VSAG_THIRDPARTY_FMT=$VSAG_MIRROR/fmt-10.2.1.tar.gz
 export VSAG_THIRDPARTY_THREAD_POOL=$VSAG_MIRROR/thread_pool-3507796e.tar.gz
@@ -424,14 +424,14 @@ export VSAG_THIRDPARTY_ROARINGBITMAP=$VSAG_MIRROR/CRoaring-3.0.1.tar.gz
 make release
 </code></pre>
 <p>OSS / S3 存储桶用法完全相同——直接使用其公网（或网络可达）的对象 URL，例如
-<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.23.tar.gz</code>。</p>
+<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.24.tar.gz</code>。</p>
 <h3 id="b-预先下载的本地文件完全离线"><a class="header" href="#b-预先下载的本地文件完全离线">B. 预先下载的本地文件（完全离线）</a></h3>
 <p>在完全没有网络的机器上，先把压缩包拷贝到本机（例如 <code>/data/vsag-deps</code>），再让变量指向本地
 文件：</p>
 <pre><code class="language-bash">export VSAG_THIRDPARTY_JSON=/data/vsag-deps/v3.11.3.tar.gz
 export VSAG_THIRDPARTY_ANTLR4=/data/vsag-deps/antlr4-4.13.2.tar.gz
 export VSAG_THIRDPARTY_BOOST=/data/vsag-deps/boost_1_67_0.tar.gz
-export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.24.tar.gz
 export VSAG_THIRDPARTY_CPUINFO=/data/vsag-deps/cpuinfo-ca678952.tar.gz
 export VSAG_THIRDPARTY_FMT=/data/vsag-deps/fmt-10.2.1.tar.gz
 export VSAG_THIRDPARTY_THREAD_POOL=/data/vsag-deps/thread_pool-3507796e.tar.gz
@@ -444,7 +444,7 @@ make release
 同样有效。</p>
 <h3 id="c-只覆盖单个依赖"><a class="header" href="#c-只覆盖单个依赖">C. 只覆盖单个依赖</a></h3>
 <p>如果只有某一个下载不稳定，只覆盖它即可，其余继续使用默认地址：</p>
-<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.23.tar.gz
+<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.24.tar.gz
 make release
 </code></pre>
 <h2 id="备选方案复用系统库"><a class="header" href="#备选方案复用系统库">备选方案：复用系统库</a></h2>

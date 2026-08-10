@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
+            window.path_to_searchindex_js = "../searchindex-8622c5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f27a726.js"></script>
+        <script src="../toc-01f057d3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -334,7 +334,7 @@ auto result = index-&gt;SearchWithRequest(request);
 <tr><th>Field</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>query_</code></td><td><code>DatasetPtr</code></td><td><code>nullptr</code></td><td>The query. Exactly one query vector is allowed.</td></tr>
+<tr><td><code>query_</code></td><td><code>DatasetPtr</code></td><td><code>nullptr</code></td><td>The query. IVF KNN requests support multiple query vectors; other requests allow one.</td></tr>
 <tr><td><code>mode_</code></td><td><code>SearchMode</code></td><td><code>KNN_SEARCH</code></td><td>KNN vs. range search.</td></tr>
 <tr><td><code>topk_</code></td><td><code>int64_t</code></td><td><code>10</code></td><td>Neighbors to return (KNN mode). Must be positive.</td></tr>
 <tr><td><code>radius_</code></td><td><code>float</code></td><td><code>0.5</code></td><td>Distance threshold (range mode). Non-negative.</td></tr>
@@ -343,6 +343,43 @@ auto result = index-&gt;SearchWithRequest(request);
 </tbody>
 </table>
 </div>
+<h3 id="custom-query-distance-callback"><a class="header" href="#custom-query-distance-callback">Custom query distance callback</a></h3>
+<p><code>distance_batch_func_</code> optionally supplies query-to-vector scores from application code. It receives
+stable external vector IDs, so a closure can keep the query and query-specific state outside VSAG:</p>
+<pre><code class="language-cpp">request.distance_batch_size_ = 32;
+request.distance_batch_func_ = [query](const int64_t* ids, uint64_t count, float* scores) {
+    for (uint64_t i = 0; i &lt; count; ++i) {
+        scores[i] = Score(query, ids[i]);
+    }
+};
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>distance_batch_func_</code></td><td><code>SearchDistanceBatchFunc</code></td><td><code>nullptr</code></td><td>Fills one score for each input external ID, in input order. Smaller finite scores are better.</td></tr>
+<tr><td><code>distance_batch_size_</code></td><td><code>uint64_t</code></td><td><code>1</code></td><td>Maximum IDs passed to one callback invocation. Set this to the scorer’s efficient batch width for batched inference or external data access. Must be positive when a callback is set.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The callback is request-scoped and is not serialized. It may capture the query. <code>hgraph</code> permits a
+null <code>query_</code> in callback mode, while <code>ivf</code> still requires one query vector for bucket routing. The
+callback must be stable for one request, thread-safe if the caller enables parallel execution,
+non-throwing, and must write only finite scores.</p>
+<p><code>brute_force</code> uses the callback for exact KNN and range search. <code>hgraph</code> supports KNN only; the
+callback drives graph traversal and final ordering, while the graph remains built with its configured
+built-in metric. Therefore recall under the callback score is not guaranteed. HGraph may score
+filtered traversal nodes to preserve graph connectivity, but filtered nodes are never returned.
+Callback HGraph does not support parallel search or <code>brute_force_threshold</code>; those configurations
+are rejected rather than silently changing search semantics.</p>
+<p><code>ivf</code> supports callback KNN with a non-null single query vector. IVF uses its configured built-in
+metric to select <code>scan_buckets_count</code> buckets, then applies the callback to candidates in those
+buckets. The callback controls candidate ranking but cannot recover vectors outside the selected
+buckets; increase <code>scan_buckets_count</code> to improve recall. Callback IVF does not support range search,
+<code>disable_bucket_scan</code>, bucket-graph search, or parallel search. Those configurations are rejected.
+Reordering is automatically disabled in callback mode. Other indexes do not support the callback.</p>
 <h3 id="ivf-bucket-routing"><a class="header" href="#ivf-bucket-routing">IVF bucket routing</a></h3>
 <p>IVF accepts <code>{"ivf":{"scan_buckets_count":N,"disable_bucket_scan":true}}</code> through
 <code>params_str_</code>. This routing-only mode returns the <code>N</code> selected bucket IDs per query in the
@@ -350,6 +387,37 @@ result <code>Dataset</code> instead of vector labels. <code>NumElements()</code>
 <code>Dim()</code> equals <code>scan_buckets_count</code>, <code>GetIds()</code> contains bucket IDs (with <code>-1</code> for empty
 slots), and <code>GetDistances()</code> has distances to bucket centroids. No vector scan is performed,
 so filters, <code>topk</code>, range limits, reordering, and reasoning options are ignored.</p>
+<h3 id="ivf-bucket-ids-bypass"><a class="header" href="#ivf-bucket-ids-bypass">IVF bucket IDs bypass</a></h3>
+<p>The <code>bucket_ids_</code> field allows callers to provide pre-selected bucket IDs, bypassing IVF’s
+internal bucket routing (<code>ClassifyDatasForSearch</code>). When non-empty, the search skips centroid-based
+selection and scans only the specified buckets.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>bucket_ids_</code></td><td><code>std::vector&lt;std::vector&lt;int64_t&gt;&gt;</code></td><td><code>{}</code></td><td>Pre-selected bucket IDs for bypassing IVF routing.</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Semantics:</strong></p>
+<ul>
+<li><strong>Empty</strong> (default): Use normal bucket routing via <code>ClassifyDatasForSearch</code>.</li>
+<li><strong>Non-empty</strong>: Skip routing and scan only the provided bucket IDs.</li>
+<li><strong>Batch IVF KNN</strong>: One outer <code>bucket_ids_</code> entry per query vector.
+Result is rectangular: <code>NumElements()</code> is query count, <code>Dim()</code> is <code>topk_</code>.
+Missing neighbors are <code>-1</code> with infinite distance.</li>
+</ul>
+<p><strong>Constraints:</strong></p>
+<ul>
+<li>Batch IVF search supports KNN only; custom query distance and reasoning labels are unsupported.</li>
+<li>A non-empty outer vector must contain exactly one non-empty entry per query vector.</li>
+<li>Each bucket ID must be in range <code>[0, bucket_count)</code>.</li>
+<li>Duplicate bucket IDs are rejected.</li>
+<li>Incompatible with <code>disable_bucket_scan</code> mode.</li>
+<li>Caller is responsible for ordering bucket IDs (no automatic sorting).</li>
+</ul>
 <h3 id="filtering-fields"><a class="header" href="#filtering-fields">Filtering fields</a></h3>
 <p>Three filtering mechanisms are available and are combined with logical <strong>AND</strong> when more than one is
 enabled.</p>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
+            window.path_to_searchindex_js = "../searchindex-8622c5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f27a726.js"></script>
+        <script src="../toc-01f057d3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -377,6 +377,27 @@ for (int64_t i = 0; i &lt; result-&gt;GetDim(); ++i) {
 }
 </code></pre>
 <p>The result contains up to <code>k</code> neighbors sorted by ascending distance to the query.</p>
+<h2 id="threshold-filtering"><a class="header" href="#threshold-filtering">Threshold Filtering</a></h2>
+<p>Threshold filtering is supported by the maintained indexes: BruteForce, HGraph, IVF, Pyramid,
+SINDI, and SIMQ. HNSW and DiskANN are deprecated and are explicit unsupported
+non-goals; this option does not add or change behavior for either legacy index.</p>
+<p>KNN search accepts an optional top-level <code>threshold</code> in the JSON search parameters:</p>
+<pre><code class="language-json">{
+  "threshold": 4.0,
+  "hgraph": { "ef_search": 64 }
+}
+</code></pre>
+<p>When present, the result contains at most <code>k</code> neighbors and every returned distance is less than
+or equal to <code>threshold</code>. The boundary is inclusive, results remain sorted by ascending distance,
+and fewer than <code>k</code> results—or no results—may be returned. When omitted, KNN behavior is unchanged.
+The value uses the index metric’s returned distance: squared L2 for <code>l2</code>, <code>1 - inner_product</code> for
+<code>ip</code>, and <code>1 - cosine_similarity</code> for <code>cosine</code>. Therefore negative thresholds can be meaningful
+for <code>ip</code>; the threshold must be a finite JSON number.</p>
+<p>The same option is available through <code>SearchRequest::threshold_</code> on BruteForce, HGraph, and IVF;
+Pyramid, SINDI, and SIMQ support the option through their KNN JSON parameters. These are the six
+maintained indexes supported by this feature. It only limits KNN results; use <code>RangeSearch</code> and
+its <code>radius</code> argument for range-search requests. Existing index-specific search parameters can be
+supplied alongside <code>threshold</code>.</p>
 
                     </main>
 

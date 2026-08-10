@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-73366d13.js";
+            window.path_to_searchindex_js = "../searchindex-5fe46a41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f97b9f91.js"></script>
+        <script src="../toc-c66d9976.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -355,7 +355,7 @@
 <tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略 —— 支持的全部取值见<a href="../quantization/README.html">量化章节</a></td></tr>
 <tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>跟踪入边，实现 O(1) 反向邻居查找；边存储约翻倍，且压缩图存储不支持</td></tr>
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>label map 实现：默认 <code>pg</code>，或 <code>robin</code></td></tr>
-<tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>从 <code>precise</code> 存储或直接从 <code>base</code> 重排；RaBitQ x+y split 会自动选择 <code>base</code></td></tr>
+<tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>从 <code>precise</code> 存储或直接从 <code>base</code> 重排；RaBitQ x+y split（包括 <code>tq_chain="mrle, rabitq"</code>）会自动选择 <code>base</code></td></tr>
 <tr><td><code>persist_source_id</code></td><td><code>false</code></td><td>序列化 HGraph 时保留 Source ID 元数据；适用于恢复索引后继续导出构建缓存</td></tr>
 <tr><td><code>mrle_dim</code></td><td><code>0</code></td><td>MRLE 输出维度，范围 <code>[0, dim]</code>；<code>0</code> 表示输入维度</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td><code>true</code></td><td>使用多 bit RaBitQ 快速编码；设为 <code>false</code> 恢复精确编码器</td></tr>
@@ -440,6 +440,11 @@
     }
 }
 </code></pre>
+<p>MRLE 与 split RaBitQ 组合使用 <code>base_quantization_type: "tq"</code>、
+<code>tq_chain: "mrle, rabitq"</code>、<code>mrle_dim</code>，以及
+<code>rabitq_bits_per_dim_base</code>/<code>rabitq_bits_per_dim_precise</code>。该配置会自动从 split base codes
+精排，并保留原始 FP32 向量供仅解码路径使用。完整配置及存储/召回权衡见
+<a href="../indexes/pyramid.html">Pyramid 页面</a>。</p>
 <h2 id="sindi稀疏向量"><a class="header" href="#sindi稀疏向量">SINDI（稀疏向量）</a></h2>
 <pre><code class="language-json">{
     "dtype": "sparse",

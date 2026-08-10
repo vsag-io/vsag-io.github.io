@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-73366d13.js";
+            window.path_to_searchindex_js = "../searchindex-5fe46a41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f97b9f91.js"></script>
+        <script src="../toc-c66d9976.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -362,6 +362,7 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 <tbody>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> —— 各量化器细节见<a href="../quantization/README.html">量化章节</a></td></tr>
 <tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>启用属性过滤（参见 <a href="../advanced/attribute_filter.html">属性过滤</a>）</td></tr>
+<tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td>扩容批次 slot 数的 <code>log2</code>，取值范围为 <code>1</code> 到 <code>31</code>。<code>1</code> 表示每次按 2 个 slot 对齐，<code>10</code> 表示按 1024 个 slot 对齐。较小取值减少预分配，但可能增加重分配次数。</td></tr>
 </tbody>
 </table>
 </div>

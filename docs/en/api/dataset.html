@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
+            window.path_to_searchindex_js = "../searchindex-8622c5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f27a726.js"></script>
+        <script src="../toc-01f057d3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -462,6 +462,30 @@ destructor frees each <code>vectors_</code> separately.</p>
 <li><a href="search.html">Search Request &amp; Filters</a> — wrapping a query dataset in a <code>SearchRequest</code>.</li>
 <li><a href="types.html">Auxiliary Types</a> — <code>AttributeSet</code> and attribute value types.</li>
 </ul>
+<h2 id="per-search-distance-statistics"><a class="header" href="#per-search-distance-statistics">Per-search distance statistics</a></h2>
+<p>Results from maintained HGraph, BruteForce, IVF, Pyramid, SINDI, and SIMQ searches include an
+additive <code>GetStatistics()</code> contract:</p>
+<pre><code class="language-json">{"distance_evaluations":1164,
+ "distance_evaluations_by_phase":{"routing":64,"approximate":1000,"rerank":100},
+ "distance_evaluations_by_backend":{"sq8":1000,"fp32":100,"unknown":0},
+ "complete":true}
+</code></pre>
+<p>One logical query-to-candidate distance or bound evaluation counts once. A batch of <code>N</code> counts
+<code>N</code>; duplicate evaluations count each time; pre-distance rejects, filters, graph edges, prefetches,
+heap operations, and skipped lower bounds count zero. A lower bound and later exact rerank count
+separately. Phases are <code>routing</code>, <code>approximate</code>, and <code>rerank</code>; backends are stable representation
+families such as <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>int8</code>, <code>sq8</code>, <code>sq4</code>, <code>pq</code>, <code>pq_fastscan</code>, <code>rabitq</code>,
+<code>binary</code>, and sparse families, never ISA or batch variants.</p>
+<p>The total equals the phase sum. Known backend values equal the total; unknown work is in <code>unknown</code>
+and sets <code>complete</code> to <code>false</code>. Values are unsigned 64-bit JSON integers with saturating addition.
+Legacy <code>dist_cmp</code> and <code>reorder_distance_count</code> remain available unchanged for compatibility.
+Python preserves <code>(ids, distances)</code> tuple unpacking. Opt in with
+<code>knn_search_with_statistics</code>: the dense overload returns one statistics JSON string, while the
+sparse CSR overload returns one string per query. <code>range_search_with_statistics</code> returns the range
+arrays plus one statistics JSON string. C preserves <code>SearchResult_t</code>; call
+<code>vsag_search_result_enable_statistics()</code> before a search and release returned statistics with
+<code>vsag_search_result_destroy_statistics()</code>. Legacy callers retain <code>other_result</code> ownership and
+incur no statistics allocation. Legacy HNSW and DiskANN are explicit non-goals.</p>
 
                     </main>
 

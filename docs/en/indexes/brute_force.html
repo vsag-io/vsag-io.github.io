@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
+            window.path_to_searchindex_js = "../searchindex-8622c5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f27a726.js"></script>
+        <script src="../toc-01f057d3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -366,6 +366,7 @@ Advanced users can pass an <code>index_param</code> object to enable quantizatio
 <tbody>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="../quantization/README.html">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Enable attribute-based filtering (see <a href="../advanced/attribute_filter.html">Attribute Filter</a>)</td></tr>
+<tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td><code>log2</code> of the slot-growth batch. Valid range is <code>1</code> to <code>31</code>; <code>1</code> grows in 2-slot batches and <code>10</code> in 1,024-slot batches. Smaller values reduce preallocation but can increase reallocations.</td></tr>
 </tbody>
 </table>
 </div>

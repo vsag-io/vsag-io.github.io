@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-73366d13.js";
+            window.path_to_searchindex_js = "../searchindex-5fe46a41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f97b9f91.js"></script>
+        <script src="../toc-c66d9976.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -322,13 +322,10 @@
 <p>变换后的输出再喂给一个标准量化器（<code>fp32</code>、<code>sq8</code>、<code>sq8_uniform</code>、<code>rabitq</code> ……），由后者
 真正存储 code。整条链被称为 <strong><code>tq</code>（Transform Quantizer）</strong>。</p>
 <h2 id="快速上手"><a class="header" href="#快速上手">快速上手</a></h2>
-<p><code>tq</code> 目前作为<strong>对外可配置</strong>的量化类型，只有 <strong>HGraph</strong> 真正暴露了它。HGraph 通过外部参数映射把
-顶层键 <code>tq_chain</code> 和 <code>rabitq_pca_dim</code> 写到嵌套的 <code>base_codes.quantization_params</code>
-（<code>src/algorithm/hgraph.cpp:370-385</code>）。IVF、BruteForce、Pyramid、WARP 虽然在内部 JSON 模板中
-也会渲染 <code>tq_chain</code> 字段，但它们的外部参数映射里<strong>都没有</strong> <code>tq_chain</code>（或其它 TQ 参数）。
-<code>CheckAndMappingExternalParam</code> 遇到未映射的外部键会直接抛 <code>invalid config param</code>
-（<code>src/utils/util_functions.cpp:50-53</code>），因此在这些索引的 <code>index_param</code> JSON 中传 <code>tq_chain</code>
-会在构建时报错。在非 HGraph 索引上启用 TQ 目前需要在代码侧补一条外部映射。</p>
+<p><code>tq</code> 已作为对外可配置的量化类型暴露给 <strong>HGraph</strong> 和 <strong>Pyramid</strong>。两者都会把
+<code>tq_chain</code> 与降维参数映射到 <code>base_codes.quantization_params</code>。MRLE + RaBitQ x+y split
+组合在两个索引中均可用，并自动从 base split datacell 重排。IVF、BruteForce 与 WARP
+目前仍未通过外部参数映射暴露 <code>tq_chain</code>。</p>
 <pre><code class="language-cpp">std::string params = R"({
     "dtype": "float32",
     "metric_type": "l2",
@@ -371,6 +368,7 @@ token 两侧的空白会被自动 trim
 <tr><td><code>"pca, rom, sq8_uniform"</code></td><td>先 PCA 降维，再随机旋转，再 8 位均匀量化 —— 即示例 501。</td></tr>
 <tr><td><code>"pca, rom, rabitq"</code></td><td>PCA + 旋转后喂给 RaBitQ 二值量化器。</td></tr>
 <tr><td><code>"mrle, fp32"</code></td><td>MRLE 投影再以 fp32 存储（MRLE 必须放在最前）。</td></tr>
+<tr><td><code>"mrle, rabitq"</code></td><td>先做 MRLE 降维，再由 RaBitQ 编码；使用 x+y split 存储时，filter 与 supplement 编码仍由末端 RaBitQ 生成。</td></tr>
 </tbody>
 </table>
 </div>
@@ -385,6 +383,8 @@ token 两侧的空白会被自动 trim
 <code>is_transform_quantizer=true</code> 时显式拒绝 <code>sparse</code>
 （<code>src/datacell/flatten_interface.cpp:166</code>），因此这三个不能用作 TQ 末端，否则会在构建索引时
 以 “unsupported quantization type” 失败。</li>
+<li>RaBitQ x+y split 存储仅支持精确链 <code>"mrle, rabitq"</code>。split datacell 复用末端
+RaBitQ 编码器，并保留 RaBitQ 内部的 FHT/ROM 随机旋转；其他带变换的 split 链会被拒绝。</li>
 <li>未识别的变换名会抛 <code>INVALID_ARGUMENT: invalid transformer name</code>
 （<code>transform_quantizer.h:225-227</code>）。</li>
 </ul>

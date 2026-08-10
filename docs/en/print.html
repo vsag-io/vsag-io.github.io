@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-d8e25656.js";
+            window.path_to_searchindex_js = "searchindex-8622c5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-3f27a726.js"></script>
+        <script src="toc-01f057d3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -540,6 +540,27 @@ for (int64_t i = 0; i &lt; result-&gt;GetDim(); ++i) {
 }
 </code></pre>
 <p>The result contains up to <code>k</code> neighbors sorted by ascending distance to the query.</p>
+<h2 id="threshold-filtering"><a class="header" href="#threshold-filtering">Threshold Filtering</a></h2>
+<p>Threshold filtering is supported by the maintained indexes: BruteForce, HGraph, IVF, Pyramid,
+SINDI, and SIMQ. HNSW and DiskANN are deprecated and are explicit unsupported
+non-goals; this option does not add or change behavior for either legacy index.</p>
+<p>KNN search accepts an optional top-level <code>threshold</code> in the JSON search parameters:</p>
+<pre><code class="language-json">{
+  "threshold": 4.0,
+  "hgraph": { "ef_search": 64 }
+}
+</code></pre>
+<p>When present, the result contains at most <code>k</code> neighbors and every returned distance is less than
+or equal to <code>threshold</code>. The boundary is inclusive, results remain sorted by ascending distance,
+and fewer than <code>k</code> results—or no results—may be returned. When omitted, KNN behavior is unchanged.
+The value uses the index metric’s returned distance: squared L2 for <code>l2</code>, <code>1 - inner_product</code> for
+<code>ip</code>, and <code>1 - cosine_similarity</code> for <code>cosine</code>. Therefore negative thresholds can be meaningful
+for <code>ip</code>; the threshold must be a finite JSON number.</p>
+<p>The same option is available through <code>SearchRequest::threshold_</code> on BruteForce, HGraph, and IVF;
+Pyramid, SINDI, and SIMQ support the option through their KNN JSON parameters. These are the six
+maintained indexes supported by this feature. It only limits KNN results; use <code>RangeSearch</code> and
+its <code>radius</code> argument for range-search requests. Existing index-specific search parameters can be
+supplied alongside <code>threshold</code>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="c-api"><a class="header" href="#c-api">C API</a></h1>
 <p>VSAG exports a C ABI in <code>include/vsag/vsag_c_api.h</code>. It wraps the same index implementations as
@@ -833,7 +854,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage — see the <a href="quantization/README.html">Quantization chapter</a> for all supported values</td></tr>
 <tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup; roughly doubles edge storage and is unsupported with compressed graph storage</td></tr>
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>Label-map implementation: <code>pg</code> (default) or <code>robin</code></td></tr>
-<tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>Reorder from the <code>precise</code> store or directly from <code>base</code>; RaBitQ x+y split selects <code>base</code> automatically</td></tr>
+<tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>Reorder from the <code>precise</code> store or directly from <code>base</code>; RaBitQ x+y split, including <code>tq_chain="mrle, rabitq"</code>, selects <code>base</code> automatically</td></tr>
 <tr><td><code>persist_source_id</code></td><td><code>false</code></td><td>Include HGraph source-ID metadata in serialization; useful when a restored index must later export a build cache</td></tr>
 <tr><td><code>mrle_dim</code></td><td><code>0</code></td><td>MRLE output dimension in <code>[0, dim]</code>; <code>0</code> means input dimension</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td><code>true</code></td><td>Use fast multi-bit RaBitQ encoding; <code>false</code> restores the exact encoder</td></tr>
@@ -922,6 +943,12 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
     }
 }
 </code></pre>
+<p>MRLE with split RaBitQ uses <code>base_quantization_type: "tq"</code>,
+<code>tq_chain: "mrle, rabitq"</code>, <code>mrle_dim</code>, and the
+<code>rabitq_bits_per_dim_base</code>/<code>rabitq_bits_per_dim_precise</code> pair. It automatically reorders from the
+split base codes and retains original FP32 vectors for decode-only operations. See the
+<a href="#mrle-with-split-rabitq">Pyramid page</a> for a complete configuration and
+storage/recall tradeoffs.</p>
 <h2 id="sindi-sparse-vectors"><a class="header" href="#sindi-sparse-vectors">SINDI (sparse vectors)</a></h2>
 <pre><code class="language-json">{
     "dtype": "sparse",
@@ -1010,7 +1037,7 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 <tr><td><code>use_reverse_edges</code></td><td>bool</td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup. Roughly doubles edge storage and is unsupported with <code>graph_storage_type: "compressed"</code>.</td></tr>
 <tr><td><code>label_remap_type</code></td><td>string</td><td><code>"pg"</code></td><td>Label-to-inner-ID map implementation: <code>"pg"</code> or <code>"robin"</code>. Keep the same value when restoring or combining compatible indexes.</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse search</td></tr>
-<tr><td><code>reorder_source</code></td><td>string</td><td><code>"precise"</code></td><td>Reorder from <code>"precise"</code> codes or directly from <code>"base"</code> codes. RaBitQ x+y split sets <code>"base"</code> automatically.</td></tr>
+<tr><td><code>reorder_source</code></td><td>string</td><td><code>"precise"</code></td><td>Reorder from <code>"precise"</code> codes or directly from <code>"base"</code> codes. RaBitQ x+y split, including <code>tq_chain: "mrle, rabitq"</code>, sets <code>"base"</code> automatically.</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (takes effect only with <code>use_reorder: true</code>)</td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default.</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Output dimension for an MRLE transform in <code>tq_chain</code>; allowed range <code>[0, dim]</code>, where <code>0</code> means the input dimension.</td></tr>
@@ -1029,6 +1056,7 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 <tr><td><code>base_direct_read</code> / <code>precise_direct_read</code></td><td>bool</td><td><code>false</code></td><td>With <code>uring_io</code>, open the corresponding file using direct IO instead of the page cache.</td></tr>
 <tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>Initial capacity hint (doesn’t cap the final size)</td></tr>
 <tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>Persist source-ID metadata during serialization so a restored index can later export a reusable build cache.</td></tr>
+<tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td><code>log2</code> of the slot-growth batch. Valid range is <code>1</code> to <code>31</code>; <code>1</code> grows in 2-slot batches and <code>10</code> in 1,024-slot batches. Smaller values reduce preallocation but can increase reallocations.</td></tr>
 </tbody>
 </table>
 </div>
@@ -1606,7 +1634,7 @@ and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
 <tr><td><code>dim</code></td><td>int</td><td>— (required)</td><td>Maximum number of non-zero elements per sparse vector. <em>Not</em> the vocabulary size.</td></tr>
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term id values (≥ max term id + 1, up to 50 000 000).</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window (range: 10 000 – 60 000).</td></tr>
-<tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight terms dropped per doc at build time (0.0 – 0.9).</td></tr>
+<tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight terms dropped per doc at build time (<code>[0.0, 1.0)</code>).</td></tr>
 <tr><td><code>use_quantization</code></td><td>bool or string</td><td><code>false</code></td><td><code>false</code> stores FP32 values, <code>true</code> stores SQ8 values, and <code>"fp16"</code> stores FP16 values.</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a forward store and rescore candidates after coarse SINDI scoring.</td></tr>
 <tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Forward-store type used when <code>use_reorder</code> is enabled. <code>fp32</code> keeps exact values; <code>dmq8</code> stores compressed 8-bit DMQ codes.</td></tr>
@@ -1664,7 +1692,9 @@ evidence, not a capacity guarantee.</p>
 It rejects incremental <code>Add</code>, <code>GetSparseVectorByInnerId</code>, <code>CalcDistanceById</code>, and
 <code>CalDistanceById</code>. Streaming serialization is not supported for immutable SINDI; use the matching
 legacy serialization APIs or keep the index mutable when the streaming format is required.
-The serialized index must be loaded into a SINDI created with the same <code>immutable</code> setting.</p>
+The serialized index must be loaded into a SINDI created with the same <code>immutable</code> setting.
+New indexes record the sorted posting-list format version and skip normalization when loaded.
+Indexes written without this marker remain compatible and are normalized during loading.</p>
 <h2 id="search-parameters-3"><a class="header" href="#search-parameters-3">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>sindi</code> sub-object:</p>
 <div class="table-wrapper">
@@ -1674,11 +1704,14 @@ The serialized index must be loaded into a SINDI created with the same <code>imm
 </thead>
 <tbody>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Candidate heap size. When <code>0</code>, defaults to <code>SPARSE_AMPLIFICATION_FACTOR · topk</code> (500×). If set, must satisfy <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code>.</td></tr>
-<tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight query terms skipped (0.0 – 0.9).</td></tr>
-<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of term-list entries skipped (0.0 – 0.9).</td></tr>
+<tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight query terms skipped (<code>[0.0, 1.0)</code>).</td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest-value postings skipped from each term list (<code>[0.0, 1.0)</code>).</td></tr>
+<tr><td><code>term_retain_threshold</code></td><td>uint64</td><td><code>0</code></td><td>Maximum postings for one term across all windows. A value of <code>0</code> disables this limit; positive values allow each non-empty window posting list to scan at most <code>max(1, floor(threshold / window_count))</code> postings.</td></tr>
 </tbody>
 </table>
 </div>
+<p>After combining the ratio and threshold limits, SINDI scans at least one posting from every
+non-empty term list.</p>
 <p>SINDI chooses the heap-insertion strategy automatically from the build-time
 <code>doc_prune_ratio</code> and search-time <code>query_prune_ratio</code>. With the current <code>0.1</code>
 threshold, SINDI uses the distance-array insertion path when both ratios are
@@ -2070,7 +2103,9 @@ auto result = index-&gt;KnnSearch(
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>). See the <a href="quantization/README.html">Quantization chapter</a> for per-quantizer details.</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code>). See the <a href="quantization/README.html">Quantization chapter</a> for per-quantizer details.</td></tr>
+<tr><td><code>tq_chain</code></td><td>string</td><td>—</td><td>Transform chain used when <code>base_quantization_type</code> is <code>tq</code>, for example <code>"mrle, rabitq"</code>.</td></tr>
+<tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Prefix dimension retained by MRLE; <code>0</code> keeps the input dimension.</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per node within a sub-graph.</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code> or <code>odescent</code>.</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size for <code>nsw</code> builds.</td></tr>
@@ -2079,7 +2114,9 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>neighbor_sample_rate</code></td><td>float</td><td>—</td><td>ODescent neighbor sampling rate.</td></tr>
 <tr><td><code>no_build_levels</code></td><td>int[]</td><td><code>[]</code></td><td>Tree levels that skip graph construction (0-indexed from the root).</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy for rescoring.</td></tr>
-<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer for reordering.</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer for reordering. Use <code>"rabitq"</code> with <code>rabitq_bits_per_dim_precise</code> to enable RaBitQ x+y split reorder from base storage.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>RaBitQ stored-code bits. In x+y split mode, this is <code>x</code>, the filter bits used during graph traversal; allowed range is <code>[1, 8]</code>.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>RaBitQ split <code>y</code> bits. When set with <code>base_quantization_type: "rabitq"</code> and <code>precise_quantization_type: "rabitq"</code>, Pyramid uses split storage; <code>rabitq_bits_per_dim_base</code> remains <code>x</code>, and <code>x + y &lt;= 8</code>.</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use the fast multi-bit RaBitQ encoder for RaBitQ base or precise storage; set to <code>false</code> for the exact encoder.</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Fast RaBitQ refinement rounds in <code>[1, 32]</code>.</td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Base and reorder storage backends; <code>uring_io</code> is available in builds with liburing.</td></tr>
@@ -2091,6 +2128,37 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
+<h3 id="rabitq-split-configuration"><a class="header" href="#rabitq-split-configuration">RaBitQ split configuration</a></h3>
+<p>Set all five parameters together to enable RaBitQ x+y split storage and reordering:</p>
+<pre><code class="language-json">{
+    "use_reorder": true,
+    "base_quantization_type": "rabitq",
+    "precise_quantization_type": "rabitq",
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5
+}
+</code></pre>
+<p>Because split codes cannot be decoded back to the input vector, Pyramid also retains an internal
+FP32 copy for incremental flat-to-graph promotion and analyzer sampling. Search distances still use
+the split codes; the FP32 copy adds <code>count * dim * sizeof(float)</code> bytes of vector storage.</p>
+<h3 id="mrle-with-split-rabitq"><a class="header" href="#mrle-with-split-rabitq">MRLE with split RaBitQ</a></h3>
+<p>Pyramid can truncate embeddings trained with Matryoshka Representation Learning before encoding
+them as split RaBitQ codes:</p>
+<pre><code class="language-json">{
+    "base_quantization_type": "tq",
+    "tq_chain": "mrle, rabitq",
+    "mrle_dim": 1280,
+    "precise_quantization_type": "rabitq",
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5,
+    "use_reorder": true
+}
+</code></pre>
+<p>The 3-bit filter planes are used for graph traversal and the 5-bit supplement planes for
+reordering; both encode the same truncated vector. Pyramid reorders from the split base datacell
+and retains original FP32 vectors for graph promotion and statistics. The raw-vector copy adds
+storage, and truncation can reduce recall unless the embedding model was trained for prefix
+dimensions.</p>
 <h2 id="search-parameters-5"><a class="header" href="#search-parameters-5">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>pyramid</code> sub-object:</p>
 <div class="table-wrapper">
@@ -2100,9 +2168,11 @@ auto result = index-&gt;KnnSearch(
 </thead>
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>Candidate list size for the leaf-level graph search.</td></tr>
+<tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Hard cap on hops for root-graph KNN search; ignored when it is not greater than <code>ef_search</code>.</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>Candidate list size used when traversing intermediate sub-graphs on the path.</td></tr>
 <tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>Select which hierarchy to search. Empty means use the default (unnamed) hierarchy.</td></tr>
 <tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>How to combine results across hierarchies: <code>single</code> (search one hierarchy), <code>union</code>, or <code>intersection</code>. <strong>Note:</strong> <code>union</code> and <code>intersection</code> are not yet implemented — setting them will cause <code>KnnSearch</code>/<code>RangeSearch</code> to return an error.</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Positive lower-bound error multiplier for this search. The default <code>1.9</code> is relatively large; increasing it improves accuracy but slows down search.</td></tr>
 </tbody>
 </table>
 </div>
@@ -2298,6 +2368,7 @@ Advanced users can pass an <code>index_param</code> object to enable quantizatio
 <tbody>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="quantization/README.html">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Enable attribute-based filtering (see <a href="#attribute-filter-hybrid-search">Attribute Filter</a>)</td></tr>
+<tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td><code>log2</code> of the slot-growth batch. Valid range is <code>1</code> to <code>31</code>; <code>1</code> grows in 2-slot batches and <code>10</code> in 1,024-slot batches. Smaller values reduce preallocation but can increase reallocations.</td></tr>
 </tbody>
 </table>
 </div>
@@ -3068,14 +3139,14 @@ match).</li>
 <h1 id="rabitq"><a class="header" href="#rabitq">RaBitQ</a></h1>
 <p><code>rabitq</code> is VSAG’s binary / low-bit quantizer. In its default mode each
 coordinate is encoded with <strong>1 bit</strong>, giving the highest compression ratio
-of any built-in quantizer. On HGraph, an <code>x+y</code> split mode stores low-bit base
+of any built-in quantizer. On HGraph and Pyramid, an <code>x+y</code> split mode stores low-bit base
 codes as <code>x</code> filter bits plus <code>y</code> supplement bits, so graph traversal can use
 only the filter code and re-ranking can fetch only the supplement bits it needs.</p>
 <p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ: encode each coordinate by its sign relative to a random hyperplane"><span class="img-wrapper"><img src="figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ: encode each coordinate by its sign relative to a random hyperplane"></span></label></p>
 <blockquote>
 <p>Implementation: <code>src/quantization/rabitq_quantization/rabitq_quantizer.cpp</code>,
 parameter file <code>rabitq_quantizer_parameter.cpp</code>.
-For the complete HGraph split layout, lower-bound formula, and IO modes,
+For the complete split layout, lower-bound formula, and IO modes,
 see <a href="#rabitq-xy-split">RaBitQ x+y Split</a>.</p>
 </blockquote>
 <h2 id="when-to-use-it-5"><a class="header" href="#when-to-use-it-5">When to use it</a></h2>
@@ -3096,7 +3167,7 @@ as <code>"pca, rom, rabitq"</code>.</p>
 <li><code>rabitq_bits_per_dim_base = 1</code>: <code>ceil(dim / 8)</code> bytes per vector. With
 <code>dim = 768</code> that is 96 bytes (vs 3072 for fp32 → 32× smaller).</li>
 <li><code>rabitq_bits_per_dim_base = x</code> plus <code>rabitq_bits_per_dim_precise = y</code>
-on HGraph: split mode stores roughly <code>(x + y) * dim / 8</code> bytes per vector
+on HGraph or Pyramid: split mode stores roughly <code>(x + y) * dim / 8</code> bytes per vector
 for the RaBitQ code bytes. For example, <code>3+5</code> is about <code>dim</code> bytes per
 vector.</li>
 </ul>
@@ -3109,9 +3180,9 @@ vector.</li>
 <tbody>
 <tr><td><code>pca_dim</code></td><td>int</td><td><code>0</code> (= input dim)</td><td>Optional PCA preprocessing dimension applied inside RaBitQ. <code>0</code> means no PCA reduction (<code>rabitq_quantizer_parameter.cpp:30-32</code>).</td></tr>
 <tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>Bits per dimension used to encode the <strong>query</strong> during search. Allowed values: <code>4</code> or <code>32</code> (<code>rabitq_quantizer_parameter.cpp:38-43</code>).</td></tr>
-<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>In standard RaBitQ, bits per dimension for the stored base code. In HGraph <code>x+y</code> split mode, this external key means <code>x</code>, the filter bits used during graph traversal. Allowed range <code>[1, 8]</code>.</td></tr>
-<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>HGraph-only split-mode key. When present with <code>base_quantization_type: "rabitq"</code> and <code>precise_quantization_type: "rabitq"</code>, this means <code>y</code>, the supplement bits used for reorder/full-distance refinement. The sum <code>x + y</code> must be <code>&lt;= 8</code>.</td></tr>
-<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Default lower-bound error multiplier for HGraph split search; must be finite and positive. It can be overridden per search under the <code>hgraph</code> object.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>In standard RaBitQ, bits per dimension for the stored base code. In HGraph/Pyramid <code>x+y</code> split mode, this external key means <code>x</code>, the filter bits used during graph traversal. Allowed range <code>[1, 8]</code>.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>HGraph/Pyramid split-mode key. When present with <code>base_quantization_type: "rabitq"</code> and <code>precise_quantization_type: "rabitq"</code>, this means <code>y</code>, the supplement bits used for reorder/full-distance refinement. The sum <code>x + y</code> must be <code>&lt;= 8</code>.</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Default lower-bound error multiplier for HGraph/Pyramid split search; must be finite and positive. It can be overridden per search under the <code>hgraph</code> or <code>pyramid</code> object.</td></tr>
 <tr><td><code>use_fht</code></td><td>bool</td><td><code>false</code></td><td>If <code>true</code>, applies a Fast Hadamard Transform rotation before binarization. Improves accuracy on anisotropic data with cheap O(dim log dim) cost (<code>rabitq_quantizer_parameter.cpp:76-78</code>).</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>For stored codes wider than one bit, use CAQ-based fast encoding. Set to <code>false</code> to retain the exact RaBitQ encoder. The setting is ignored for one-bit codes.</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Number of CAQ coordinate-adjustment rounds. Allowed range: <code>[1, 32]</code>. Each coordinate moves by at most one level per round.</td></tr>
@@ -3168,8 +3239,8 @@ graph-distance evaluation.</p>
 }
 </code></pre>
 <p>Swap to the higher-accuracy <code>x+y</code> split mode by setting both base and precise
-quantization to RaBitQ and providing <code>rabitq_bits_per_dim_precise</code>. HGraph then
-automatically selects the split datacell. In the example below, traversal uses
+quantization to RaBitQ and providing <code>rabitq_bits_per_dim_precise</code>. HGraph and Pyramid then
+automatically select the split datacell. In the example below, traversal uses
 <code>x = 3</code> filter bits and reorder reads only <code>y = 5</code> supplement bits:</p>
 <pre><code class="language-json">{
     "base_quantization_type": "rabitq",
@@ -3195,7 +3266,7 @@ is acceptable on your data. <code>use_reorder: true</code> +
 <code>precise_quantization_type: "fp32"</code> is the safe default.</li>
 <li><strong>Rotate first.</strong> For un-normalized data, set <code>rabitq_use_fht: true</code> or
 use a <code>tq</code> chain that includes <code>rom</code> / <code>fht</code>.</li>
-<li><strong>Split mode for accuracy.</strong> HGraph <code>x+y</code> split keeps an <code>x</code>-bit fast path
+<li><strong>Split mode for accuracy.</strong> HGraph/Pyramid <code>x+y</code> split keeps an <code>x</code>-bit fast path
 for graph traversal and adds <code>y</code> supplement bits for re-ranking; expect
 significantly higher recall than pure 1-bit when using more total bits.</li>
 </ul>
@@ -3208,7 +3279,7 @@ significantly higher recall than pure 1-bit when using more total bits.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="rabitq-xy-split"><a class="header" href="#rabitq-xy-split">RaBitQ x+y Split</a></h1>
-<p>RaBitQ x+y split is an HGraph storage and search mode for low-bit base codes.
+<p>RaBitQ x+y split is an HGraph and Pyramid storage and search mode for low-bit base codes.
 Each vector is divided into two records:</p>
 <ul>
 <li><code>x</code> filter bits are read during graph traversal and lower-bound filtering.</li>
@@ -3219,7 +3290,7 @@ Each vector is divided into two records:</p>
 RaBitQ distance for final ranking. It also allows the filter record to stay in
 memory while the colder supplement record is stored on disk.</p>
 <h2 id="enable-split-mode"><a class="header" href="#enable-split-mode">Enable split mode</a></h2>
-<p>HGraph selects split mode when both quantization types are <code>rabitq</code> and
+<p>HGraph and Pyramid select split mode when both quantization types are <code>rabitq</code> and
 <code>rabitq_bits_per_dim_precise</code> is present:</p>
 <pre><code class="language-json">{
     "dtype": "float32",
@@ -3260,7 +3331,7 @@ memory while the colder supplement record is stored on disk.</p>
 1 &lt;= y &lt;= 8
 x + y &lt;= 8
 </code></pre>
-<p>If <code>rabitq_bits_per_dim_precise</code> is omitted, HGraph uses the standard RaBitQ
+<p>If <code>rabitq_bits_per_dim_precise</code> is omitted, HGraph and Pyramid use the standard RaBitQ
 path instead of split storage.</p>
 <p>Enable the filter/lower-bound search path with:</p>
 <pre><code class="language-json">{
@@ -3289,7 +3360,7 @@ It fetches the y-bit supplement record only for the remaining candidates.</li>
 <li>The final distance combines the filter contribution and supplement
 contribution into one <code>x+y</code>-bit RaBitQ estimate.</li>
 </ol>
-<p>The HGraph heap is therefore not populated with an <code>x+y</code> distance for every
+<p>The graph-search heap is therefore not populated with an <code>x+y</code> distance for every
 visited vector. The inexpensive x-bit distance drives traversal; the more
 accurate distance is evaluated only during candidate reorder.</p>
 <h2 id="encoding-and-bit-planes"><a class="header" href="#encoding-and-bit-planes">Encoding and bit planes</a></h2>
@@ -3401,7 +3472,7 @@ generic bit-plane computation path.</p>
     = 2^y * sum_i q_i * f_i
       + sum_i q_i * s_i
 </code></pre>
-<p>For L2 with an x-bit lookup filter, HGraph passes the previously computed
+<p>For L2 with an x-bit lookup filter, HGraph and Pyramid pass the previously computed
 filter distance to reorder as a hint. <code>ComputeDistWithSplitCodeAndFilterDist</code>
 recovers the first term from that hint and computes only the second term from
 the y supplement planes:</p>
@@ -3480,7 +3551,7 @@ search-time <code>hgraph.rabitq_error_rate</code> does not.</p>
 </div>
 <h2 id="operational-notes"><a class="header" href="#operational-notes">Operational notes</a></h2>
 <ul>
-<li>Split storage is currently an HGraph feature and requires fp32 query codes.</li>
+<li>Split storage is currently available on HGraph and Pyramid and requires fp32 query codes. Pyramid enables the one-bit split search path by default for split indexes; pass <code>rabitq_one_bit_search: false</code> under <code>pyramid</code> to force the standard search path.</li>
 <li><code>l2</code>, <code>ip</code>, and <code>cosine</code> are supported. The filter-hint reorder shortcut is
 currently specialized for L2.</li>
 <li>Keep <code>use_reorder: true</code> unless x-bit traversal accuracy alone has been
@@ -3488,7 +3559,7 @@ validated for the dataset.</li>
 <li>Changing x, y, metric, or transform parameters requires rebuilding the
 index. A search-time <code>hgraph.rabitq_error_rate</code> override does not.</li>
 <li>Use <a href="#rabitq">RaBitQ</a> for the general quantizer description and
-<a href="#hgraph-2">HGraph</a> for the complete index parameter table.</li>
+<a href="#hgraph-2">HGraph</a> and <a href="#pyramid-1">Pyramid</a> for the complete index parameter tables.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="quantization-transform"><a class="header" href="#quantization-transform">Quantization Transform</a></h1>
@@ -3516,16 +3587,11 @@ proportionally.</li>
 …), which actually stores the codes. The whole chain is referred to as <strong><code>tq</code> (Transform
 Quantizer)</strong>.</p>
 <h2 id="quick-start-8"><a class="header" href="#quick-start-8">Quick start</a></h2>
-<p><code>tq</code> is currently exposed as a <strong>public, externally configurable</strong> quantization type only by
-<strong>HGraph</strong>. HGraph maps the top-level keys <code>tq_chain</code> and <code>rabitq_pca_dim</code> into the nested
-<code>base_codes.quantization_params</code> JSON via its external-parameter mapping
-(<code>src/algorithm/hgraph.cpp:370-385</code>). IVF, BruteForce, Pyramid and WARP all internally render
-a <code>tq_chain</code> field into their inner JSON template, but none of them expose <code>tq_chain</code> (or any
-other TQ parameter) in their external mapping today. <code>CheckAndMappingExternalParam</code> rejects
-unknown external keys with <code>invalid config param</code>
-(<code>src/utils/util_functions.cpp:50-53</code>), so passing <code>tq_chain</code> in the <code>index_param</code> JSON of
-those indexes will fail at index construction. Configuring TQ on non-HGraph indexes
-therefore requires code-side changes to add the external mapping.</p>
+<p><code>tq</code> is exposed as a public, externally configurable quantization type by <strong>HGraph</strong> and
+<strong>Pyramid</strong>. Both map <code>tq_chain</code> and dimension parameters into
+<code>base_codes.quantization_params</code>. The MRLE + RaBitQ x+y split combination is available in both
+indexes and automatically reorders from the base split datacell. IVF, BruteForce and WARP do
+not currently expose <code>tq_chain</code> through their external parameter mapping.</p>
 <pre><code class="language-cpp">std::string params = R"({
     "dtype": "float32",
     "metric_type": "l2",
@@ -3569,6 +3635,7 @@ one final quantizer name. Whitespace around tokens is trimmed
 <tr><td><code>"pca, rom, sq8_uniform"</code></td><td>PCA reduction, random rotation, then 8-bit uniform — the example chain.</td></tr>
 <tr><td><code>"pca, rom, rabitq"</code></td><td>PCA + rotation feeding the RaBitQ binary quantizer.</td></tr>
 <tr><td><code>"mrle, fp32"</code></td><td>MRLE projection then store as fp32 (MRLE must be first).</td></tr>
+<tr><td><code>"mrle, rabitq"</code></td><td>MRLE reduction followed by RaBitQ; with x+y split storage, filter and supplement codes are produced by the terminal RaBitQ.</td></tr>
 </tbody>
 </table>
 </div>
@@ -3584,6 +3651,9 @@ factory does not have a dispatch branch for <code>int8</code>/<code>tq</code> an
 when <code>is_transform_quantizer</code> is true (<code>src/datacell/flatten_interface.cpp:166</code>), so using
 any of those three as the terminal quantizer fails at index construction with an
 “unsupported quantization type” error.</li>
+<li>RaBitQ x+y split storage supports TQ only for the exact chain <code>"mrle, rabitq"</code>. The split
+datacell reuses the terminal RaBitQ encoder and keeps RaBitQ internal FHT/ROM rotation
+behavior unchanged. Other transformed split chains are rejected.</li>
 <li>Any unrecognized transformer name raises <code>INVALID_ARGUMENT: invalid transformer name</code>
 (<code>transform_quantizer.h:225-227</code>).</li>
 </ul>
@@ -4145,7 +4215,7 @@ variables for the dependencies your build actually pulls in (see
 <tr><td><code>VSAG_THIRDPARTY_JSON</code></td><td>nlohmann/json 3.11.3</td><td><code>github.com/nlohmann/json/.../v3.11.3.tar.gz</code></td><td>always</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_ANTLR4</code></td><td>ANTLR4 runtime 4.13.2</td><td><code>github.com/antlr/antlr4/.../4.13.2.tar.gz</code></td><td>always</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_BOOST</code></td><td>Boost 1.67.0 (headers)</td><td><code>archives.boost.io/.../boost_1_67_0.tar.gz</code></td><td>always</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.23</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.23.tar.gz</code></td><td>default BLAS backend (when not using system / MKL)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.24</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.24.tar.gz</code></td><td>default BLAS backend (when not using system / MKL)</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_CPUINFO</code></td><td>pytorch/cpuinfo</td><td><code>github.com/pytorch/cpuinfo/archive/ca678952...tar.gz</code></td><td>always</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_FMT</code></td><td>fmt 10.2.1</td><td><code>github.com/fmtlib/fmt/.../10.2.1.tar.gz</code></td><td>always (unless system fmt)</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_THREAD_POOL</code></td><td>log4cplus/ThreadPool</td><td><code>github.com/log4cplus/ThreadPool/archive/3507796e...tar.gz</code></td><td>always</td></tr>
@@ -4195,7 +4265,7 @@ export VSAG_MIRROR=https://mirror.corp.example.com/vsag-thirdparty
 export VSAG_THIRDPARTY_JSON=$VSAG_MIRROR/v3.11.3.tar.gz
 export VSAG_THIRDPARTY_ANTLR4=$VSAG_MIRROR/antlr4-4.13.2.tar.gz
 export VSAG_THIRDPARTY_BOOST=$VSAG_MIRROR/boost_1_67_0.tar.gz
-export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.24.tar.gz
 export VSAG_THIRDPARTY_CPUINFO=$VSAG_MIRROR/cpuinfo-ca678952.tar.gz
 export VSAG_THIRDPARTY_FMT=$VSAG_MIRROR/fmt-10.2.1.tar.gz
 export VSAG_THIRDPARTY_THREAD_POOL=$VSAG_MIRROR/thread_pool-3507796e.tar.gz
@@ -4206,14 +4276,14 @@ make release
 </code></pre>
 <p>An OSS / S3 bucket works identically — just use its public (or
 network-reachable) object URL, for example
-<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.23.tar.gz</code>.</p>
+<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.24.tar.gz</code>.</p>
 <h3 id="b-pre-downloaded-local-files-fully-air-gapped"><a class="header" href="#b-pre-downloaded-local-files-fully-air-gapped">B. Pre-downloaded local files (fully air-gapped)</a></h3>
 <p>On a machine that has <em>no</em> network at all, copy the archives onto the box first
 (e.g. to <code>/data/vsag-deps</code>) and point the variables at the local files:</p>
 <pre><code class="language-bash">export VSAG_THIRDPARTY_JSON=/data/vsag-deps/v3.11.3.tar.gz
 export VSAG_THIRDPARTY_ANTLR4=/data/vsag-deps/antlr4-4.13.2.tar.gz
 export VSAG_THIRDPARTY_BOOST=/data/vsag-deps/boost_1_67_0.tar.gz
-export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.24.tar.gz
 export VSAG_THIRDPARTY_CPUINFO=/data/vsag-deps/cpuinfo-ca678952.tar.gz
 export VSAG_THIRDPARTY_FMT=/data/vsag-deps/fmt-10.2.1.tar.gz
 export VSAG_THIRDPARTY_THREAD_POOL=/data/vsag-deps/thread_pool-3507796e.tar.gz
@@ -4227,7 +4297,7 @@ is equally valid.</p>
 <h3 id="c-override-a-single-dependency"><a class="header" href="#c-override-a-single-dependency">C. Override a single dependency</a></h3>
 <p>If only one download is unreliable, override just that one and let the rest use
 the defaults:</p>
-<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.23.tar.gz
+<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.24.tar.gz
 make release
 </code></pre>
 <h2 id="alternative-reuse-system-libraries"><a class="header" href="#alternative-reuse-system-libraries">Alternative: reuse system libraries</a></h2>
@@ -6746,6 +6816,101 @@ deserialization with a dedicated reader if you only need a snapshot on disk.</li
 freely serialized and shipped before any vectors are added.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="hgraph-mci-companion"><a class="header" href="#hgraph-mci-companion">HGraph MCI Companion</a></h1>
+<p>HGraph can optionally build an MCI (Maximal Clique Index) companion for filtered KNN
+search. The companion stores clique metadata beside the HGraph index and shares HGraph’s
+vector storage. It is not a standalone index type: create the index as <code>hgraph</code>, not <code>mci</code>.</p>
+<p>Use this feature when filtered search is the main workload and the filter keeps only a
+small fraction of vectors. HGraph chooses between normal graph traversal and the MCI
+companion by comparing <code>Filter::ValidRatio()</code> with a threshold.</p>
+<h2 id="build-configuration-1"><a class="header" href="#build-configuration-1">Build Configuration</a></h2>
+<p>MCI build parameters are flat fields in <code>index_param</code>. The companion is enabled when
+<code>use_mci</code> is true or when any MCI build parameter is present. The <code>mci_knng_source</code>
+parameter selects whether clique construction derives its KNN graph from the completed
+HGraph bottom graph or builds a dedicated ODescent graph:</p>
+<pre><code class="language-json">{
+  "dtype": "float32",
+  "metric_type": "l2",
+  "dim": 128,
+  "index_param": {
+    "base_quantization_type": "fp32",
+    "max_degree": 32,
+    "ef_construction": 400,
+    "mci_mcs": 200,
+    "mci_clique_max": 50,
+    "mci_alpha": 1.2,
+    "mci_knng_source": "odescent"
+  }
+}
+</code></pre>
+<p>The default source is <code>hgraph</code>, which preserves the existing behavior. Set the source to
+<code>odescent</code> to build the MCI KNN graph directly from the stored vectors. An internally configured
+external KNN graph path takes precedence over this selector.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Purpose</th></tr>
+</thead>
+<tbody>
+<tr><td><code>use_mci</code></td><td>Enables MCI with default build parameters when set to <code>true</code>.</td></tr>
+<tr><td><code>mci_mcs</code></td><td>Candidate neighbor count used when constructing cliques.</td></tr>
+<tr><td><code>mci_knng_source</code></td><td>KNN graph source: <code>hgraph</code> (default) or <code>odescent</code>.</td></tr>
+<tr><td><code>mci_clique_max</code></td><td>Maximum clique size during full build.</td></tr>
+<tr><td><code>mci_alpha</code></td><td>Clique construction expansion factor.</td></tr>
+<tr><td><code>mci_incremental_join_ratio_threshold</code></td><td>Add-time threshold for joining existing cliques.</td></tr>
+<tr><td><code>mci_incremental_added_mct</code></td><td>Maximum existing cliques a newly added node may join.</td></tr>
+<tr><td><code>mci_incremental_clique_max</code></td><td>Maximum clique size used by incremental clique creation.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="search-configuration"><a class="header" href="#search-configuration">Search Configuration</a></h2>
+<p>Search parameters live under the <code>hgraph</code> search object:</p>
+<pre><code class="language-json">{
+    "hgraph": {
+      "ef_search": 120,
+      "use_mci": true,
+      "mci_seed_ratio": 0.1,
+      "hgraph_valid_ratio_threshold": 0.2
+    }
+}
+</code></pre>
+<p><code>use_mci</code> defaults to true for search and can be set to false to disable MCI for a single
+query. <code>hgraph_valid_ratio_threshold</code> is the search routing threshold: use MCI when
+<code>ValidRatio()</code> is below this value; otherwise use HGraph. The default is <code>0.05</code>.</p>
+<p>The seed count is
+<code>ceil(sqrt(current_vector_count) * mci_seed_ratio)</code>, with a minimum of one seed.
+<code>mci_seed_ratio</code> defaults to <code>0.1</code> and must be finite and non-negative. The resulting
+seed count is capped at the number of points that satisfy the filter.</p>
+<p>The companion needs a <code>Filter</code> object with a meaningful <code>ValidRatio()</code> hint. Bitset and
+function filters are accepted, but a custom <code>Filter</code> gives the search planner better
+selectivity information.</p>
+<h2 id="add-serialize-and-stats"><a class="header" href="#add-serialize-and-stats">Add, Serialize, and Stats</a></h2>
+<p>When MCI is enabled by the flat build parameters, <code>HGraph::Add()</code> updates the companion
+after inserting each new node into HGraph. It first tries to join suitable existing cliques,
+then creates a small
+incremental clique when no good join target exists.</p>
+<p>Note: MCI indexes should not be built from scratch by calling <code>Add()</code> on an empty index.
+The incremental add path is intended for appending a small number of vectors to an existing
+initial index.</p>
+<p>The clique data is serialized inside the HGraph index. Loading the HGraph index restores the
+companion automatically.</p>
+<p><code>GetStats()</code> includes MCI quality fields such as:</p>
+<ul>
+<li><code>mci_has_index</code></li>
+<li><code>mci_total_nodes</code></li>
+<li><code>mci_covered_nodes</code></li>
+<li><code>mci_total_clique_count</code></li>
+<li><code>mci_total_membership_count</code></li>
+<li><code>mci_avg_membership_per_node</code></li>
+<li><code>mci_avg_clique_size</code></li>
+<li><code>mci_max_clique_size</code></li>
+<li><code>mci_memory_usage</code></li>
+</ul>
+<h2 id="example-2"><a class="header" href="#example-2">Example</a></h2>
+<p>See
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/324_feature_hgraph_mci_companion.cpp"><code>examples/cpp/324_feature_hgraph_mci_companion.cpp</code></a>
+for a minimal build and filtered-search flow.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="api-reference"><a class="header" href="#api-reference">API Reference</a></h1>
 <p>This chapter is a curated reference for VSAG’s <strong>public C++ API</strong> — the headers installed under
 <code>include/vsag/</code>. It documents the classes, structs, enums, and free functions an application links
@@ -7485,6 +7650,30 @@ destructor frees each <code>vectors_</code> separately.</p>
 <li><a href="#search-request--filters">Search Request &amp; Filters</a> — wrapping a query dataset in a <code>SearchRequest</code>.</li>
 <li><a href="#auxiliary-types">Auxiliary Types</a> — <code>AttributeSet</code> and attribute value types.</li>
 </ul>
+<h2 id="per-search-distance-statistics"><a class="header" href="#per-search-distance-statistics">Per-search distance statistics</a></h2>
+<p>Results from maintained HGraph, BruteForce, IVF, Pyramid, SINDI, and SIMQ searches include an
+additive <code>GetStatistics()</code> contract:</p>
+<pre><code class="language-json">{"distance_evaluations":1164,
+ "distance_evaluations_by_phase":{"routing":64,"approximate":1000,"rerank":100},
+ "distance_evaluations_by_backend":{"sq8":1000,"fp32":100,"unknown":0},
+ "complete":true}
+</code></pre>
+<p>One logical query-to-candidate distance or bound evaluation counts once. A batch of <code>N</code> counts
+<code>N</code>; duplicate evaluations count each time; pre-distance rejects, filters, graph edges, prefetches,
+heap operations, and skipped lower bounds count zero. A lower bound and later exact rerank count
+separately. Phases are <code>routing</code>, <code>approximate</code>, and <code>rerank</code>; backends are stable representation
+families such as <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>int8</code>, <code>sq8</code>, <code>sq4</code>, <code>pq</code>, <code>pq_fastscan</code>, <code>rabitq</code>,
+<code>binary</code>, and sparse families, never ISA or batch variants.</p>
+<p>The total equals the phase sum. Known backend values equal the total; unknown work is in <code>unknown</code>
+and sets <code>complete</code> to <code>false</code>. Values are unsigned 64-bit JSON integers with saturating addition.
+Legacy <code>dist_cmp</code> and <code>reorder_distance_count</code> remain available unchanged for compatibility.
+Python preserves <code>(ids, distances)</code> tuple unpacking. Opt in with
+<code>knn_search_with_statistics</code>: the dense overload returns one statistics JSON string, while the
+sparse CSR overload returns one string per query. <code>range_search_with_statistics</code> returns the range
+arrays plus one statistics JSON string. C preserves <code>SearchResult_t</code>; call
+<code>vsag_search_result_enable_statistics()</code> before a search and release returned statistics with
+<code>vsag_search_result_destroy_statistics()</code>. Legacy callers retain <code>other_result</code> ownership and
+incur no statistics allocation. Legacy HNSW and DiskANN are explicit non-goals.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="search-request--filters"><a class="header" href="#search-request--filters">Search Request &amp; Filters</a></h1>
 <p>This page covers the types that describe <em>how</em> to search: the unified
@@ -7516,7 +7705,7 @@ auto result = index-&gt;SearchWithRequest(request);
 <tr><th>Field</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>query_</code></td><td><code>DatasetPtr</code></td><td><code>nullptr</code></td><td>The query. Exactly one query vector is allowed.</td></tr>
+<tr><td><code>query_</code></td><td><code>DatasetPtr</code></td><td><code>nullptr</code></td><td>The query. IVF KNN requests support multiple query vectors; other requests allow one.</td></tr>
 <tr><td><code>mode_</code></td><td><code>SearchMode</code></td><td><code>KNN_SEARCH</code></td><td>KNN vs. range search.</td></tr>
 <tr><td><code>topk_</code></td><td><code>int64_t</code></td><td><code>10</code></td><td>Neighbors to return (KNN mode). Must be positive.</td></tr>
 <tr><td><code>radius_</code></td><td><code>float</code></td><td><code>0.5</code></td><td>Distance threshold (range mode). Non-negative.</td></tr>
@@ -7525,6 +7714,43 @@ auto result = index-&gt;SearchWithRequest(request);
 </tbody>
 </table>
 </div>
+<h3 id="custom-query-distance-callback"><a class="header" href="#custom-query-distance-callback">Custom query distance callback</a></h3>
+<p><code>distance_batch_func_</code> optionally supplies query-to-vector scores from application code. It receives
+stable external vector IDs, so a closure can keep the query and query-specific state outside VSAG:</p>
+<pre><code class="language-cpp">request.distance_batch_size_ = 32;
+request.distance_batch_func_ = [query](const int64_t* ids, uint64_t count, float* scores) {
+    for (uint64_t i = 0; i &lt; count; ++i) {
+        scores[i] = Score(query, ids[i]);
+    }
+};
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>distance_batch_func_</code></td><td><code>SearchDistanceBatchFunc</code></td><td><code>nullptr</code></td><td>Fills one score for each input external ID, in input order. Smaller finite scores are better.</td></tr>
+<tr><td><code>distance_batch_size_</code></td><td><code>uint64_t</code></td><td><code>1</code></td><td>Maximum IDs passed to one callback invocation. Set this to the scorer’s efficient batch width for batched inference or external data access. Must be positive when a callback is set.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The callback is request-scoped and is not serialized. It may capture the query. <code>hgraph</code> permits a
+null <code>query_</code> in callback mode, while <code>ivf</code> still requires one query vector for bucket routing. The
+callback must be stable for one request, thread-safe if the caller enables parallel execution,
+non-throwing, and must write only finite scores.</p>
+<p><code>brute_force</code> uses the callback for exact KNN and range search. <code>hgraph</code> supports KNN only; the
+callback drives graph traversal and final ordering, while the graph remains built with its configured
+built-in metric. Therefore recall under the callback score is not guaranteed. HGraph may score
+filtered traversal nodes to preserve graph connectivity, but filtered nodes are never returned.
+Callback HGraph does not support parallel search or <code>brute_force_threshold</code>; those configurations
+are rejected rather than silently changing search semantics.</p>
+<p><code>ivf</code> supports callback KNN with a non-null single query vector. IVF uses its configured built-in
+metric to select <code>scan_buckets_count</code> buckets, then applies the callback to candidates in those
+buckets. The callback controls candidate ranking but cannot recover vectors outside the selected
+buckets; increase <code>scan_buckets_count</code> to improve recall. Callback IVF does not support range search,
+<code>disable_bucket_scan</code>, bucket-graph search, or parallel search. Those configurations are rejected.
+Reordering is automatically disabled in callback mode. Other indexes do not support the callback.</p>
 <h3 id="ivf-bucket-routing"><a class="header" href="#ivf-bucket-routing">IVF bucket routing</a></h3>
 <p>IVF accepts <code>{"ivf":{"scan_buckets_count":N,"disable_bucket_scan":true}}</code> through
 <code>params_str_</code>. This routing-only mode returns the <code>N</code> selected bucket IDs per query in the
@@ -7532,6 +7758,37 @@ result <code>Dataset</code> instead of vector labels. <code>NumElements()</code>
 <code>Dim()</code> equals <code>scan_buckets_count</code>, <code>GetIds()</code> contains bucket IDs (with <code>-1</code> for empty
 slots), and <code>GetDistances()</code> has distances to bucket centroids. No vector scan is performed,
 so filters, <code>topk</code>, range limits, reordering, and reasoning options are ignored.</p>
+<h3 id="ivf-bucket-ids-bypass"><a class="header" href="#ivf-bucket-ids-bypass">IVF bucket IDs bypass</a></h3>
+<p>The <code>bucket_ids_</code> field allows callers to provide pre-selected bucket IDs, bypassing IVF’s
+internal bucket routing (<code>ClassifyDatasForSearch</code>). When non-empty, the search skips centroid-based
+selection and scans only the specified buckets.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>bucket_ids_</code></td><td><code>std::vector&lt;std::vector&lt;int64_t&gt;&gt;</code></td><td><code>{}</code></td><td>Pre-selected bucket IDs for bypassing IVF routing.</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>Semantics:</strong></p>
+<ul>
+<li><strong>Empty</strong> (default): Use normal bucket routing via <code>ClassifyDatasForSearch</code>.</li>
+<li><strong>Non-empty</strong>: Skip routing and scan only the provided bucket IDs.</li>
+<li><strong>Batch IVF KNN</strong>: One outer <code>bucket_ids_</code> entry per query vector.
+Result is rectangular: <code>NumElements()</code> is query count, <code>Dim()</code> is <code>topk_</code>.
+Missing neighbors are <code>-1</code> with infinite distance.</li>
+</ul>
+<p><strong>Constraints:</strong></p>
+<ul>
+<li>Batch IVF search supports KNN only; custom query distance and reasoning labels are unsupported.</li>
+<li>A non-empty outer vector must contain exactly one non-empty entry per query vector.</li>
+<li>Each bucket ID must be in range <code>[0, bucket_count)</code>.</li>
+<li>Duplicate bucket IDs are rejected.</li>
+<li>Incompatible with <code>disable_bucket_scan</code> mode.</li>
+<li>Caller is responsible for ordering bucket IDs (no automatic sorting).</li>
+</ul>
 <h3 id="filtering-fields"><a class="header" href="#filtering-fields">Filtering fields</a></h3>
 <p>Three filtering mechanisms are available and are combined with logical <strong>AND</strong> when more than one is
 enabled.</p>
@@ -8530,7 +8787,7 @@ Optimizer”. Its implementation key is <code>use_elp_optimizer</code>, which no
 </tbody>
 </table>
 </div>
-<h2 id="example-2"><a class="header" href="#example-2">Example</a></h2>
+<h2 id="example-3"><a class="header" href="#example-3">Example</a></h2>
 <p><code>examples/cpp/318_feature_tune.cpp</code> walks through an end-to-end tuning flow:</p>
 <ol>
 <li>Create the index and <code>Build</code>.</li>

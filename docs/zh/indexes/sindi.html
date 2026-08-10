@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-73366d13.js";
+            window.path_to_searchindex_js = "../searchindex-5fe46a41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f97b9f91.js"></script>
+        <script src="../toc-c66d9976.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -371,7 +371,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>dim</code></td><td>int</td><td>—（必填）</td><td>单条稀疏向量允许的最大非零项数量，<strong>不是</strong> 词表大小</td></tr>
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>词项 ID 的上界（应 ≥ 最大词项 ID + 1，最高 50 000 000）</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>每个窗口容纳的文档数（取值范围 10 000 – 60 000）</td></tr>
-<tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建阶段按文档丢弃权重最低词项的比例（0.0 – 0.9）</td></tr>
+<tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建阶段按文档丢弃权重最低词项的比例，取值范围为 <code>[0.0, 1.0)</code></td></tr>
 <tr><td><code>use_quantization</code></td><td>bool 或 string</td><td><code>false</code></td><td><code>false</code> 存 FP32，<code>true</code> 存 SQ8，<code>"fp16"</code> 存 FP16</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留一份正排存储，在 SINDI 粗排后对候选做精排</td></tr>
 <tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>use_reorder</code> 开启时使用的正排存储类型。<code>fp32</code> 保留精确值；<code>dmq8</code> 使用压缩的 8-bit DMQ 编码</td></tr>
@@ -424,7 +424,9 @@ auto result = index-&gt;KnnSearch(
 <p>不可变运行态支持 KNN、范围搜索以及旧版 <code>Serialize</code>/<code>Deserialize</code>。它不支持增量
 <code>Add</code>、<code>GetSparseVectorByInnerId</code>、<code>CalcDistanceById</code> 与 <code>CalDistanceById</code>。
 不可变 SINDI 不支持流式序列化；需要流式格式时应保持索引可变，或使用匹配的旧版序列化接口。
-反序列化时，新建 SINDI 的 <code>immutable</code> 设置必须与存储格式一致。</p>
+反序列化时，新建 SINDI 的 <code>immutable</code> 设置必须与存储格式一致。
+新索引会记录有序倒排链格式版本，加载时可跳过归一化排序；缺少该标记的旧索引仍保持兼容，
+并在加载时完成排序归一化。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>sindi</code> 子对象下：</p>
 <div class="table-wrapper">
@@ -434,11 +436,13 @@ auto result = index-&gt;KnnSearch(
 </thead>
 <tbody>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>候选堆大小。为 <code>0</code> 时自动取 <code>SPARSE_AMPLIFICATION_FACTOR · topk</code>（500 倍）；若显式设置，须满足 <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code></td></tr>
-<tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>查询时丢弃权重最低查询项的比例（0.0 – 0.9）</td></tr>
-<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>查询时丢弃倒排表中低权项的比例（0.0 – 0.9）</td></tr>
+<tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>查询时丢弃权重最低查询项的比例，取值范围为 <code>[0.0, 1.0)</code></td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>每条倒排链中按 value 丢弃低权 posting 的比例，取值范围为 <code>[0.0, 1.0)</code></td></tr>
+<tr><td><code>term_retain_threshold</code></td><td>uint64</td><td><code>0</code></td><td>单个 term 在所有 window 中最多扫描的 posting 总数；<code>0</code> 表示关闭此限制，正数使每个 window 的非空 posting list 最多扫描 <code>max(1, floor(threshold / window_count))</code> 个</td></tr>
 </tbody>
 </table>
 </div>
+<p>合并 ratio 与 threshold 限制后，每条非空倒排链至少扫描一个 posting。</p>
 <p>SINDI 会根据构建阶段的 <code>doc_prune_ratio</code> 与检索阶段的 <code>query_prune_ratio</code>
 自动选择堆插入策略。按当前 <code>0.1</code> 阈值，当两个比例都 <code>&lt;= 0.1</code> 时，SINDI 使用
 基于距离数组的入堆路径；只要任一比例大于 <code>0.1</code>，就使用基于 term-list 的入堆路径。

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-73366d13.js";
+            window.path_to_searchindex_js = "../searchindex-5fe46a41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f97b9f91.js"></script>
+        <script src="../toc-c66d9976.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -381,7 +381,9 @@ auto result = index-&gt;KnnSearch(
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>底层量化类型（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>）。各量化器细节见<a href="../quantization/README.html">量化章节</a>。</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>底层量化类型（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code>）。各量化器细节见<a href="../quantization/README.html">量化章节</a>。</td></tr>
+<tr><td><code>tq_chain</code></td><td>string</td><td>—</td><td><code>base_quantization_type</code> 为 <code>tq</code> 时使用的变换链，例如 <code>"mrle, rabitq"</code>。</td></tr>
+<tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>MRLE 保留的前缀维度；<code>0</code> 表示保持输入维度。</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>子图内节点的最大出度</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code> 或 <code>odescent</code></td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td><code>nsw</code> 构图时的候选集大小</td></tr>
@@ -390,7 +392,9 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>neighbor_sample_rate</code></td><td>float</td><td>—</td><td>ODescent 的邻居采样比率</td></tr>
 <tr><td><code>no_build_levels</code></td><td>int[]</td><td><code>[]</code></td><td>跳过构图的层级（从根节点开始的 0-based 下标）</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
-<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型。与 <code>rabitq_bits_per_dim_precise</code> 配合设为 <code>"rabitq"</code> 时，可启用从 base storage 重排的 RaBitQ x+y split。</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>RaBitQ 底库存储码的每维位数。在 x+y split 模式下表示 <code>x</code>，即图遍历使用的 filter bits；范围为 <code>[1, 8]</code>。</td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>未设置</td><td>RaBitQ split 的 <code>y</code> bits。和 <code>base_quantization_type: "rabitq"</code>、<code>precise_quantization_type: "rabitq"</code> 一起设置时，Pyramid 使用 split storage；<code>rabitq_bits_per_dim_base</code> 仍表示 <code>x</code>，且 <code>x + y &lt;= 8</code>。</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>对 RaBitQ 底层或精排存储使用多 bit 快速编码器；设为 <code>false</code> 使用精确编码器</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>RaBitQ 快速编码的微调轮数，范围 <code>[1, 32]</code></td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>底层与精排存储后端；以 liburing 构建时可用 <code>uring_io</code></td></tr>
@@ -402,6 +406,36 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
+<h3 id="rabitq-split-配置"><a class="header" href="#rabitq-split-配置">RaBitQ split 配置</a></h3>
+<p>需要同时设置以下五个参数，才能启用 RaBitQ x+y split 存储和精排：</p>
+<pre><code class="language-json">{
+    "use_reorder": true,
+    "base_quantization_type": "rabitq",
+    "precise_quantization_type": "rabitq",
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5
+}
+</code></pre>
+<p>由于 split code 无法解码回输入向量，Pyramid 还会保留一份内部 FP32 副本，用于增量
+FLAT→GRAPH 晋升和 Analyzer 采样。检索距离仍使用 split code；该副本会额外占用
+<code>count * dim * sizeof(float)</code> 字节的向量存储。</p>
+<h3 id="mrle-与-split-rabitq"><a class="header" href="#mrle-与-split-rabitq">MRLE 与 split RaBitQ</a></h3>
+<p>对于使用 Matryoshka Representation Learning 训练的向量，Pyramid 可以先截断维度，再编码
+为 split RaBitQ：</p>
+<pre><code class="language-json">{
+    "base_quantization_type": "tq",
+    "tq_chain": "mrle, rabitq",
+    "mrle_dim": 1280,
+    "precise_quantization_type": "rabitq",
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5,
+    "use_reorder": true
+}
+</code></pre>
+<p>该配置使用 3-bit filter planes 构图和搜索、5-bit supplement planes 精排；两部分编码的是
+同一个截断后向量。Pyramid 从 split base datacell 精排，并保留原始 FP32 向量供构图提升和
+统计使用。原始向量副本会占用额外空间；如果 embedding 模型没有针对前缀维度训练，截断
+可能显著降低召回率。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>pyramid</code> 子对象下：</p>
 <div class="table-wrapper">
@@ -411,9 +445,11 @@ auto result = index-&gt;KnnSearch(
 </thead>
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>叶子层子图检索的候选集大小</td></tr>
+<tr><td><code>hops_limit</code></td><td>int</td><td>不限</td><td>根图 KNN 检索的最大跳数；不大于 <code>ef_search</code> 时忽略</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>沿路径向下遍历中间子图时的候选集大小</td></tr>
 <tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>指定检索哪个层级。空数组表示使用默认（匿名）层级。</td></tr>
 <tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>多层级结果合并方式：<code>single</code>（检索单个层级）、<code>union</code>、<code>intersection</code>。<strong>注意：</strong> <code>union</code> 和 <code>intersection</code> 尚未实现——设置后 <code>KnnSearch</code>/<code>RangeSearch</code> 会返回错误。</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>本次搜索使用的正数 lower-bound 误差倍率。默认值 <code>1.9</code> 较大；值越大，精度越高，但搜索速度越慢。</td></tr>
 </tbody>
 </table>
 </div>

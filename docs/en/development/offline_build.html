@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
+            window.path_to_searchindex_js = "../searchindex-8622c5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f27a726.js"></script>
+        <script src="../toc-01f057d3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -380,7 +380,7 @@ variables for the dependencies your build actually pulls in (see
 <tr><td><code>VSAG_THIRDPARTY_JSON</code></td><td>nlohmann/json 3.11.3</td><td><code>github.com/nlohmann/json/.../v3.11.3.tar.gz</code></td><td>always</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_ANTLR4</code></td><td>ANTLR4 runtime 4.13.2</td><td><code>github.com/antlr/antlr4/.../4.13.2.tar.gz</code></td><td>always</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_BOOST</code></td><td>Boost 1.67.0 (headers)</td><td><code>archives.boost.io/.../boost_1_67_0.tar.gz</code></td><td>always</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.23</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.23.tar.gz</code></td><td>default BLAS backend (when not using system / MKL)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.24</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.24.tar.gz</code></td><td>default BLAS backend (when not using system / MKL)</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_CPUINFO</code></td><td>pytorch/cpuinfo</td><td><code>github.com/pytorch/cpuinfo/archive/ca678952...tar.gz</code></td><td>always</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_FMT</code></td><td>fmt 10.2.1</td><td><code>github.com/fmtlib/fmt/.../10.2.1.tar.gz</code></td><td>always (unless system fmt)</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_THREAD_POOL</code></td><td>log4cplus/ThreadPool</td><td><code>github.com/log4cplus/ThreadPool/archive/3507796e...tar.gz</code></td><td>always</td></tr>
@@ -430,7 +430,7 @@ export VSAG_MIRROR=https://mirror.corp.example.com/vsag-thirdparty
 export VSAG_THIRDPARTY_JSON=$VSAG_MIRROR/v3.11.3.tar.gz
 export VSAG_THIRDPARTY_ANTLR4=$VSAG_MIRROR/antlr4-4.13.2.tar.gz
 export VSAG_THIRDPARTY_BOOST=$VSAG_MIRROR/boost_1_67_0.tar.gz
-export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.24.tar.gz
 export VSAG_THIRDPARTY_CPUINFO=$VSAG_MIRROR/cpuinfo-ca678952.tar.gz
 export VSAG_THIRDPARTY_FMT=$VSAG_MIRROR/fmt-10.2.1.tar.gz
 export VSAG_THIRDPARTY_THREAD_POOL=$VSAG_MIRROR/thread_pool-3507796e.tar.gz
@@ -441,14 +441,14 @@ make release
 </code></pre>
 <p>An OSS / S3 bucket works identically — just use its public (or
 network-reachable) object URL, for example
-<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.23.tar.gz</code>.</p>
+<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.24.tar.gz</code>.</p>
 <h3 id="b-pre-downloaded-local-files-fully-air-gapped"><a class="header" href="#b-pre-downloaded-local-files-fully-air-gapped">B. Pre-downloaded local files (fully air-gapped)</a></h3>
 <p>On a machine that has <em>no</em> network at all, copy the archives onto the box first
 (e.g. to <code>/data/vsag-deps</code>) and point the variables at the local files:</p>
 <pre><code class="language-bash">export VSAG_THIRDPARTY_JSON=/data/vsag-deps/v3.11.3.tar.gz
 export VSAG_THIRDPARTY_ANTLR4=/data/vsag-deps/antlr4-4.13.2.tar.gz
 export VSAG_THIRDPARTY_BOOST=/data/vsag-deps/boost_1_67_0.tar.gz
-export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.24.tar.gz
 export VSAG_THIRDPARTY_CPUINFO=/data/vsag-deps/cpuinfo-ca678952.tar.gz
 export VSAG_THIRDPARTY_FMT=/data/vsag-deps/fmt-10.2.1.tar.gz
 export VSAG_THIRDPARTY_THREAD_POOL=/data/vsag-deps/thread_pool-3507796e.tar.gz
@@ -462,7 +462,7 @@ is equally valid.</p>
 <h3 id="c-override-a-single-dependency"><a class="header" href="#c-override-a-single-dependency">C. Override a single dependency</a></h3>
 <p>If only one download is unreliable, override just that one and let the rest use
 the defaults:</p>
-<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.23.tar.gz
+<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.24.tar.gz
 make release
 </code></pre>
 <h2 id="alternative-reuse-system-libraries"><a class="header" href="#alternative-reuse-system-libraries">Alternative: reuse system libraries</a></h2>

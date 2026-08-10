@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
+            window.path_to_searchindex_js = "../searchindex-8622c5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f27a726.js"></script>
+        <script src="../toc-01f057d3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,7 +305,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="rabitq-xy-split"><a class="header" href="#rabitq-xy-split">RaBitQ x+y Split</a></h1>
-<p>RaBitQ x+y split is an HGraph storage and search mode for low-bit base codes.
+<p>RaBitQ x+y split is an HGraph and Pyramid storage and search mode for low-bit base codes.
 Each vector is divided into two records:</p>
 <ul>
 <li><code>x</code> filter bits are read during graph traversal and lower-bound filtering.</li>
@@ -316,7 +316,7 @@ Each vector is divided into two records:</p>
 RaBitQ distance for final ranking. It also allows the filter record to stay in
 memory while the colder supplement record is stored on disk.</p>
 <h2 id="enable-split-mode"><a class="header" href="#enable-split-mode">Enable split mode</a></h2>
-<p>HGraph selects split mode when both quantization types are <code>rabitq</code> and
+<p>HGraph and Pyramid select split mode when both quantization types are <code>rabitq</code> and
 <code>rabitq_bits_per_dim_precise</code> is present:</p>
 <pre><code class="language-json">{
     "dtype": "float32",
@@ -357,7 +357,7 @@ memory while the colder supplement record is stored on disk.</p>
 1 &lt;= y &lt;= 8
 x + y &lt;= 8
 </code></pre>
-<p>If <code>rabitq_bits_per_dim_precise</code> is omitted, HGraph uses the standard RaBitQ
+<p>If <code>rabitq_bits_per_dim_precise</code> is omitted, HGraph and Pyramid use the standard RaBitQ
 path instead of split storage.</p>
 <p>Enable the filter/lower-bound search path with:</p>
 <pre><code class="language-json">{
@@ -386,7 +386,7 @@ It fetches the y-bit supplement record only for the remaining candidates.</li>
 <li>The final distance combines the filter contribution and supplement
 contribution into one <code>x+y</code>-bit RaBitQ estimate.</li>
 </ol>
-<p>The HGraph heap is therefore not populated with an <code>x+y</code> distance for every
+<p>The graph-search heap is therefore not populated with an <code>x+y</code> distance for every
 visited vector. The inexpensive x-bit distance drives traversal; the more
 accurate distance is evaluated only during candidate reorder.</p>
 <h2 id="encoding-and-bit-planes"><a class="header" href="#encoding-and-bit-planes">Encoding and bit planes</a></h2>
@@ -498,7 +498,7 @@ generic bit-plane computation path.</p>
     = 2^y * sum_i q_i * f_i
       + sum_i q_i * s_i
 </code></pre>
-<p>For L2 with an x-bit lookup filter, HGraph passes the previously computed
+<p>For L2 with an x-bit lookup filter, HGraph and Pyramid pass the previously computed
 filter distance to reorder as a hint. <code>ComputeDistWithSplitCodeAndFilterDist</code>
 recovers the first term from that hint and computes only the second term from
 the y supplement planes:</p>
@@ -577,7 +577,7 @@ search-time <code>hgraph.rabitq_error_rate</code> does not.</p>
 </div>
 <h2 id="operational-notes"><a class="header" href="#operational-notes">Operational notes</a></h2>
 <ul>
-<li>Split storage is currently an HGraph feature and requires fp32 query codes.</li>
+<li>Split storage is currently available on HGraph and Pyramid and requires fp32 query codes. Pyramid enables the one-bit split search path by default for split indexes; pass <code>rabitq_one_bit_search: false</code> under <code>pyramid</code> to force the standard search path.</li>
 <li><code>l2</code>, <code>ip</code>, and <code>cosine</code> are supported. The filter-hint reorder shortcut is
 currently specialized for L2.</li>
 <li>Keep <code>use_reorder: true</code> unless x-bit traversal accuracy alone has been
@@ -585,7 +585,7 @@ validated for the dataset.</li>
 <li>Changing x, y, metric, or transform parameters requires rebuilding the
 index. A search-time <code>hgraph.rabitq_error_rate</code> override does not.</li>
 <li>Use <a href="rabitq.html">RaBitQ</a> for the general quantizer description and
-<a href="../indexes/hgraph.html">HGraph</a> for the complete index parameter table.</li>
+<a href="../indexes/hgraph.html">HGraph</a> and <a href="../indexes/pyramid.html">Pyramid</a> for the complete index parameter tables.</li>
 </ul>
 
                     </main>

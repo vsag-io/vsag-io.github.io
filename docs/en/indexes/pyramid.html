@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-d8e25656.js";
+            window.path_to_searchindex_js = "../searchindex-8622c5fb.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3f27a726.js"></script>
+        <script src="../toc-01f057d3.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -386,7 +386,9 @@ auto result = index-&gt;KnnSearch(
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>). See the <a href="../quantization/README.html">Quantization chapter</a> for per-quantizer details.</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code>). See the <a href="../quantization/README.html">Quantization chapter</a> for per-quantizer details.</td></tr>
+<tr><td><code>tq_chain</code></td><td>string</td><td>—</td><td>Transform chain used when <code>base_quantization_type</code> is <code>tq</code>, for example <code>"mrle, rabitq"</code>.</td></tr>
+<tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Prefix dimension retained by MRLE; <code>0</code> keeps the input dimension.</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per node within a sub-graph.</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code> or <code>odescent</code>.</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size for <code>nsw</code> builds.</td></tr>
@@ -395,7 +397,9 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>neighbor_sample_rate</code></td><td>float</td><td>—</td><td>ODescent neighbor sampling rate.</td></tr>
 <tr><td><code>no_build_levels</code></td><td>int[]</td><td><code>[]</code></td><td>Tree levels that skip graph construction (0-indexed from the root).</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy for rescoring.</td></tr>
-<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer for reordering.</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer for reordering. Use <code>"rabitq"</code> with <code>rabitq_bits_per_dim_precise</code> to enable RaBitQ x+y split reorder from base storage.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>RaBitQ stored-code bits. In x+y split mode, this is <code>x</code>, the filter bits used during graph traversal; allowed range is <code>[1, 8]</code>.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>RaBitQ split <code>y</code> bits. When set with <code>base_quantization_type: "rabitq"</code> and <code>precise_quantization_type: "rabitq"</code>, Pyramid uses split storage; <code>rabitq_bits_per_dim_base</code> remains <code>x</code>, and <code>x + y &lt;= 8</code>.</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use the fast multi-bit RaBitQ encoder for RaBitQ base or precise storage; set to <code>false</code> for the exact encoder.</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Fast RaBitQ refinement rounds in <code>[1, 32]</code>.</td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Base and reorder storage backends; <code>uring_io</code> is available in builds with liburing.</td></tr>
@@ -407,6 +411,37 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
+<h3 id="rabitq-split-configuration"><a class="header" href="#rabitq-split-configuration">RaBitQ split configuration</a></h3>
+<p>Set all five parameters together to enable RaBitQ x+y split storage and reordering:</p>
+<pre><code class="language-json">{
+    "use_reorder": true,
+    "base_quantization_type": "rabitq",
+    "precise_quantization_type": "rabitq",
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5
+}
+</code></pre>
+<p>Because split codes cannot be decoded back to the input vector, Pyramid also retains an internal
+FP32 copy for incremental flat-to-graph promotion and analyzer sampling. Search distances still use
+the split codes; the FP32 copy adds <code>count * dim * sizeof(float)</code> bytes of vector storage.</p>
+<h3 id="mrle-with-split-rabitq"><a class="header" href="#mrle-with-split-rabitq">MRLE with split RaBitQ</a></h3>
+<p>Pyramid can truncate embeddings trained with Matryoshka Representation Learning before encoding
+them as split RaBitQ codes:</p>
+<pre><code class="language-json">{
+    "base_quantization_type": "tq",
+    "tq_chain": "mrle, rabitq",
+    "mrle_dim": 1280,
+    "precise_quantization_type": "rabitq",
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5,
+    "use_reorder": true
+}
+</code></pre>
+<p>The 3-bit filter planes are used for graph traversal and the 5-bit supplement planes for
+reordering; both encode the same truncated vector. Pyramid reorders from the split base datacell
+and retains original FP32 vectors for graph promotion and statistics. The raw-vector copy adds
+storage, and truncation can reduce recall unless the embedding model was trained for prefix
+dimensions.</p>
 <h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>pyramid</code> sub-object:</p>
 <div class="table-wrapper">
@@ -416,9 +451,11 @@ auto result = index-&gt;KnnSearch(
 </thead>
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>Candidate list size for the leaf-level graph search.</td></tr>
+<tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Hard cap on hops for root-graph KNN search; ignored when it is not greater than <code>ef_search</code>.</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>Candidate list size used when traversing intermediate sub-graphs on the path.</td></tr>
 <tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>Select which hierarchy to search. Empty means use the default (unnamed) hierarchy.</td></tr>
 <tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>How to combine results across hierarchies: <code>single</code> (search one hierarchy), <code>union</code>, or <code>intersection</code>. <strong>Note:</strong> <code>union</code> and <code>intersection</code> are not yet implemented — setting them will cause <code>KnnSearch</code>/<code>RangeSearch</code> to return an error.</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Positive lower-bound error multiplier for this search. The default <code>1.9</code> is relatively large; increasing it improves accuracy but slows down search.</td></tr>
 </tbody>
 </table>
 </div>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-73366d13.js";
+            window.path_to_searchindex_js = "../searchindex-5fe46a41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f97b9f91.js"></script>
+        <script src="../toc-c66d9976.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -377,6 +377,23 @@
     }
 </code></pre>
 <p>搜索请求至多返回 k 个结果，这些结果按照最近邻和查询向量的距离升序排序。输出的结果类似于：</p>
+<h2 id="按阈值过滤"><a class="header" href="#按阈值过滤">按阈值过滤</a></h2>
+<p>阈值过滤支持仍在维护的索引：BruteForce、HGraph、IVF、Pyramid、SINDI 和 SIMQ。
+HNSW 和 DiskANN 已弃用，是明确不在范围内的目标；本选项不会为这两个旧索引新增或修改行为。</p>
+<p>KNN 搜索参数支持在 JSON 顶层设置可选的 <code>threshold</code>：</p>
+<pre><code class="language-json">{
+  "threshold": 4.0,
+  "hgraph": { "ef_search": 64 }
+}
+</code></pre>
+<p>设置后，结果至多返回 <code>k</code> 个邻居，并且每个返回距离都小于或等于 <code>threshold</code>。
+边界值会被包含，结果仍按距离升序排列，因此可能返回少于 <code>k</code> 个结果，甚至没有结果。
+不设置该字段时，KNN 行为保持不变。阈值使用索引返回的距离语义：<code>l2</code> 为 L2 平方距离，
+<code>ip</code> 为 <code>1 - inner_product</code>，<code>cosine</code> 为 <code>1 - cosine_similarity</code>。因此 <code>ip</code> 可以使用负阈值；
+阈值必须是有限的 JSON 数字。</p>
+<p>通过统一请求接口时，BruteForce、HGraph 和 IVF 支持使用 <code>SearchRequest::threshold_</code>；
+Pyramid、SINDI 和 SIMQ 通过 KNN JSON 参数支持该选项。这六种索引是本功能支持的仍在维护的索引。
+该选项只限制 KNN 结果；范围搜索请使用 <code>RangeSearch</code> 及其 <code>radius</code> 参数。<code>threshold</code> 可以和现有索引专用搜索参数同时传入。</p>
 <pre><code class="language-bash">results:
 6519: 13.855
 2332: 15.2735

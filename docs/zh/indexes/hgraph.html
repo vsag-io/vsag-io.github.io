@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-73366d13.js";
+            window.path_to_searchindex_js = "../searchindex-5fe46a41.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f97b9f91.js"></script>
+        <script src="../toc-c66d9976.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -368,7 +368,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>use_reverse_edges</code></td><td>bool</td><td><code>false</code></td><td>跟踪入边，实现 O(1) 反向邻居查找；边存储约翻倍，且 <code>graph_storage_type: "compressed"</code> 不支持</td></tr>
 <tr><td><code>label_remap_type</code></td><td>string</td><td><code>"pg"</code></td><td>label 到内部 ID 的 map 实现：<code>"pg"</code> 或 <code>"robin"</code>；恢复或组合兼容索引时应保持一致</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否额外保留一份高精度副本用于精排</td></tr>
-<tr><td><code>reorder_source</code></td><td>string</td><td><code>"precise"</code></td><td>从 <code>"precise"</code> 编码或直接从 <code>"base"</code> 编码重排；RaBitQ x+y split 会自动设置为 <code>"base"</code></td></tr>
+<tr><td><code>reorder_source</code></td><td>string</td><td><code>"precise"</code></td><td>从 <code>"precise"</code> 编码或直接从 <code>"base"</code> 编码重排；RaBitQ x+y split（包括 <code>tq_chain: "mrle, rabitq"</code>）会自动设置为 <code>"base"</code></td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型（仅在 <code>use_reorder: true</code> 时生效）</td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td><code>tq_chain</code> 中 MRLE 的输出维度，范围 <code>[0, dim]</code>；<code>0</code> 表示输入维度</td></tr>
@@ -387,6 +387,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>base_direct_read</code> / <code>precise_direct_read</code></td><td>bool</td><td><code>false</code></td><td>使用 <code>uring_io</code> 时，以 direct IO 打开对应文件而非经过页缓存</td></tr>
 <tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>初始容量提示（不会限制最终规模）</td></tr>
 <tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>序列化时保留 Source ID 元数据，使恢复后的索引仍可导出可复用的构建缓存</td></tr>
+<tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td>扩容批次 slot 数的 <code>log2</code>，取值范围为 <code>1</code> 到 <code>31</code>。<code>1</code> 表示每次按 2 个 slot 对齐，<code>10</code> 表示按 1024 个 slot 对齐。较小取值减少预分配，但可能增加重分配次数。</td></tr>
 </tbody>
 </table>
 </div>
