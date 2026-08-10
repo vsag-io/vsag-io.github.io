@@ -65,7 +65,7 @@ auto result = index->KnnSearch(
 | `use_reverse_edges` | bool | `false` | 跟踪入边，实现 O(1) 反向邻居查找；边存储约翻倍，且 `graph_storage_type: "compressed"` 不支持 |
 | `label_remap_type` | string | `"pg"` | label 到内部 ID 的 map 实现：`"pg"` 或 `"robin"`；恢复或组合兼容索引时应保持一致 |
 | `use_reorder` | bool | `false` | 是否额外保留一份高精度副本用于精排 |
-| `reorder_source` | string | `"precise"` | 从 `"precise"` 编码或直接从 `"base"` 编码重排；RaBitQ x+y split 会自动设置为 `"base"` |
+| `reorder_source` | string | `"precise"` | 从 `"precise"` 编码或直接从 `"base"` 编码重排；RaBitQ x+y split（包括 `tq_chain: "mrle, rabitq"`）会自动设置为 `"base"` |
 | `precise_quantization_type` | string | `"fp32"` | 精排使用的量化类型（仅在 `use_reorder: true` 时生效） |
 | `base_pq_dim` | int | `1` | PQ 子空间数（`pq` / `pqfs` 时必填） |
 | `mrle_dim` | int | `0` | `tq_chain` 中 MRLE 的输出维度，范围 `[0, dim]`；`0` 表示输入维度 |
@@ -84,6 +84,7 @@ auto result = index->KnnSearch(
 | `base_direct_read` / `precise_direct_read` | bool | `false` | 使用 `uring_io` 时，以 direct IO 打开对应文件而非经过页缓存 |
 | `hgraph_init_capacity` | int | `100` | 初始容量提示（不会限制最终规模） |
 | `persist_source_id` | bool | `false` | 序列化时保留 Source ID 元数据，使恢复后的索引仍可导出可复用的构建缓存 |
+| `resize_increase_count_bit` | int | `10` | 扩容批次 slot 数的 `log2`，取值范围为 `1` 到 `31`。`1` 表示每次按 2 个 slot 对齐，`10` 表示按 1024 个 slot 对齐。较小取值减少预分配，但可能增加重分配次数。 |
 
 `use_reverse_edges` 面向需要快速检查入邻居、图分析或图维护算法的负载。维护反向邻接表会让边
 存储约翻倍，因此默认关闭。
