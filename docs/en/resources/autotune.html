@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="zh" class="light sidebar-visible" dir="ltr">
+<html lang="en" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>SIMQ - VSAG文档</title>
+        <title>AutoTune Tool - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-e766644c.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG文档</h1>
+                    <h1 class="menu-title">VSAG Documentation</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,231 +304,233 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="simq"><a class="header" href="#simq">SIMQ</a></h1>
-<p>SIMQ 是 VSAG 面向 <strong>多向量（multi-vector）</strong> 检索的索引——适用于每篇文档
-由一组 token 级向量（而非单个 embedding）表示的数据场景。这种模式常见于
-ColBERT 等 late-interaction 模型，其中文档由每个 token 对应一个向量表示，
-相关性通过 <strong>MaxSim</strong>（各查询 token 的最大相似度之和）计算。</p>
+                        <h1 id="autotune-tool-autotune"><a class="header" href="#autotune-tool-autotune">AutoTune Tool (<code>autotune</code>)</a></h1>
+<p><code>autotune</code> automates the VSAG build-and-search parameter sweep. AutoTune V1 evaluates real VSAG
+indexes through the shared eval core, filters trials by constraints, and selects the best feasible
+trial for one KNN workload.</p>
+<p>The CLI JSON request and shared report schema are defined in the
+<a href="autotune_api_v1.html">AutoTune V1 CLI JSON contract</a>.</p>
+<p>V1 builds and tunes HGraph and IVF on dense float32 data. It also tunes search parameters for an
+existing HGraph, IVF, or Pyramid index. The CLI reads HDF5; the C++ API accepts in-memory datasets
+and indexes. The C++ API is experimental and build-tree-only; it is not installed with the VSAG
+library.</p>
+<h2 id="building"><a class="header" href="#building">Building</a></h2>
+<pre><code class="language-bash">cmake -S . -B build-release \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DENABLE_TOOLS=ON
+cmake --build build-release --target autotune -j
+</code></pre>
+<p>The executable is <code>build-release/tools/autotune/autotune</code>.</p>
+<p>A runnable request template is available at <a href="https://github.com/antgroup/vsag/blob/main/tools/autotune/examples/sift_hgraph_autotune_request.json">the SIFT request template</a>.
+It expects the dataset at <code>/tmp/sift-128-euclidean.hdf5</code>; edit <code>data_path</code> when necessary.</p>
+<h2 id="c-api"><a class="header" href="#c-api">C++ API</a></h2>
+<p>The CLI and C++ entry points share candidate generation, trial planning, evaluation, constraint
+filtering, and result selection. Only their input adapters differ:</p>
 <ul>
-<li>源码：<code>src/algorithm/simq/</code></li>
+<li>the CLI loads JSON and HDF5;</li>
+<li><code>TuneIndex</code> accepts in-memory datasets and jointly tunes build and search parameters;</li>
+<li><code>TuneSearch</code> accepts an already built or loaded <code>IndexPtr</code> and tunes search parameters only.</li>
 </ul>
-<h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
-<ol>
-<li><strong>Token 向量动态聚类。</strong> 构建阶段，所有文档的全部 token 向量被抽取到一个
-扁平池中，使用基于 HGraph 的动态聚类算法进行聚类。初始聚类中心按
-<code>init_cluster_ratio</code> 控制的比例采样；超过 <code>max_cluster_size</code> 的簇会被增量切分。</li>
-<li><strong>代表性图用于粗排。</strong> 在簇中心上构建一个代表性 HGraph。检索时，每个查询
-token 在该图上搜索最近的若干个簇（由 <code>coarse_k</code> 控制），跨查询 token
-累加簇得分，得到候选集。</li>
-<li><strong>精确 MaxSim 精排。</strong> 对得分最高的 <code>rerank_k</code> 个候选文档，从磁盘（或内存）
-读回原始 token 向量，计算查询 token 与文档 token 之间的精确 MaxSim 相似度。</li>
-</ol>
-<p>聚类粗排与精确精排的两阶段结合，
-为多向量检索提供了可调的召回率/延迟权衡。</p>
-<h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
-<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+<p>Consumers that link the build-tree <code>vsag::autotune</code> target can run the complete tune, select, and
+load loop directly:</p>
+<pre><code class="language-cpp">vsag::autotune::IndexRequest request;
+request.base = base;
+request.metric_type = vsag::METRIC_L2;
+request.workload = {queries, ground_truth, 10, 48};
+request.index_spaces = {
+    {"hgraph", create_candidate_space, search_candidate_space},
+};
+request.constraints = {
+    {vsag::autotune::Metric::RECALL_AT_K, 0.95},
+    {vsag::autotune::Metric::INDEX_MEMORY_MB, 8192.0},
+};
+request.objective = vsag::autotune::Metric::LATENCY_AVG_MS;
 
-std::string build_params = R"({
-    "dtype": "float32",
-    "metric_type": "ip",
-    "dim": 256,
-    "index_param": {
-        "base_io_type": "async_io",
-        "base_file_path": "/path/to/simq_base_codes.bin",
-        "init_cluster_ratio": 0.1,
-        "max_cluster_size": 160,
-        "split_start_idx": 80,
-        "random_seed": 42,
-        "coarse_k": 50,
-        "rerank_k": 1000
-    }
-})";
-auto index = vsag::Factory::CreateIndex("simq", build_params).value();
-
-// 使用 MultiVector 构建数据集。
-// 每篇文档包含可变数量的 token 向量，每个向量维度为 dim。
-std::vector&lt;vsag::MultiVector&gt; base_mvs(num_docs);
-std::vector&lt;int64_t&gt; ids(num_docs);
-for (int64_t i = 0; i &lt; num_docs; ++i) {
-    base_mvs[i].len_ = doc_token_counts[i];             // 文档 i 的 token 数量
-    base_mvs[i].vectors_ = doc_token_vectors[i];        // 扁平数组：len_ * dim 个 float
-    ids[i] = i;
-}
-auto base = vsag::Dataset::Make();
-base-&gt;NumElements(num_docs)
-    -&gt;Dim(dim)
-    -&gt;Ids(ids.data())
-    -&gt;MultiVectors(base_mvs.data())
-    -&gt;MultiVectorDim(dim)
-    -&gt;Owner(false);
-index-&gt;Build(base);
-
-// 使用多向量查询进行检索。
-vsag::MultiVector query_mv;
-query_mv.len_ = query_token_count;
-query_mv.vectors_ = query_token_vectors;
-auto query = vsag::Dataset::Make();
-query-&gt;NumElements(1)
-    -&gt;Dim(dim)
-    -&gt;MultiVectors(&amp;query_mv)
-    -&gt;MultiVectorDim(dim)
-    -&gt;Owner(false);
-
-std::string search_params = R"({
-    "simq": {
-        "coarse_k": 600,
-        "rerank_k": 5000
-    }
-})";
-auto result = index-&gt;KnnSearch(query, /*topk=*/100, search_params).value();
-
-// 读取结果。
-const int64_t* result_ids = result-&gt;GetIds();
-const float* result_dists = result-&gt;GetDistances();
-int64_t result_count = result-&gt;GetDim();
-for (int64_t i = 0; i &lt; result_count; ++i) {
-    int64_t id = result_ids[i];
-    float dist = result_dists[i];
+auto result = vsag::autotune::TuneIndex(request);
+if (result.has_value() &amp;&amp; result-&gt;status == vsag::autotune::TuneStatus::SUCCESS) {
+    auto neighbors =
+        result-&gt;index-&gt;KnnSearch(query, 10, result-&gt;search_parameters).value();
 }
 </code></pre>
-<h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
-<p>SIMQ 专属构建参数放在 <code>index_param</code> 下。<code>dim</code>、<code>dtype</code>、<code>metric_type</code>
-是顶层字段。<code>dtype</code> <strong>必须</strong> 为 <code>"float32"</code>，<code>metric_type</code> <strong>必须</strong> 为 <code>"ip"</code>。</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
-</thead>
-<tbody>
-<tr><td><code>dim</code></td><td>int</td><td>—（必填）</td><td>每个 token 向量的维度</td></tr>
-<tr><td><code>base_io_type</code></td><td>string</td><td><code>"async_io"</code></td><td>精排阶段使用的原始多向量数据存储后端</td></tr>
-<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>磁盘 IO 类型使用的文件路径</td></tr>
-<tr><td><code>init_cluster_ratio</code></td><td>float</td><td><code>0.2</code></td><td>初始聚类中心的 token 向量采样比例</td></tr>
-<tr><td><code>max_cluster_size</code></td><td>int</td><td><code>64</code></td><td>单个簇允许的最大 token 向量数</td></tr>
-<tr><td><code>split_start_idx</code></td><td>int</td><td><code>32</code></td><td>簇切分时新簇的起始位置</td></tr>
-<tr><td><code>random_seed</code></td><td>int</td><td><code>42</code></td><td>聚类打乱的随机种子</td></tr>
-<tr><td><code>coarse_k</code></td><td>int</td><td><code>8</code></td><td>构建时每个查询 token 搜索的最近簇数量</td></tr>
-<tr><td><code>rerank_k</code></td><td>int</td><td><code>100</code></td><td>构建时进入精排的候选文档数量上限</td></tr>
-</tbody>
-</table>
-</div>
-<ul>
-<li><strong><code>dim</code></strong> — 所有文档和查询中的所有 token 共享同一维度</li>
-<li><strong><code>base_io_type</code></strong> — 可选值：<code>async_io</code>、<code>uring_io</code>、<code>memory_io</code>、
-<code>block_memory_io</code>、<code>buffer_io</code>、<code>mmap_io</code>、<code>reader_io</code>。原生 <code>uring_io</code>
-需要以 liburing 构建，否则回退到 <code>buffer_io</code></li>
-<li><strong><code>base_file_path</code></strong> — 默认值为占位符，使用磁盘类型（<code>async_io</code>、
-<code>uring_io</code>、<code>buffer_io</code>、<code>mmap_io</code>）时需提供真实路径</li>
-<li><strong><code>init_cluster_ratio</code></strong> — 取值范围 <code>(0, 1]</code>。值越小簇越少越大，
-值越大簇越多越细</li>
-<li><strong><code>max_cluster_size</code></strong> — 必须 &gt; 1</li>
-<li><strong><code>split_start_idx</code></strong> — 通常设为 <code>max_cluster_size</code> 的一半，
-取值范围 <code>(1, max_cluster_size)</code></li>
-<li><strong><code>coarse_k</code></strong>、<strong><code>rerank_k</code></strong> — 必须 &gt; 0</li>
-</ul>
-<blockquote>
-<p><strong>聚类参数的选择。</strong> <code>init_cluster_ratio</code> 与 <code>max_cluster_size</code> 共同控制
-簇的数量与大小。较小的 <code>init_cluster_ratio</code> 搭配较大的 <code>max_cluster_size</code>
-会产生更少的簇，粗排更快但召回降低。建议以 <code>init_cluster_ratio = 0.1</code>–<code>0.2</code>、
-<code>max_cluster_size = 2 × split_start_idx</code> 为起点，再通过检索参数调优。</p>
-</blockquote>
-<h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
-<p>检索参数放在 <code>simq</code> 子对象下：</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
-</thead>
-<tbody>
-<tr><td><code>coarse_k</code></td><td>int</td><td><em>（构建时默认值）</em></td><td>每个查询 token 搜索的最近簇数量</td></tr>
-<tr><td><code>rerank_k</code></td><td>int</td><td><em>（构建时默认值）</em></td><td>进入精排的候选文档数量上限</td></tr>
-</tbody>
-</table>
-</div>
-<ul>
-<li><strong><code>coarse_k</code></strong> — 覆盖构建时的值。值越大候选范围越广，
-召回越高但延迟也越大</li>
-<li><strong><code>rerank_k</code></strong> — 覆盖构建时的值。值越大召回越高，
-但磁盘读取和计算开销也越大</li>
-<li>不设置时使用构建时的默认值。显式设置时两个值都必须 &gt; 0</li>
-</ul>
-<pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
-    query, topk,
-    R"({"simq": {"coarse_k": 600, "rerank_k": 5000}})").value();
+<p><code>base</code> and <code>queries</code> are dense float32 datasets. <code>base</code> IDs must be present and unique. The
+ground-truth dataset stores <code>query_count</code> rows, uses <code>Dim()</code> as ground-truth K, and contains
+flattened IDs from the base ID space. It is required when <code>RECALL_AT_K</code> is a constraint or the
+objective. Dataset buffers must remain valid until the synchronous call returns.</p>
+<p><code>IndexSpace::create_parameter_space</code> and <code>search_parameter_space</code> remain JSON strings because each
+index owns its native parameter schema. An empty <code>index_spaces</code> vector selects the built-in HGraph
+and IVF spaces; otherwise arrays and <code>$range</code> expressions use the same semantics as the CLI
+contract.</p>
+<p>The result contains the loaded <code>index</code>, <code>index_name</code>, complete concrete <code>create_parameters</code>,
+validated <code>search_parameters</code>, metrics, artifact path, and the complete report. <code>metrics</code> and
+<code>report</code> are <code>JsonType</code> objects. The typed API returns the report in memory and never writes a
+report file. The recommended artifact is retained, so another process can recreate an empty index
+from <code>index_name + create_parameters</code> and deserialize that file. Unselected intermediate
+artifacts are removed by default. The caller removes the recommended artifact when it is no longer
+needed.</p>
+<p>If no candidate satisfies every constraint, the completed call has
+<code>status=TuneStatus::NO_FEASIBLE_CANDIDATE</code> and a structured <code>best_effort</code>; recommendation fields
+such as <code>index</code> are not valid. Invalid requests and execution failures still return an error.</p>
+<p>See
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/326_feature_create_index_with_constraints.cpp"><code>examples/cpp/326_feature_create_index_with_constraints.cpp</code></a> for a complete
+example. Enable both tools and examples to build it:</p>
+<pre><code class="language-bash">cmake -S . -B build-release \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DENABLE_TOOLS=ON \
+  -DENABLE_EXAMPLES=ON
+cmake --build build-release --target 326_feature_create_index_with_constraints -j
 </code></pre>
-<h2 id="搜索统计"><a class="header" href="#搜索统计">搜索统计</a></h2>
-<p><code>KnnSearch</code> 与 <code>RangeSearch</code> 会在返回的 dataset 上附带 JSON 统计对象。可以读取完整对象，
-也可以按 key 获取单项值：</p>
-<pre><code class="language-cpp">std::cout &lt;&lt; result-&gt;GetStatistics() &lt;&lt; '\n';
-auto values = result-&gt;GetStatistics(
-    {"simq_coarse_candidate_count", "simq_rerank_candidate_count"});
+<h2 id="request"><a class="header" href="#request">Request</a></h2>
+<p>Save a request such as the following as <code>request.json</code>. <code>dim</code>, <code>dtype</code>, and <code>metric_type</code> are read
+from the dataset and need not be repeated. If provided, they must match the dataset.</p>
+<pre><code class="language-json">{
+  "version": 1,
+  "data_path": "/tmp/sift-128-euclidean.hdf5",
+  "indexes": [
+    {
+      "name": "hgraph",
+      "create_params": {
+        "index_param": {
+          "base_quantization_type": ["fp32", "sq8_uniform"],
+          "max_degree": [16, 32],
+          "ef_construction": 200
+        }
+      },
+      "search_params": {
+        "hgraph": {
+          "ef_search": {
+            "$range": {"start": 40, "stop": 1000}
+          }
+        }
+      }
+    }
+  ],
+  "workload": {
+    "top_k": 10,
+    "concurrency": 1
+  },
+  "constraints": {
+    "recall_at_k": 0.95,
+    "index_memory_mb": 8192
+  },
+  "objective": {
+    "metric": "latency_avg_ms"
+  },
+  "tuning_config": {
+    "workspace_path": "/tmp/vsag_autotune",
+    "keep_intermediate": false,
+    "max_trials": 1000
+  }
+}
 </code></pre>
+<p>Run it with:</p>
+<pre><code class="language-bash">./build-release/tools/autotune/autotune request.json
+</code></pre>
+<p>Every parameter leaf may be a scalar, an array, or a <code>$range</code> with <code>start</code>, <code>stop</code>, and <code>step</code>.
+Explicit values are preserved. HGraph <code>ef_search</code> additionally accepts an integer <code>$range</code> without
+<code>step</code>; AutoTune then doubles from <code>start</code> until it brackets a passing value and binary-searches
+that interval for the smallest passing value. This assumes that recall does not decrease as
+<code>ef_search</code> increases for the fixed configuration. Every evaluated point uses all queries. For
+omitted tuning fields, V1 supplies a small built-in candidate set for HGraph or IVF. If <code>indexes</code>
+is omitted, both indexes are evaluated.</p>
+<p>Candidates with identical concrete create parameters share one build. Each concrete search
+parameter set remains a separate trial. An adaptive <code>ef_search</code> range records only the concrete
+points that were actually evaluated.</p>
+<h2 id="existing-index"><a class="header" href="#existing-index">Existing Index</a></h2>
+<p>Set <code>index_path</code> and provide exactly one index specification to tune search parameters without
+rebuilding. Its <code>create_params</code> must be the concrete parameters used to create the serialized
+index. AutoTune does not expand <code>create_params</code> in this mode, so native index fields that happen to
+be arrays remain unchanged.</p>
+<p>Programmatic callers use a separate <code>SearchRequest</code> and call <code>TuneSearch</code>:</p>
+<pre><code class="language-cpp">vsag::autotune::SearchRequest request;
+request.index = existing_index;
+request.workload = {queries, ground_truth, 10, 48};
+request.parameter_space = R"({"hgraph":{"ef_search":[40,80,120]}})";
+request.constraints = {{vsag::autotune::Metric::RECALL_AT_K, 0.95}};
+request.objective = vsag::autotune::Metric::LATENCY_AVG_MS;
+
+auto result = vsag::autotune::TuneSearch(request);
+if (result.has_value() &amp;&amp; result-&gt;status == vsag::autotune::TuneStatus::SUCCESS) {
+    auto neighbors = existing_index-&gt;KnnSearch(query, 10, result-&gt;parameters).value();
+}
+</code></pre>
+<p>This avoids serialization and file I/O and reuses the caller’s index for all search trials.
+AutoTune derives the index type and element count from <code>IndexPtr</code>. Search tuning therefore needs
+queries but not the base dataset or metric type. When recall is requested, it also needs ground
+truth and defines per-query <code>recall_at_k</code> as the intersection of the returned and ground-truth IDs
+in their first <code>top_k</code> entries, divided by <code>top_k</code>; the reported value is the average over all
+queries. Ground truth is optional when recall is neither a constraint nor the objective.</p>
+<p>The CLI’s <code>index_path</code> field remains an offline adapter: it uses the concrete create parameters to
+create and deserialize an index, then enters the same search-only flow.</p>
+<p>Pyramid is supported in this search-only mode. The HDF5 CLI adapter does not provide query paths,
+so it can evaluate only Pyramid’s native default/root search. Typed requests take paths directly
+from <code>workload.queries-&gt;GetPaths()</code>: when paths are present, each query is evaluated against its
+path; when absent, Pyramid applies its native root-search behavior. V1 supports only the default
+unnamed hierarchy. To select different <code>ef_search</code> values for different paths, run one typed
+AutoTune request per representative path workload, with the matching ground truth. V1 does not
+aggregate path-specific recommendations into one result.</p>
+<p>A complete example is available at
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/327_feature_autotune_existing_index.cpp"><code>examples/cpp/327_feature_autotune_existing_index.cpp</code></a>.
+For Pyramid path tuning, see
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/328_feature_autotune_existing_pyramid.cpp"><code>examples/cpp/328_feature_autotune_existing_pyramid.cpp</code></a>.
+It tunes the same Pyramid index separately for 512-vector and 4096-vector leaf subgraphs under the
+same recall target, illustrating why different paths may need different <code>ef_search</code> values.</p>
+<h2 id="metrics"><a class="header" href="#metrics">Metrics</a></h2>
+<p>The following metrics can be used as constraints or as the objective:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Key</th><th>含义</th></tr>
+<tr><th>Metric</th><th>Constraint comparison</th></tr>
 </thead>
 <tbody>
-<tr><td><code>dist_cmp</code></td><td>精排阶段执行的精确 MaxSim 距离计算次数</td></tr>
-<tr><td><code>simq_coarse_dist_cmp</code></td><td>代表图搜索执行的距离计算次数</td></tr>
-<tr><td><code>simq_coarse_probe_count</code></td><td>所有 query token 探测的代表簇数量</td></tr>
-<tr><td><code>simq_coarse_candidate_count</code></td><td>粗排产生且尚未应用 <code>rerank_k</code> 的唯一文档候选数</td></tr>
-<tr><td><code>simq_rerank_candidate_count</code></td><td>应用 <code>rerank_k</code> 后保留的候选数</td></tr>
-<tr><td><code>simq_filtered_candidate_count</code></td><td>被调用方 filter 排除的精排候选数</td></tr>
-<tr><td><code>simq_result_count</code></td><td>精排并应用 range/top-k 限制后最终返回的结果数</td></tr>
-<tr><td><code>simq_limited_size_applied</code></td><td><code>RangeSearch</code> 是否因 <code>limited_size</code> 截断结果</td></tr>
+<tr><td><code>recall_at_k</code>, <code>qps</code></td><td>At least the requested value</td></tr>
+<tr><td><code>latency_avg_ms</code>, <code>latency_p99_ms</code></td><td>At most the requested value</td></tr>
+<tr><td><code>index_memory_mb</code>, <code>index_size_mb</code></td><td>At most the requested value</td></tr>
+<tr><td><code>build_seconds</code>, <code>search_seconds</code>, <code>build_and_search_seconds</code></td><td>At most the requested value</td></tr>
 </tbody>
 </table>
 </div>
-<p>这些计数器可以在调节召回和延迟时，区分候选池过窄、过滤、精排和输出上限各自的影响。</p>
-<h2 id="何时选择-simq"><a class="header" href="#何时选择-simq">何时选择 SIMQ</a></h2>
+<p><code>build_seconds</code>, <code>index_size_mb</code>, and <code>build_and_search_seconds</code> are unavailable in
+existing-index mode. <code>index_memory_mb</code> may be a constraint, but not the objective, because it is
+constant across search candidates for the same existing index and cannot rank them. The objective
+direction is inferred from the metric, so no <code>direction</code> field is needed.</p>
+<p>AutoTune uses a dedicated latency/QPS pass and a separate recall/statistics pass, so a logical
+query runs more than once per trial. <code>search_seconds</code> covers both in-memory passes and metric
+collection, but excludes index deserialization. Candidates run in a fixed order without warm-up
+or randomization. Measure latency and QPS on a representative, controlled machine and repeat runs
+when these metrics determine the recommendation.</p>
+<h2 id="reading-the-output"><a class="header" href="#reading-the-output">Reading the Output</a></h2>
+<p>Standard output is a short summary ordered for copying:</p>
 <ul>
-<li><strong>Late-interaction 检索</strong>：使用 ColBERT 等模型，每篇文档是一组 token 向量，
-相关性通过 MaxSim 计算。</li>
-<li><strong>多向量粒度匹配</strong>：单 embedding 丢失过多信息，需要 token 级细粒度匹配。</li>
-<li><strong>大规模多向量语料</strong>：暴力 MaxSim 检索过慢，需要粗排 + 精排的两阶段管线
-来平衡召回与延迟。</li>
+<li><code>recommendation</code>: the selected concrete parameters, metrics, and trial evidence. Build-and-search
+results also include create parameters and artifact/build evidence; search-only results do not.</li>
+<li><code>best_effort</code>: present only when no trial satisfies every constraint.</li>
+<li><code>failure</code>: present when the request or all evaluations fail.</li>
+<li><code>report_path</code>: the full reproducible report.</li>
 </ul>
-<p>SIMQ 仅接受 <code>float32</code> 多向量数据，仅支持内积相似度。
-<strong>不支持</strong> 单稠密向量或稀疏向量（请使用 HGraph 或 SINDI）。</p>
-<h2 id="实践建议"><a class="header" href="#实践建议">实践建议</a></h2>
-<ul>
-<li><strong>调整 <code>coarse_k</code> 与 <code>rerank_k</code>。</strong> 增大 <code>coarse_k</code> 扩大簇级候选范围；
-增大 <code>rerank_k</code> 让更多文档进入精确打分。实践中 <code>rerank_k</code> 对召回的影响
-更大，但每个额外候选都需要一次磁盘读取和完整的 MaxSim 计算，延迟也会增加。</li>
-<li><strong>IO 类型选择。</strong> 语料规模超出内存时使用 <code>async_io</code>；多向量数据可以放入
-内存时，使用 <code>memory_io</code> 或 <code>block_memory_io</code> 获得最低的精排延迟。</li>
-<li><strong>簇大小配置。</strong> 将 <code>max_cluster_size</code> 设为 <code>split_start_idx</code> 的约两倍。切分位置
-决定了簇溢出时 token 向量的分配方式，居中设置可使两半保持平衡。</li>
-</ul>
-<h2 id="multivector-字段说明"><a class="header" href="#multivector-字段说明">MultiVector 字段说明</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>字段</th><th>类型</th><th>说明</th></tr>
-</thead>
-<tbody>
-<tr><td><code>len_</code></td><td><code>uint32_t</code></td><td>当前文档或查询包含的 token 向量数量</td></tr>
-<tr><td><code>vectors_</code></td><td><code>float*</code></td><td><code>len_ * dim</code> 个 float 的连续数组</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="相关文档"><a class="header" href="#相关文档">相关文档</a></h2>
-<ul>
-<li><a href="../guide/create_index.html">创建索引</a></li>
-<li><a href="../resources/index_parameters.html">索引参数</a></li>
-<li><a href="../guide/knn_search.html">k-近邻搜索</a></li>
-</ul>
+<p>The full report also contains every build and trial, constraint violations, the normalized request,
+and structured per-stage failures. In search-only mode <code>builds</code> is empty and trials contain no
+artifact or build fields. For both the CLI and typed <code>TuneIndex</code>, <code>keep_intermediate=false</code> retains
+only the recommended generated index and removes unselected artifacts. Setting it to <code>true</code>
+retains every generated index.</p>
+<p>After initial request validation succeeds, the CLI and <code>RunAutoTune</code> persist the full report:
+<code>output.result_path</code> overrides the path, otherwise a generated path under the workspace is used.
+Early validation and request-file failures do not write a report. Typed <code>TuneIndex</code> and
+<code>TuneSearch</code> never write a report file; callers receive the complete <code>JsonType</code> report in the
+result.</p>
+<h2 id="v1-boundaries"><a class="header" href="#v1-boundaries">V1 Boundaries</a></h2>
+<p>V1 evaluates one KNN workload and performs a full sweep except for the supported HGraph
+<code>ef_search</code> adaptive search. It does not provide filtered or range-search workloads, adaptive query
+sampling, cross-request build cache, or model-based candidate generation.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../indexes/sindi.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../resources/eval.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../indexes/pyramid.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../resources/autotune_api_v1.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -538,11 +540,11 @@ auto values = result-&gt;GetStatistics(
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../indexes/sindi.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../resources/eval.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../indexes/pyramid.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../resources/autotune_api_v1.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

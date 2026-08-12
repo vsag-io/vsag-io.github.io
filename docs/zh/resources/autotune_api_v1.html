@@ -1,0 +1,833 @@
+<!DOCTYPE HTML>
+<html lang="zh" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>AutoTune V1 CLI JSON 契约 - VSAG文档</title>
+
+
+        <!-- Custom HTML head -->
+        <!-- Google tag (gtag.js) -->
+        <!-- Shared with docs/{docs,blog}/{en,zh}/theme/head.hbs and docs/landing/index.html. Keep these five copies in sync. -->
+        <!-- Hostname-gated so local mdBook previews and fork deploys do not pollute the production GA4 property. -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-2VKGDGDEQV"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          if (location.hostname === 'vsag.io') {
+            gtag('config', 'G-2VKGDGDEQV');
+          }
+        </script>
+        
+        <!-- Language toggle button injected into mdBook's top menu bar. -->
+        <!-- Shared across docs/{en,zh} and blog/{en,zh}. Keep these four copies in sync. -->
+        <style>
+          #lang-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2.2em;
+            height: 2.2em;
+            padding: 0 0.55em;
+            margin-left: 0.2em;
+            border: 0;
+            border-radius: 4px;
+            background: transparent;
+            color: var(--icons);
+            font: inherit;
+            font-size: 0.95em;
+            line-height: 1;
+            cursor: pointer;
+            text-decoration: none;
+            user-select: none;
+          }
+          #lang-toggle:hover {
+            color: var(--icons-hover);
+            background: var(--theme-hover, rgba(0, 0, 0, 0.05));
+          }
+          #lang-toggle[aria-busy="true"] {
+            opacity: 0.6;
+            cursor: progress;
+          }
+        </style>
+        <script>
+          (function () {
+            // Site layout (deployed at https://vsag.io/):
+            //   /docs/en/...   /docs/zh/...
+            //   /blogs/en/...  /blogs/zh/...
+            // mdBook sources in this repo live under docs/docs/{en,zh} and docs/blog/{en,zh};
+            // the deploy workflow renames blog -> blogs, so runtime paths use /blogs/.
+            var PAIRS = [
+              { a: '/docs/en/',  b: '/docs/zh/'  },
+              { a: '/blogs/en/', b: '/blogs/zh/' }
+            ];
+        
+            function detect(pathname) {
+              for (var i = 0; i < PAIRS.length; i++) {
+                var p = PAIRS[i];
+                if (pathname.indexOf(p.a) === 0) {
+                  return { current: 'en', other: 'zh', currentRoot: p.a, otherRoot: p.b };
+                }
+                if (pathname.indexOf(p.b) === 0) {
+                  return { current: 'zh', other: 'en', currentRoot: p.b, otherRoot: p.a };
+                }
+              }
+              return null;
+            }
+        
+            function buildTargetUrl(info, pathname) {
+              var rest = pathname.slice(info.currentRoot.length);
+              return info.otherRoot + rest;
+            }
+        
+            function insertButton() {
+              var bar = document.querySelector('.right-buttons');
+              if (!bar) return false;
+              if (document.getElementById('lang-toggle')) return true;
+        
+              var info = detect(window.location.pathname);
+              // On local `mdbook serve`, paths look like "/" instead of "/docs/en/";
+              // hide the button in that case to avoid sending users to nonexistent URLs.
+              if (!info) return true;
+        
+              // Use a real <button> so keyboard activation (Enter/Space) and focus
+              // styles match the other icons in mdBook's .right-buttons toolbar.
+              var btn = document.createElement('button');
+              btn.id = 'lang-toggle';
+              btn.type = 'button';
+              // Show the *target* language so users know what clicking does. Set
+              // `lang` so screen readers pronounce "中" / "EN" in the right voice.
+              btn.textContent = info.other === 'zh' ? '\u4e2d' : 'EN';
+              btn.lang = info.other;
+              btn.title = info.other === 'zh' ? '\u5207\u6362\u4e3a\u4e2d\u6587' : 'Switch to English';
+              btn.setAttribute('aria-label', btn.title);
+        
+              btn.addEventListener('click', function () {
+                // Guard against rapid double-clicks firing concurrent probes.
+                if (btn.getAttribute('aria-busy') === 'true') return;
+                var target = buildTargetUrl(info, window.location.pathname);
+                var hash = window.location.hash || '';
+                btn.setAttribute('aria-busy', 'true');
+                // Bound the HEAD probe so a stalled network does not leave the
+                // toggle stuck in the busy state forever.
+                var controller = (typeof AbortController === 'function') ? new AbortController() : null;
+                var timer = setTimeout(function () { if (controller) controller.abort(); }, 3000);
+                var opts = { method: 'HEAD' };
+                if (controller) opts.signal = controller.signal;
+                // Prefer HEAD to check existence without downloading the page.
+                fetch(target, opts).then(function (r) {
+                  clearTimeout(timer);
+                  window.location.assign(r.ok ? (target + hash) : info.otherRoot);
+                }).catch(function () {
+                  clearTimeout(timer);
+                  // Network error / CORS / offline / timeout -> fall back to language root.
+                  window.location.assign(info.otherRoot);
+                });
+              });
+        
+              bar.insertBefore(btn, bar.firstChild);
+              return true;
+            }
+        
+            if (document.readyState === 'loading') {
+              document.addEventListener('DOMContentLoaded', insertButton);
+            } else {
+              insertButton();
+            }
+          })();
+        </script>
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="../favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="../favicon-8114d1fc.png">
+        <link rel="stylesheet" href="../css/variables-8adf115d.css">
+        <link rel="stylesheet" href="../css/general-e96d0476.css">
+        <link rel="stylesheet" href="../css/chrome-d279d366.css">
+        <link rel="stylesheet" href="../css/print-9e4910d8.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="../fonts/fonts-9644e21d.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="mdbook-highlight-css" href="../highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="../tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="../ayu-highlight-3fdfc3ac.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "../";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="../toc-0993d4d0.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="mdbook-body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="../toc.html"></iframe>
+            </noscript>
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="mdbook-page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
+                        </label>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
+                        </button>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
+                        </ul>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">VSAG文档</h1>
+
+                    <div class="right-buttons">
+                        <a href="../print.html" title="Print this book" aria-label="Print this book">
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="mdbook-content" class="content">
+                    <main>
+                        <h1 id="autotune-v1-cli-json-输入输出契约"><a class="header" href="#autotune-v1-cli-json-输入输出契约">AutoTune V1 CLI JSON 输入输出契约</a></h1>
+<p>本文档定义 <code>autotune</code> 命令行工具使用的离线 JSON/HDF5 适配契约。实验性的 C++ API 只在
+构建目录中提供，接收 typed <code>IndexRequest</code> 和 <code>SearchRequest</code>，不会随 VSAG 库安装。所有
+入口完成输入转换后使用同一个规范化请求和调优引擎。AutoTune V1 支持 dense float32 数据、
+HGraph/IVF 的构建和查询调优，以及一个使用全量 query 的 KNN workload。</p>
+<p>请求、索引规格、workload、objective、<code>tuning_config</code> 和 <code>output</code> 中的未知字段会被拒绝。
+<code>create_params</code> 和 <code>search_params</code> 内部的原生参数会传给具体 VSAG 索引，在创建或查询时由
+索引校验。</p>
+<h2 id="请求对象"><a class="header" href="#请求对象">请求对象</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>必填</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>version</code></td><td>integer</td><td>是</td><td>必须为 <code>1</code>。</td></tr>
+<tr><td><code>data_path</code></td><td>string</td><td>是</td><td>可读的 HDF5 评测数据集。</td></tr>
+<tr><td><code>index_path</code></td><td>string</td><td>否</td><td>用于 search-only 调优的已有序列化索引。</td></tr>
+<tr><td><code>indexes</code></td><td>array</td><td>否</td><td>索引规格；普通模式默认使用 HGraph 和 IVF。</td></tr>
+<tr><td><code>workload</code></td><td>object</td><td>是</td><td>要优化的 KNN workload。</td></tr>
+<tr><td><code>constraints</code></td><td>object</td><td>是</td><td>非空的“指标到阈值”映射。</td></tr>
+<tr><td><code>objective</code></td><td>object</td><td>是</td><td>对可行候选排序的目标指标。</td></tr>
+<tr><td><code>tuning_config</code></td><td>object</td><td>否</td><td>workspace、产物保留和 trial 上限。</td></tr>
+<tr><td><code>output</code></td><td>object</td><td>否</td><td>报告路径和原始 eval 输出开关。</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="数据集规则"><a class="header" href="#数据集规则">数据集规则</a></h3>
+<p><code>data_path</code> 必须指向 VSAG eval 工具可读取的普通 HDF5 文件。V1 要求：</p>
+<ul>
+<li>dense vector；</li>
+<li>base 和 query 均为 float32；</li>
+<li>至少包含一个 base、一个 query 和一个 ground-truth neighbor；</li>
+<li>使用 recall 指标时，<code>workload.top_k</code> 不超过 ground truth 的宽度；</li>
+<li>distance 属性能够映射为 <code>l2</code>、<code>ip</code> 或 <code>cosine</code>。</li>
+</ul>
+<p>AutoTune 从数据集读取 <code>dim</code>、<code>dtype</code> 和 <code>metric_type</code>，并注入每组具体
+<code>create_params</code>。请求可以重复提供这些字段，但值必须与数据集完全一致。</p>
+<h2 id="索引规格"><a class="header" href="#索引规格">索引规格</a></h2>
+<p>每个 <code>indexes[]</code> 元素的形态如下：</p>
+<pre><code class="language-json">{
+  "name": "hgraph",
+  "create_params": {
+    "index_param": {
+      "max_degree": [16, 32]
+    }
+  },
+  "search_params": {
+    "hgraph": {
+      "ef_search": {"$range": {"start": 40, "stop": 1000}}
+    }
+  }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>必填</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>name</code></td><td>string</td><td>是</td><td><code>hgraph</code>、<code>ivf</code>，或 search-only 的 <code>pyramid</code>；不区分大小写。</td></tr>
+<tr><td><code>create_params</code></td><td>object</td><td>否</td><td>VSAG 创建参数或候选表达式。</td></tr>
+<tr><td><code>search_params</code></td><td>object</td><td>否</td><td>查询参数，key 必须是同一个索引名。</td></tr>
+</tbody>
+</table>
+</div>
+<p>普通 build-and-search 模式省略 <code>indexes</code> 时，AutoTune 会同时评测 HGraph 和 IVF。设置
+<code>index_path</code> 时，必须提供 <code>indexes</code>，并且只能包含一个元素。
+Pyramid 只接受已有的内存索引或序列化索引。</p>
+<h3 id="候选表达式"><a class="header" href="#候选表达式">候选表达式</a></h3>
+<p><code>create_params</code> 和 <code>search_params</code> 中的每个叶子都可以写成：</p>
+<ul>
+<li>标量：固定该值；</li>
+<li>非空数组：提供离散候选值；</li>
+<li><code>$range</code>：必须且只能包含 <code>start</code>、<code>stop</code> 和非零 <code>step</code>，范围包含端点。</li>
+</ul>
+<p>示例：</p>
+<pre><code class="language-json">{
+  "fixed": 32,
+  "choices": [16, 32, 48],
+  "integer_range": {"$range": {"start": 40, "stop": 120, "step": 40}},
+  "float_range": {"$range": {"start": 0.1, "stop": 0.3, "step": 0.1}}
+}
+</code></pre>
+<p>HGraph <code>ef_search</code> 还支持一种特殊写法：</p>
+<pre><code class="language-json">{"$range": {"start": 40, "stop": 1000}}
+</code></pre>
+<p>上下界必须是正整数并满足 <code>start &lt;= stop</code>。这种写法要求存在 <code>recall_at_k</code> 约束，且目标为
+<code>latency_avg_ms</code>、<code>latency_p99_ms</code>、<code>qps</code>、<code>search_seconds</code> 或
+<code>build_and_search_seconds</code>；不能同时设置 <code>timeout_ms</code> 或 <code>hops_limit</code>。对于其他参数的每个
+固定组合，AutoTune 从 <code>start</code> 开始倍增 <code>ef_search</code>（不超过 <code>stop</code>），直到实测 recall 满足
+约束；随后在最后一个失败/通过区间内二分，查找最小通过值。分支方向只由 recall 决定；
+latency 和 QPS 仍作为实测指标参与最终约束过滤和结果选择。该策略假设其他参数和 workload
+固定时，recall 不会随 <code>ef_search</code> 增大而降低。</p>
+<p>每个探测点都会评测完整 query workload。如果某个评测点执行失败或没有 recall，AutoTune
+会停止该自适应范围，因为此时无法安全选择下一个区间。</p>
+<p>V1 会把参数对象中的所有 JSON 数组和带 <code>step</code> 的范围解释成候选集合，计算完整笛卡尔积
+并去除完全相同的候选。其他参数不接受省略 <code>step</code> 的范围。</p>
+<p>计划的最坏评测次数超过 <code>tuning_config.max_trials</code> 时，请求失败。普通具体候选占一个
+trial；自适应 <code>ef_search</code> 在 <code>start == stop</code> 时占一个。否则，planner 会为每个可能的首次
+通过探测点计算“到达该点的探测次数 + 前一区间的二分次数”，并取其中最大值。例如
+<code>40..1000</code> 最坏预留 15 个 trial。</p>
+<h3 id="缺失字段的内置候选"><a class="header" href="#缺失字段的内置候选">缺失字段的内置候选</a></h3>
+<p>用户显式字段始终优先。只有字段缺失时才补充以下候选：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引</th><th>缺失字段</th><th>V1 候选</th></tr>
+</thead>
+<tbody>
+<tr><td>HGraph</td><td><code>base_quantization_type</code></td><td><code>fp32</code>、<code>sq8_uniform</code></td></tr>
+<tr><td>HGraph</td><td><code>max_degree</code></td><td><code>16</code>、<code>32</code></td></tr>
+<tr><td>HGraph</td><td><code>ef_construction</code></td><td><code>100</code>、<code>200</code></td></tr>
+<tr><td>HGraph</td><td><code>ef_search</code></td><td>根据 <code>top_k</code> 生成三个值，下限为 <code>40</code>、<code>80</code>、<code>120</code></td></tr>
+<tr><td>Pyramid，search-only</td><td><code>ef_search</code></td><td>根据 <code>top_k</code> 生成三个值，下限为 <code>40</code>、<code>80</code>、<code>120</code></td></tr>
+<tr><td>IVF</td><td><code>base_quantization_type</code></td><td><code>fp32</code>、<code>sq8_uniform</code></td></tr>
+<tr><td>IVF</td><td><code>buckets_count</code></td><td>不超过 base 数量的 <code>1024</code>、<code>2048</code></td></tr>
+<tr><td>IVF，build-and-search</td><td><code>scan_buckets_count</code></td><td>根据具体 <code>buckets_count</code> 生成至多四个值</td></tr>
+<tr><td>IVF，search-only</td><td><code>scan_buckets_count</code></td><td><code>1</code>、<code>4</code>、<code>16</code>、<code>64</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>HGraph 和 Pyramid 查询候选具体为 <code>max(40, top_k)</code>、<code>max(80, 2 * top_k)</code> 和
+<code>max(120, 4 * top_k)</code>，重复值会删除。build-and-search 模式的 IVF 查询候选不会超过具体
+bucket 数量。AutoTune 无法推断已有 IVF 的 bucket 数量，因此 search-only 模式使用上面的
+保守通用值；被已加载索引拒绝的值会记录为 failed trial，调用方可以显式提供
+<code>scan_buckets_count</code> 候选以避免这些 trial。</p>
+<p>规范化索引名和具体 <code>create_params</code> 相同的候选属于同一个 build group。AutoTune 对该组
+只构建一次、序列化一次作为证据，再使用同一个内存索引实例执行所有关联的 search 候选。</p>
+<h3 id="已有索引模式"><a class="header" href="#已有索引模式">已有索引模式</a></h3>
+<p>设置 <code>index_path</code> 后：</p>
+<ul>
+<li>路径必须指向可读普通文件；</li>
+<li>必须且只能提供一个索引规格；</li>
+<li>必须提供 <code>create_params.index_param</code>；</li>
+<li><code>create_params</code> 整体视为一份具体的索引原生配置，不再做候选展开；</li>
+<li>AutoTune 不补充 create 候选，也不会执行 build；</li>
+<li>缺失的 search 字段仍可使用内置查询候选；</li>
+<li><code>build_seconds</code>、<code>index_size_mb</code> 和 <code>build_and_search_seconds</code> 不能作为约束或目标；</li>
+<li><code>index_memory_mb</code> 可以作为约束，但不能作为目标；</li>
+<li>不会删除调用方提供的索引。</li>
+</ul>
+<p>V1 反序列化前需要使用具体创建参数实例化正确的 VSAG 索引，目前不会从序列化文件推导
+这些参数。</p>
+<p>对于 typed <code>SearchRequest</code>，索引已经完成实例化和加载。AutoTune 从 <code>IndexPtr</code> 推导索引
+类型和元素数量；请求只提供 index、workload、search <code>parameter_space</code>、constraints、
+objective 和 config，不需要 create 参数、base dataset 或 metric type。</p>
+<p>HDF5 适配器不提供 Pyramid query path，因此 CLI 只能评测 Pyramid 原生的默认/root 查询。
+按 path 调优 Pyramid 需要使用 typed <code>SearchRequest</code>，并通过 query Dataset 的
+<code>Dataset::Paths()</code> 提供 path。V1 只转发默认的未命名 hierarchy，不支持 Pyramid named
+hierarchy。</p>
+<h2 id="workload"><a class="header" href="#workload">Workload</a></h2>
+<pre><code class="language-json">{
+  "workload": {
+    "top_k": 10,
+    "concurrency": 48
+  }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>必填</th><th>默认值</th><th>校验</th></tr>
+</thead>
+<tbody>
+<tr><td><code>top_k</code></td><td>positive integer</td><td>是</td><td>—</td><td>不超过 base 数量；使用 recall 指标时不超过 ground truth 宽度；并能用原生 <code>int</code> 表示。</td></tr>
+<tr><td><code>concurrency</code></td><td>positive integer</td><td>否</td><td><code>1</code></td><td>最大为 <code>200</code>。</td></tr>
+</tbody>
+</table>
+</div>
+<p>V1 始终评测 HDF5 文件中的全量 query，并且只支持 KNN。benchmark 机器、系统负载和运行
+环境都属于 workload 的一部分；延迟和 QPS 不能直接移植到不同机器规格或负载条件。
+对于 typed <code>SearchRequest</code>，<code>top_k</code> 会和 <code>IndexPtr::GetNumElements()</code> 比较，不依赖 base
+dataset。只有 recall 是约束或目标时才必须提供 ground truth。</p>
+<h2 id="约束和优化目标"><a class="header" href="#约束和优化目标">约束和优化目标</a></h2>
+<p><code>constraints</code> 直接把指标名映射到阈值；<code>objective.metric</code> 指定一个目标指标。比较方式和
+目标方向由指标决定，用户不能覆盖。</p>
+<pre><code class="language-json">{
+  "constraints": {
+    "recall_at_k": 0.95,
+    "latency_p99_ms": 2.0,
+    "index_memory_mb": 8192
+  },
+  "objective": {
+    "metric": "latency_avg_ms"
+  }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>指标</th><th>约束</th><th>目标方向</th><th>已有索引用法</th></tr>
+</thead>
+<tbody>
+<tr><td><code>recall_at_k</code></td><td>actual ≥ threshold</td><td>最大化</td><td>是</td></tr>
+<tr><td><code>qps</code></td><td>actual ≥ threshold</td><td>最大化</td><td>是</td></tr>
+<tr><td><code>latency_avg_ms</code></td><td>actual ≤ threshold</td><td>最小化</td><td>是</td></tr>
+<tr><td><code>latency_p99_ms</code></td><td>actual ≤ threshold</td><td>最小化</td><td>是</td></tr>
+<tr><td><code>index_memory_mb</code></td><td>actual ≤ threshold</td><td>最小化</td><td>仅约束</td></tr>
+<tr><td><code>index_size_mb</code></td><td>actual ≤ threshold</td><td>最小化</td><td>否</td></tr>
+<tr><td><code>build_seconds</code></td><td>actual ≤ threshold</td><td>最小化</td><td>否</td></tr>
+<tr><td><code>search_seconds</code></td><td>actual ≤ threshold</td><td>最小化</td><td>是</td></tr>
+<tr><td><code>build_and_search_seconds</code></td><td>actual ≤ threshold</td><td>最小化</td><td>否</td></tr>
+</tbody>
+</table>
+</div>
+<p>阈值必须是有限非负数，<code>recall_at_k</code> 还必须不大于 <code>1.0</code>。</p>
+<p>V1 指标口径：</p>
+<ul>
+<li>每条 query 的 <code>recall_at_k</code> 是返回结果和 ground truth 前 <code>top_k</code> 个 ID 的交集大小除以
+<code>top_k</code>，最终指标是所有 query 的平均值。它需要 ground truth，但不需要 base vector 或
+metric type。</li>
+<li><code>build_seconds</code> 是 eval 工具报告的索引 <code>Build</code> 操作耗时。</li>
+<li>它不包含索引序列化、数据集加载和候选编排。</li>
+<li><code>search_seconds</code> 是完整内存 search eval trial 的墙钟时间，不包含索引反序列化，但包含
+所有 search pass 和指标采集；线上查询性能目标应使用 latency 或 QPS。</li>
+<li><code>build_and_search_seconds</code> 是一次 build-and-search trial 中前两项之和。</li>
+<li><code>index_memory_mb</code> 来自已加载索引大于零的 <code>GetMemoryUsage()</code> 结果。索引报告零时，
+AutoTune 会把该指标视为不可用，而不是零内存；相关约束会记录 missing-metric violation。</li>
+<li><code>index_size_mb</code> 是生成的序列化索引文件大小，在 search-only 模式不可用。</li>
+<li>AutoTune 使用独立的 latency/QPS pass 和 recall/statistics pass。latency 用
+<code>steady_clock</code> 包围每次 <code>KnnSearch</code>；QPS 是成功查询数除以并发性能 pass 的墙钟时间。
+因此，同一条逻辑 query 在每个 trial 中会执行多次。</li>
+</ul>
+<p><code>search_seconds</code> 仍表示评测成本，因为它包含两个 pass 和 monitor 处理；它不是一次线上
+逻辑 query batch 的执行时间。候选会按固定顺序在复用的索引上运行，不做 warm-up 或随机
+排序，因此 cache 状态和无关系统负载会影响性能指标。如果 latency 或 QPS 决定结果，应在
+有代表性且受控的环境中运行，并通过重复实验确认。</p>
+<h2 id="tuning-和输出配置"><a class="header" href="#tuning-和输出配置">Tuning 和输出配置</a></h2>
+<pre><code class="language-json">{
+  "tuning_config": {
+    "workspace_path": "/tmp/vsag_autotune",
+    "keep_intermediate": false,
+    "max_trials": 1000
+  },
+  "output": {
+    "result_path": "/tmp/vsag_autotune/report.json",
+    "include_raw_eval": false
+  }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>默认值</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>tuning_config.workspace_path</code></td><td><code>/tmp/vsag_autotune</code></td><td>run 产物和 CLI 默认报告目录。</td></tr>
+<tr><td><code>tuning_config.keep_intermediate</code></td><td><code>false</code></td><td>是否保留所有生成索引。</td></tr>
+<tr><td><code>tuning_config.max_trials</code></td><td><code>1000</code></td><td>计划最坏 trial 数上限；硬上限为 <code>100000</code>。</td></tr>
+<tr><td><code>output.result_path</code></td><td><code>&lt;workspace&gt;/run-&lt;id&gt;.json</code></td><td>CLI 完整报告路径。</td></tr>
+<tr><td><code>output.include_raw_eval</code></td><td><code>false</code></td><td>在 build/trial 中包含原生 eval JSON。</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>output.result_path</code> 不能与 <code>data_path</code> 或 <code>index_path</code> 指向同一文件。通过初始校验后，
+离线 JSON/CLI 入口会写完整报告：显式 <code>output.result_path</code> 会覆盖输出位置，否则 AutoTune
+在 <code>workspace_path</code> 下生成报告路径。早期校验和请求文件错误不会写报告。</p>
+<p>typed <code>TuneIndex</code> 和 <code>TuneSearch</code> 不接收报告路径，也绝不会写报告文件，而是通过结果对象
+返回完整的 <code>JsonType</code> 报告。CLI 和 typed <code>TuneIndex</code> 设置
+<code>keep_intermediate=false</code> 时都只保留推荐索引并删除未选中 artifact；设置为 <code>true</code> 时保留
+所有生成索引。没有 recommendation 时，默认删除所有生成索引。<code>TuneSearch</code> 不生成
+artifact，因此 <code>workspace_path</code> 和 <code>keep_intermediate</code> 对它没有影响。</p>
+<h2 id="完整报告"><a class="header" href="#完整报告">完整报告</a></h2>
+<p>完成评测后会返回以下顶层结构；CLI 还会把它写入磁盘：</p>
+<pre><code class="language-json">{
+  "version": 1,
+  "status": "success",
+  "recommendation": {},
+  "best_effort": null,
+  "builds": [],
+  "trials": [],
+  "request": {},
+  "elapsed_seconds": 84.2,
+  "report_path": "/tmp/vsag_autotune/run-....json"
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>version</code></td><td>报告契约版本，固定为 <code>1</code>。</td></tr>
+<tr><td><code>status</code></td><td><code>success</code>、<code>no_feasible_candidate</code> 或 <code>failed</code>。</td></tr>
+<tr><td><code>recommendation</code></td><td>最优可行 trial；不存在时为 <code>null</code>。</td></tr>
+<tr><td><code>best_effort</code></td><td>约束不可行时最接近的成功 trial，否则为 <code>null</code>。</td></tr>
+<tr><td><code>builds</code></td><td>每组具体生成 build 一条记录；search-only 模式为空数组。</td></tr>
+<tr><td><code>trials</code></td><td>每组已执行的具体 search 候选一条记录。</td></tr>
+<tr><td><code>request</code></td><td>调优引擎实际使用的有效规范化请求。</td></tr>
+<tr><td><code>elapsed_seconds</code></td><td>AutoTune 墙钟时间包含 artifact 清理，不含最终报告写入。</td></tr>
+<tr><td><code>report_path</code></td><td>持久化完整报告路径；只在 CLI/JSON 适配器中存在。</td></tr>
+<tr><td><code>failure</code></td><td>整体执行失败时出现。</td></tr>
+</tbody>
+</table>
+</div>
+<p>早期校验失败不包含 <code>builds</code>、<code>trials</code> 或 <code>report_path</code>，也不会写报告。如果所有候选评测
+失败，CLI 只要报告路径仍然可用，就会保留尝试过的 build/trial 记录并写报告。typed API
+的报告绝不会包含 <code>report_path</code>。</p>
+<p>规范化 <code>request</code> 包含推导出的 dataset 元数据、workload 默认值、constraints、objective、
+config 和 output。build-and-search 模式还包含 <code>index_spaces</code>；search-only 模式包含
+<code>index_name</code> 和 <code>parameter_space</code>。CLI 报告还会在这个规范化对象顶层保留离线
+<code>data_path</code>，存在已有索引输入时也保留 <code>index_path</code>。</p>
+<h3 id="status-语义"><a class="header" href="#status-语义">Status 语义</a></h3>
+<ul>
+<li><code>success</code>：至少一个成功 trial 满足全部约束，设置 <code>recommendation</code>。</li>
+<li><code>no_feasible_candidate</code>：存在成功 trial，但没有任何一个满足全部约束；设置
+<code>best_effort</code> 用于解释，它不是有效推荐。typed 调用会返回带
+<code>TuneStatus::NO_FEASIBLE_CANDIDATE</code> 的值，而不是 error。</li>
+<li><code>failed</code>：请求非法、执行或报告阶段失败，或者没有成功且带目标指标的 trial。</li>
+</ul>
+<h3 id="recommendation-和-best-effort"><a class="header" href="#recommendation-和-best-effort">Recommendation 和 Best Effort</a></h3>
+<p>build-and-search 模式下，<code>recommendation</code> 包含：</p>
+<pre><code class="language-json">{
+  "index_name": "hgraph",
+  "create_params": {},
+  "search_params": {},
+  "workload": {"top_k": 10, "concurrency": 1},
+  "metrics": {},
+  "artifacts": {},
+  "evidence": {"build_id": "build-0", "trial_id": "trial-0"}
+}
+</code></pre>
+<p>search-only 模式会省略 <code>create_params</code>、<code>artifacts</code> 和 <code>evidence.build_id</code>，只包含具体
+查询参数、workload、metrics 和 <code>evidence.trial_id</code>。<code>best_effort</code> 使用相同的模式相关
+字段，并额外包含 <code>constraint_evaluation</code>。它首先按违反或缺失约束数量选择，再比较归一化
+violation 大小，只用于解释。</p>
+<h3 id="build-记录"><a class="header" href="#build-记录">Build 记录</a></h3>
+<p>search-only 模式的 <code>builds</code> 为空。build-and-search 模式下，每个 <code>builds[]</code> 元素包含：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>build_id</code></td><td>被 trial 引用的稳定 ID。</td></tr>
+<tr><td><code>index_name</code></td><td>具体索引类型。</td></tr>
+<tr><td><code>create_params</code></td><td>具体创建参数。</td></tr>
+<tr><td><code>status</code></td><td><code>success</code> 或 <code>failed</code>。</td></tr>
+<tr><td><code>metrics</code></td><td>可用的 build 共享指标。</td></tr>
+<tr><td><code>artifacts</code></td><td><code>source</code>、<code>index_path</code>、<code>use_existing_index</code> 和 <code>retained</code>。</td></tr>
+<tr><td><code>failure</code></td><td>结构化失败或 <code>null</code>。</td></tr>
+<tr><td><code>elapsed_seconds</code></td><td>build group 准备耗时。</td></tr>
+<tr><td><code>raw_eval_result</code></td><td>请求原始输出且真实 build eval 成功时出现。</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="trial-记录"><a class="header" href="#trial-记录">Trial 记录</a></h3>
+<p>每个 <code>trials[]</code> 元素包含：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>trial_id</code></td><td>稳定 trial ID。</td></tr>
+<tr><td><code>build_id</code></td><td>关联的 build group；仅 build-and-search 模式存在。</td></tr>
+<tr><td><code>index_name</code></td><td>具体索引类型。</td></tr>
+<tr><td><code>create_params</code></td><td>具体创建参数；仅 build-and-search 模式存在。</td></tr>
+<tr><td><code>search_params</code></td><td>具体查询参数。</td></tr>
+<tr><td><code>status</code></td><td><code>success</code> 或 <code>failed</code>。</td></tr>
+<tr><td><code>metrics</code></td><td>用于约束评估和选择的可用指标。</td></tr>
+<tr><td><code>constraint_evaluation</code></td><td><code>satisfied</code> 和 <code>violations</code> 数组。</td></tr>
+<tr><td><code>artifacts</code></td><td>从 build group 复制的产物证据；仅 build-and-search 模式存在。</td></tr>
+<tr><td><code>failure</code></td><td>结构化失败或 <code>null</code>。</td></tr>
+<tr><td><code>elapsed_seconds</code></td><td>search trial 墙钟时间。</td></tr>
+<tr><td><code>raw_eval_result</code></td><td>请求原始输出且原生 search eval 成功时出现。</td></tr>
+</tbody>
+</table>
+</div>
+<p>对于自适应 HGraph <code>ef_search</code> 范围，报告会为每个实际评测点记录一条 trial。每条记录中的
+<code>search_params</code> 都是具体值；<code>$range</code> 表达式只保留在规范化请求中。每条记录都会评测完整
+query workload。</p>
+<p>每条 constraint violation 包含 <code>metric</code>、<code>comparison</code>、<code>expected</code> 和 <code>actual</code>。指标缺失或
+非有限数时，<code>actual</code> 为 <code>null</code>。</p>
+<p>同一 build group 的 search trial 复用同一个已加载索引实例。新生成的索引只构建和序列化
+一次。search-only 模式直接为所有 trial 复用调用方索引，或复用 CLI 适配器反序列化得到的
+索引。</p>
+<h3 id="artifact-语义"><a class="header" href="#artifact-语义">Artifact 语义</a></h3>
+<p>V1 只在 build-and-search 记录中提供 artifact 字段。<code>artifacts.source</code> 为 <code>generated</code>；
+<code>artifacts.index_path</code> 用于说明被评测索引曾存放在哪里，不保证响应返回时路径仍然存在。
+需要检查 <code>artifacts.retained</code>：</p>
+<ul>
+<li><code>true</code>：这是最终推荐产物，或者请求保留所有生成索引；</li>
+<li><code>false</code>：AutoTune 计划删除或已经删除生成产物。</li>
+</ul>
+<h3 id="结构化失败"><a class="header" href="#结构化失败">结构化失败</a></h3>
+<p>所有失败使用统一结构：</p>
+<pre><code class="language-json">{
+  "stage": "validation",
+  "code": "invalid_request",
+  "message": "request.workload.top_k is required"
+}
+</code></pre>
+<p>常见 stage 包括 <code>cli</code>、<code>validation</code>、<code>candidate_generation</code>、<code>build</code>、<code>search</code>、
+<code>evaluation</code>、<code>selection</code> 和 <code>report</code>。build/trial 失败保留在对应记录中，其他候选可以
+继续执行。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Stage</th><th>Code</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>cli</code></td><td><code>request_file_error</code></td><td>CLI 无法读取或解析请求文件。</td></tr>
+<tr><td><code>validation</code></td><td><code>invalid_request</code></td><td>请求校验失败。</td></tr>
+<tr><td><code>candidate_generation</code></td><td><code>invalid_request</code></td><td>候选表达式或数量非法。</td></tr>
+<tr><td><code>build</code></td><td><code>build_evaluation_failed</code></td><td>一组 build 失败。</td></tr>
+<tr><td><code>search</code></td><td><code>build_failed</code></td><td>关联 build 失败，search 被跳过。</td></tr>
+<tr><td><code>search</code></td><td><code>search_evaluation_failed</code></td><td>一组 search trial 失败。</td></tr>
+<tr><td><code>evaluation</code></td><td><code>all_trials_failed</code></td><td>所有候选 trial 都执行失败。</td></tr>
+<tr><td><code>selection</code></td><td><code>objective_metric_unavailable</code></td><td>存在成功 trial，但都没有产生目标指标。</td></tr>
+<tr><td><code>evaluation</code>、<code>report</code></td><td><code>execution_failed</code></td><td>顶层执行或报告写入失败。</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="cli-summary"><a class="header" href="#cli-summary">CLI Summary</a></h2>
+<p>CLI 按以下顺序输出完整报告的紧凑子集：</p>
+<ol>
+<li><code>recommendation</code>（存在时）；</li>
+<li><code>best_effort</code>（存在时）；</li>
+<li><code>failure</code>（存在时）；</li>
+<li><code>status</code>；</li>
+<li><code>elapsed_seconds</code>；</li>
+<li><code>report_path</code>（存在时）；</li>
+<li><code>version</code>。</li>
+</ol>
+<p>标准输出会省略值为 null 的结果分支和详细 build/trial 数组。完整证据请读取
+<code>report_path</code>。</p>
+<p>CLI 在 <code>status=failed</code> 或命令行/请求文件出错时返回 <code>1</code>。<code>success</code> 和
+<code>no_feasible_candidate</code> 都返回 <code>0</code>；调用方必须检查 <code>status</code>，不能只用退出码判断是否存在
+recommendation。</p>
+<h2 id="build-tree-c-入口"><a class="header" href="#build-tree-c-入口">Build-tree C++ 入口</a></h2>
+<p>实验性的可选 CMake target <code>vsag::autotune</code> 暴露 <code>tools/autotune/autotune.h</code> 中的接口。
+该 target 和头文件只在构建目录中提供，不会安装：</p>
+<pre><code class="language-cpp">tl::expected&lt;IndexResult, Error&gt; TuneIndex(const IndexRequest&amp; request);
+tl::expected&lt;SearchResult, Error&gt; TuneSearch(const SearchRequest&amp; request);
+JsonType RunAutoTune(const JsonType&amp; request);  // CLI adapter
+</code></pre>
+<p>JSON 入口只负责离线适配：加载 <code>data_path</code>；存在 <code>index_path</code> 时创建并反序列化索引；随后
+构造与 typed 入口相同的内部请求。V1 不安装该 target 和头文件。由于底层 eval 路径会配置
+进程级 OpenMP 状态，同一进程内的多次调用会串行执行。</p>
+<p><code>TuneIndex</code> 同时调优构建参数和查询参数：</p>
+<pre><code class="language-cpp">IndexRequest request;
+request.base = base;
+request.metric_type = METRIC_L2;
+request.workload = {queries, ground_truth, 10, 48};
+request.index_spaces = {{"hgraph", create_candidate_space, search_candidate_space}};
+request.constraints = {{Metric::RECALL_AT_K, 0.95}};
+request.objective = Metric::LATENCY_AVG_MS;
+auto result = TuneIndex(request);
+</code></pre>
+<p>返回值包含已加载、可查询的推荐索引，以及具体 create 和 search 参数。<code>metrics</code> 和完整
+<code>report</code> 都以 <code>JsonType</code> 返回；typed 调用绝不会持久化报告。<code>TuneSearch</code> 对已经构建或
+加载的索引调查询参数：</p>
+<pre><code class="language-cpp">SearchRequest request;
+request.index = existing_index;
+request.workload = {queries, ground_truth, 10, 48};
+request.parameter_space = search_candidate_space;
+request.constraints = {{Metric::RECALL_AT_K, 0.95}};
+request.objective = Metric::LATENCY_AVG_MS;
+auto result = TuneSearch(request);
+</code></pre>
+<p>AutoTune 从 <code>existing_index</code> 推导类型和元素数量，因此 <code>TuneSearch</code> 不需要 base vector 或
+metric type。只有 recall 是约束或目标时才需要 ground truth。<code>TuneSearch</code> 不提供构建阶段
+指标和 <code>index_size_mb</code>。<code>index_memory_mb</code> 可以作为约束，但不能作为目标，因为它不会随
+search 候选变化。</p>
+<p>两个 typed 调用仅在请求非法或执行失败时返回 <code>tl::unexpected&lt;Error&gt;</code>。如果评测正常完成但
+没有候选满足全部约束，则返回 <code>status=TuneStatus::NO_FEASIBLE_CANDIDATE</code> 和结构化
+<code>best_effort</code>；该状态下推荐字段无效。</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="../resources/autotune.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                            </a>
+
+                            <a rel="next prefetch" href="../resources/dataset_format.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="../resources/autotune.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
+                    </a>
+
+                    <a rel="next prefetch" href="../resources/dataset_format.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
+                    </a>
+            </nav>
+
+        </div>
+
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="../elasticlunr-ef4e11c1.min.js"></script>
+        <script src="../mark-09e88c2c.min.js"></script>
+        <script src="../searcher-09f2665d.js"></script>
+
+        <script src="../clipboard-1626706a.min.js"></script>
+        <script src="../highlight-abc7f01d.js"></script>
+        <script src="../book-609e4cb8.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+
+    </div>
+    </body>
+</html>

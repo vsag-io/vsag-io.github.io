@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-8622c5fb.js";
+            window.path_to_searchindex_js = "searchindex-2c86ce63.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-01f057d3.js"></script>
+        <script src="toc-e766644c.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -2138,9 +2138,9 @@ auto result = index-&gt;KnnSearch(
     "rabitq_bits_per_dim_precise": 5
 }
 </code></pre>
-<p>Because split codes cannot be decoded back to the input vector, Pyramid also retains an internal
-FP32 copy for incremental flat-to-graph promotion and analyzer sampling. Search distances still use
-the split codes; the FP32 copy adds <code>count * dim * sizeof(float)</code> bytes of vector storage.</p>
+<p>Pyramid uses split-code code-to-code distances for incremental flat-to-graph promotion, so it does
+not retain an internal FP32 copy by default. Set <code>store_raw_vector</code> to <code>true</code> at build time when
+raw-vector access and complete analyzer metrics are required.</p>
 <h3 id="mrle-with-split-rabitq"><a class="header" href="#mrle-with-split-rabitq">MRLE with split RaBitQ</a></h3>
 <p>Pyramid can truncate embeddings trained with Matryoshka Representation Learning before encoding
 them as split RaBitQ codes:</p>
@@ -2155,10 +2155,10 @@ them as split RaBitQ codes:</p>
 }
 </code></pre>
 <p>The 3-bit filter planes are used for graph traversal and the 5-bit supplement planes for
-reordering; both encode the same truncated vector. Pyramid reorders from the split base datacell
-and retains original FP32 vectors for graph promotion and statistics. The raw-vector copy adds
-storage, and truncation can reduce recall unless the embedding model was trained for prefix
-dimensions.</p>
+reordering; both encode the same truncated vector. Pyramid uses split code-to-code distances for
+graph promotion and does not retain the original FP32 vectors. Metrics that require decodable
+vectors are marked unavailable unless <code>store_raw_vector</code> was enabled at build time. Truncation can
+reduce recall unless the embedding model was trained for prefix dimensions.</p>
 <h2 id="search-parameters-5"><a class="header" href="#search-parameters-5">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>pyramid</code> sub-object:</p>
 <div class="table-wrapper">
@@ -8976,6 +8976,719 @@ helpful for long-running evaluations.</p>
 <li>Reference numbers on standard hardware: <a href="#reference-performance">Reference Performance</a>.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="autotune-tool-autotune"><a class="header" href="#autotune-tool-autotune">AutoTune Tool (<code>autotune</code>)</a></h1>
+<p><code>autotune</code> automates the VSAG build-and-search parameter sweep. AutoTune V1 evaluates real VSAG
+indexes through the shared eval core, filters trials by constraints, and selects the best feasible
+trial for one KNN workload.</p>
+<p>The CLI JSON request and shared report schema are defined in the
+<a href="#autotune-v1-cli-json-input-and-output-contract">AutoTune V1 CLI JSON contract</a>.</p>
+<p>V1 builds and tunes HGraph and IVF on dense float32 data. It also tunes search parameters for an
+existing HGraph, IVF, or Pyramid index. The CLI reads HDF5; the C++ API accepts in-memory datasets
+and indexes. The C++ API is experimental and build-tree-only; it is not installed with the VSAG
+library.</p>
+<h2 id="building-2"><a class="header" href="#building-2">Building</a></h2>
+<pre><code class="language-bash">cmake -S . -B build-release \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DENABLE_TOOLS=ON
+cmake --build build-release --target autotune -j
+</code></pre>
+<p>The executable is <code>build-release/tools/autotune/autotune</code>.</p>
+<p>A runnable request template is available at <a href="https://github.com/antgroup/vsag/blob/main/tools/autotune/examples/sift_hgraph_autotune_request.json">the SIFT request template</a>.
+It expects the dataset at <code>/tmp/sift-128-euclidean.hdf5</code>; edit <code>data_path</code> when necessary.</p>
+<h2 id="c-api-1"><a class="header" href="#c-api-1">C++ API</a></h2>
+<p>The CLI and C++ entry points share candidate generation, trial planning, evaluation, constraint
+filtering, and result selection. Only their input adapters differ:</p>
+<ul>
+<li>the CLI loads JSON and HDF5;</li>
+<li><code>TuneIndex</code> accepts in-memory datasets and jointly tunes build and search parameters;</li>
+<li><code>TuneSearch</code> accepts an already built or loaded <code>IndexPtr</code> and tunes search parameters only.</li>
+</ul>
+<p>Consumers that link the build-tree <code>vsag::autotune</code> target can run the complete tune, select, and
+load loop directly:</p>
+<pre><code class="language-cpp">vsag::autotune::IndexRequest request;
+request.base = base;
+request.metric_type = vsag::METRIC_L2;
+request.workload = {queries, ground_truth, 10, 48};
+request.index_spaces = {
+    {"hgraph", create_candidate_space, search_candidate_space},
+};
+request.constraints = {
+    {vsag::autotune::Metric::RECALL_AT_K, 0.95},
+    {vsag::autotune::Metric::INDEX_MEMORY_MB, 8192.0},
+};
+request.objective = vsag::autotune::Metric::LATENCY_AVG_MS;
+
+auto result = vsag::autotune::TuneIndex(request);
+if (result.has_value() &amp;&amp; result-&gt;status == vsag::autotune::TuneStatus::SUCCESS) {
+    auto neighbors =
+        result-&gt;index-&gt;KnnSearch(query, 10, result-&gt;search_parameters).value();
+}
+</code></pre>
+<p><code>base</code> and <code>queries</code> are dense float32 datasets. <code>base</code> IDs must be present and unique. The
+ground-truth dataset stores <code>query_count</code> rows, uses <code>Dim()</code> as ground-truth K, and contains
+flattened IDs from the base ID space. It is required when <code>RECALL_AT_K</code> is a constraint or the
+objective. Dataset buffers must remain valid until the synchronous call returns.</p>
+<p><code>IndexSpace::create_parameter_space</code> and <code>search_parameter_space</code> remain JSON strings because each
+index owns its native parameter schema. An empty <code>index_spaces</code> vector selects the built-in HGraph
+and IVF spaces; otherwise arrays and <code>$range</code> expressions use the same semantics as the CLI
+contract.</p>
+<p>The result contains the loaded <code>index</code>, <code>index_name</code>, complete concrete <code>create_parameters</code>,
+validated <code>search_parameters</code>, metrics, artifact path, and the complete report. <code>metrics</code> and
+<code>report</code> are <code>JsonType</code> objects. The typed API returns the report in memory and never writes a
+report file. The recommended artifact is retained, so another process can recreate an empty index
+from <code>index_name + create_parameters</code> and deserialize that file. Unselected intermediate
+artifacts are removed by default. The caller removes the recommended artifact when it is no longer
+needed.</p>
+<p>If no candidate satisfies every constraint, the completed call has
+<code>status=TuneStatus::NO_FEASIBLE_CANDIDATE</code> and a structured <code>best_effort</code>; recommendation fields
+such as <code>index</code> are not valid. Invalid requests and execution failures still return an error.</p>
+<p>See
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/326_feature_create_index_with_constraints.cpp"><code>examples/cpp/326_feature_create_index_with_constraints.cpp</code></a> for a complete
+example. Enable both tools and examples to build it:</p>
+<pre><code class="language-bash">cmake -S . -B build-release \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DENABLE_TOOLS=ON \
+  -DENABLE_EXAMPLES=ON
+cmake --build build-release --target 326_feature_create_index_with_constraints -j
+</code></pre>
+<h2 id="request"><a class="header" href="#request">Request</a></h2>
+<p>Save a request such as the following as <code>request.json</code>. <code>dim</code>, <code>dtype</code>, and <code>metric_type</code> are read
+from the dataset and need not be repeated. If provided, they must match the dataset.</p>
+<pre><code class="language-json">{
+  "version": 1,
+  "data_path": "/tmp/sift-128-euclidean.hdf5",
+  "indexes": [
+    {
+      "name": "hgraph",
+      "create_params": {
+        "index_param": {
+          "base_quantization_type": ["fp32", "sq8_uniform"],
+          "max_degree": [16, 32],
+          "ef_construction": 200
+        }
+      },
+      "search_params": {
+        "hgraph": {
+          "ef_search": {
+            "$range": {"start": 40, "stop": 1000}
+          }
+        }
+      }
+    }
+  ],
+  "workload": {
+    "top_k": 10,
+    "concurrency": 1
+  },
+  "constraints": {
+    "recall_at_k": 0.95,
+    "index_memory_mb": 8192
+  },
+  "objective": {
+    "metric": "latency_avg_ms"
+  },
+  "tuning_config": {
+    "workspace_path": "/tmp/vsag_autotune",
+    "keep_intermediate": false,
+    "max_trials": 1000
+  }
+}
+</code></pre>
+<p>Run it with:</p>
+<pre><code class="language-bash">./build-release/tools/autotune/autotune request.json
+</code></pre>
+<p>Every parameter leaf may be a scalar, an array, or a <code>$range</code> with <code>start</code>, <code>stop</code>, and <code>step</code>.
+Explicit values are preserved. HGraph <code>ef_search</code> additionally accepts an integer <code>$range</code> without
+<code>step</code>; AutoTune then doubles from <code>start</code> until it brackets a passing value and binary-searches
+that interval for the smallest passing value. This assumes that recall does not decrease as
+<code>ef_search</code> increases for the fixed configuration. Every evaluated point uses all queries. For
+omitted tuning fields, V1 supplies a small built-in candidate set for HGraph or IVF. If <code>indexes</code>
+is omitted, both indexes are evaluated.</p>
+<p>Candidates with identical concrete create parameters share one build. Each concrete search
+parameter set remains a separate trial. An adaptive <code>ef_search</code> range records only the concrete
+points that were actually evaluated.</p>
+<h2 id="existing-index"><a class="header" href="#existing-index">Existing Index</a></h2>
+<p>Set <code>index_path</code> and provide exactly one index specification to tune search parameters without
+rebuilding. Its <code>create_params</code> must be the concrete parameters used to create the serialized
+index. AutoTune does not expand <code>create_params</code> in this mode, so native index fields that happen to
+be arrays remain unchanged.</p>
+<p>Programmatic callers use a separate <code>SearchRequest</code> and call <code>TuneSearch</code>:</p>
+<pre><code class="language-cpp">vsag::autotune::SearchRequest request;
+request.index = existing_index;
+request.workload = {queries, ground_truth, 10, 48};
+request.parameter_space = R"({"hgraph":{"ef_search":[40,80,120]}})";
+request.constraints = {{vsag::autotune::Metric::RECALL_AT_K, 0.95}};
+request.objective = vsag::autotune::Metric::LATENCY_AVG_MS;
+
+auto result = vsag::autotune::TuneSearch(request);
+if (result.has_value() &amp;&amp; result-&gt;status == vsag::autotune::TuneStatus::SUCCESS) {
+    auto neighbors = existing_index-&gt;KnnSearch(query, 10, result-&gt;parameters).value();
+}
+</code></pre>
+<p>This avoids serialization and file I/O and reuses the caller’s index for all search trials.
+AutoTune derives the index type and element count from <code>IndexPtr</code>. Search tuning therefore needs
+queries but not the base dataset or metric type. When recall is requested, it also needs ground
+truth and defines per-query <code>recall_at_k</code> as the intersection of the returned and ground-truth IDs
+in their first <code>top_k</code> entries, divided by <code>top_k</code>; the reported value is the average over all
+queries. Ground truth is optional when recall is neither a constraint nor the objective.</p>
+<p>The CLI’s <code>index_path</code> field remains an offline adapter: it uses the concrete create parameters to
+create and deserialize an index, then enters the same search-only flow.</p>
+<p>Pyramid is supported in this search-only mode. The HDF5 CLI adapter does not provide query paths,
+so it can evaluate only Pyramid’s native default/root search. Typed requests take paths directly
+from <code>workload.queries-&gt;GetPaths()</code>: when paths are present, each query is evaluated against its
+path; when absent, Pyramid applies its native root-search behavior. V1 supports only the default
+unnamed hierarchy. To select different <code>ef_search</code> values for different paths, run one typed
+AutoTune request per representative path workload, with the matching ground truth. V1 does not
+aggregate path-specific recommendations into one result.</p>
+<p>A complete example is available at
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/327_feature_autotune_existing_index.cpp"><code>examples/cpp/327_feature_autotune_existing_index.cpp</code></a>.
+For Pyramid path tuning, see
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/328_feature_autotune_existing_pyramid.cpp"><code>examples/cpp/328_feature_autotune_existing_pyramid.cpp</code></a>.
+It tunes the same Pyramid index separately for 512-vector and 4096-vector leaf subgraphs under the
+same recall target, illustrating why different paths may need different <code>ef_search</code> values.</p>
+<h2 id="metrics"><a class="header" href="#metrics">Metrics</a></h2>
+<p>The following metrics can be used as constraints or as the objective:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Constraint comparison</th></tr>
+</thead>
+<tbody>
+<tr><td><code>recall_at_k</code>, <code>qps</code></td><td>At least the requested value</td></tr>
+<tr><td><code>latency_avg_ms</code>, <code>latency_p99_ms</code></td><td>At most the requested value</td></tr>
+<tr><td><code>index_memory_mb</code>, <code>index_size_mb</code></td><td>At most the requested value</td></tr>
+<tr><td><code>build_seconds</code>, <code>search_seconds</code>, <code>build_and_search_seconds</code></td><td>At most the requested value</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>build_seconds</code>, <code>index_size_mb</code>, and <code>build_and_search_seconds</code> are unavailable in
+existing-index mode. <code>index_memory_mb</code> may be a constraint, but not the objective, because it is
+constant across search candidates for the same existing index and cannot rank them. The objective
+direction is inferred from the metric, so no <code>direction</code> field is needed.</p>
+<p>AutoTune uses a dedicated latency/QPS pass and a separate recall/statistics pass, so a logical
+query runs more than once per trial. <code>search_seconds</code> covers both in-memory passes and metric
+collection, but excludes index deserialization. Candidates run in a fixed order without warm-up
+or randomization. Measure latency and QPS on a representative, controlled machine and repeat runs
+when these metrics determine the recommendation.</p>
+<h2 id="reading-the-output"><a class="header" href="#reading-the-output">Reading the Output</a></h2>
+<p>Standard output is a short summary ordered for copying:</p>
+<ul>
+<li><code>recommendation</code>: the selected concrete parameters, metrics, and trial evidence. Build-and-search
+results also include create parameters and artifact/build evidence; search-only results do not.</li>
+<li><code>best_effort</code>: present only when no trial satisfies every constraint.</li>
+<li><code>failure</code>: present when the request or all evaluations fail.</li>
+<li><code>report_path</code>: the full reproducible report.</li>
+</ul>
+<p>The full report also contains every build and trial, constraint violations, the normalized request,
+and structured per-stage failures. In search-only mode <code>builds</code> is empty and trials contain no
+artifact or build fields. For both the CLI and typed <code>TuneIndex</code>, <code>keep_intermediate=false</code> retains
+only the recommended generated index and removes unselected artifacts. Setting it to <code>true</code>
+retains every generated index.</p>
+<p>After initial request validation succeeds, the CLI and <code>RunAutoTune</code> persist the full report:
+<code>output.result_path</code> overrides the path, otherwise a generated path under the workspace is used.
+Early validation and request-file failures do not write a report. Typed <code>TuneIndex</code> and
+<code>TuneSearch</code> never write a report file; callers receive the complete <code>JsonType</code> report in the
+result.</p>
+<h2 id="v1-boundaries"><a class="header" href="#v1-boundaries">V1 Boundaries</a></h2>
+<p>V1 evaluates one KNN workload and performs a full sweep except for the supported HGraph
+<code>ef_search</code> adaptive search. It does not provide filtered or range-search workloads, adaptive query
+sampling, cross-request build cache, or model-based candidate generation.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="autotune-v1-cli-json-input-and-output-contract"><a class="header" href="#autotune-v1-cli-json-input-and-output-contract">AutoTune V1 CLI JSON Input and Output Contract</a></h1>
+<p>This page defines the offline JSON/HDF5 adapter used by the <code>autotune</code> command-line tool. The
+experimental, build-tree-only C++ API instead accepts typed <code>IndexRequest</code> and <code>SearchRequest</code>
+objects. It is not installed with the VSAG library. All entry points use the same normalized
+request and tuning engine after input conversion. AutoTune V1 supports one full-dataset KNN
+workload on dense float32 data, with HGraph and IVF as the supported build-and-search index types.</p>
+<p>Unknown fields are rejected in the request, index specification, workload, objective,
+<code>tuning_config</code>, and <code>output</code> objects. Native fields inside <code>create_params</code> and <code>search_params</code> are
+passed to the concrete VSAG index and are validated when that index is created or searched.</p>
+<h2 id="request-object"><a class="header" href="#request-object">Request Object</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>version</code></td><td>integer</td><td>Yes</td><td>Must be <code>1</code>.</td></tr>
+<tr><td><code>data_path</code></td><td>string</td><td>Yes</td><td>Readable HDF5 evaluation dataset.</td></tr>
+<tr><td><code>index_path</code></td><td>string</td><td>No</td><td>Existing serialized index for search-only tuning.</td></tr>
+<tr><td><code>indexes</code></td><td>array</td><td>No</td><td>Index specifications. Defaults to HGraph and IVF in normal mode.</td></tr>
+<tr><td><code>workload</code></td><td>object</td><td>Yes</td><td>The KNN workload being optimized.</td></tr>
+<tr><td><code>constraints</code></td><td>object</td><td>Yes</td><td>Non-empty metric-to-threshold map.</td></tr>
+<tr><td><code>objective</code></td><td>object</td><td>Yes</td><td>Metric used to rank feasible candidates.</td></tr>
+<tr><td><code>tuning_config</code></td><td>object</td><td>No</td><td>Workspace, artifact retention, and trial limit.</td></tr>
+<tr><td><code>output</code></td><td>object</td><td>No</td><td>Report path and raw-eval control.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="dataset-rules"><a class="header" href="#dataset-rules">Dataset Rules</a></h3>
+<p><code>data_path</code> must identify a readable regular file in the HDF5 format accepted by the VSAG
+evaluation tool. V1 requires:</p>
+<ul>
+<li>dense vectors;</li>
+<li>float32 base and query vectors;</li>
+<li>at least one base vector, query vector, and ground-truth neighbor;</li>
+<li><code>workload.top_k</code> no greater than the ground-truth width when recall is requested;</li>
+<li>a distance attribute that maps to <code>l2</code>, <code>ip</code>, or <code>cosine</code>.</li>
+</ul>
+<p>AutoTune reads <code>dim</code>, <code>dtype</code>, and <code>metric_type</code> from the dataset and injects them into every
+concrete <code>create_params</code>. A request may repeat one of these fields only when it exactly matches the
+dataset.</p>
+<h2 id="index-specifications"><a class="header" href="#index-specifications">Index Specifications</a></h2>
+<p>Each <code>indexes[]</code> item has the following shape:</p>
+<pre><code class="language-json">{
+  "name": "hgraph",
+  "create_params": {
+    "index_param": {
+      "max_degree": [16, 32]
+    }
+  },
+  "search_params": {
+    "hgraph": {
+      "ef_search": {"$range": {"start": 40, "stop": 1000}}
+    }
+  }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>name</code></td><td>string</td><td>Yes</td><td><code>hgraph</code>, <code>ivf</code>, or search-only <code>pyramid</code>, case-insensitive.</td></tr>
+<tr><td><code>create_params</code></td><td>object</td><td>No</td><td>VSAG create parameters or candidate expressions.</td></tr>
+<tr><td><code>search_params</code></td><td>object</td><td>No</td><td>Search parameters, keyed by the same index name.</td></tr>
+</tbody>
+</table>
+</div>
+<p>When <code>indexes</code> is absent in normal build-and-search mode, AutoTune evaluates both HGraph and IVF.
+When <code>index_path</code> is present, <code>indexes</code> is required and must contain exactly one item.
+Pyramid is accepted only with an existing in-memory or serialized index.</p>
+<h3 id="candidate-expressions"><a class="header" href="#candidate-expressions">Candidate Expressions</a></h3>
+<p>Every leaf in <code>create_params</code> and <code>search_params</code> can be written as:</p>
+<ul>
+<li>a scalar, which fixes that value;</li>
+<li>a non-empty array, which provides discrete candidate values;</li>
+<li>an inclusive <code>$range</code> containing exactly <code>start</code>, <code>stop</code>, and non-zero <code>step</code>.</li>
+</ul>
+<p>Examples:</p>
+<pre><code class="language-json">{
+  "fixed": 32,
+  "choices": [16, 32, 48],
+  "integer_range": {"$range": {"start": 40, "stop": 120, "step": 40}},
+  "float_range": {"$range": {"start": 0.1, "stop": 0.3, "step": 0.1}}
+}
+</code></pre>
+<p>HGraph <code>ef_search</code> has one additional form:</p>
+<pre><code class="language-json">{"$range": {"start": 40, "stop": 1000}}
+</code></pre>
+<p>The bounds must be positive integers with <code>start &lt;= stop</code>. This form requires a <code>recall_at_k</code>
+constraint and an objective of <code>latency_avg_ms</code>, <code>latency_p99_ms</code>, <code>qps</code>, <code>search_seconds</code>, or
+<code>build_and_search_seconds</code>. It cannot be combined with <code>timeout_ms</code> or <code>hops_limit</code>. For every
+fixed combination of the other parameters, AutoTune evaluates concrete <code>ef_search</code> values and
+doubles from <code>start</code>, capped at <code>stop</code>, until recall satisfies the constraint. It then
+binary-searches the last failing/passing interval for the smallest passing value. Branching uses
+recall only; latency and QPS remain measured metrics used by final constraint evaluation and
+selection. This strategy assumes that recall does not decrease as <code>ef_search</code> increases while all
+other parameters and the workload remain fixed.</p>
+<p>Every probe evaluates the full query workload. If a probe fails to execute or does not produce
+recall, AutoTune stops that adaptive range because it cannot choose the next interval safely.</p>
+<p>V1 treats every JSON array and stepped range in these parameter objects as candidate choices. It
+computes their full Cartesian product and removes identical complete candidates. A no-step range
+is not accepted for other parameters.</p>
+<p>The request is rejected when the planned worst-case evaluation count exceeds
+<code>tuning_config.max_trials</code>. A normal concrete candidate costs one trial. An adaptive <code>ef_search</code>
+range costs one when <code>start == stop</code>. Otherwise, the planner reserves the largest probe count
+through any possible passing bound plus the binary-search cost of that bound’s preceding interval.
+For example, <code>40..1000</code> reserves 15 trials in the worst case.</p>
+<h3 id="built-in-missing-field-candidates"><a class="header" href="#built-in-missing-field-candidates">Built-in Missing-Field Candidates</a></h3>
+<p>Explicit user fields always win. The following values are supplied only when the corresponding
+field is absent:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index</th><th>Missing field</th><th>V1 candidates</th></tr>
+</thead>
+<tbody>
+<tr><td>HGraph</td><td><code>base_quantization_type</code></td><td><code>fp32</code>, <code>sq8_uniform</code></td></tr>
+<tr><td>HGraph</td><td><code>max_degree</code></td><td><code>16</code>, <code>32</code></td></tr>
+<tr><td>HGraph</td><td><code>ef_construction</code></td><td><code>100</code>, <code>200</code></td></tr>
+<tr><td>HGraph</td><td><code>ef_search</code></td><td>Three values derived from <code>top_k</code>, with floors <code>40</code>, <code>80</code>, <code>120</code></td></tr>
+<tr><td>Pyramid, search-only</td><td><code>ef_search</code></td><td>Three values derived from <code>top_k</code>, with floors <code>40</code>, <code>80</code>, <code>120</code></td></tr>
+<tr><td>IVF</td><td><code>base_quantization_type</code></td><td><code>fp32</code>, <code>sq8_uniform</code></td></tr>
+<tr><td>IVF</td><td><code>buckets_count</code></td><td>Up to <code>1024</code> and <code>2048</code>, capped by base-vector count</td></tr>
+<tr><td>IVF, build-and-search</td><td><code>scan_buckets_count</code></td><td>Up to four values derived from concrete <code>buckets_count</code></td></tr>
+<tr><td>IVF, search-only</td><td><code>scan_buckets_count</code></td><td><code>1</code>, <code>4</code>, <code>16</code>, <code>64</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>The exact HGraph and Pyramid search values are <code>max(40, top_k)</code>, <code>max(80, 2 * top_k)</code>, and
+<code>max(120, 4 * top_k)</code>, with duplicates removed. Build-and-search IVF candidates never exceed the
+concrete bucket count. AutoTune cannot infer an existing IVF index’s bucket count, so search-only
+mode uses the conservative generic values above. Values rejected by the loaded index become
+failed trials; callers can avoid them by providing an explicit <code>scan_buckets_count</code> space.</p>
+<p>Candidates with the same normalized index name and identical concrete <code>create_params</code> belong to
+one build group. AutoTune builds that group once, serializes it once as evidence, and evaluates
+every associated search candidate against the same in-memory index instance.</p>
+<h3 id="existing-index-mode"><a class="header" href="#existing-index-mode">Existing-Index Mode</a></h3>
+<p>With <code>index_path</code>:</p>
+<ul>
+<li>the path must identify a readable regular file;</li>
+<li>exactly one index specification is required;</li>
+<li><code>create_params.index_param</code> is required;</li>
+<li><code>create_params</code> is treated as one concrete native index configuration and is not expanded;</li>
+<li>AutoTune does not generate missing create candidates or invoke build;</li>
+<li>missing search fields may still receive built-in search candidates;</li>
+<li><code>build_seconds</code>, <code>index_size_mb</code>, and <code>build_and_search_seconds</code> cannot be constraints or
+objectives;</li>
+<li><code>index_memory_mb</code> can be a constraint but not the objective;</li>
+<li>the caller-owned index is never deleted.</li>
+</ul>
+<p>The concrete create parameters are needed to instantiate the correct VSAG index before
+deserialization. AutoTune does not infer them from the serialized file in V1.</p>
+<p>For a typed <code>SearchRequest</code>, the index is already instantiated and loaded. AutoTune derives its
+index type and element count from <code>IndexPtr</code>; the request supplies only the index, workload, search
+<code>parameter_space</code>, constraints, objective, and config. It needs neither create parameters nor the
+base dataset or metric type.</p>
+<p>The HDF5 adapter does not provide Pyramid query paths, so the CLI can evaluate only Pyramid’s
+native default/root search. Path-specific Pyramid tuning requires a typed <code>SearchRequest</code> whose
+query dataset supplies <code>Dataset::Paths()</code>. V1 forwards only the default unnamed hierarchy; named
+Pyramid hierarchies are not supported by AutoTune.</p>
+<h2 id="workload"><a class="header" href="#workload">Workload</a></h2>
+<pre><code class="language-json">{
+  "workload": {
+    "top_k": 10,
+    "concurrency": 48
+  }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Required</th><th>Default</th><th>Validation</th></tr>
+</thead>
+<tbody>
+<tr><td><code>top_k</code></td><td>positive integer</td><td>Yes</td><td>—</td><td>No greater than base count, and no greater than ground-truth width when recall is requested; representable by native <code>int</code>.</td></tr>
+<tr><td><code>concurrency</code></td><td>positive integer</td><td>No</td><td><code>1</code></td><td>Maximum <code>200</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>V1 always evaluates the complete query set in the HDF5 file and supports only KNN search. The
+benchmark machine, system load, and runtime environment are part of the measured workload.
+Latency and QPS are not portable across different machine specifications or load conditions.
+For a typed <code>SearchRequest</code>, <code>top_k</code> is checked against <code>IndexPtr::GetNumElements()</code> instead of a
+base dataset. Ground truth may be null unless recall is a constraint or the objective.</p>
+<h2 id="constraints-and-objective"><a class="header" href="#constraints-and-objective">Constraints and Objective</a></h2>
+<p><code>constraints</code> maps metric names directly to thresholds. <code>objective.metric</code> names one metric. The
+comparison and objective direction are inferred from the metric and cannot be overridden.</p>
+<pre><code class="language-json">{
+  "constraints": {
+    "recall_at_k": 0.95,
+    "latency_p99_ms": 2.0,
+    "index_memory_mb": 8192
+  },
+  "objective": {
+    "metric": "latency_avg_ms"
+  }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Constraint</th><th>Objective direction</th><th>Existing-index use</th></tr>
+</thead>
+<tbody>
+<tr><td><code>recall_at_k</code></td><td>actual ≥ threshold</td><td>Maximize</td><td>Yes</td></tr>
+<tr><td><code>qps</code></td><td>actual ≥ threshold</td><td>Maximize</td><td>Yes</td></tr>
+<tr><td><code>latency_avg_ms</code></td><td>actual ≤ threshold</td><td>Minimize</td><td>Yes</td></tr>
+<tr><td><code>latency_p99_ms</code></td><td>actual ≤ threshold</td><td>Minimize</td><td>Yes</td></tr>
+<tr><td><code>index_memory_mb</code></td><td>actual ≤ threshold</td><td>Minimize</td><td>Constraint only</td></tr>
+<tr><td><code>index_size_mb</code></td><td>actual ≤ threshold</td><td>Minimize</td><td>No</td></tr>
+<tr><td><code>build_seconds</code></td><td>actual ≤ threshold</td><td>Minimize</td><td>No</td></tr>
+<tr><td><code>search_seconds</code></td><td>actual ≤ threshold</td><td>Minimize</td><td>Yes</td></tr>
+<tr><td><code>build_and_search_seconds</code></td><td>actual ≤ threshold</td><td>Minimize</td><td>No</td></tr>
+</tbody>
+</table>
+</div>
+<p>Thresholds must be finite and non-negative. <code>recall_at_k</code> must also be at most <code>1.0</code>.</p>
+<p>Metric meanings in V1:</p>
+<ul>
+<li>For each query, <code>recall_at_k</code> is the size of the intersection between the first <code>top_k</code>
+returned IDs and ground-truth IDs, divided by <code>top_k</code>; the reported metric is the average over
+all queries. It needs ground truth but does not need base vectors or a metric type.</li>
+<li><code>build_seconds</code> measures the index <code>Build</code> operation reported by the evaluation tool.</li>
+<li>It excludes index serialization, dataset loading, and candidate orchestration.</li>
+<li><code>search_seconds</code> measures the wall time of a complete in-memory search evaluation trial. It
+excludes index deserialization, but includes all search passes and metric collection. Use
+latency or QPS for serving-performance goals.</li>
+<li><code>build_and_search_seconds</code> is the sum of those two metrics for a build-and-search trial.</li>
+<li><code>index_memory_mb</code> comes from the loaded index’s positive <code>GetMemoryUsage()</code> result. When an index
+reports zero, AutoTune treats the metric as unavailable instead of as zero usage; a corresponding
+constraint is recorded as a missing-metric violation.</li>
+<li><code>index_size_mb</code> is the generated serialized artifact’s file size and is unavailable in
+search-only mode.</li>
+<li>AutoTune uses a dedicated latency/QPS pass and a separate recall/statistics pass. Latency wraps
+each <code>KnnSearch</code> call with <code>steady_clock</code>; QPS is successful queries divided by the wall time of
+the concurrent performance pass. The same logical query is therefore executed more than once
+per trial.</li>
+</ul>
+<p><code>search_seconds</code> remains evaluation cost because it includes both passes and monitor work; it is
+not the time for one logical production query batch. Candidates run in a fixed order against a
+reused index, without a warm-up or randomized ordering. Cache state and unrelated system load can
+therefore affect performance metrics; benchmark in a representative, controlled environment and
+repeat runs when latency or QPS drives selection.</p>
+<h2 id="tuning-and-output-configuration"><a class="header" href="#tuning-and-output-configuration">Tuning and Output Configuration</a></h2>
+<pre><code class="language-json">{
+  "tuning_config": {
+    "workspace_path": "/tmp/vsag_autotune",
+    "keep_intermediate": false,
+    "max_trials": 1000
+  },
+  "output": {
+    "result_path": "/tmp/vsag_autotune/report.json",
+    "include_raw_eval": false
+  }
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>tuning_config.workspace_path</code></td><td><code>/tmp/vsag_autotune</code></td><td>Run artifacts and CLI default reports.</td></tr>
+<tr><td><code>tuning_config.keep_intermediate</code></td><td><code>false</code></td><td>Keep all generated indexes.</td></tr>
+<tr><td><code>tuning_config.max_trials</code></td><td><code>1000</code></td><td>Maximum planned worst-case trials; hard maximum <code>100000</code>.</td></tr>
+<tr><td><code>output.result_path</code></td><td><code>&lt;workspace&gt;/run-&lt;id&gt;.json</code></td><td>CLI full report path.</td></tr>
+<tr><td><code>output.include_raw_eval</code></td><td><code>false</code></td><td>Include native eval JSON in build and trial records.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>output.result_path</code> cannot alias <code>data_path</code> or <code>index_path</code>. After initial validation succeeds,
+the offline JSON/CLI entry writes the full report. An explicit <code>output.result_path</code> overrides its
+location; otherwise AutoTune generates a report path under <code>workspace_path</code>. Early validation and
+request-file failures do not write one.</p>
+<p>Typed <code>TuneIndex</code> and <code>TuneSearch</code> do not accept a report path and never write report files. Their
+result objects return the complete report as <code>JsonType</code>. For both the CLI and typed <code>TuneIndex</code>,
+<code>keep_intermediate=false</code> retains only the recommended generated index and removes unselected
+artifacts; <code>true</code> retains every generated index. When there is no recommendation, the default is
+to remove all generated indexes. Because <code>TuneSearch</code> creates no artifacts,
+<code>workspace_path</code> and <code>keep_intermediate</code> have no effect on it.</p>
+<h2 id="full-report"><a class="header" href="#full-report">Full Report</a></h2>
+<p>A completed evaluation returns this top-level shape. The CLI also writes it to disk:</p>
+<pre><code class="language-json">{
+  "version": 1,
+  "status": "success",
+  "recommendation": {},
+  "best_effort": null,
+  "builds": [],
+  "trials": [],
+  "request": {},
+  "elapsed_seconds": 84.2,
+  "report_path": "/tmp/vsag_autotune/run-....json"
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>version</code></td><td>Report contract version, always <code>1</code>.</td></tr>
+<tr><td><code>status</code></td><td><code>success</code>, <code>no_feasible_candidate</code>, or <code>failed</code>.</td></tr>
+<tr><td><code>recommendation</code></td><td>Best feasible trial, otherwise <code>null</code>.</td></tr>
+<tr><td><code>best_effort</code></td><td>Closest successful trial when constraints are infeasible, otherwise <code>null</code>.</td></tr>
+<tr><td><code>builds</code></td><td>One record per concrete generated build group; empty in search-only mode.</td></tr>
+<tr><td><code>trials</code></td><td>One record per executed concrete search candidate.</td></tr>
+<tr><td><code>request</code></td><td>Effective normalized request used by the tuning engine.</td></tr>
+<tr><td><code>elapsed_seconds</code></td><td>AutoTune wall time through artifact cleanup; excludes final report writing.</td></tr>
+<tr><td><code>report_path</code></td><td>Persisted full report path; CLI/JSON adapter only.</td></tr>
+<tr><td><code>failure</code></td><td>Present when the overall run failed.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Early validation failures do not have <code>builds</code>, <code>trials</code>, or <code>report_path</code>, and no report file is
+written. A CLI run in which all candidate evaluations fail does contain the attempted build and
+trial records and is written when the report path itself is usable. Typed API reports never
+contain <code>report_path</code>.</p>
+<p>The normalized <code>request</code> contains derived dataset metadata, workload defaults, constraints,
+objective, config, and output fields. Build-and-search mode adds <code>index_spaces</code>; search-only mode
+adds <code>index_name</code> and <code>parameter_space</code>. CLI reports also retain the offline <code>data_path</code> and, when
+present, <code>index_path</code> as top-level fields inside this normalized object.</p>
+<h3 id="status-semantics"><a class="header" href="#status-semantics">Status Semantics</a></h3>
+<ul>
+<li><code>success</code>: at least one successful trial satisfies every constraint; <code>recommendation</code> is set.</li>
+<li><code>no_feasible_candidate</code>: successful trials exist, but none satisfies every constraint;
+<code>best_effort</code> is set for explanation and is not a valid recommendation. Typed calls return a
+value with <code>TuneStatus::NO_FEASIBLE_CANDIDATE</code>, not an error.</li>
+<li><code>failed</code>: the request is invalid, execution/reporting fails, or no trial can be evaluated
+successfully with the objective metric.</li>
+</ul>
+<h3 id="recommendation-and-best-effort"><a class="header" href="#recommendation-and-best-effort">Recommendation and Best Effort</a></h3>
+<p>In build-and-search mode, <code>recommendation</code> contains:</p>
+<pre><code class="language-json">{
+  "index_name": "hgraph",
+  "create_params": {},
+  "search_params": {},
+  "workload": {"top_k": 10, "concurrency": 1},
+  "metrics": {},
+  "artifacts": {},
+  "evidence": {"build_id": "build-0", "trial_id": "trial-0"}
+}
+</code></pre>
+<p>In search-only mode, <code>create_params</code>, <code>artifacts</code>, and <code>evidence.build_id</code> are omitted; the
+recommendation contains the concrete search parameters, workload, metrics, and
+<code>evidence.trial_id</code>. <code>best_effort</code> has the same mode-specific fields plus
+<code>constraint_evaluation</code>. It is selected first by the number of violated or missing constraints,
+then by normalized violation magnitude. It is only explanatory.</p>
+<h3 id="build-records"><a class="header" href="#build-records">Build Records</a></h3>
+<p><code>builds</code> is empty in search-only mode. In build-and-search mode, each <code>builds[]</code> item contains:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>build_id</code></td><td>Stable ID referenced by trials.</td></tr>
+<tr><td><code>index_name</code></td><td>Concrete index type.</td></tr>
+<tr><td><code>create_params</code></td><td>Concrete create parameters.</td></tr>
+<tr><td><code>status</code></td><td><code>success</code> or <code>failed</code>.</td></tr>
+<tr><td><code>metrics</code></td><td>Available build-shared metrics.</td></tr>
+<tr><td><code>artifacts</code></td><td><code>source</code>, <code>index_path</code>, <code>use_existing_index</code>, and <code>retained</code>.</td></tr>
+<tr><td><code>failure</code></td><td>Structured failure or <code>null</code>.</td></tr>
+<tr><td><code>elapsed_seconds</code></td><td>Build-group preparation time.</td></tr>
+<tr><td><code>raw_eval_result</code></td><td>Present only when requested and a native build eval ran.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="trial-records"><a class="header" href="#trial-records">Trial Records</a></h3>
+<p>Each <code>trials[]</code> item contains:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>trial_id</code></td><td>Stable trial ID.</td></tr>
+<tr><td><code>build_id</code></td><td>Associated build group; build-and-search mode only.</td></tr>
+<tr><td><code>index_name</code></td><td>Concrete index type.</td></tr>
+<tr><td><code>create_params</code></td><td>Concrete create parameters; build-and-search mode only.</td></tr>
+<tr><td><code>search_params</code></td><td>Concrete search parameters.</td></tr>
+<tr><td><code>status</code></td><td><code>success</code> or <code>failed</code>.</td></tr>
+<tr><td><code>metrics</code></td><td>Available metrics used by constraint evaluation and selection.</td></tr>
+<tr><td><code>constraint_evaluation</code></td><td><code>satisfied</code> plus a <code>violations</code> array.</td></tr>
+<tr><td><code>artifacts</code></td><td>Artifact evidence copied from the build group; build-and-search mode only.</td></tr>
+<tr><td><code>failure</code></td><td>Structured failure or <code>null</code>.</td></tr>
+<tr><td><code>elapsed_seconds</code></td><td>Search trial wall time.</td></tr>
+<tr><td><code>raw_eval_result</code></td><td>Present only when requested and native search eval succeeded.</td></tr>
+</tbody>
+</table>
+</div>
+<p>For an adaptive HGraph <code>ef_search</code> range, the report contains one trial for each point actually
+evaluated. Every recorded <code>search_params</code> value is concrete; the <code>$range</code> expression remains only
+in the normalized request. Every recorded trial evaluates the full query workload.</p>
+<p>A constraint violation contains <code>metric</code>, <code>comparison</code>, <code>expected</code>, and <code>actual</code>. <code>actual</code> is
+<code>null</code> when the required metric is missing or non-finite.</p>
+<p>Search trials in one build group reuse the same loaded index instance. A generated index is built
+once and serialized once. In search-only mode the caller’s index, or the index deserialized by the
+CLI adapter, is reused directly for every trial.</p>
+<h3 id="artifact-semantics"><a class="header" href="#artifact-semantics">Artifact Semantics</a></h3>
+<p>Artifact fields appear only in build-and-search records in V1. <code>artifacts.source</code> is <code>generated</code>,
+and <code>artifacts.index_path</code> is evidence of where the evaluated index was stored, not a promise that
+the path still exists. Check <code>artifacts.retained</code>:</p>
+<ul>
+<li><code>true</code>: this is the selected artifact, or retention of all generated indexes was requested;</li>
+<li><code>false</code>: AutoTune planned to remove or already removed the generated artifact.</li>
+</ul>
+<h3 id="structured-failures"><a class="header" href="#structured-failures">Structured Failures</a></h3>
+<p>Failures use one common object:</p>
+<pre><code class="language-json">{
+  "stage": "validation",
+  "code": "invalid_request",
+  "message": "request.workload.top_k is required"
+}
+</code></pre>
+<p>Typical stages are <code>cli</code>, <code>validation</code>, <code>candidate_generation</code>, <code>build</code>, <code>search</code>, <code>evaluation</code>,
+<code>selection</code>, and <code>report</code>. Per-build and per-trial failures remain in their corresponding records
+so other candidates can continue.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Stage</th><th>Code</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>cli</code></td><td><code>request_file_error</code></td><td>The CLI could not read or parse its request file.</td></tr>
+<tr><td><code>validation</code></td><td><code>invalid_request</code></td><td>Request validation failed.</td></tr>
+<tr><td><code>candidate_generation</code></td><td><code>invalid_request</code></td><td>A candidate expression or count was invalid.</td></tr>
+<tr><td><code>build</code></td><td><code>build_evaluation_failed</code></td><td>One build group failed.</td></tr>
+<tr><td><code>search</code></td><td><code>build_failed</code></td><td>Search was skipped because its build failed.</td></tr>
+<tr><td><code>search</code></td><td><code>search_evaluation_failed</code></td><td>One search trial failed.</td></tr>
+<tr><td><code>evaluation</code></td><td><code>all_trials_failed</code></td><td>Every candidate trial failed.</td></tr>
+<tr><td><code>selection</code></td><td><code>objective_metric_unavailable</code></td><td>Trials succeeded, but none produced the objective metric.</td></tr>
+<tr><td><code>evaluation</code>, <code>report</code></td><td><code>execution_failed</code></td><td>Top-level execution or report writing failed.</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="cli-summary"><a class="header" href="#cli-summary">CLI Summary</a></h2>
+<p>The CLI prints a compact subset of the full report in this order:</p>
+<ol>
+<li><code>recommendation</code>, when present;</li>
+<li><code>best_effort</code>, when present;</li>
+<li><code>failure</code>, when present;</li>
+<li><code>status</code>;</li>
+<li><code>elapsed_seconds</code>;</li>
+<li><code>report_path</code>, when present;</li>
+<li><code>version</code>.</li>
+</ol>
+<p>Null result branches and the detailed build/trial arrays are omitted from standard output. Read
+<code>report_path</code> for complete evidence.</p>
+<p>The CLI exits with code <code>1</code> for <code>status=failed</code> and command-line/request-file errors. It exits with
+code <code>0</code> for both <code>success</code> and <code>no_feasible_candidate</code>; callers must inspect <code>status</code> rather than
+using only the exit code to decide whether a recommendation exists.</p>
+<h2 id="build-tree-c-entry-point"><a class="header" href="#build-tree-c-entry-point">Build-Tree C++ Entry Point</a></h2>
+<p>The experimental optional <code>vsag::autotune</code> CMake target exposes the declarations in
+<code>tools/autotune/autotune.h</code>. The target and header are build-tree-only and are not installed:</p>
+<pre><code class="language-cpp">tl::expected&lt;IndexResult, Error&gt; TuneIndex(const IndexRequest&amp; request);
+tl::expected&lt;SearchResult, Error&gt; TuneSearch(const SearchRequest&amp; request);
+JsonType RunAutoTune(const JsonType&amp; request);  // CLI adapter
+</code></pre>
+<p>The JSON entry point is an offline adapter: it loads <code>data_path</code>, creates or deserializes an index
+when <code>index_path</code> is present, and constructs the same internal request used by the typed entry
+points. The target and header are intentionally not installed in V1. Calls inside one process are
+serialized because the underlying evaluation path configures process-global OpenMP state.</p>
+<p><code>TuneIndex</code> jointly tunes build and search parameters:</p>
+<pre><code class="language-cpp">IndexRequest request;
+request.base = base;
+request.metric_type = METRIC_L2;
+request.workload = {queries, ground_truth, 10, 48};
+request.index_spaces = {{"hgraph", create_candidate_space, search_candidate_space}};
+request.constraints = {{Metric::RECALL_AT_K, 0.95}};
+request.objective = Metric::LATENCY_AVG_MS;
+auto result = TuneIndex(request);
+</code></pre>
+<p>It returns a loaded, query-ready selected index together with concrete create and search
+parameters. <code>metrics</code> and the complete <code>report</code> are returned as <code>JsonType</code>; typed calls never
+persist the report. <code>TuneSearch</code> tunes an already built or loaded index:</p>
+<pre><code class="language-cpp">SearchRequest request;
+request.index = existing_index;
+request.workload = {queries, ground_truth, 10, 48};
+request.parameter_space = search_candidate_space;
+request.constraints = {{Metric::RECALL_AT_K, 0.95}};
+request.objective = Metric::LATENCY_AVG_MS;
+auto result = TuneSearch(request);
+</code></pre>
+<p>AutoTune derives the type and element count of <code>existing_index</code>. <code>TuneSearch</code> therefore does not
+need base vectors or a metric type. Ground truth is required only when recall is a constraint or
+the objective. Build-time metrics and <code>index_size_mb</code> are unavailable to <code>TuneSearch</code>.
+<code>index_memory_mb</code> may be a constraint but cannot be the objective because it does not vary across
+search candidates.</p>
+<p>Both typed calls return <code>tl::unexpected&lt;Error&gt;</code> only for invalid requests and execution failures.
+If evaluation completes but no candidate satisfies every constraint, they return a result with
+<code>status=TuneStatus::NO_FEASIBLE_CANDIDATE</code> and structured <code>best_effort</code>; recommendation fields are
+invalid in that state.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="hdf5-dataset-format"><a class="header" href="#hdf5-dataset-format">HDF5 Dataset Format</a></h1>
 <p>VSAG’s evaluation and benchmark tooling (most notably
 <a href="#performance-evaluation-tool-eval_performance"><code>eval_performance</code></a>) consumes datasets in the HDF5 format used by
@@ -9491,7 +10204,7 @@ needs the query and index postings.</p>
 <p><code>analyze_index</code> is the user-facing wrapper around the analyzer APIs. It loads a serialized VSAG
 index from disk, prints its metadata and <code>GetStats()</code> output, and (optionally) runs
 <code>AnalyzeIndexBySearch</code> against a query file.</p>
-<h3 id="building-2"><a class="header" href="#building-2">Building</a></h3>
+<h3 id="building-3"><a class="header" href="#building-3">Building</a></h3>
 <p>Tools are not built by default — enable them explicitly:</p>
 <pre><code class="language-bash"># via the project Makefile
 VSAG_ENABLE_TOOLS=ON make release
