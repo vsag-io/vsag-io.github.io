@@ -121,9 +121,9 @@ Set all five parameters together to enable RaBitQ x+y split storage and reorderi
 }
 ```
 
-Because split codes cannot be decoded back to the input vector, Pyramid also retains an internal
-FP32 copy for incremental flat-to-graph promotion and analyzer sampling. Search distances still use
-the split codes; the FP32 copy adds `count * dim * sizeof(float)` bytes of vector storage.
+Pyramid uses split-code code-to-code distances for incremental flat-to-graph promotion, so it does
+not retain an internal FP32 copy by default. Set `store_raw_vector` to `true` at build time when
+raw-vector access and complete analyzer metrics are required.
 
 ### MRLE with split RaBitQ
 
@@ -143,10 +143,10 @@ them as split RaBitQ codes:
 ```
 
 The 3-bit filter planes are used for graph traversal and the 5-bit supplement planes for
-reordering; both encode the same truncated vector. Pyramid reorders from the split base datacell
-and retains original FP32 vectors for graph promotion and statistics. The raw-vector copy adds
-storage, and truncation can reduce recall unless the embedding model was trained for prefix
-dimensions.
+reordering; both encode the same truncated vector. Pyramid uses split code-to-code distances for
+graph promotion and does not retain the original FP32 vectors. Metrics that require decodable
+vectors are marked unavailable unless `store_raw_vector` was enabled at build time. Truncation can
+reduce recall unless the embedding model was trained for prefix dimensions.
 
 ## Search parameters
 
