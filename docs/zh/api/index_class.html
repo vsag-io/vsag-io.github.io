@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,7 +305,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="index"><a class="header" href="#index">Index</a></h1>
-<p><code>vsag::Index</code>（声明于 <code>vsag/index.h</code>）是本库的核心抽象。每一种具体索引 —— HGraph、IVF、DiskANN、
+<p><code>vsag::Index</code>（声明于 <code>vsag/index.h</code>）是本库的核心抽象。每一种具体索引 —— HGraph、IVF、
 BruteForce、SINDI、Pyramid 等 —— 都实现这一接口。你从不直接实例化 <code>Index</code>，而是通过
 <a href="factory_engine.html#createindex"><code>Factory::CreateIndex</code></a> 或
 <a href="factory_engine.html#createindex-1"><code>Engine::CreateIndex</code></a> 获取，并用 <code>IndexPtr</code>
@@ -328,7 +328,8 @@ BruteForce、SINDI、Pyramid 等 —— 都实现这一接口。你从不直接�
 <h2 id="枚举与辅助类型"><a class="header" href="#枚举与辅助类型">枚举与辅助类型</a></h2>
 <h3 id="indextype"><a class="header" href="#indextype"><code>IndexType</code></a></h3>
 <pre><code class="language-cpp">enum class IndexType {
-    HNSW, DISKANN, HGRAPH, IVF, PYRAMID, BRUTEFORCE, SPARSE, SINDI, WARP, LAZY_HGRAPH, SIMQ
+    HGRAPH = 2, IVF = 3, PYRAMID = 4, BRUTEFORCE = 5, SPARSE = 6, SINDI = 7,
+    WARP = 8, LAZY_HGRAPH = 9, SIMQ = 10
 };
 </code></pre>
 <p>由 <a href="#getindextype"><code>GetIndexType</code></a> 返回。</p>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -318,6 +318,7 @@ index-specific options.</p>
 <tr><td><code>hgraph</code></td><td>Improved graph index with richer quantization options</td><td><a href="../indexes/hgraph.html">HGraph</a></td><td><code>examples/cpp/103_index_hgraph.cpp</code></td></tr>
 <tr><td><code>ivf</code></td><td>Inverted file with quantization</td><td><a href="../indexes/ivf.html">IVF</a></td><td><code>examples/cpp/106_index_ivf.cpp</code></td></tr>
 <tr><td><code>sindi</code></td><td>Sparse-vector index (e.g. BM25, SPLADE)</td><td><a href="../indexes/sindi.html">SINDI</a></td><td><code>examples/cpp/109_index_sindi.cpp</code></td></tr>
+<tr><td><code>sindi_v2</code></td><td>Sparse-vector index (e.g. BM25, SPLADE) supporting both in-memory and disk-based I/O</td><td><a href="../indexes/sindi_v2.html">SINDI_V2</a></td><td>See below</td></tr>
 <tr><td><code>pyramid</code></td><td>Multi-tenant / tag-partitioned graph index</td><td><a href="../indexes/pyramid.html">Pyramid</a></td><td><code>examples/cpp/107_index_pyramid.cpp</code></td></tr>
 <tr><td><code>brute_force</code></td><td>Exact exhaustive search; useful as baseline</td><td>—</td><td><code>examples/cpp/105_index_brute_force.cpp</code></td></tr>
 </tbody>
@@ -371,6 +372,28 @@ auto index = vsag::Factory::CreateIndex("hgraph", params).value();
 }
 )";
 auto index = vsag::Factory::CreateIndex("hgraph", params).value();
+</code></pre>
+<h3 id="sindi_v2-with-disk-based-io"><a class="header" href="#sindi_v2-with-disk-based-io">SINDI_V2 with disk-based I/O</a></h3>
+<pre><code class="language-cpp">std::string params = R"(
+{
+    "dim": 1024,
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "index_param": {
+        "term_id_limit": 30000,
+        "use_reorder": true,
+        "term_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.terms"
+        },
+        "rerank_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.rerank"
+        }
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("sindi_v2", params).value();
 </code></pre>
 <p>See <a href="../resources/index_parameters.html">Index Parameters</a> for the full reference.</p>
 

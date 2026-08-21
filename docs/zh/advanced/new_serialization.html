@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -358,8 +358,9 @@ auto loaded = vsag::Index::Load(in, load_parameters).value();
 parameters 用来控制已支持 block 的加载策略；参数对象既可以从 JSON 字符串构造，也可以通过
 <code>SetReader</code> 携带 reader 对象。不支持的策略会返回错误，不会静默 fallback。当前该 API 支持 streaming
 BruteForce、HGraph、IVF、SINDI 和 Pyramid 索引。其中 BruteForce 支持有限的 block placement 策略；
-HGraph 支持通过 <code>precise_reader</code> 将 <code>high_precision_codes</code> 绑定到外部 reader；IVF、SINDI 和 Pyramid
-目前会把写出的 streaming blocks 加载到内存。</p>
+HGraph 支持通过 <code>precise_reader</code> 将 <code>high_precision_codes</code> 绑定到外部 reader；IVF 的两种
+精排 codes 布局也都支持外部 reader；SINDI 和 Pyramid 目前会把写出的 streaming blocks
+加载到内存。</p>
 <h2 id="文件布局"><a class="header" href="#文件布局">文件布局</a></h2>
 <p>流式文件由固定头部和一组 TLV block 构成：</p>
 <pre><code class="language-text">magic("vsagstm0")
@@ -447,13 +448,20 @@ reader 的 payload checksum，然后将 reorder codes 绑定到该 reader。</p>
 <tr><td><code>ivf_bucket</code></td><td>倒排列表使用的 bucket datacell 数据</td><td>是</td></tr>
 <tr><td><code>ivf_partition_strategy</code></td><td>partition strategy 状态，例如已训练的中心点</td><td>是</td></tr>
 <tr><td><code>label_table</code></td><td>外部 label 和 label remap</td><td>是</td></tr>
-<tr><td><code>high_precision_codes</code></td><td>IVF reorder 开启时的 reorder codes</td><td>条件必需</td></tr>
+<tr><td><code>high_precision_codes</code></td><td>IVF reorder 使用 <code>flat</code> 布局时的精排 codes</td><td>条件必需</td></tr>
+<tr><td><code>ivf_precise_bucket</code></td><td>IVF 使用 <code>bucket</code> 布局时与倒排桶对齐的精排 codes</td><td>条件必需</td></tr>
 <tr><td><code>attribute_filter</code></td><td>开启属性过滤时写入的可选属性过滤索引</td><td>条件必需</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>Load</code> 可以把任一种精排 codes block 绑定到外部 reader。设置
+<code>precise_io_type: "reader_io"</code> 并提供 <code>precise_reader</code>；<code>flat</code> 布局的 reader 必须恰好
+对应 <code>high_precision_codes</code> payload，<code>bucket</code> 布局则对应 <code>ivf_precise_bucket</code> payload。
+<code>Load</code> 会先校验 reader 的大小和 checksum，再返回可查询的索引。
+<code>precise_enable_read_cache</code> 和 <code>precise_cache_total_size</code> 用于配置远程精排 codes 的通用读缓存。</p>
 <p><code>DeserializeStreaming</code> 会恢复完整的内存 IVF 索引。<code>Index::Load</code> 可以直接从 streaming metadata
-创建 IVF 索引对象，当前会把写出的 IVF blocks 都加载到内存中。</p>
+创建 IVF 索引对象。默认情况下会把 IVF blocks 加载到内存；使用 reader 的精排 codes
+会保留在外部。两种精排 codes block 互斥，由 <code>precise_codes_layout</code> 选择。</p>
 <h2 id="sindi-blocks"><a class="header" href="#sindi-blocks">SINDI Blocks</a></h2>
 <p>SINDI 按顺序写入以下 streaming blocks：</p>
 <div class="table-wrapper">

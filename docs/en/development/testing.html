@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -309,9 +309,8 @@
 <ul>
 <li><strong>Unit tests</strong> live next to source files under <code>src/</code>.</li>
 <li><strong>Functional tests</strong> live under <code>tests/</code> and cover cross-module, end-to-end behavior. Typical
-files include <code>test_hnsw.cpp</code>, <code>test_hgraph.cpp</code>, <code>test_diskann.cpp</code>, <code>test_ivf.cpp</code>,
-<code>test_pyramid.cpp</code>, <code>test_sindi.cpp</code>, <code>test_brute_force.cpp</code>, <code>test_multi_thread.cpp</code>,
-<code>test_memleak.cpp</code>.</li>
+files include <code>test_hgraph.cpp</code>, <code>test_ivf.cpp</code>, <code>test_pyramid.cpp</code>, <code>test_sindi.cpp</code>,
+<code>test_brute_force.cpp</code>, and <code>test_memleak.cpp</code>.</li>
 </ul>
 <h2 id="run-the-full-suite"><a class="header" href="#run-the-full-suite">Run the Full Suite</a></h2>
 <p><code>make test</code> configures a Debug build with tests enabled and runs the full unit + functional
@@ -328,7 +327,7 @@ to collect and aggregate coverage data:</p>
 </code></pre>
 <h2 id="run-a-single-binary"><a class="header" href="#run-a-single-binary">Run a Single Binary</a></h2>
 <pre><code class="language-bash">./build-debug/tests/functional_tests "[hgraph]"
-./build-debug/tests/functional_tests "[hnsw][concurrent]"
+./build-debug/tests/functional_tests "[hgraph][concurrent]"
 </code></pre>
 <p>Catch2 supports filtering by name, tag, and wildcards — see <code>--help</code>.</p>
 <h2 id="coverage-expectations"><a class="header" href="#coverage-expectations">Coverage Expectations</a></h2>
@@ -338,7 +337,8 @@ higher, as measured by the <code>make cov</code> flow and the CI coverage job.</
 <ul>
 <li><code>test_memleak.cpp</code>: run under AddressSanitizer / LeakSanitizer to verify construction and
 destruction paths.</li>
-<li><code>test_multi_thread.cpp</code>: concurrent <code>Build</code> / <code>KnnSearch</code> / <code>RangeSearch</code> correctness.</li>
+<li><code>test_index/test_index_concurrent.cpp</code>: shared concurrent add and search correctness for
+maintained indexes that advertise the corresponding feature flags.</li>
 </ul>
 <h2 id="python-tests"><a class="header" href="#python-tests">Python Tests</a></h2>
 <pre><code class="language-bash">make pyvsag PY_VERSION=3.10

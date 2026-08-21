@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -348,7 +348,7 @@ CreateIndex(const std::string&amp; name,
 <tr><th>Parameter</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>name</code></td><td>Index type name, e.g. <code>"hgraph"</code>, <code>"ivf"</code>, <code>"diskann"</code>, <code>"brute_force"</code>, <code>"sindi"</code>, <code>"pyramid"</code>.</td></tr>
+<tr><td><code>name</code></td><td>Index type name, e.g. <code>"hgraph"</code>, <code>"ivf"</code>, <code>"brute_force"</code>, <code>"sindi"</code>, <code>"pyramid"</code>. Removed names such as <code>"hnsw"</code>, <code>"fresh_hnsw"</code>, and <code>"diskann"</code> return <code>UNSUPPORTED_INDEX</code>.</td></tr>
 <tr><td><code>parameters</code></td><td>A JSON string describing the index configuration (dtype, dim, metric, index-specific keys). See <a href="../resources/index_parameters.html">Index Parameters</a>.</td></tr>
 <tr><td><code>allocator</code></td><td>Optional custom <a href="resource.html#allocator"><code>Allocator</code></a>. When <code>nullptr</code>, VSAG uses a built-in default allocator. The caller must keep the allocator alive for the whole lifetime of the returned index.</td></tr>
 </tbody>
@@ -422,38 +422,6 @@ engine’s shared <code>Resource</code> (allocator and thread pool) instead of a
 <p>See <a href="resource.html">Resource Management</a> for how <code>Resource</code>, <code>Allocator</code>, and <code>ThreadPool</code> fit
 together, and <code>examples/cpp/201_custom_allocator.cpp</code> / <code>203_custom_thread_pool.cpp</code> for runnable
 samples.</p>
-<h2 id="top-level-helper-functions"><a class="header" href="#top-level-helper-functions">Top-level helper functions</a></h2>
-<p>These free functions (declared in <code>vsag/index.h</code>) help you generate and validate configuration
-strings before creating an index. All return <code>tl::expected&lt;..., Error&gt;</code>.</p>
-<h3 id="generate_build_parameters"><a class="header" href="#generate_build_parameters"><code>generate_build_parameters</code></a></h3>
-<pre><code class="language-cpp">tl::expected&lt;std::string, Error&gt;
-generate_build_parameters(std::string metric_type,
-                          int64_t num_elements,
-                          int64_t dim,
-                          bool use_conjugate_graph = false);
-</code></pre>
-<p><em>(Experimental.)</em> Produces a suggested build-parameter JSON string from the dataset shape
-(<code>metric_type</code>, <code>num_elements</code>, <code>dim</code>). Pass <code>use_conjugate_graph = true</code> to enable
-<a href="../advanced/enhance_graph.html">conjugate-graph enhancement</a>.</p>
-<h3 id="estimate_search_time"><a class="header" href="#estimate_search_time"><code>estimate_search_time</code></a></h3>
-<pre><code class="language-cpp">tl::expected&lt;float, Error&gt;
-estimate_search_time(const std::string&amp; index_name,
-                     int64_t data_num,
-                     int64_t data_dim,
-                     const std::string&amp; parameters);
-</code></pre>
-<p>Estimates the per-query search time (in milliseconds) for the given index type and configuration.</p>
-<h3 id="check_diskann_hnsw_build_parameters--check_diskann_hnsw_search_parameters"><a class="header" href="#check_diskann_hnsw_build_parameters--check_diskann_hnsw_search_parameters"><code>check_diskann_hnsw_build_parameters</code> / <code>check_diskann_hnsw_search_parameters</code></a></h3>
-<pre><code class="language-cpp">tl::expected&lt;bool, Error&gt;
-check_diskann_hnsw_build_parameters(const std::string&amp; json_string);
-
-tl::expected&lt;bool, Error&gt;
-check_diskann_hnsw_search_parameters(const std::string&amp; json_string);
-</code></pre>
-<p>Validate DiskANN/HNSW build and search parameter JSON respectively. On success the value is <code>true</code>;
-on failure the <code>Error</code> message explains what is wrong. See the
-<a href="../resources/check_compatibility.html">Compatibility Check Tool</a> for a CLI wrapper around this kind of
-validation.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="index_class.html">Index</a> — what you can do with the index once it is created.</li>

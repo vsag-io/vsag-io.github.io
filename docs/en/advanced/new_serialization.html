@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -366,8 +366,8 @@ blocks. The parameters object can be built from a JSON string and can also carry
 with <code>SetReader</code>. Unsupported policies return an error instead of silently falling back. The API
 currently supports streaming BruteForce, HGraph, IVF, SINDI, and Pyramid indexes. BruteForce
 supports limited block placement policies. HGraph can bind <code>high_precision_codes</code> to an external
-reader through <code>precise_reader</code>. IVF, SINDI, and Pyramid currently load all emitted streaming
-blocks into memory.</p>
+reader through <code>precise_reader</code>. IVF can do the same for either precise-code layout. SINDI and
+Pyramid currently load all emitted streaming blocks into memory.</p>
 <h2 id="file-layout"><a class="header" href="#file-layout">File Layout</a></h2>
 <p>A streaming file starts with a fixed header and then a sequence of TLV blocks:</p>
 <pre><code class="language-text">magic("vsagstm0")
@@ -467,13 +467,22 @@ reader.</p>
 <tr><td><code>ivf_bucket</code></td><td>bucket datacell payloads for inverted lists</td><td>yes</td></tr>
 <tr><td><code>ivf_partition_strategy</code></td><td>partition strategy state, such as trained centroids</td><td>yes</td></tr>
 <tr><td><code>label_table</code></td><td>external labels and label remap</td><td>yes</td></tr>
-<tr><td><code>high_precision_codes</code></td><td>reorder codes when IVF reorder is enabled</td><td>conditional</td></tr>
+<tr><td><code>high_precision_codes</code></td><td>flat reorder codes when IVF reorder uses the <code>flat</code> layout</td><td>conditional</td></tr>
+<tr><td><code>ivf_precise_bucket</code></td><td>bucket-aligned reorder codes when IVF uses the <code>bucket</code> layout</td><td>conditional</td></tr>
 <tr><td><code>attribute_filter</code></td><td>optional attribute filter index</td><td>conditional</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>Load</code> can bind either precise-code block to an external reader. Set <code>precise_io_type</code> to
+<code>reader_io</code>, provide <code>precise_reader</code>, and make the reader expose exactly the
+<code>high_precision_codes</code> payload for <code>flat</code> or the <code>ivf_precise_bucket</code> payload for <code>bucket</code>. <code>Load</code>
+validates its size and checksum before the returned index can query it.
+<code>precise_enable_read_cache</code> and <code>precise_cache_total_size</code> configure the normal read cache for
+the remote precise codes.</p>
 <p><code>DeserializeStreaming</code> restores the full in-memory IVF index. <code>Index::Load</code> can create the IVF
-index directly from streaming metadata and currently loads all emitted IVF blocks into memory.</p>
+index directly from streaming metadata. It loads IVF blocks into memory by default; reader-backed
+precise codes remain external. The two precise-code blocks are mutually exclusive and are selected
+by <code>precise_codes_layout</code>.</p>
 <h2 id="sindi-blocks"><a class="header" href="#sindi-blocks">SINDI Blocks</a></h2>
 <p>SINDI writes these streaming blocks in order:</p>
 <div class="table-wrapper">

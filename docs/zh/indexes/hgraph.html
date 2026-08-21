@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -398,7 +398,7 @@ auto result = index-&gt;KnnSearch(
 <h3 id="向量存储去重"><a class="header" href="#向量存储去重">向量存储去重</a></h3>
 <p>同时设置 <code>support_duplicate: true</code> 和 <code>deduplicate_storage: true</code> 后，重复向量会共享
 同一个物理编码槽位，但仍保留各自的标签。该选项目前仅支持使用 <code>graph_type: "nsw"</code> 的
-稠密向量 HGraph 索引；独立的 HNSW 索引以及 <code>graph_type: "odescent"</code> 均不支持。</p>
+稠密向量 HGraph 索引；<code>graph_type: "odescent"</code> 不支持。</p>
 <p>启用存储去重后，暂不支持以下操作和配置：</p>
 <ul>
 <li>强制删除（<code>support_force_remove: true</code>）；</li>

@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-e766644c.js"></script>
+        <script src="toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -311,7 +311,7 @@ powers vector retrieval in OceanBase and other projects at Ant Group, and is rel
 Apache 2.0 license.</p>
 <h2 id="features"><a class="header" href="#features">Features</a></h2>
 <ul>
-<li><strong>Multiple index types</strong>: <code>hgraph</code>, <code>ivf</code>, <code>pyramid</code>, <code>sindi</code>, <code>brute_force</code>,
+<li><strong>Multiple index types</strong>: <code>hgraph</code>, <code>ivf</code>, <code>pyramid</code>, <code>sindi</code>, <code>sindi_v2</code>, <code>brute_force</code>,
 covering in-memory, sparse and multi-tenant scenarios.</li>
 <li><strong>Rich quantization</strong>: fp32 / fp16 / bf16 / int8 / sq8 / sq4 / pq, with SIMD dispatch on x86_64
 and AArch64.</li>
@@ -387,7 +387,7 @@ Linux-focused.</p>
 <p>Enable or disable at CMake configure time with these cache options:</p>
 <ul>
 <li><code>ENABLE_INTEL_MKL=ON</code> — Intel MKL acceleration.</li>
-<li><code>ENABLE_LIBAIO=ON</code> — Linux AIO for DiskANN async IO.</li>
+<li><code>ENABLE_LIBAIO=ON</code> — Linux AIO for the <code>async_io</code> data-cell backend.</li>
 <li><code>ENABLE_LIBURING=ON</code> — Linux <code>io_uring</code> backend; requires liburing.</li>
 <li><code>ENABLE_TOOLS=ON</code> — build tools under <code>tools/</code> (including <code>eval_performance</code>).</li>
 <li><code>ENABLE_EXAMPLES=ON</code> — build sample programs under <code>examples/cpp/</code>.</li>
@@ -411,6 +411,7 @@ index-specific options.</p>
 <tr><td><code>hgraph</code></td><td>Improved graph index with richer quantization options</td><td><a href="#hgraph-2">HGraph</a></td><td><code>examples/cpp/103_index_hgraph.cpp</code></td></tr>
 <tr><td><code>ivf</code></td><td>Inverted file with quantization</td><td><a href="#ivf-1">IVF</a></td><td><code>examples/cpp/106_index_ivf.cpp</code></td></tr>
 <tr><td><code>sindi</code></td><td>Sparse-vector index (e.g. BM25, SPLADE)</td><td><a href="#sindi">SINDI</a></td><td><code>examples/cpp/109_index_sindi.cpp</code></td></tr>
+<tr><td><code>sindi_v2</code></td><td>Sparse-vector index (e.g. BM25, SPLADE) supporting both in-memory and disk-based I/O</td><td><a href="#sindi_v2">SINDI_V2</a></td><td>See below</td></tr>
 <tr><td><code>pyramid</code></td><td>Multi-tenant / tag-partitioned graph index</td><td><a href="#pyramid-1">Pyramid</a></td><td><code>examples/cpp/107_index_pyramid.cpp</code></td></tr>
 <tr><td><code>brute_force</code></td><td>Exact exhaustive search; useful as baseline</td><td>—</td><td><code>examples/cpp/105_index_brute_force.cpp</code></td></tr>
 </tbody>
@@ -464,6 +465,28 @@ auto index = vsag::Factory::CreateIndex("hgraph", params).value();
 }
 )";
 auto index = vsag::Factory::CreateIndex("hgraph", params).value();
+</code></pre>
+<h3 id="sindi_v2-with-disk-based-io"><a class="header" href="#sindi_v2-with-disk-based-io">SINDI_V2 with disk-based I/O</a></h3>
+<pre><code class="language-cpp">std::string params = R"(
+{
+    "dim": 1024,
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "index_param": {
+        "term_id_limit": 30000,
+        "use_reorder": true,
+        "term_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.terms"
+        },
+        "rerank_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.rerank"
+        }
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("sindi_v2", params).value();
 </code></pre>
 <p>See <a href="#index-parameters">Index Parameters</a> for the full reference.</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -542,8 +565,8 @@ for (int64_t i = 0; i &lt; result-&gt;GetDim(); ++i) {
 <p>The result contains up to <code>k</code> neighbors sorted by ascending distance to the query.</p>
 <h2 id="threshold-filtering"><a class="header" href="#threshold-filtering">Threshold Filtering</a></h2>
 <p>Threshold filtering is supported by the maintained indexes: BruteForce, HGraph, IVF, Pyramid,
-SINDI, and SIMQ. HNSW and DiskANN are deprecated and are explicit unsupported
-non-goals; this option does not add or change behavior for either legacy index.</p>
+SINDI, and SIMQ. HNSW and DiskANN are removed and unsupported; this option does not add or change
+behavior for either legacy index.</p>
 <p>KNN search accepts an optional top-level <code>threshold</code> in the JSON search parameters:</p>
 <pre><code class="language-json">{
   "threshold": 4.0,
@@ -774,6 +797,7 @@ structures and trade-offs they use under the hood.</p>
 <tr><td><code>ivf</code></td><td><a href="#ivf-1">IVF</a></td><td>Partition-based search, high-throughput batch queries, large corpora</td></tr>
 <tr><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product</td></tr>
 <tr><td><code>simq</code></td><td><a href="#simq">SIMQ</a></td><td>ColBERT-style multi-vector retrieval (MaxSim)</td></tr>
+<tr><td><code>sindi_v2</code></td><td><a href="#sindi_v2">SINDI_V2</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product; supports both in-memory and disk-based I/O</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="#pyramid-1">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
 </tbody>
 </table>
@@ -789,14 +813,14 @@ structures and trade-offs they use under the hood.</p>
 </thead>
 <tbody>
 <tr><td><code>dim</code></td><td>positive integer</td><td>Vector dimensionality; fixed after build</td></tr>
-<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> is SINDI only</td></tr>
-<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Must match at query time (SINDI is <code>ip</code> only)</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> is for SINDI / SINDI_V2</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Must match at query time (SINDI / SINDI_V2 are <code>ip</code> only)</td></tr>
 </tbody>
 </table>
 </div>
 <p>Index-specific build parameters live under the <code>index_param</code> sub-object; search-time
 parameters live under a sub-object named after the index (e.g. <code>hgraph</code>, <code>ivf</code>,
-<code>sindi</code>, <code>pyramid</code>). LazyHGraph also uses the <code>hgraph</code> search object after it
+<code>sindi</code>, <code>sindi_v2</code>, <code>pyramid</code>). LazyHGraph also uses the <code>hgraph</code> search object after it
 converts to graph phase. Concrete schemas are documented on each page and enumerated in
 <a href="#index-parameters">Index Parameters</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -962,6 +986,27 @@ storage/recall tradeoffs.</p>
 </code></pre>
 <p>See the <a href="#sindi">SINDI page</a> for <code>use_quantization</code>, immutable builds, and search
 parameters such as <code>n_candidate</code>.</p>
+<h2 id="sindi_v2-sparse-vectors"><a class="header" href="#sindi_v2-sparse-vectors">SINDI_V2 (sparse vectors)</a></h2>
+<p>SINDI_V2 supports all SINDI features with both in-memory and disk-based I/O.</p>
+<pre><code class="language-json">{
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
+        "use_reorder": true,
+        "term_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.terms"
+        },
+        "rerank_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.rerank"
+        }
+    }
+}
+</code></pre>
+<p>See the <a href="#sindi_v2">SINDI_V2 page</a> for details.</p>
 <h2 id="runtime-parameters"><a class="header" href="#runtime-parameters">Runtime Parameters</a></h2>
 <p>Beyond build-time parameters, <code>Index::Tune</code> and <code>SearchParam</code> tweak runtime settings such as
 <code>ef_search</code> and <code>nprobe</code>. See <a href="#optimizer-tune">Optimizer</a> and the
@@ -1070,7 +1115,7 @@ before changing it.</p>
 <p>Set both <code>support_duplicate: true</code> and <code>deduplicate_storage: true</code> to let duplicate
 vectors share one physical code slot while retaining their individual labels. This option
 currently supports only dense-vector HGraph indexes using <code>graph_type: "nsw"</code>; it is not
-available for the separate HNSW index or for <code>graph_type: "odescent"</code>.</p>
+available for <code>graph_type: "odescent"</code>.</p>
 <p>The following operations and configurations are not supported while storage deduplication
 is enabled:</p>
 <ul>
@@ -1498,6 +1543,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>First-level count (effective for <code>gno_imi</code>)</td></tr>
 <tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>Second-level count (effective for <code>gno_imi</code>)</td></tr>
 <tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>Centroid training: <code>kmeans</code> or <code>random</code></td></tr>
+<tr><td><code>route_max_degree</code></td><td>int</td><td><code>64</code></td><td>Routing HGraph maximum degree (effective for <code>ivf</code>)</td></tr>
+<tr><td><code>route_ef_construction</code></td><td>int</td><td><code>300</code></td><td>Routing HGraph construction search breadth (effective for <code>ivf</code>)</td></tr>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="quantization/README.html">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ subspaces (required with <code>pq</code> / <code>pqfs</code>)</td></tr>
 <tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td>Optional PCA preprocessing dimension for <code>base_quantization_type: "rabitq"</code></td></tr>
@@ -1510,12 +1557,32 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>CAQ adjustment rounds; allowed range is <code>[1, 32]</code></td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse scan</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (with <code>use_reorder: true</code>)</td></tr>
+<tr><td><code>precise_codes_layout</code></td><td>string</td><td><code>"flat"</code></td><td>Storage layout for precise codes: <code>"flat"</code> keeps the legacy one-code-per-vector layout; <code>"bucket"</code> stores the precise code in the same bucket and offset as its basic posting</td></tr>
 <tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>Storage backend for coarse codes; supports <code>uring_io</code> when built with liburing</td></tr>
 <tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for precise codes (<code>memory_io</code>, <code>block_memory_io</code>, <code>mmap_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>reader_io</code>)</td></tr>
 <tr><td><code>precise_file_path</code></td><td>string</td><td><code>""</code></td><td>File path when the precise IO type is disk-backed</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>precise_codes_layout: "bucket"</code> requires <code>use_reorder: true</code>. It supports
+<code>memory_io</code>, <code>block_memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, and <code>uring_io</code>
+(when io_uring is available).
+<code>mmap_io</code> and <code>pqfs</code> precise quantization are not supported. The bucket layout currently requires
+<code>buckets_per_data: 1</code>; configurations that assign one vector to multiple buckets are rejected.</p>
+<p>For both <code>flat</code> and <code>bucket</code> layouts, serialized precise codes can be loaded read-only from an
+external <code>Reader</code>. Pass <code>precise_io_type: "reader_io"</code> and <code>precise_reader</code> to <code>Index::Load</code>.
+The reader must expose exactly the <code>high_precision_codes</code> block payload for <code>flat</code>, or the
+<code>ivf_precise_bucket</code> block payload for <code>bucket</code>. <code>reader_io</code> uses the normal read cache when
+<code>precise_enable_read_cache</code> is enabled.</p>
+<pre><code class="language-cpp">vsag::LoadParameters load_parameters;
+load_parameters.Set("precise_io_type", "reader_io")
+    .Set("precise_enable_read_cache", true)
+    .Set("precise_cache_total_size", 256ULL * 1024 * 1024)
+    .SetReader("precise_reader", precise_codes_reader);
+auto loaded = vsag::Index::Load(stream, load_parameters).value();
+</code></pre>
+<p><code>reader_io</code> is a load-and-query placement policy. Build the index with a writable precise IO,
+serialize it, and then use the external reader when loading it for search.</p>
 <p>A rule of thumb for <code>buckets_count</code> is <code>sqrt(N)</code> to <code>4 * sqrt(N)</code> where <code>N</code> is the
 corpus size.</p>
 <h2 id="search-parameters-2"><a class="header" href="#search-parameters-2">Search parameters</a></h2>
@@ -1567,7 +1634,7 @@ queries-per-second.</li>
 <p>SINDI (<strong>S</strong>parse <strong>IN</strong>verted <strong>D</strong>ense <strong>I</strong>ndex) is VSAG’s index for <strong>sparse
 vectors</strong> — the kind produced by BM25, SPLADE, and other learned-sparse encoders.
 Unlike the dense indexes (HGraph, IVF), SINDI operates directly on term/value
-pairs and is the only VSAG index that accepts <code>dtype: "sparse"</code>.</p>
+pairs and is one of the VSAG indexes that accepts <code>dtype: "sparse"</code>.</p>
 <ul>
 <li>Source: <code>src/algorithm/sindi/</code></li>
 <li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/109_index_sindi.cpp"><code>examples/cpp/109_index_sindi.cpp</code></a></li>
@@ -1589,6 +1656,8 @@ DMQ store to reduce rerank memory.</li>
 </ol>
 <p>Distance is returned as <code>1 - inner_product</code> so results sort ascending as in the
 dense indexes.</p>
+<p>For deployments that need both in-memory and disk-based I/O, use
+<a href="#sindi_v2">SINDI_V2</a>.</p>
 <h2 id="quick-start-4"><a class="header" href="#quick-start-4">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
@@ -1704,6 +1773,7 @@ Indexes written without this marker remain compatible and are normalized during 
 </thead>
 <tbody>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Candidate heap size. When <code>0</code>, defaults to <code>SPARSE_AMPLIFICATION_FACTOR · topk</code> (500×). If set, must satisfy <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code>.</td></tr>
+<tr><td><code>filter_callback_limit</code></td><td>uint64</td><td><code>0</code></td><td>Maximum user <code>Filter::CheckValid</code> callback invocations for one filtered search request. A value of <code>0</code> disables the limit. Internal checks such as the deleted-ID filter do not count. Reaching a positive limit stops candidate and window scanning after processing the final callback result and returns the already filtered candidates, so the result may be partial. The limit applies to KNN and range search through both the regular APIs and <code>SearchWithRequest</code>.</td></tr>
 <tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight query terms skipped (<code>[0.0, 1.0)</code>).</td></tr>
 <tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest-value postings skipped from each term list (<code>[0.0, 1.0)</code>).</td></tr>
 <tr><td><code>term_retain_threshold</code></td><td>uint64</td><td><code>0</code></td><td>Maximum postings for one term across all windows. A value of <code>0</code> disables this limit; positive values allow each non-empty window posting list to scan at most <code>max(1, floor(threshold / window_count))</code> postings.</td></tr>
@@ -1712,7 +1782,11 @@ Indexes written without this marker remain compatible and are normalized during 
 </div>
 <p>After combining the ratio and threshold limits, SINDI scans at least one posting from every
 non-empty term list.</p>
-<p>SINDI chooses the heap-insertion strategy automatically from the build-time
+<p>Within each window, postings for a term are sorted by their stored value in descending
+order, then by internal document id in ascending order. If both term-prune limits are
+enabled, the scanned prefix is the smaller of
+<code>floor(list_size · (1 - ratio))</code> and <code>floor(threshold / window_count)</code>.
+SINDI chooses the heap-insertion strategy automatically from the build-time
 <code>doc_prune_ratio</code> and search-time <code>query_prune_ratio</code>. With the current <code>0.1</code>
 threshold, SINDI uses the distance-array insertion path when both ratios are
 <code>&lt;= 0.1</code>; if either ratio is greater than <code>0.1</code>, it uses term-list heap
@@ -1721,7 +1795,7 @@ insertion. The legacy
 ratios instead.</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
-    R"({"sindi": {"n_candidate": 200, "query_prune_ratio": 0.1}})").value();
+    R"({"sindi": {"n_candidate": 200, "filter_callback_limit": 10000, "query_prune_ratio": 0.1}})").value();
 </code></pre>
 <h2 id="when-to-use-sindi"><a class="header" href="#when-to-use-sindi">When to use SINDI</a></h2>
 <ul>
@@ -1788,6 +1862,123 @@ is not physically reclaimed.</p>
 <li><a href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="sindi_v2"><a class="header" href="#sindi_v2">SINDI_V2</a></h1>
+<p>SINDI_V2 is VSAG’s term-first sparse-vector index. It uses the same windowed
+inverted-list scoring model and <code>1 - inner_product</code> distance as
+<a href="#sindi">SINDI</a>, but persists postings by term so a search can read only the
+lists needed by the query.</p>
+<ul>
+<li>Factory entry: <code>sindi_v2</code></li>
+<li>Source: <code>src/algorithm/sindi_v2/</code></li>
+<li>Required <code>dtype</code>: <code>sparse</code></li>
+<li>Required <code>metric_type</code>: <code>ip</code></li>
+</ul>
+<h2 id="storage-layout"><a class="header" href="#storage-layout">Storage layout</a></h2>
+<p>Each term payload stores only non-empty windows:</p>
+<pre><code class="language-text">non_empty_window_count
+ordered {window_id, posting_count}[]
+local_doc_ids[]
+alignment padding
+encoded_values[]
+</code></pre>
+<p>At query time, SINDI_V2 expands the sparse metadata into <code>window_count + 1</code>
+window offsets. A query loads postings only for its retained terms through
+<code>reader_io</code>, <code>mmap_io</code>, <code>buffer_io</code>, <code>async_io</code>, or an in-memory backend.</p>
+<p>This differs from SINDI’s window-first serialization. The two factory entries
+therefore require different persisted formats and must not be used
+interchangeably when loading an index.</p>
+<h2 id="quick-start-5"><a class="header" href="#quick-start-5">Quick start</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
+        "window_size": 50000,
+        "doc_prune_ratio": 0.1,
+        "use_quantization": true,
+        "use_reorder": true,
+        "remap_term_ids": true,
+        "term_io": {
+            "type": "buffer_io",
+            "file_path": "/tmp/sindi_v2.terms"
+        },
+        "rerank_io": {
+            "type": "block_memory_io"
+        }
+    }
+})";
+auto index = vsag::Factory::CreateIndex("sindi_v2", params).value();
+index-&gt;Build(base);
+
+auto result = index-&gt;KnnSearch(
+    query, 10,
+    R"({"sindi_v2": {
+        "n_candidate": 100,
+        "query_prune_ratio": 0.1,
+        "term_prune_ratio": 0.2,
+        "term_retain_threshold": 10000
+    }})").value();
+</code></pre>
+<h2 id="build-parameters-4"><a class="header" href="#build-parameters-4">Build parameters</a></h2>
+<p>Build parameters live under <code>index_param</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>int</td><td>required</td><td>Maximum number of non-zero elements per sparse vector, not the vocabulary size.</td></tr>
+<tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term IDs; maximum 50 000 000.</td></tr>
+<tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window, from 10 000 to 60 000.</td></tr>
+<tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight document terms removed during build (<code>[0.0, 1.0)</code>).</td></tr>
+<tr><td><code>use_quantization</code></td><td>bool or string</td><td><code>false</code></td><td><code>false</code> stores FP32, <code>true</code> stores SQ8, and <code>"fp16"</code> stores FP16 values.</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Store high-precision vectors and rerank coarse candidates.</td></tr>
+<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Rerank storage type: <code>fp32</code> or <code>dmq8</code>.</td></tr>
+<tr><td><code>dmq_shared_codebook_threshold</code></td><td>int</td><td><code>1024</code></td><td>Low-frequency term threshold for the shared DMQ codebook.</td></tr>
+<tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>Compact sparse or widely separated external term IDs.</td></tr>
+<tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>Memory-estimation hint only.</td></tr>
+<tr><td><code>immutable</code></td><td>bool</td><td><code>false</code></td><td>Select the compact read-only in-memory term DataCell.</td></tr>
+<tr><td><code>term_io</code></td><td>object</td><td><code>{"type": "reader_io"}</code></td><td>Backend used for term-first postings after load.</td></tr>
+<tr><td><code>rerank_io</code></td><td>object</td><td><code>{"type": "block_memory_io"}</code></td><td>Backend used for rerank vectors.</td></tr>
+<tr><td><code>rerank_layout</code></td><td>uint32</td><td><code>0</code></td><td>Number of leading terms in the top-terms-signature layout; <code>0</code> disables it.</td></tr>
+</tbody>
+</table>
+</div>
+<p>File-backed <code>term_io</code> supports <code>mmap_io</code>, <code>buffer_io</code>, and <code>async_io</code>, and
+requires <code>file_path</code>. If a file-backed <code>rerank_io</code> omits <code>file_path</code>, VSAG
+derives it as <code>&lt;term_io.file_path&gt;.rerank</code>.</p>
+<p><code>rerank_layout &gt; 0</code> requires <code>use_reorder: true</code>. <code>rerank_type: "dmq8"</code>
+requires <code>rerank_layout: 0</code> and the default <code>block_memory_io</code> rerank backend.</p>
+<h2 id="search-parameters-4"><a class="header" href="#search-parameters-4">Search parameters</a></h2>
+<p>Search parameters live under <code>{"sindi_v2": {...}}</code>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Coarse candidate count; <code>0</code> uses the index default derived from <code>topk</code>.</td></tr>
+<tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest-weight query terms skipped (<code>[0.0, 1.0)</code>).</td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest stored values skipped in each term list (<code>[0.0, 1.0)</code>).</td></tr>
+<tr><td><code>term_retain_threshold</code></td><td>uint64</td><td><code>0</code></td><td>Maximum postings for one term across all windows. <code>0</code> disables the limit; positive values allow each non-empty window posting list to scan at most <code>max(1, floor(threshold / window_count))</code> postings.</td></tr>
+</tbody>
+</table>
+</div>
+<p>After combining the ratio and threshold limits, SINDI V2 scans at least one posting from every
+non-empty term list.</p>
+<p>SINDI V2 chooses the heap-insertion strategy automatically from the build-time
+<code>doc_prune_ratio</code> and search-time <code>query_prune_ratio</code>. With the current <code>0.1</code>
+threshold, it uses distance-array insertion when both ratios are <code>&lt;= 0.1</code>; if
+either ratio is greater than <code>0.1</code>, it uses term-list heap insertion.</p>
+<h2 id="choosing-between-sindi-and-sindi_v2"><a class="header" href="#choosing-between-sindi-and-sindi_v2">Choosing between SINDI and SINDI_V2</a></h2>
+<p>Use SINDI when the full sparse index remains in memory and window-first
+serialization is appropriate. Use SINDI_V2 when persisted postings should be
+organized by term or when searches should fetch only the query’s term lists
+from external storage.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="simq"><a class="header" href="#simq">SIMQ</a></h1>
 <p>SIMQ is VSAG’s index for <strong>multi-vector</strong> retrieval — the kind of data where each
 document is a <em>set</em> of token-level vectors rather than a single embedding. This
@@ -1814,7 +2005,7 @@ the exact MaxSim similarity between query tokens and document tokens.</li>
 </ol>
 <p>The combination of cluster-level coarse search and exact reranking gives SIMQ a
 tunable recall/latency tradeoff for multi-vector workloads.</p>
-<h2 id="quick-start-5"><a class="header" href="#quick-start-5">Quick start</a></h2>
+<h2 id="quick-start-6"><a class="header" href="#quick-start-6">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string build_params = R"({
@@ -1880,7 +2071,7 @@ for (int64_t i = 0; i &lt; result_count; ++i) {
     float dist = result_dists[i];
 }
 </code></pre>
-<h2 id="build-parameters-4"><a class="header" href="#build-parameters-4">Build parameters</a></h2>
+<h2 id="build-parameters-5"><a class="header" href="#build-parameters-5">Build parameters</a></h2>
 <p>SIMQ-specific build parameters live under <code>index_param</code>. The common fields
 <code>dim</code>, <code>dtype</code>, and <code>metric_type</code> are top-level. <code>dtype</code> <strong>must</strong> be
 <code>"float32"</code> and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
@@ -1924,7 +2115,7 @@ faster coarse search at the cost of recall. Start with
 <code>init_cluster_ratio = 0.1</code>–<code>0.2</code> and <code>max_cluster_size = 2 ×</code>
 <code>split_start_idx</code>, then tune with the search parameters.</p>
 </blockquote>
-<h2 id="search-parameters-4"><a class="header" href="#search-parameters-4">Search parameters</a></h2>
+<h2 id="search-parameters-5"><a class="header" href="#search-parameters-5">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>simq</code> sub-object:</p>
 <div class="table-wrapper">
 <table>
@@ -2052,7 +2243,7 @@ HGraph: <code>nsw</code> insertion or <code>odescent</code> with <code>graph_ite
 to the most specific sub-graph matching the query path and runs a graph search
 there with <code>ef_search</code> (and <code>subindex_ef_search</code> for intermediate levels).</li>
 </ol>
-<h2 id="quick-start-6"><a class="header" href="#quick-start-6">Quick start</a></h2>
+<h2 id="quick-start-7"><a class="header" href="#quick-start-7">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string params = R"({
@@ -2095,7 +2286,7 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"pyramid": {"ef_search": 100}})").value();
 </code></pre>
-<h2 id="build-parameters-5"><a class="header" href="#build-parameters-5">Build parameters</a></h2>
+<h2 id="build-parameters-6"><a class="header" href="#build-parameters-6">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>.</p>
 <div class="table-wrapper">
 <table>
@@ -2121,6 +2312,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Fast RaBitQ refinement rounds in <code>[1, 32]</code>.</td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Base and reorder storage backends; <code>uring_io</code> is available in builds with liburing.</td></tr>
 <tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>Required for disk-backed storage such as <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, or <code>mmap_io</code>.</td></tr>
+<tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Preserve an FP32 copy for <code>GetRawVectorByIds</code> and precise distance-by-id calculations.</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>Minimum sub-index size; smaller groups fall back to scan.</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Allow duplicate ids.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>Threads used for parallel build.</td></tr>
@@ -2159,7 +2351,9 @@ reordering; both encode the same truncated vector. Pyramid uses split code-to-co
 graph promotion and does not retain the original FP32 vectors. Metrics that require decodable
 vectors are marked unavailable unless <code>store_raw_vector</code> was enabled at build time. Truncation can
 reduce recall unless the embedding model was trained for prefix dimensions.</p>
-<h2 id="search-parameters-5"><a class="header" href="#search-parameters-5">Search parameters</a></h2>
+<h2 id="build-cache"><a class="header" href="#build-cache">Build cache</a></h2>
+<p><code>ExportCache</code> captures per-hierarchy, per-node NSW graph seeds and <code>ImportCache</code> makes them available to a later <code>Build</code>. Cache data uses the index cache payload format, not the streaming index serialization format. Set <code>persist_source_id: true</code> before footer-serializing an index whose cache will be reused, and provide a unique <code>Dataset::SourceID</code> for every vector in both builds. Cache warm builds apply only to <code>graph_type: "nsw"</code>; ODescent, duplicate-ID mode, missing source IDs, and duplicate source IDs automatically fall back to a normal cold build. <code>ef_construction</code> is not an eligibility condition for the cache path. Fully restored cached graph rows are retained, while cache misses are constructed from the current vectors.</p>
+<h2 id="search-parameters-6"><a class="header" href="#search-parameters-6">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>pyramid</code> sub-object:</p>
 <div class="table-wrapper">
 <table>
@@ -2288,8 +2482,12 @@ let you skip graph construction for partitions too small to benefit.</li>
 <p>If you don’t need path-based scoping, <a href="#hgraph-2">HGraph</a> is simpler and generally
 faster.</p>
 <p>Use <a href="#index-analysis-analyzeindexbysearch--analyze_index">Index Analysis</a> to inspect Pyramid tree structure,
-per-subindex quality, sampled base recall, and duplicate ratios reported by <code>GetStats()</code>. Pyramid
-does not currently expose query-driven metrics through <code>AnalyzeIndexBySearch</code>.</p>
+per-subindex quality, sampled base recall, and duplicate ratios reported by <code>GetStats()</code>.
+<code>AnalyzeIndexBySearch</code> also reports path-scoped query recall, distance, latency, and, when reorder
+is enabled, quantization metrics. Its query dataset must carry the same default or named-hierarchy
+paths required by <code>KnnSearch</code>; when paths are required or supplied for a batched dataset, provide
+one path per query. The <code>analyze_index</code> tool cannot currently load hierarchy paths from its dense
+query file, so use the C++ API for path-scoped dynamic analysis.</p>
 <h2 id="mark-remove-1"><a class="header" href="#mark-remove-1">Mark remove</a></h2>
 <p>Pyramid supports <code>RemoveMode::MARK_REMOVE</code>. Calling <code>Remove(ids)</code> (the default
 mode) tombstones the given ids: they are excluded from subsequent search results,
@@ -2333,7 +2531,7 @@ be split across multiple threads via the <code>parallelism</code> search paramet
 <p>Because the index keeps every vector verbatim (modulo the chosen quantizer), the result is
 <strong>exact</strong> when <code>base_quantization_type</code> is <code>fp32</code> and is the standard reference used to compute
 ground truth in the <code>eval_performance</code> tool.</p>
-<h2 id="quick-start-7"><a class="header" href="#quick-start-7">Quick start</a></h2>
+<h2 id="quick-start-8"><a class="header" href="#quick-start-8">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string params = R"({
@@ -2355,7 +2553,7 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 </code></pre>
 <p>A full runnable program is at
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>.</p>
-<h2 id="build-parameters-6"><a class="header" href="#build-parameters-6">Build parameters</a></h2>
+<h2 id="build-parameters-7"><a class="header" href="#build-parameters-7">Build parameters</a></h2>
 <p>The minimal config consists of the three top-level fields (<code>dtype</code>, <code>metric_type</code>, <code>dim</code>).
 For most uses no <code>index_param</code> is needed — that is the form shown in
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp">example 105</a>.
@@ -2397,7 +2595,7 @@ capability flags — use HGraph or IVF if you need a quantized index that still 
 the supplied dataset before adding vectors; the resulting recall is no longer 100%. Only
 <code>fp32</code>, <code>fp16</code>, and <code>bf16</code> skip training and preserve exact distances (modulo numeric
 precision).</p>
-<h2 id="search-parameters-6"><a class="header" href="#search-parameters-6">Search parameters</a></h2>
+<h2 id="search-parameters-7"><a class="header" href="#search-parameters-7">Search parameters</a></h2>
 <p>BruteForce does not expose any index-specific search knobs (no <code>ef</code>, <code>nprobe</code>, etc.), but the
 generic <code>IndexSearchParameter</code> fields are honored:</p>
 <div class="table-wrapper">
@@ -2929,7 +3127,7 @@ inputs.</li>
 <tr><th>Key</th><th>Type</th><th>Default</th><th>Applies to</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td><code>sq4_uniform</code> only</td><td>Symmetric truncation rate for outliers (<code>src/quantization/scalar_quantization/sq4_uniform_quantizer_parameter.h:39</code>). Higher values clip more extreme coordinates, reducing range loss for the bulk of the data at the cost of clipping the tails.</td></tr>
+<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td><code>sq4_uniform</code> only</td><td>Finite symmetric truncation rate for outliers in the inclusive range <code>[0.0, 0.5]</code>. Higher values clip more extreme coordinates, reducing range loss for the bulk of the data at the cost of clipping the tails.</td></tr>
 </tbody>
 </table>
 </div>
@@ -3586,7 +3784,7 @@ proportionally.</li>
 <p>The transform output then feeds a standard quantizer (<code>fp32</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>rabitq</code>,
 …), which actually stores the codes. The whole chain is referred to as <strong><code>tq</code> (Transform
 Quantizer)</strong>.</p>
-<h2 id="quick-start-8"><a class="header" href="#quick-start-8">Quick start</a></h2>
+<h2 id="quick-start-9"><a class="header" href="#quick-start-9">Quick start</a></h2>
 <p><code>tq</code> is exposed as a public, externally configurable quantization type by <strong>HGraph</strong> and
 <strong>Pyramid</strong>. Both map <code>tq_chain</code> and dimension parameters into
 <code>base_codes.quantization_params</code>. The MRLE + RaBitQ x+y split combination is available in both
@@ -3789,7 +3987,7 @@ parameter set consistent, not just the chain string.</p>
 </div>
 <h2 id="core-subsystems-inside-src"><a class="header" href="#core-subsystems-inside-src">Core Subsystems (inside <code>src/</code>)</a></h2>
 <ul>
-<li><strong>index</strong>: concrete index implementations (HGraph, IVF, Pyramid, SINDI, …; legacy: HNSW, DiskANN).</li>
+<li><strong>index</strong>: concrete index implementations (HGraph, IVF, Pyramid, SINDI, and others).</li>
 <li><strong>quantization</strong>: FP32 / FP16 / BF16 / SQ4 / SQ8 / PQ quantizers with SIMD dispatch.</li>
 <li><strong>graph</strong>: shared graph data structures used by HGraph and other graph-based indexes.</li>
 <li><strong>storage</strong>: binary/reader sets, streaming serialization.</li>
@@ -3995,14 +4193,14 @@ storage supports them.</li>
 </ul>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> Model export, clone, merge, tune, feedback, and cache import/export.</p>
+<p><input disabled="" type="checkbox"> Model export, clone, merge, tune, and cache import/export.</p>
 <ul>
 <li>Implement <code>Clone()</code> and <code>ExportModel()</code> when the index can be copied without sharing mutable
 storage incorrectly.</li>
 <li>Implement <code>Merge()</code> only when parameter compatibility, ID remapping, and deletion semantics are
 clear.</li>
-<li>Implement <code>Tune()</code>, <code>Feedback()</code>, <code>ExportCache()</code>, and <code>ImportCache()</code> only with explicit
-parameter parsing and tests.</li>
+<li>Implement <code>Tune()</code>, <code>ExportCache()</code>, and <code>ImportCache()</code> only with explicit parameter parsing
+and tests.</li>
 </ul>
 </li>
 <li>
@@ -4040,7 +4238,7 @@ operations.</li>
 <li><strong>Compiler</strong>: GCC 9.4.0+, Clang 13.0.0+, or Apple Clang from Xcode Command Line Tools</li>
 <li><strong>CMake</strong>: 3.18.0+</li>
 <li><strong>clang-format / clang-tidy</strong>: exactly version 15 (enforced)</li>
-<li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for DiskANN async IO),
+<li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for the <code>async_io</code> data-cell backend),
 liburing (for <code>uring_io</code> on Linux), Intel MKL.</li>
 </ul>
 <p>We recommend using the official Docker dev image, which already contains the matching toolchain:</p>
@@ -4090,7 +4288,7 @@ cache options (<code>ENABLE_*</code>). Defaults below reflect a plain <code>make
 </thead>
 <tbody>
 <tr><td><code>VSAG_ENABLE_INTEL_MKL</code></td><td><code>ENABLE_INTEL_MKL</code></td><td><code>OFF</code></td><td>Use Intel MKL for BLAS kernels</td></tr>
-<tr><td><code>VSAG_ENABLE_LIBAIO</code></td><td><code>ENABLE_LIBAIO</code></td><td><code>ON</code> on Linux</td><td>Enable DiskANN async IO via libaio</td></tr>
+<tr><td><code>VSAG_ENABLE_LIBAIO</code></td><td><code>ENABLE_LIBAIO</code></td><td><code>ON</code> on Linux</td><td>Enable the <code>async_io</code> data-cell backend via libaio</td></tr>
 <tr><td><code>VSAG_ENABLE_TOOLS</code></td><td><code>ENABLE_TOOLS</code></td><td><code>OFF</code></td><td>Build utilities under <code>tools/</code></td></tr>
 <tr><td><code>VSAG_ENABLE_EXAMPLES</code></td><td><code>ENABLE_EXAMPLES</code></td><td><code>OFF</code></td><td>Build sample programs under <code>examples/cpp/</code></td></tr>
 <tr><td>n/a</td><td><code>ENABLE_LIBURING</code></td><td><code>OFF</code></td><td>Enable the Linux <code>uring_io</code> backend when liburing is installed</td></tr>
@@ -4109,7 +4307,7 @@ that requests <code>uring_io</code> then logs a one-time warning and falls back 
 <p>VSAG downloads its third-party libraries at configure/build time. In offline or
 restricted-network environments, set the per-dependency <code>VSAG_THIRDPARTY_*</code>
 environment variables to fetch each archive from a local path or an internal
-mirror (internal HTTP server, OSS bucket, etc.). See
+mirror (internal HTTP server, object storage, etc.). See
 <a href="#offline--air-gapped-builds-1">Offline / Air-gapped Builds</a> for the full list of variables
 and worked examples.</p>
 <h2 id="python-wheel-pyvsag"><a class="header" href="#python-wheel-pyvsag">Python Wheel (pyvsag)</a></h2>
@@ -4144,7 +4342,7 @@ to avoid out-of-memory failures in CI runners.</p>
 (via <code>ExternalProject_Add</code> and <code>FetchContent</code>). On a machine without internet
 access, or behind a slow / restricted network, those downloads can fail or time
 out. This page explains how to point each dependency at a <strong>local path</strong> or an
-<strong>internal mirror</strong> (internal HTTP server, OSS bucket, Artifactory, etc.) so the
+<strong>internal mirror</strong> (internal HTTP server, object storage, Artifactory, etc.) so the
 build can complete fully offline.</p>
 <h2 id="how-third-party-downloads-are-resolved"><a class="header" href="#how-third-party-downloads-are-resolved">How third-party downloads are resolved</a></h2>
 <p>For every downloaded dependency, VSAG builds a <em>list</em> of candidate URLs and lets
@@ -4152,13 +4350,9 @@ CMake try them <strong>in order</strong>, stopping at the first one that succeed
 <code>antlr4</code> as the representative example
 (<a href="https://github.com/antgroup/vsag/blob/main/extern/antlr4/antlr4.cmake"><code>extern/antlr4/antlr4.cmake</code></a>):</p>
 <pre><code class="language-cmake">set (antlr4_urls
-    https://github.com/antlr/antlr4/archive/refs/tags/4.13.2.tar.gz   # 1. upstream
-    https://vsagcache.oss-rg-china-mainland.aliyuncs.com/antlr4/v4.13.2.tar.gz  # 2. project mirror
+    https://github.com/antlr/antlr4/archive/refs/tags/4.13.2.tar.gz
 )
-if (DEFINED ENV{VSAG_THIRDPARTY_ANTLR4})
-    message (STATUS "Using local path for antlr4: $ENV{VSAG_THIRDPARTY_ANTLR4}")
-    list (PREPEND antlr4_urls "$ENV{VSAG_THIRDPARTY_ANTLR4}")   # 0. your override (tried first)
-endif ()
+vsag_resolve_thirdparty_override (ANTLR4 4.13.2 antlr4_urls)
 
 ExternalProject_Add (antlr4
     URL ${antlr4_urls}
@@ -4167,25 +4361,38 @@ ExternalProject_Add (antlr4
 </code></pre>
 <p>The resolution order is therefore:</p>
 <ol>
-<li><strong><code>VSAG_THIRDPARTY_&lt;LIB&gt;</code></strong> — your override, if the environment variable is
-set to a <strong>non-empty</strong> value. Tried <strong>first</strong>.</li>
-<li>The <strong>upstream</strong> URL (GitHub / project release page).</li>
-<li>The project-maintained <strong>Aliyun OSS mirror</strong>
-(<code>vsagcache.oss-rg-china-mainland.aliyuncs.com</code>). This fallback is always
-present and helps in mainland-China / poor-network environments, but it is
-<strong>not</strong> user-configurable — for a fully internal mirror, use the environment
-variable.</li>
+<li>The <strong>pinned variable</strong>, <code>VSAG_THIRDPARTY_&lt;LIB&gt;_&lt;PIN_SUFFIX&gt;</code>, for the exact
+dependency identifier used by the current branch.</li>
+<li>The unversioned <code>VSAG_THIRDPARTY_&lt;LIB&gt;</code> variable, as a deprecated compatibility
+fallback. If both variables are set, the pinned variable wins.</li>
+<li>The authoritative <strong>upstream</strong> URL or URLs (GitHub / project release page).</li>
 </ol>
-<blockquote>
-<p><strong>Availability:</strong> the <code>VSAG_THIRDPARTY_*</code> override is available on <code>main</code> and on
-the <code>0.15</code>, <code>0.16</code>, <code>0.17</code>, and <code>0.18</code> release lines — see
-<a href="#version-availability">Version availability</a>.</p>
-</blockquote>
+<p>VSAG does not provide a project-controlled archive mirror. For a local or internal
+mirror, set the pinned variable (preferred) or the deprecated legacy variable.</p>
+<p>Only the pinned variable for the branch’s exact pin is read. Pinned variables for
+other versions can remain exported and are ignored. This lets one CI image or shell
+profile safely support several VSAG branches at once.</p>
+<h2 id="pinned-variable-names"><a class="header" href="#pinned-variable-names">Pinned-variable names</a></h2>
+<p>The suffix is derived from the exact pinned identifier:</p>
+<ul>
+<li>Numeric releases strip one leading <code>v</code>/<code>V</code> and a dependency-name decoration
+immediately before the number. ASCII letters are uppercased and runs of other
+characters become one underscore. Thus <code>10.2.1</code> and <code>v10.2.1</code> become <code>10_2_1</code>,
+<code>hdf5_1.14.4</code> becomes <code>1_14_4</code>, and <code>yaml-cpp-0.9.0</code> becomes <code>0_9_0</code>.</li>
+<li>A full commit hash becomes <code>COMMIT_&lt;12_HEX&gt;</code>, for example
+<code>VSAG_THIRDPARTY_CPUINFO_COMMIT_CA678952A9A8</code>.</li>
+<li>Other tags and refs become <code>TAG_&lt;NORMALIZED&gt;_H&lt;12_HEX&gt;</code>. The hexadecimal part is
+the uppercase prefix of SHA-256 over the exact, case-sensitive identifier, so
+spellings that normalize alike remain distinguishable.</li>
+<li>If two pins for one dependency collide at 12 hexadecimal characters, both names
+extend deterministically one character at a time. Configuration fails instead of
+accepting an ambiguous name if the full hash or digest cannot distinguish them.</li>
+</ul>
 <h2 id="key-facts-before-you-start"><a class="header" href="#key-facts-before-you-start">Key facts before you start</a></h2>
 <ul>
 <li><strong>The value may be a local path or a URL.</strong> Accepted forms include an
 absolute filesystem path (<code>/data/deps/fmt-10.2.1.tar.gz</code>), a <code>file://</code> URL, or
-any <code>http(s)://</code> URL — including an internal HTTP server or an OSS / S3 bucket.</li>
+any <code>http(s)://</code> URL — including an internal HTTP server or object storage.</li>
 <li><strong>The archive hash is still verified.</strong> Each dependency declares a
 <code>URL_HASH</code> (MD5 or SHA256). Your mirrored / local archive must be <strong>byte
 identical to the upstream archive</strong>, otherwise CMake aborts with a hash
@@ -4195,39 +4402,39 @@ once and re-host it unchanged.</li>
 previous configure, re-run CMake configure or run <code>make clean</code> first so the
 new value takes effect.</li>
 <li><strong>Use a non-empty value, or leave it unset.</strong> CMake treats a variable that is
-exported but empty as <em>defined</em>, so <code>export VSAG_THIRDPARTY_FMT=</code> would prepend
+exported but empty as <em>defined</em>, so <code>export VSAG_THIRDPARTY_FMT_10_2_1=</code> would prepend
 an empty entry to the URL list and break the download. To disable an override,
 <code>unset</code> it instead of setting it to an empty string.</li>
 <li><strong>Each dependency is independent.</strong> There is no single global mirror variable;
-set one <code>VSAG_THIRDPARTY_&lt;LIB&gt;</code> per dependency you need. You only need to set
+set one pinned variable per dependency you need. You only need to set
 variables for the dependencies your build actually pulls in (see
 <a href="#which-dependencies-do-i-need">Which dependencies do I need?</a>).</li>
-<li><strong>Confirmation in the log.</strong> When an override is picked up, CMake prints
-<code>-- Using local path for &lt;lib&gt;: &lt;your value&gt;</code>.</li>
+<li><strong>Confirmation in the log.</strong> CMake reports the dependency, pin, selected source
+category and variable, plus fallback/deprecation behavior. It intentionally does
+not print the value because URLs can contain credentials.</li>
 </ul>
 <h2 id="environment-variables"><a class="header" href="#environment-variables">Environment variables</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Environment variable</th><th>Library</th><th>Upstream archive to mirror</th><th>Pulled in when</th></tr>
+<tr><th>Pinned variable on <code>main</code></th><th>Library</th><th>Upstream archive to mirror</th><th>Pulled in when</th></tr>
 </thead>
 <tbody>
-<tr><td><code>VSAG_THIRDPARTY_JSON</code></td><td>nlohmann/json 3.11.3</td><td><code>github.com/nlohmann/json/.../v3.11.3.tar.gz</code></td><td>always</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_ANTLR4</code></td><td>ANTLR4 runtime 4.13.2</td><td><code>github.com/antlr/antlr4/.../4.13.2.tar.gz</code></td><td>always</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_BOOST</code></td><td>Boost 1.67.0 (headers)</td><td><code>archives.boost.io/.../boost_1_67_0.tar.gz</code></td><td>always</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.24</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.24.tar.gz</code></td><td>default BLAS backend (when not using system / MKL)</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_CPUINFO</code></td><td>pytorch/cpuinfo</td><td><code>github.com/pytorch/cpuinfo/archive/ca678952...tar.gz</code></td><td>always</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_FMT</code></td><td>fmt 10.2.1</td><td><code>github.com/fmtlib/fmt/.../10.2.1.tar.gz</code></td><td>always (unless system fmt)</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_THREAD_POOL</code></td><td>log4cplus/ThreadPool</td><td><code>github.com/log4cplus/ThreadPool/archive/3507796e...tar.gz</code></td><td>always</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_TSL</code></td><td>Tessil/robin-map 1.4.0</td><td><code>github.com/Tessil/robin-map/.../v1.4.0.tar.gz</code></td><td>always</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_ROARINGBITMAP</code></td><td>CRoaring 3.0.1</td><td><code>github.com/RoaringBitmap/CRoaring/.../v3.0.1.tar.gz</code></td><td>always</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_CATCH2</code></td><td>Catch2 3.7.1</td><td><code>github.com/catchorg/Catch2/.../v3.7.1.tar.gz</code></td><td><code>ENABLE_TESTS=ON</code></td></tr>
-<tr><td><code>VSAG_THIRDPARTY_HDF5</code></td><td>HDF5 1.14.4</td><td><code>github.com/HDFGroup/hdf5/.../hdf5_1.14.4.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_ARGPARSE</code></td><td>p-ranav/argparse 3.1</td><td><code>github.com/p-ranav/argparse/.../v3.1.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_YAML_CPP</code></td><td>yaml-cpp 0.9.0</td><td><code>github.com/jbeder/yaml-cpp/.../yaml-cpp-0.9.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_TABULATE</code></td><td>p-ranav/tabulate</td><td><code>github.com/p-ranav/tabulate/archive/3a583010...tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_HTTPLIB</code></td><td>cpp-httplib 0.35.0</td><td><code>github.com/yhirose/cpp-httplib/.../v0.35.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_PYBIND11</code></td><td>pybind11 2.11.1</td><td><code>github.com/pybind/pybind11/.../v2.11.1.tar.gz</code></td><td>Python bindings (<code>pyvsag</code> / <code>ENABLE_PYBINDS=ON</code>)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_JSON_3_11_3</code></td><td>nlohmann/json 3.11.3</td><td><code>github.com/nlohmann/json/.../v3.11.3.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ANTLR4_4_13_2</code></td><td>ANTLR4 runtime 4.13.2</td><td><code>github.com/antlr/antlr4/.../4.13.2.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_OPENBLAS_0_3_24</code></td><td>OpenBLAS 0.3.24</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.24.tar.gz</code></td><td>default BLAS backend (when not using system / MKL)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CPUINFO_COMMIT_CA678952A9A8</code></td><td>pytorch/cpuinfo</td><td><code>github.com/pytorch/cpuinfo/archive/ca678952...tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_FMT_10_2_1</code></td><td>fmt 10.2.1</td><td><code>github.com/fmtlib/fmt/.../10.2.1.tar.gz</code></td><td>always (unless system fmt)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_THREAD_POOL_COMMIT_3507796E172D</code></td><td>log4cplus/ThreadPool</td><td><code>github.com/log4cplus/ThreadPool/archive/3507796e...tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TSL_1_4_0</code></td><td>Tessil/robin-map 1.4.0</td><td><code>github.com/Tessil/robin-map/.../v1.4.0.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ROARINGBITMAP_3_0_1</code></td><td>CRoaring 3.0.1</td><td><code>github.com/RoaringBitmap/CRoaring/.../v3.0.1.tar.gz</code></td><td>always</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CATCH2_3_7_1</code></td><td>Catch2 3.7.1</td><td><code>github.com/catchorg/Catch2/.../v3.7.1.tar.gz</code></td><td><code>ENABLE_TESTS=ON</code></td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HDF5_1_14_4</code></td><td>HDF5 1.14.4</td><td><code>github.com/HDFGroup/hdf5/.../hdf5_1.14.4.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ARGPARSE_3_1</code></td><td>p-ranav/argparse 3.1</td><td><code>github.com/p-ranav/argparse/.../v3.1.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_YAML_CPP_0_9_0</code></td><td>yaml-cpp 0.9.0</td><td><code>github.com/jbeder/yaml-cpp/.../yaml-cpp-0.9.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TABULATE_COMMIT_3A58301067BB</code></td><td>p-ranav/tabulate</td><td><code>github.com/p-ranav/tabulate/archive/3a583010...tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HTTPLIB_0_35_0</code></td><td>cpp-httplib 0.35.0</td><td><code>github.com/yhirose/cpp-httplib/.../v0.35.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_PYBIND11_2_11_1</code></td><td>pybind11 2.11.1</td><td><code>github.com/pybind/pybind11/.../v2.11.1.tar.gz</code></td><td>Python bindings (<code>pyvsag</code> / <code>ENABLE_PYBINDS=ON</code>)</td></tr>
 </tbody>
 </table>
 </div>
@@ -4237,13 +4444,12 @@ the single source of truth in the corresponding
 <a href="https://github.com/antgroup/vsag/tree/main/extern"><code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code></a>
 file. Check that file when mirroring, especially after a version bump.</p>
 </blockquote>
-<p>Not listed here (no download, so no override needed): <strong>Intel MKL</strong> (located on
-the host with <code>find_path</code>) and <strong>DiskANN</strong> (vendored in-tree under
-<code>extern/diskann/</code>).</p>
+<p>Not listed here (no download, so no override needed): <strong>Intel MKL</strong>, which is located on the host
+with <code>find_path</code>.</p>
 <h2 id="which-dependencies-do-i-need"><a class="header" href="#which-dependencies-do-i-need">Which dependencies do I need?</a></h2>
 <p>You only have to mirror what your specific build actually downloads:</p>
 <ul>
-<li><strong>Core library</strong> (<code>make debug</code> / <code>make release</code>): <code>JSON</code>, <code>ANTLR4</code>, <code>BOOST</code>,
+<li><strong>Core library</strong> (<code>make debug</code> / <code>make release</code>): <code>JSON</code>, <code>ANTLR4</code>,
 <code>OPENBLAS</code>, <code>CPUINFO</code>, <code>FMT</code>, <code>THREAD_POOL</code>, <code>TSL</code>, <code>ROARINGBITMAP</code>.
 Two of these are conditional: <code>OPENBLAS</code> is <strong>not</strong> downloaded when BLAS comes
 from Intel MKL (x86_64 with <code>ENABLE_INTEL_MKL=ON</code>) or from a system OpenBLAS,
@@ -4256,48 +4462,55 @@ options are enabled (see
 <li><strong>+ Python wheel</strong> (<code>make pyvsag</code>): also <code>PYBIND11</code>.</li>
 </ul>
 <h2 id="examples-1"><a class="header" href="#examples-1">Examples</a></h2>
-<h3 id="a-internal-http-server-or-oss-bucket-recommended"><a class="header" href="#a-internal-http-server-or-oss-bucket-recommended">A. Internal HTTP server or OSS bucket (recommended)</a></h3>
+<h3 id="a-internal-http-server-or-object-storage-recommended"><a class="header" href="#a-internal-http-server-or-object-storage-recommended">A. Internal HTTP server or object storage (recommended)</a></h3>
 <p>Re-host the upstream archives unchanged on an internal endpoint, then point each
 variable at it. A base-URL shell variable keeps this compact:</p>
 <pre><code class="language-bash"># Internal mirror that serves the upstream archives byte-for-byte
 export VSAG_MIRROR=https://mirror.corp.example.com/vsag-thirdparty
 
-export VSAG_THIRDPARTY_JSON=$VSAG_MIRROR/v3.11.3.tar.gz
-export VSAG_THIRDPARTY_ANTLR4=$VSAG_MIRROR/antlr4-4.13.2.tar.gz
-export VSAG_THIRDPARTY_BOOST=$VSAG_MIRROR/boost_1_67_0.tar.gz
-export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.24.tar.gz
-export VSAG_THIRDPARTY_CPUINFO=$VSAG_MIRROR/cpuinfo-ca678952.tar.gz
-export VSAG_THIRDPARTY_FMT=$VSAG_MIRROR/fmt-10.2.1.tar.gz
-export VSAG_THIRDPARTY_THREAD_POOL=$VSAG_MIRROR/thread_pool-3507796e.tar.gz
-export VSAG_THIRDPARTY_TSL=$VSAG_MIRROR/robin-map-1.4.0.tar.gz
-export VSAG_THIRDPARTY_ROARINGBITMAP=$VSAG_MIRROR/CRoaring-3.0.1.tar.gz
+export VSAG_THIRDPARTY_JSON_3_11_3=$VSAG_MIRROR/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4_4_13_2=$VSAG_MIRROR/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS_0_3_24=$VSAG_MIRROR/OpenBLAS-0.3.24.tar.gz
+export VSAG_THIRDPARTY_CPUINFO_COMMIT_CA678952A9A8=$VSAG_MIRROR/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT_10_2_1=$VSAG_MIRROR/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL_COMMIT_3507796E172D=$VSAG_MIRROR/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL_1_4_0=$VSAG_MIRROR/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP_3_0_1=$VSAG_MIRROR/CRoaring-3.0.1.tar.gz
 
 make release
 </code></pre>
-<p>An OSS / S3 bucket works identically — just use its public (or
-network-reachable) object URL, for example
-<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.24.tar.gz</code>.</p>
+<p>An object-storage endpoint works identically: use its network-reachable object URL.</p>
 <h3 id="b-pre-downloaded-local-files-fully-air-gapped"><a class="header" href="#b-pre-downloaded-local-files-fully-air-gapped">B. Pre-downloaded local files (fully air-gapped)</a></h3>
 <p>On a machine that has <em>no</em> network at all, copy the archives onto the box first
 (e.g. to <code>/data/vsag-deps</code>) and point the variables at the local files:</p>
-<pre><code class="language-bash">export VSAG_THIRDPARTY_JSON=/data/vsag-deps/v3.11.3.tar.gz
-export VSAG_THIRDPARTY_ANTLR4=/data/vsag-deps/antlr4-4.13.2.tar.gz
-export VSAG_THIRDPARTY_BOOST=/data/vsag-deps/boost_1_67_0.tar.gz
-export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.24.tar.gz
-export VSAG_THIRDPARTY_CPUINFO=/data/vsag-deps/cpuinfo-ca678952.tar.gz
-export VSAG_THIRDPARTY_FMT=/data/vsag-deps/fmt-10.2.1.tar.gz
-export VSAG_THIRDPARTY_THREAD_POOL=/data/vsag-deps/thread_pool-3507796e.tar.gz
-export VSAG_THIRDPARTY_TSL=/data/vsag-deps/robin-map-1.4.0.tar.gz
-export VSAG_THIRDPARTY_ROARINGBITMAP=/data/vsag-deps/CRoaring-3.0.1.tar.gz
+<pre><code class="language-bash">export VSAG_THIRDPARTY_JSON_3_11_3=/data/vsag-deps/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4_4_13_2=/data/vsag-deps/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS_0_3_24=/data/vsag-deps/OpenBLAS-0.3.24.tar.gz
+export VSAG_THIRDPARTY_CPUINFO_COMMIT_CA678952A9A8=/data/vsag-deps/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT_10_2_1=/data/vsag-deps/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL_COMMIT_3507796E172D=/data/vsag-deps/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL_1_4_0=/data/vsag-deps/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP_3_0_1=/data/vsag-deps/CRoaring-3.0.1.tar.gz
 
 make release
 </code></pre>
-<p>A <code>file://</code> URL (<code>export VSAG_THIRDPARTY_FMT=file:///data/vsag-deps/fmt-10.2.1.tar.gz</code>)
+<p>A <code>file://</code> URL (<code>export VSAG_THIRDPARTY_FMT_10_2_1=file:///data/vsag-deps/fmt-10.2.1.tar.gz</code>)
 is equally valid.</p>
 <h3 id="c-override-a-single-dependency"><a class="header" href="#c-override-a-single-dependency">C. Override a single dependency</a></h3>
 <p>If only one download is unreliable, override just that one and let the rest use
 the defaults:</p>
-<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.24.tar.gz
+<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS_0_3_24=https://mirror.example.com/OpenBLAS-0.3.24.tar.gz
+make release
+</code></pre>
+<h3 id="d-keep-several-branch-pins-exported"><a class="header" href="#d-keep-several-branch-pins-exported">D. Keep several branch pins exported</a></h3>
+<p>These variables can coexist. After later backports land, switching branches will
+select only that branch’s pin without editing the environment:</p>
+<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS_0_3_23=/data/vsag-deps/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS_0_3_24=/data/vsag-deps/OpenBLAS-0.3.24.tar.gz
+export VSAG_THIRDPARTY_YAML_CPP_0_8_0=/data/vsag-deps/yaml-cpp-0.8.0.tar.gz
+export VSAG_THIRDPARTY_YAML_CPP_0_9_0=/data/vsag-deps/yaml-cpp-0.9.0.tar.gz
+
+git switch main   # selects OpenBLAS 0.3.24 and yaml-cpp 0.9.0
 make release
 </code></pre>
 <h2 id="alternative-reuse-system-libraries"><a class="header" href="#alternative-reuse-system-libraries">Alternative: reuse system libraries</a></h2>
@@ -4314,32 +4527,28 @@ archive and re-host it unchanged, or confirm the expected <code>URL_HASH</code> 
 <code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code>.</li>
 <li><strong>Override seems ignored</strong> — make sure the variable was <code>export</code>ed in the same
 shell that runs <code>make</code> / <code>cmake</code>, then re-run configure (or <code>make clean</code>),
-because the value is read at CMake configure time. Confirm the
-<code>-- Using local path for &lt;lib&gt;: &lt;your value&gt;</code> line appears in the configure output.</li>
+because the value is read at CMake configure time. Confirm that the
+<code>Third-party override</code> diagnostic names the expected pin and variable.</li>
 <li><strong>Still hitting the network</strong> — you probably missed a dependency that your
 build pulls in. Cross-check the list in
 <a href="#which-dependencies-do-i-need">Which dependencies do I need?</a> against your
 enabled options (<code>ENABLE_TESTS</code>, <code>ENABLE_TOOLS</code>, Python bindings).</li>
 </ul>
 <h2 id="version-availability"><a class="header" href="#version-availability">Version availability</a></h2>
-<p>The per-dependency <code>VSAG_THIRDPARTY_*</code> override is available on the <code>main</code>
-development line and on the <code>0.15</code>, <code>0.16</code>, <code>0.17</code>, and <code>0.18</code> release lines, so
-local-path and internal-mirror overrides behave the same way across all of them.
-It was introduced on <code>main</code> by
-<a href="https://github.com/antgroup/vsag/pull/1606">#1606</a> and backported to the release
-lines (tracked in <a href="https://github.com/antgroup/vsag/issues/2308">#2308</a>). The
-built-in upstream + Aliyun OSS mirror fallback remains present on every line, and
-<a href="#alternative-reuse-system-libraries">system-library reuse</a> is still available when
-you would rather not mirror a dependency at all.</p>
+<p>Pinned variables are currently implemented on <code>main</code>; backports to <code>1.0</code>, <code>0.18</code>,
+<code>0.17</code>, and <code>0.16</code> are independent changes because each branch owns its pins. The
+deprecated unversioned overrides remain compatible. They were introduced on <code>main</code>
+by <a href="https://github.com/antgroup/vsag/pull/1606">#1606</a> and backported to release
+lines through <a href="https://github.com/antgroup/vsag/issues/2308">#2308</a>. Built-in URL
+fallbacks and <a href="#alternative-reuse-system-libraries">system-library reuse</a> are unchanged.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="running-tests"><a class="header" href="#running-tests">Running Tests</a></h1>
 <p>VSAG uses <a href="https://github.com/catchorg/Catch2">Catch2</a> for testing, organized in two layers:</p>
 <ul>
 <li><strong>Unit tests</strong> live next to source files under <code>src/</code>.</li>
 <li><strong>Functional tests</strong> live under <code>tests/</code> and cover cross-module, end-to-end behavior. Typical
-files include <code>test_hnsw.cpp</code>, <code>test_hgraph.cpp</code>, <code>test_diskann.cpp</code>, <code>test_ivf.cpp</code>,
-<code>test_pyramid.cpp</code>, <code>test_sindi.cpp</code>, <code>test_brute_force.cpp</code>, <code>test_multi_thread.cpp</code>,
-<code>test_memleak.cpp</code>.</li>
+files include <code>test_hgraph.cpp</code>, <code>test_ivf.cpp</code>, <code>test_pyramid.cpp</code>, <code>test_sindi.cpp</code>,
+<code>test_brute_force.cpp</code>, and <code>test_memleak.cpp</code>.</li>
 </ul>
 <h2 id="run-the-full-suite"><a class="header" href="#run-the-full-suite">Run the Full Suite</a></h2>
 <p><code>make test</code> configures a Debug build with tests enabled and runs the full unit + functional
@@ -4356,7 +4565,7 @@ to collect and aggregate coverage data:</p>
 </code></pre>
 <h2 id="run-a-single-binary"><a class="header" href="#run-a-single-binary">Run a Single Binary</a></h2>
 <pre><code class="language-bash">./build-debug/tests/functional_tests "[hgraph]"
-./build-debug/tests/functional_tests "[hnsw][concurrent]"
+./build-debug/tests/functional_tests "[hgraph][concurrent]"
 </code></pre>
 <p>Catch2 supports filtering by name, tag, and wildcards — see <code>--help</code>.</p>
 <h2 id="coverage-expectations"><a class="header" href="#coverage-expectations">Coverage Expectations</a></h2>
@@ -4366,7 +4575,8 @@ higher, as measured by the <code>make cov</code> flow and the CI coverage job.</
 <ul>
 <li><code>test_memleak.cpp</code>: run under AddressSanitizer / LeakSanitizer to verify construction and
 destruction paths.</li>
-<li><code>test_multi_thread.cpp</code>: concurrent <code>Build</code> / <code>KnnSearch</code> / <code>RangeSearch</code> correctness.</li>
+<li><code>test_index/test_index_concurrent.cpp</code>: shared concurrent add and search correctness for
+maintained indexes that advertise the corresponding feature flags.</li>
 </ul>
 <h2 id="python-tests"><a class="header" href="#python-tests">Python Tests</a></h2>
 <pre><code class="language-bash">make pyvsag PY_VERSION=3.10
@@ -4991,8 +5201,6 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 <tr><td>pyramid</td><td>yes</td><td>yes</td><td>yes</td><td></td></tr>
 <tr><td>lazy_hgraph</td><td>yes</td><td>no</td><td>depends on the active internal index</td><td>DatasetPtr batch calls delegate to the active BruteForce/HGraph; availability can change after a phase transition.</td></tr>
 <tr><td>sindi</td><td>no</td><td>yes</td><td>yes</td><td>Sparse vectors only.</td></tr>
-<tr><td>hnsw</td><td>yes</td><td>no</td><td>no</td><td>Dense batch supports <code>topk == -1</code> only.</td></tr>
-<tr><td>diskann</td><td>yes</td><td>no</td><td>no</td><td>Dense batch supports <code>topk == -1</code> only.</td></tr>
 </tbody>
 </table>
 </div>
@@ -5744,8 +5952,8 @@ blocks. The parameters object can be built from a JSON string and can also carry
 with <code>SetReader</code>. Unsupported policies return an error instead of silently falling back. The API
 currently supports streaming BruteForce, HGraph, IVF, SINDI, and Pyramid indexes. BruteForce
 supports limited block placement policies. HGraph can bind <code>high_precision_codes</code> to an external
-reader through <code>precise_reader</code>. IVF, SINDI, and Pyramid currently load all emitted streaming
-blocks into memory.</p>
+reader through <code>precise_reader</code>. IVF can do the same for either precise-code layout. SINDI and
+Pyramid currently load all emitted streaming blocks into memory.</p>
 <h2 id="file-layout"><a class="header" href="#file-layout">File Layout</a></h2>
 <p>A streaming file starts with a fixed header and then a sequence of TLV blocks:</p>
 <pre><code class="language-text">magic("vsagstm0")
@@ -5845,13 +6053,22 @@ reader.</p>
 <tr><td><code>ivf_bucket</code></td><td>bucket datacell payloads for inverted lists</td><td>yes</td></tr>
 <tr><td><code>ivf_partition_strategy</code></td><td>partition strategy state, such as trained centroids</td><td>yes</td></tr>
 <tr><td><code>label_table</code></td><td>external labels and label remap</td><td>yes</td></tr>
-<tr><td><code>high_precision_codes</code></td><td>reorder codes when IVF reorder is enabled</td><td>conditional</td></tr>
+<tr><td><code>high_precision_codes</code></td><td>flat reorder codes when IVF reorder uses the <code>flat</code> layout</td><td>conditional</td></tr>
+<tr><td><code>ivf_precise_bucket</code></td><td>bucket-aligned reorder codes when IVF uses the <code>bucket</code> layout</td><td>conditional</td></tr>
 <tr><td><code>attribute_filter</code></td><td>optional attribute filter index</td><td>conditional</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>Load</code> can bind either precise-code block to an external reader. Set <code>precise_io_type</code> to
+<code>reader_io</code>, provide <code>precise_reader</code>, and make the reader expose exactly the
+<code>high_precision_codes</code> payload for <code>flat</code> or the <code>ivf_precise_bucket</code> payload for <code>bucket</code>. <code>Load</code>
+validates its size and checksum before the returned index can query it.
+<code>precise_enable_read_cache</code> and <code>precise_cache_total_size</code> configure the normal read cache for
+the remote precise codes.</p>
 <p><code>DeserializeStreaming</code> restores the full in-memory IVF index. <code>Index::Load</code> can create the IVF
-index directly from streaming metadata and currently loads all emitted IVF blocks into memory.</p>
+index directly from streaming metadata. It loads IVF blocks into memory by default; reader-backed
+precise codes remain external. The two precise-code blocks are mutually exclusive and are selected
+by <code>precise_codes_layout</code>.</p>
 <h2 id="sindi-blocks"><a class="header" href="#sindi-blocks">SINDI Blocks</a></h2>
 <p>SINDI writes these streaming blocks in order:</p>
 <div class="table-wrapper">
@@ -5953,8 +6170,8 @@ intermediate data structures that exist only while <code>Build</code> is running
 build is typically higher than the post-build footprint:</p>
 <pre><code class="language-cpp">uint64_t peak = index-&gt;EstimateBuildMemory(1000000);  // bytes
 </code></pre>
-<p>Currently only DiskANN provides a non-trivial implementation; other index types throw
-an exception by default.</p>
+<p>No maintained index currently provides a non-trivial implementation; callers must handle the
+default unsupported-operation exception.</p>
 <h3 id="getmemoryusage"><a class="header" href="#getmemoryusage"><code>GetMemoryUsage()</code></a></h3>
 <p><code>Index::GetMemoryUsage()</code> returns the <strong>current</strong> memory footprint of an index in bytes:</p>
 <pre><code class="language-cpp">uint64_t bytes = index-&gt;GetMemoryUsage();
@@ -6058,7 +6275,7 @@ index falls back to the allocator that was attached to its owning <code>Resource
 <p><strong>Availability.</strong> <code>Index::SearchWithRequest</code> has a default implementation that returns an
 <em>unsupported</em> error. Only HGraph, IVF, BruteForce and WARP implement it today
 (<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>). For indexes that do not yet override
-<code>SearchWithRequest</code> (HNSW, DiskANN, SINDI, Pyramid), use the legacy <code>SearchParam</code>
+<code>SearchWithRequest</code> (SINDI, SINDI_V2 and Pyramid), use the legacy <code>SearchParam</code>
 path described below.</p>
 </blockquote>
 <h2 id="legacy-api--searchparamallocator-deprecated"><a class="header" href="#legacy-api--searchparamallocator-deprecated">Legacy API — <code>SearchParam::allocator</code> <em>(deprecated)</em></a></h2>
@@ -6192,7 +6409,7 @@ evaluation, ground-truth checks, or computing pairwise distances to a known shor
 <pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF)
 auto r = index-&gt;CalcDistancesById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
 
-// Sparse vector indexes (SINDI) — wrap the query in a Dataset
+// Sparse vector indexes (SINDI, SINDI_V2) — wrap the query in a Dataset
 auto query_ds = vsag::Dataset::Make();
 query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
 auto r = index-&gt;CalcDistancesById(query_ds, ids, count, /*calculate_precise_distance=*/true);
@@ -6361,9 +6578,8 @@ named binary stream. Implement <code>Read</code>, <code>AsyncRead</code>, and <c
 <code>MultiRead</code> is optional and improves throughput when the backend supports
 batched IO. <code>vsag::Factory::CreateLocalFileReader</code> is a reference
 implementation for local files.</p>
-<p>Runnable example: <code>examples/cpp/102_index_diskann.cpp</code> (DiskANN deserialization
-uses <code>ReaderSet</code>). See <a href="#serialization">Serialization</a> for the full
-serialize / deserialize matrix.</p>
+<p>See <a href="#readerset">Serialization Types</a> for a <code>ReaderSet</code> construction example
+and <a href="#serialization">Serialization</a> for the full serialize / deserialize matrix.</p>
 <h2 id="logger"><a class="header" href="#logger">Logger</a></h2>
 <p>VSAG uses a single global logger configured through the <code>Options</code> singleton:</p>
 <pre><code class="language-cpp">class MyLogger : public vsag::Logger { /* implement Trace/Debug/Info/... */ };
@@ -6382,7 +6598,6 @@ settings that do not belong to a specific index:</p>
 <tr><th>Setter</th><th>Default</th><th>Notes</th></tr>
 </thead>
 <tbody>
-<tr><td><code>set_num_threads_io(n)</code></td><td><code>8</code></td><td>Threads used for disk-index IO during search. Must be in <code>[1, 200]</code>.</td></tr>
 <tr><td><code>set_num_threads_building(n)</code></td><td><code>4</code></td><td>Threads used while building disk indexes.</td></tr>
 <tr><td><code>set_block_size_limit(bytes)</code></td><td><code>128 MiB</code></td><td>Maximum size of a single allocation block. Must be <code>≥ 256 KiB</code> (<code>src/options.cpp:53-57</code>).</td></tr>
 <tr><td><code>set_direct_IO_object_align_bit(bits)</code></td><td><code>9</code></td><td>Direct-IO alignment, in bits. Must be <code>≤ 21</code> (alignment size up to 2 MiB; <code>src/options.cpp:40-46</code>).</td></tr>
@@ -6415,7 +6630,7 @@ applications.</p>
 <li><code>examples/cpp/202_custom_logger.cpp</code></li>
 <li><code>examples/cpp/203_custom_thread_pool.cpp</code></li>
 <li><code>examples/cpp/301_feature_filter.cpp</code></li>
-<li><code>examples/cpp/102_index_diskann.cpp</code></li>
+<li><code>examples/cpp/401_persistent_kv.cpp</code></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="graph-index-enhancement"><a class="header" href="#graph-index-enhancement">Graph Index Enhancement</a></h1>
@@ -6980,7 +7195,7 @@ std::shared_ptr&lt;vsag::Index&gt; index = result.value();
 <tr><td>Behavior</td><td><code>INDEX_EMPTY</code></td><td>Index is empty; cannot search or serialize.</td></tr>
 <tr><td>Runtime</td><td><code>NO_ENOUGH_MEMORY</code></td><td>Memory allocation failed.</td></tr>
 <tr><td>Runtime</td><td><code>READ_ERROR</code></td><td>Failed to read from a binary.</td></tr>
-<tr><td>Runtime</td><td><code>MISSING_FILE</code></td><td>A required file is missing (e.g. DiskANN deserialization).</td></tr>
+<tr><td>Runtime</td><td><code>MISSING_FILE</code></td><td>A required index file is missing during deserialization.</td></tr>
 <tr><td>Runtime</td><td><code>INVALID_BINARY</code></td><td>Serialized binary content is invalid.</td></tr>
 </tbody>
 </table>
@@ -7061,7 +7276,7 @@ CreateIndex(const std::string&amp; name,
 <tr><th>Parameter</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>name</code></td><td>Index type name, e.g. <code>"hgraph"</code>, <code>"ivf"</code>, <code>"diskann"</code>, <code>"brute_force"</code>, <code>"sindi"</code>, <code>"pyramid"</code>.</td></tr>
+<tr><td><code>name</code></td><td>Index type name, e.g. <code>"hgraph"</code>, <code>"ivf"</code>, <code>"brute_force"</code>, <code>"sindi"</code>, <code>"pyramid"</code>. Removed names such as <code>"hnsw"</code>, <code>"fresh_hnsw"</code>, and <code>"diskann"</code> return <code>UNSUPPORTED_INDEX</code>.</td></tr>
 <tr><td><code>parameters</code></td><td>A JSON string describing the index configuration (dtype, dim, metric, index-specific keys). See <a href="#index-parameters">Index Parameters</a>.</td></tr>
 <tr><td><code>allocator</code></td><td>Optional custom <a href="#allocator"><code>Allocator</code></a>. When <code>nullptr</code>, VSAG uses a built-in default allocator. The caller must keep the allocator alive for the whole lifetime of the returned index.</td></tr>
 </tbody>
@@ -7135,38 +7350,6 @@ engine’s shared <code>Resource</code> (allocator and thread pool) instead of a
 <p>See <a href="#resource-management">Resource Management</a> for how <code>Resource</code>, <code>Allocator</code>, and <code>ThreadPool</code> fit
 together, and <code>examples/cpp/201_custom_allocator.cpp</code> / <code>203_custom_thread_pool.cpp</code> for runnable
 samples.</p>
-<h2 id="top-level-helper-functions"><a class="header" href="#top-level-helper-functions">Top-level helper functions</a></h2>
-<p>These free functions (declared in <code>vsag/index.h</code>) help you generate and validate configuration
-strings before creating an index. All return <code>tl::expected&lt;..., Error&gt;</code>.</p>
-<h3 id="generate_build_parameters"><a class="header" href="#generate_build_parameters"><code>generate_build_parameters</code></a></h3>
-<pre><code class="language-cpp">tl::expected&lt;std::string, Error&gt;
-generate_build_parameters(std::string metric_type,
-                          int64_t num_elements,
-                          int64_t dim,
-                          bool use_conjugate_graph = false);
-</code></pre>
-<p><em>(Experimental.)</em> Produces a suggested build-parameter JSON string from the dataset shape
-(<code>metric_type</code>, <code>num_elements</code>, <code>dim</code>). Pass <code>use_conjugate_graph = true</code> to enable
-<a href="#graph-index-enhancement">conjugate-graph enhancement</a>.</p>
-<h3 id="estimate_search_time"><a class="header" href="#estimate_search_time"><code>estimate_search_time</code></a></h3>
-<pre><code class="language-cpp">tl::expected&lt;float, Error&gt;
-estimate_search_time(const std::string&amp; index_name,
-                     int64_t data_num,
-                     int64_t data_dim,
-                     const std::string&amp; parameters);
-</code></pre>
-<p>Estimates the per-query search time (in milliseconds) for the given index type and configuration.</p>
-<h3 id="check_diskann_hnsw_build_parameters--check_diskann_hnsw_search_parameters"><a class="header" href="#check_diskann_hnsw_build_parameters--check_diskann_hnsw_search_parameters"><code>check_diskann_hnsw_build_parameters</code> / <code>check_diskann_hnsw_search_parameters</code></a></h3>
-<pre><code class="language-cpp">tl::expected&lt;bool, Error&gt;
-check_diskann_hnsw_build_parameters(const std::string&amp; json_string);
-
-tl::expected&lt;bool, Error&gt;
-check_diskann_hnsw_search_parameters(const std::string&amp; json_string);
-</code></pre>
-<p>Validate DiskANN/HNSW build and search parameter JSON respectively. On success the value is <code>true</code>;
-on failure the <code>Error</code> message explains what is wrong. See the
-<a href="#compatibility-check-tool-check_compatibility">Compatibility Check Tool</a> for a CLI wrapper around this kind of
-validation.</p>
 <h2 id="see-also-8"><a class="header" href="#see-also-8">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — what you can do with the index once it is created.</li>
@@ -7176,7 +7359,7 @@ validation.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="index"><a class="header" href="#index">Index</a></h1>
 <p><code>vsag::Index</code> (declared in <code>vsag/index.h</code>) is the central abstraction of the library. Every concrete
-index type — HGraph, IVF, DiskANN, BruteForce, SINDI, Pyramid, and so on — implements this
+index type — HGraph, IVF, BruteForce, SINDI, Pyramid, and so on — implements this
 interface. You never instantiate <code>Index</code> directly; obtain one from
 <a href="#createindex"><code>Factory::CreateIndex</code></a> or <a href="#createindex-1"><code>Engine::CreateIndex</code></a>
 and hold it through <code>IndexPtr</code> (<code>std::shared_ptr&lt;Index&gt;</code>).</p>
@@ -7200,7 +7383,8 @@ must be implemented by every index and are always safe to call.</p>
 <h2 id="enumerations-and-helper-types"><a class="header" href="#enumerations-and-helper-types">Enumerations and helper types</a></h2>
 <h3 id="indextype"><a class="header" href="#indextype"><code>IndexType</code></a></h3>
 <pre><code class="language-cpp">enum class IndexType {
-    HNSW, DISKANN, HGRAPH, IVF, PYRAMID, BRUTEFORCE, SPARSE, SINDI, WARP, LAZY_HGRAPH, SIMQ
+    HGRAPH = 2, IVF = 3, PYRAMID = 4, BRUTEFORCE = 5, SPARSE = 6, SINDI = 7,
+    WARP = 8, LAZY_HGRAPH = 9, SIMQ = 10
 };
 </code></pre>
 <p>Returned by <a href="#getindextype"><code>GetIndexType</code></a>.</p>
@@ -8151,7 +8335,6 @@ vsag::Options::Instance().set_logger(&amp;my_logger);
 <tr><th>Setting</th><th>Accessors</th><th>Default</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td>IO threads</td><td><code>num_threads_io()</code> / <code>set_num_threads_io(n)</code></td><td><code>8</code></td><td>Threads for disk-index IO during search (1–200).</td></tr>
 <tr><td>Build threads</td><td><code>num_threads_building()</code> / <code>set_num_threads_building(n)</code></td><td><code>4</code></td><td>Threads for constructing an index.</td></tr>
 <tr><td>Block size limit</td><td><code>block_size_limit()</code> / <code>set_block_size_limit(bytes)</code></td><td><code>128 MB</code></td><td>Max bytes per allocation block (must be &gt; 2 MB).</td></tr>
 <tr><td>Direct-IO align</td><td><code>direct_IO_object_align_bit()</code> / <code>set_direct_IO_object_align_bit(bits)</code></td><td><code>9</code></td><td>Direct-IO object alignment, in bits (&lt; 21).</td></tr>
@@ -8403,12 +8586,12 @@ instead of raw string literals avoids typos. They fall into several groups:</p>
 <tr><th>Group</th><th>Examples</th></tr>
 </thead>
 <tbody>
-<tr><td>Index type names</td><td><code>INDEX_HGRAPH</code>, <code>INDEX_IVF</code>, <code>INDEX_DISKANN</code>, <code>INDEX_BRUTE_FORCE</code>, <code>INDEX_SINDI</code>, <code>INDEX_PYRAMID</code></td></tr>
+<tr><td>Index type names</td><td><code>INDEX_HGRAPH</code>, <code>INDEX_IVF</code>, <code>INDEX_BRUTE_FORCE</code>, <code>INDEX_SINDI</code>, <code>INDEX_PYRAMID</code></td></tr>
 <tr><td>Dataset field names</td><td><code>DIM</code>, <code>NUM_ELEMENTS</code>, <code>IDS</code>, <code>DISTS</code>, <code>FLOAT32_VECTORS</code>, <code>SPARSE_VECTORS</code></td></tr>
 <tr><td>Metric names</td><td><code>METRIC_L2</code>, <code>METRIC_COSINE</code>, <code>METRIC_IP</code></td></tr>
 <tr><td>Data type names</td><td><code>DATATYPE_FLOAT32</code>, <code>DATATYPE_FLOAT16</code>, <code>DATATYPE_BFLOAT16</code>, <code>DATATYPE_INT8</code>, <code>DATATYPE_SPARSE</code></td></tr>
 <tr><td>Top-level params</td><td><code>PARAMETER_DTYPE</code>, <code>PARAMETER_DIM</code>, <code>PARAMETER_METRIC_TYPE</code>, <code>INDEX_PARAM</code></td></tr>
-<tr><td>Per-index params</td><td><code>HGRAPH_*</code>, <code>IVF_*</code>, <code>DISKANN_PARAMETER_*</code>, <code>PYRAMID_*</code>, <code>BRUTE_FORCE_*</code></td></tr>
+<tr><td>Per-index params</td><td><code>HGRAPH_*</code>, <code>IVF_*</code>, <code>PYRAMID_*</code>, <code>BRUTE_FORCE_*</code></td></tr>
 <tr><td>Statistics keys</td><td><code>STATSTIC_MEMORY</code>, <code>STATSTIC_KNN_TIME</code>, <code>STATSTIC_RANGE_TIME</code></td></tr>
 </tbody>
 </table>
@@ -8465,7 +8648,6 @@ allocator; see <a href="#memory-management">Memory Management</a>.</li>
 <h2 id="tuning"><a class="header" href="#tuning">Tuning</a></h2>
 <ul>
 <li>Use <a href="#optimizer-tune"><code>Tune</code></a> against realistic query distributions.</li>
-<li>Enable the <a href="#graph-index-enhancement">conjugate graph</a> for tail-heavy workloads.</li>
 <li>Treat <a href="#performance-evaluation-tool-eval_performance"><code>eval_performance</code></a> as a continuous regression test.</li>
 </ul>
 <h2 id="deployment"><a class="header" href="#deployment">Deployment</a></h2>
@@ -10053,16 +10235,22 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 <ul>
 <li><strong>Input</strong>: a <code>SearchRequest</code> (query dataset + <code>topk</code> + search parameter JSON).</li>
 <li><strong>Output</strong>: a JSON-formatted string containing dynamic, query-driven metrics.</li>
-<li><strong>Supported indexes</strong>: currently <code>HGraph</code>, <code>IVF</code>, and <code>SINDI</code>. Indexes that do not
+<li><strong>Supported indexes</strong>: currently <code>HGraph</code>, <code>IVF</code>, <code>Pyramid</code>, and <code>SINDI</code>. Indexes that do not
 implement this API will throw an exception when called.</li>
 </ul>
 <p>It is complementary to <code>Index::GetStats()</code>, which reports static structural properties of the
 index without needing query data. For graph-based indexes, additional graph-health details such
 as degree distribution, entry-point quality, sub-index recall and low-recall hot-spots are
 exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBySearch</code>.</p>
-<p>Pyramid exposes its analyzer only through <code>GetStats()</code>. It does not currently override
-<code>AnalyzeIndexBySearch</code>, so calling that API—or using <code>analyze_index --query_path</code> with a Pyramid
-index—throws <code>UNSUPPORTED_INDEX_OPERATION</code>.</p>
+<p>Pyramid query analysis follows the same path-scoping rules as <code>KnnSearch</code>. For the default
+hierarchy, attach one path per query with <code>Dataset::Paths</code>. For a named hierarchy, attach paths
+with <code>Dataset::Paths(hierarchy_name, paths)</code> and select that hierarchy in the Pyramid search
+parameters. A path is required when the selected hierarchy’s root is <code>NO_INDEX</code>. Batched query
+datasets must provide a corresponding path for every query when paths are required or supplied.
+Pyramid calculates ground truth only from vectors eligible for each query’s hierarchy and path,
+excluding mark-removed vectors. Pyramid query analysis currently supports KNN requests only and
+uses <code>query_</code>, <code>topk_</code>, and <code>params_str_</code> from <code>SearchRequest</code>; filtered and iterator requests are
+not supported. Run analysis against a stable index without concurrent add or remove operations.</p>
 <h3 id="static-metrics-from-getstats"><a class="header" href="#static-metrics-from-getstats">Static metrics from <code>GetStats()</code></a></h3>
 <h4 id="hgraph-metrics"><a class="header" href="#hgraph-metrics">HGraph metrics</a></h4>
 <div class="table-wrapper">
@@ -10154,6 +10342,21 @@ SINDI <code>base_path</code> through the analyze parameters or the command-line 
 </tbody>
 </table>
 </div>
+<h4 id="pyramid-metrics-1"><a class="header" href="#pyramid-metrics-1">Pyramid metrics</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>recall_query</code></td><td>Recall against exact ground truth within each query’s selected hierarchy and path</td></tr>
+<tr><td><code>avg_distance_query</code></td><td>Average distance of the path-scoped exact ground-truth neighbors</td></tr>
+<tr><td><code>time_cost_query</code></td><td>Average per-query latency in milliseconds</td></tr>
+<tr><td><code>quantization_error_query</code></td><td>Query-time distance error introduced by base quantization; emitted when reorder is enabled</td></tr>
+<tr><td><code>quantization_inversion_ratio_query</code></td><td>Query-time ordering inversion ratio introduced by base quantization; emitted when reorder is enabled</td></tr>
+</tbody>
+</table>
+</div>
 <h4 id="sindi-metrics-1"><a class="header" href="#sindi-metrics-1">SINDI metrics</a></h4>
 <div class="table-wrapper">
 <table>
@@ -10195,11 +10398,13 @@ needs the query and index postings.</p>
 <tr><td><code>HGraph</code></td><td><code>quantization_inversion_count_rate_query</code></td><td>Quantization-induced ordering errors during search</td></tr>
 <tr><td><code>IVF</code></td><td><code>quantization_bias_ratio</code></td><td>Quantization bias observed during search (only when <code>use_reorder_</code> is enabled)</td></tr>
 <tr><td><code>IVF</code></td><td><code>quantization_inversion_count_rate</code></td><td>Quantization-induced ordering errors during search (only when <code>use_reorder_</code> is enabled)</td></tr>
-<tr><td>For static structure and health information, including degree distributions, entry-point</td><td></td><td></td></tr>
-<tr><td>analysis, and Pyramid subindex quality, use the <code>GetStats()</code> JSON.</td><td></td><td></td></tr>
+<tr><td><code>Pyramid</code></td><td><code>quantization_error_query</code></td><td>Quantization distance error during search (only when reorder is enabled)</td></tr>
+<tr><td><code>Pyramid</code></td><td><code>quantization_inversion_ratio_query</code></td><td>Quantization-induced ordering inversions during search (only when reorder is enabled)</td></tr>
 </tbody>
 </table>
 </div>
+<p>For static structure and health information, including degree distributions, entry-point
+analysis, and Pyramid subindex quality, use the <code>GetStats()</code> JSON.</p>
 <h2 id="the-analyze_index-tool"><a class="header" href="#the-analyze_index-tool">The <code>analyze_index</code> Tool</a></h2>
 <p><code>analyze_index</code> is the user-facing wrapper around the analyzer APIs. It loads a serialized VSAG
 index from disk, prints its metadata and <code>GetStats()</code> output, and (optionally) runs
@@ -10223,7 +10428,7 @@ cmake --build build-release -j
 <tbody>
 <tr><td><code>--index_path</code></td><td><code>-i</code></td><td><strong>Yes</strong></td><td>Path to the serialized VSAG index file.</td></tr>
 <tr><td><code>--build_parameter</code></td><td><code>-bp</code></td><td>No</td><td>Build parameters (JSON) used when reloading the index. Defaults to the parameters embedded in the index file.</td></tr>
-<tr><td><code>--query_path</code></td><td><code>-qp</code></td><td>No</td><td>Binary query dataset path. If omitted, only static analysis is performed.</td></tr>
+<tr><td><code>--query_path</code></td><td><code>-qp</code></td><td>No</td><td>Binary query vector dataset path. This is not Pyramid hierarchy-path metadata. If omitted, only static analysis is performed.</td></tr>
 <tr><td><code>--query_data_type</code></td><td></td><td>No</td><td>Query dataset type: <code>auto</code>, <code>dense</code>, or <code>sparse</code>. <code>auto</code> uses sparse loading for SINDI.</td></tr>
 <tr><td><code>--base_path</code></td><td></td><td>No</td><td>Optional sparse CSR base dataset for SINDI analysis and ground-truth generation.</td></tr>
 <tr><td><code>--groundtruth_path</code></td><td></td><td>No</td><td>Optional SINDI <code>.dev.gt</code> ground-truth file. If present, it is reused.</td></tr>
@@ -10235,6 +10440,11 @@ cmake --build build-release -j
 </div>
 <p>The query file format is the simple binary <code>(uint32 rows, uint32 cols, float32 data...)</code> layout
 consumed by <code>load_query()</code> in <code>tools/analyze_index/analyze_index.cpp</code>.</p>
+<p>The dense query format contains vectors only. The tool does not currently provide a way to attach
+default or named Pyramid hierarchy paths to the loaded <code>Dataset</code>. Therefore it cannot express
+path-scoped Pyramid queries or run dynamic analysis when the selected hierarchy’s root is
+<code>NO_INDEX</code>. Static Pyramid analysis through <code>GetStats()</code> remains available. For path-scoped
+dynamic analysis, call the C++ API and attach the paths to the query dataset.</p>
 <p>For SINDI, query and base datasets use CSR sparse binary layout:
 <code>int64 nrow, int64 ncol, int64 nnz</code>, followed by <code>int64 indptr[nrow + 1]</code>,
 <code>int32 indices[nnz]</code>, and <code>float32 data[nnz]</code>. SINDI ground truth uses <code>.dev.gt</code> layout:
@@ -10296,7 +10506,7 @@ cmake --build build-release -j
 </code></pre>
 <h2 id="inputs"><a class="header" href="#inputs">Inputs</a></h2>
 <p>The command accepts one positional identifier in the form <code>&lt;tag&gt;_&lt;algo_name&gt;</code>, for example
-<code>v1.0.0_hnsw</code>. For that identifier, the tool expects these files under <code>/tmp/</code>:</p>
+<code>v1.1.0_hgraph</code>. For that identifier, the tool expects these files under <code>/tmp/</code>:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -10312,7 +10522,7 @@ cmake --build build-release -j
 </div>
 <p>These files are usually generated by compatibility fixtures from previous releases.</p>
 <h2 id="usage"><a class="header" href="#usage">Usage</a></h2>
-<pre><code class="language-bash">./build-release/tools/check_compatibility/check_compatibility v1.0.0_hnsw
+<pre><code class="language-bash">./build-release/tools/check_compatibility/check_compatibility v1.1.0_hgraph
 </code></pre>
 <p>The tool creates a current-version index instance, deserializes the old index file, then runs a
 small KNN search. It prints <code>&lt;identifier&gt; success</code> when both load and search succeed; otherwise it

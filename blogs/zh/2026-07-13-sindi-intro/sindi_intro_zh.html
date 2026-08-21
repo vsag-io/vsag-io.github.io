@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c499d03a.js";
+            window.path_to_searchindex_js = "../searchindex-4292866c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-3c156eef.js"></script>
@@ -489,7 +489,7 @@ auto result = index-&gt;KnnSearch(query, 10, sindi_search_parameters).value();
 <h1 id="4总结"><a class="header" href="#4总结">4、总结</a></h1>
 <p>SINDI 是 VSAG 为稀疏向量检索设计的 <strong><code>高性能倒排索引</code></strong> 。它利用稀疏向量 <strong><code>只在少量词项上非零</code></strong> 的特点，把最大内积搜索转换成对相关倒排列表的顺序扫描和得分叠加。再通过 <strong><code>窗口化数据布局</code></strong> 、<strong><code>带权倒排列表</code></strong> 、<strong><code>多层剪枝</code></strong> 、<strong><code>8-bit 量化</code></strong> 和 <strong><code>高精度重排</code></strong> ，形成一套兼顾成本、性能和召回的工程方案。</p>
 <p>在 RAG 和搜索系统中，SINDI 可以很好地承担 <strong><code>稀疏向量召回</code></strong> 这一层。它比 <strong><code>纯词法检索（Lexical Retrieval）</code></strong> 更有语义扩展能力，又比稠密向量更容易解释和排查。对于已使用 VSAG 稠密索引的开发者，SINDI 也是一个自然的补充方向，可以让 <strong><code>混合召回链路</code></strong> 更加完整。</p>
-<p>SINDI 更适合以下场景：1）需要语义扩展能力的稀疏向量召回；2）内存、构建成本和查询吞吐都比较敏感的大规模检索；3）需要通过 term 匹配排查 bad case 的调试场景。它不适合替代纯稠密向量检索；如果任务只需要稠密语义召回，可以优先使用 VSAG 的 HNSW 等稠密索引。对于超小规模数据，倒排索引的结构优势也不一定明显。</p>
+<p>SINDI 更适合以下场景：1）需要语义扩展能力的稀疏向量召回；2）内存、构建成本和查询吞吐都比较敏感的大规模检索；3）需要通过 term 匹配排查 bad case 的调试场景。它不适合替代纯稠密向量检索；如果任务只需要稠密语义召回，可以优先使用 VSAG 的 HGraph 等稠密索引。对于超小规模数据，倒排索引的结构优势也不一定明显。</p>
 <p>需要注意的是，SINDI 目前不支持硬删除，对于过滤场景的支持也比较有限。此外，窗口大小、候选数量、剪枝比例和量化配置都和数据分布相关，需要通过 analyze 输出和召回评测逐步调参。</p>
 <h1 id="5参考"><a class="header" href="#5参考">5、参考</a></h1>
 <h2 id="1数据集地址"><a class="header" href="#1数据集地址">（1）数据集地址：</a></h2>

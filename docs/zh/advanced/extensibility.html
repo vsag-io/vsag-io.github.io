@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -376,8 +376,8 @@ per-stream 的 <code>Reader</code> 从任意存储后端（本地文件、对象
 反序列化索引。至少实现 <code>Read</code>、<code>AsyncRead</code>、<code>Size</code> 三个方法；<code>MultiRead</code> 是
 可选的，当底层支持批量 IO 时能显著提升吞吐。<code>vsag::Factory::CreateLocalFileReader</code>
 是本地文件的参考实现。</p>
-<p>可运行示例：<code>examples/cpp/102_index_diskann.cpp</code>（DiskANN 的反序列化基于
-<code>ReaderSet</code>）。完整的序列化/反序列化矩阵见 <a href="serialization.html">序列化</a>。</p>
+<p>如何构造 <code>ReaderSet</code> 见 <a href="../api/serialization.html#readerset">序列化类型</a>；完整的
+序列化/反序列化矩阵见 <a href="serialization.html">序列化</a>。</p>
 <h2 id="logger"><a class="header" href="#logger">Logger</a></h2>
 <p>VSAG 使用全局唯一的 logger，通过 <code>Options</code> 单例配置：</p>
 <pre><code class="language-cpp">class MyLogger : public vsag::Logger { /* 实现 Trace/Debug/Info/... */ };
@@ -396,7 +396,6 @@ vsag::Options::Instance().set_logger(&amp;my_logger);
 <tr><th>接口</th><th>默认值</th><th>备注</th></tr>
 </thead>
 <tbody>
-<tr><td><code>set_num_threads_io(n)</code></td><td><code>8</code></td><td>搜索时磁盘索引的 IO 线程数，取值范围 <code>[1, 200]</code>。</td></tr>
 <tr><td><code>set_num_threads_building(n)</code></td><td><code>4</code></td><td>构建磁盘索引使用的线程数。</td></tr>
 <tr><td><code>set_block_size_limit(bytes)</code></td><td><code>128 MiB</code></td><td>单次分配 block 的最大值，必须 ≥ 256 KiB（见 <code>src/options.cpp:53-57</code>）。</td></tr>
 <tr><td><code>set_direct_IO_object_align_bit(bits)</code></td><td><code>9</code></td><td>Direct-IO 对齐位数，必须 ≤ 21（见 <code>src/options.cpp:40-46</code>）。</td></tr>
@@ -427,7 +426,7 @@ C++ 应用应直接使用标准的 <code>vsag::Index</code> API。</p>
 <li><code>examples/cpp/202_custom_logger.cpp</code></li>
 <li><code>examples/cpp/203_custom_thread_pool.cpp</code></li>
 <li><code>examples/cpp/301_feature_filter.cpp</code></li>
-<li><code>examples/cpp/102_index_diskann.cpp</code></li>
+<li><code>examples/cpp/401_persistent_kv.cpp</code></li>
 </ul>
 
                     </main>

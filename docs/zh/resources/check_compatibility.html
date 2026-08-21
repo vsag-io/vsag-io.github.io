@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -319,7 +319,7 @@
 cmake --build build-release -j
 </code></pre>
 <h2 id="输入"><a class="header" href="#输入">输入</a></h2>
-<p>命令接收一个形如 <code>&lt;tag&gt;_&lt;algo_name&gt;</code> 的位置参数，例如 <code>v1.0.0_hnsw</code>。对于该标识，工具会在
+<p>命令接收一个形如 <code>&lt;tag&gt;_&lt;algo_name&gt;</code> 的位置参数，例如 <code>v1.1.0_hgraph</code>。对于该标识，工具会在
 <code>/tmp/</code> 下查找以下文件：</p>
 <div class="table-wrapper">
 <table>
@@ -336,7 +336,7 @@ cmake --build build-release -j
 </div>
 <p>这些文件通常由旧版本兼容性 fixture 生成。</p>
 <h2 id="使用"><a class="header" href="#使用">使用</a></h2>
-<pre><code class="language-bash">./build-release/tools/check_compatibility/check_compatibility v1.0.0_hnsw
+<pre><code class="language-bash">./build-release/tools/check_compatibility/check_compatibility v1.1.0_hgraph
 </code></pre>
 <p>工具会创建当前版本的索引实例，反序列化旧索引文件，然后执行一次小规模 KNN 搜索。加载和搜索都成功
 时输出 <code>&lt;identifier&gt; success</code>；否则输出 <code>&lt;identifier&gt; failed</code> 并以非零状态退出。</p>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -379,8 +379,8 @@ for (int64_t i = 0; i &lt; result-&gt;GetDim(); ++i) {
 <p>The result contains up to <code>k</code> neighbors sorted by ascending distance to the query.</p>
 <h2 id="threshold-filtering"><a class="header" href="#threshold-filtering">Threshold Filtering</a></h2>
 <p>Threshold filtering is supported by the maintained indexes: BruteForce, HGraph, IVF, Pyramid,
-SINDI, and SIMQ. HNSW and DiskANN are deprecated and are explicit unsupported
-non-goals; this option does not add or change behavior for either legacy index.</p>
+SINDI, and SIMQ. HNSW and DiskANN are removed and unsupported; this option does not add or change
+behavior for either legacy index.</p>
 <p>KNN search accepts an optional top-level <code>threshold</code> in the JSON search parameters:</p>
 <pre><code class="language-json">{
   "threshold": 4.0,

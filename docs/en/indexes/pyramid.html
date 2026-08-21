@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -404,6 +404,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Fast RaBitQ refinement rounds in <code>[1, 32]</code>.</td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Base and reorder storage backends; <code>uring_io</code> is available in builds with liburing.</td></tr>
 <tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>Required for disk-backed storage such as <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, or <code>mmap_io</code>.</td></tr>
+<tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Preserve an FP32 copy for <code>GetRawVectorByIds</code> and precise distance-by-id calculations.</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>Minimum sub-index size; smaller groups fall back to scan.</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Allow duplicate ids.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>Threads used for parallel build.</td></tr>
@@ -442,6 +443,8 @@ reordering; both encode the same truncated vector. Pyramid uses split code-to-co
 graph promotion and does not retain the original FP32 vectors. Metrics that require decodable
 vectors are marked unavailable unless <code>store_raw_vector</code> was enabled at build time. Truncation can
 reduce recall unless the embedding model was trained for prefix dimensions.</p>
+<h2 id="build-cache"><a class="header" href="#build-cache">Build cache</a></h2>
+<p><code>ExportCache</code> captures per-hierarchy, per-node NSW graph seeds and <code>ImportCache</code> makes them available to a later <code>Build</code>. Cache data uses the index cache payload format, not the streaming index serialization format. Set <code>persist_source_id: true</code> before footer-serializing an index whose cache will be reused, and provide a unique <code>Dataset::SourceID</code> for every vector in both builds. Cache warm builds apply only to <code>graph_type: "nsw"</code>; ODescent, duplicate-ID mode, missing source IDs, and duplicate source IDs automatically fall back to a normal cold build. <code>ef_construction</code> is not an eligibility condition for the cache path. Fully restored cached graph rows are retained, while cache misses are constructed from the current vectors.</p>
 <h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>pyramid</code> sub-object:</p>
 <div class="table-wrapper">
@@ -571,8 +574,12 @@ let you skip graph construction for partitions too small to benefit.</li>
 <p>If you don’t need path-based scoping, <a href="hgraph.html">HGraph</a> is simpler and generally
 faster.</p>
 <p>Use <a href="../resources/analyze_index.html">Index Analysis</a> to inspect Pyramid tree structure,
-per-subindex quality, sampled base recall, and duplicate ratios reported by <code>GetStats()</code>. Pyramid
-does not currently expose query-driven metrics through <code>AnalyzeIndexBySearch</code>.</p>
+per-subindex quality, sampled base recall, and duplicate ratios reported by <code>GetStats()</code>.
+<code>AnalyzeIndexBySearch</code> also reports path-scoped query recall, distance, latency, and, when reorder
+is enabled, quantization metrics. Its query dataset must carry the same default or named-hierarchy
+paths required by <code>KnnSearch</code>; when paths are required or supplied for a batched dataset, provide
+one path per query. The <code>analyze_index</code> tool cannot currently load hierarchy paths from its dense
+query file, so use the C++ API for path-scoped dynamic analysis.</p>
 <h2 id="mark-remove"><a class="header" href="#mark-remove">Mark remove</a></h2>
 <p>Pyramid supports <code>RemoveMode::MARK_REMOVE</code>. Calling <code>Remove(ids)</code> (the default
 mode) tombstones the given ids: they are excluded from subsequent search results,

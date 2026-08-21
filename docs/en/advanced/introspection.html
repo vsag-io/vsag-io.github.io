@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -339,7 +339,7 @@ evaluation, ground-truth checks, or computing pairwise distances to a known shor
 <pre><code class="language-cpp">// Dense vector indexes (HGraph, BruteForce, IVF)
 auto r = index-&gt;CalcDistancesById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
 
-// Sparse vector indexes (SINDI) — wrap the query in a Dataset
+// Sparse vector indexes (SINDI, SINDI_V2) — wrap the query in a Dataset
 auto query_ds = vsag::Dataset::Make();
 query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
 auto r = index-&gt;CalcDistancesById(query_ds, ids, count, /*calculate_precise_distance=*/true);

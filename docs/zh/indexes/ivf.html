@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -371,6 +371,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第一级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
 <tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第二级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
 <tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>中心训练方式：<code>kmeans</code> 或 <code>random</code></td></tr>
+<tr><td><code>route_max_degree</code></td><td>int</td><td><code>64</code></td><td>路由 HGraph 的最大度数（<code>ivf</code> 策略下生效）</td></tr>
+<tr><td><code>route_ef_construction</code></td><td>int</td><td><code>300</code></td><td>路由 HGraph 的构建搜索宽度（<code>ivf</code> 策略下生效）</td></tr>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> —— 各量化器细节见<a href="../quantization/README.html">量化章节</a></td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
 <tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td><code>base_quantization_type: "rabitq"</code> 时可选的 PCA 预处理维度</td></tr>
@@ -383,12 +385,31 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>CAQ 微调轮数，允许范围 <code>[1, 32]</code></td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排量化类型（<code>use_reorder: true</code> 时使用）</td></tr>
+<tr><td><code>precise_codes_layout</code></td><td>string</td><td><code>"flat"</code></td><td>精排 codes 的存储布局：<code>"flat"</code> 保持旧的一向量一码布局；<code>"bucket"</code> 在 basic posting 的相同 bucket 和 offset 保存高精度 code</td></tr>
 <tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>粗排向量的存储后端；以 liburing 构建时支持 <code>uring_io</code></td></tr>
 <tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>精排向量的存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>mmap_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>reader_io</code>）</td></tr>
 <tr><td><code>precise_file_path</code></td><td>string</td><td><code>""</code></td><td>当精排 IO 为磁盘后端时的文件路径</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>precise_codes_layout: "bucket"</code> 要求 <code>use_reorder: true</code>，支持 <code>memory_io</code>、
+<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code> 和 <code>uring_io</code>
+（需要构建环境支持 io_uring）。不支持 <code>mmap_io</code> 和 <code>pqfs</code> 精排量化。bucket 布局当前
+要求 <code>buckets_per_data: 1</code>；一个向量分配到多个 bucket 的配置会被拒绝。</p>
+<p>对于 <code>flat</code> 和 <code>bucket</code> 两种布局，序列化后的精排 codes 都可以通过外部 <code>Reader</code>
+只读加载。向 <code>Index::Load</code> 传入 <code>precise_io_type: "reader_io"</code> 和 <code>precise_reader</code>。
+<code>flat</code> 布局的 reader 必须恰好对应 <code>high_precision_codes</code> block payload，<code>bucket</code> 布局
+则必须对应 <code>ivf_precise_bucket</code> block payload。启用 <code>precise_enable_read_cache</code> 后，
+<code>reader_io</code> 会使用通用读缓存。</p>
+<pre><code class="language-cpp">vsag::LoadParameters load_parameters;
+load_parameters.Set("precise_io_type", "reader_io")
+    .Set("precise_enable_read_cache", true)
+    .Set("precise_cache_total_size", 256ULL * 1024 * 1024)
+    .SetReader("precise_reader", precise_codes_reader);
+auto loaded = vsag::Index::Load(stream, load_parameters).value();
+</code></pre>
+<p><code>reader_io</code> 是加载与查询阶段的只读放置策略。构建时应使用可写的 precise IO，序列化后
+再在查询服务加载索引时绑定外部 reader。</p>
 <p><code>buckets_count</code> 的经验值一般为 <code>sqrt(N)</code> ~ <code>4 * sqrt(N)</code>，其中 <code>N</code> 是语料规模。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>ivf</code> 子对象下：</p>

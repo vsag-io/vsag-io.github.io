@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -320,16 +320,22 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 <ul>
 <li><strong>Input</strong>: a <code>SearchRequest</code> (query dataset + <code>topk</code> + search parameter JSON).</li>
 <li><strong>Output</strong>: a JSON-formatted string containing dynamic, query-driven metrics.</li>
-<li><strong>Supported indexes</strong>: currently <code>HGraph</code>, <code>IVF</code>, and <code>SINDI</code>. Indexes that do not
+<li><strong>Supported indexes</strong>: currently <code>HGraph</code>, <code>IVF</code>, <code>Pyramid</code>, and <code>SINDI</code>. Indexes that do not
 implement this API will throw an exception when called.</li>
 </ul>
 <p>It is complementary to <code>Index::GetStats()</code>, which reports static structural properties of the
 index without needing query data. For graph-based indexes, additional graph-health details such
 as degree distribution, entry-point quality, sub-index recall and low-recall hot-spots are
 exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBySearch</code>.</p>
-<p>Pyramid exposes its analyzer only through <code>GetStats()</code>. It does not currently override
-<code>AnalyzeIndexBySearch</code>, so calling that API—or using <code>analyze_index --query_path</code> with a Pyramid
-index—throws <code>UNSUPPORTED_INDEX_OPERATION</code>.</p>
+<p>Pyramid query analysis follows the same path-scoping rules as <code>KnnSearch</code>. For the default
+hierarchy, attach one path per query with <code>Dataset::Paths</code>. For a named hierarchy, attach paths
+with <code>Dataset::Paths(hierarchy_name, paths)</code> and select that hierarchy in the Pyramid search
+parameters. A path is required when the selected hierarchy’s root is <code>NO_INDEX</code>. Batched query
+datasets must provide a corresponding path for every query when paths are required or supplied.
+Pyramid calculates ground truth only from vectors eligible for each query’s hierarchy and path,
+excluding mark-removed vectors. Pyramid query analysis currently supports KNN requests only and
+uses <code>query_</code>, <code>topk_</code>, and <code>params_str_</code> from <code>SearchRequest</code>; filtered and iterator requests are
+not supported. Run analysis against a stable index without concurrent add or remove operations.</p>
 <h3 id="static-metrics-from-getstats"><a class="header" href="#static-metrics-from-getstats">Static metrics from <code>GetStats()</code></a></h3>
 <h4 id="hgraph-metrics"><a class="header" href="#hgraph-metrics">HGraph metrics</a></h4>
 <div class="table-wrapper">
@@ -421,6 +427,21 @@ SINDI <code>base_path</code> through the analyze parameters or the command-line 
 </tbody>
 </table>
 </div>
+<h4 id="pyramid-metrics-1"><a class="header" href="#pyramid-metrics-1">Pyramid metrics</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Metric</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>recall_query</code></td><td>Recall against exact ground truth within each query’s selected hierarchy and path</td></tr>
+<tr><td><code>avg_distance_query</code></td><td>Average distance of the path-scoped exact ground-truth neighbors</td></tr>
+<tr><td><code>time_cost_query</code></td><td>Average per-query latency in milliseconds</td></tr>
+<tr><td><code>quantization_error_query</code></td><td>Query-time distance error introduced by base quantization; emitted when reorder is enabled</td></tr>
+<tr><td><code>quantization_inversion_ratio_query</code></td><td>Query-time ordering inversion ratio introduced by base quantization; emitted when reorder is enabled</td></tr>
+</tbody>
+</table>
+</div>
 <h4 id="sindi-metrics-1"><a class="header" href="#sindi-metrics-1">SINDI metrics</a></h4>
 <div class="table-wrapper">
 <table>
@@ -462,11 +483,13 @@ needs the query and index postings.</p>
 <tr><td><code>HGraph</code></td><td><code>quantization_inversion_count_rate_query</code></td><td>Quantization-induced ordering errors during search</td></tr>
 <tr><td><code>IVF</code></td><td><code>quantization_bias_ratio</code></td><td>Quantization bias observed during search (only when <code>use_reorder_</code> is enabled)</td></tr>
 <tr><td><code>IVF</code></td><td><code>quantization_inversion_count_rate</code></td><td>Quantization-induced ordering errors during search (only when <code>use_reorder_</code> is enabled)</td></tr>
-<tr><td>For static structure and health information, including degree distributions, entry-point</td><td></td><td></td></tr>
-<tr><td>analysis, and Pyramid subindex quality, use the <code>GetStats()</code> JSON.</td><td></td><td></td></tr>
+<tr><td><code>Pyramid</code></td><td><code>quantization_error_query</code></td><td>Quantization distance error during search (only when reorder is enabled)</td></tr>
+<tr><td><code>Pyramid</code></td><td><code>quantization_inversion_ratio_query</code></td><td>Quantization-induced ordering inversions during search (only when reorder is enabled)</td></tr>
 </tbody>
 </table>
 </div>
+<p>For static structure and health information, including degree distributions, entry-point
+analysis, and Pyramid subindex quality, use the <code>GetStats()</code> JSON.</p>
 <h2 id="the-analyze_index-tool"><a class="header" href="#the-analyze_index-tool">The <code>analyze_index</code> Tool</a></h2>
 <p><code>analyze_index</code> is the user-facing wrapper around the analyzer APIs. It loads a serialized VSAG
 index from disk, prints its metadata and <code>GetStats()</code> output, and (optionally) runs
@@ -490,7 +513,7 @@ cmake --build build-release -j
 <tbody>
 <tr><td><code>--index_path</code></td><td><code>-i</code></td><td><strong>Yes</strong></td><td>Path to the serialized VSAG index file.</td></tr>
 <tr><td><code>--build_parameter</code></td><td><code>-bp</code></td><td>No</td><td>Build parameters (JSON) used when reloading the index. Defaults to the parameters embedded in the index file.</td></tr>
-<tr><td><code>--query_path</code></td><td><code>-qp</code></td><td>No</td><td>Binary query dataset path. If omitted, only static analysis is performed.</td></tr>
+<tr><td><code>--query_path</code></td><td><code>-qp</code></td><td>No</td><td>Binary query vector dataset path. This is not Pyramid hierarchy-path metadata. If omitted, only static analysis is performed.</td></tr>
 <tr><td><code>--query_data_type</code></td><td></td><td>No</td><td>Query dataset type: <code>auto</code>, <code>dense</code>, or <code>sparse</code>. <code>auto</code> uses sparse loading for SINDI.</td></tr>
 <tr><td><code>--base_path</code></td><td></td><td>No</td><td>Optional sparse CSR base dataset for SINDI analysis and ground-truth generation.</td></tr>
 <tr><td><code>--groundtruth_path</code></td><td></td><td>No</td><td>Optional SINDI <code>.dev.gt</code> ground-truth file. If present, it is reused.</td></tr>
@@ -502,6 +525,11 @@ cmake --build build-release -j
 </div>
 <p>The query file format is the simple binary <code>(uint32 rows, uint32 cols, float32 data...)</code> layout
 consumed by <code>load_query()</code> in <code>tools/analyze_index/analyze_index.cpp</code>.</p>
+<p>The dense query format contains vectors only. The tool does not currently provide a way to attach
+default or named Pyramid hierarchy paths to the loaded <code>Dataset</code>. Therefore it cannot express
+path-scoped Pyramid queries or run dynamic analysis when the selected hierarchy’s root is
+<code>NO_INDEX</code>. Static Pyramid analysis through <code>GetStats()</code> remains available. For path-scoped
+dynamic analysis, call the C++ API and attach the paths to the query dataset.</p>
 <p>For SINDI, query and base datasets use CSR sparse binary layout:
 <code>int64 nrow, int64 ncol, int64 nnz</code>, followed by <code>int64 indptr[nrow + 1]</code>,
 <code>int32 indices[nnz]</code>, and <code>float32 data[nnz]</code>. SINDI ground truth uses <code>.dev.gt</code> layout:

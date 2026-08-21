@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -321,6 +321,7 @@ structures and trade-offs they use under the hood.</p>
 <tr><td><code>ivf</code></td><td><a href="ivf.html">IVF</a></td><td>Partition-based search, high-throughput batch queries, large corpora</td></tr>
 <tr><td><code>sindi</code></td><td><a href="sindi.html">SINDI</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product</td></tr>
 <tr><td><code>simq</code></td><td><a href="simq.html">SIMQ</a></td><td>ColBERT-style multi-vector retrieval (MaxSim)</td></tr>
+<tr><td><code>sindi_v2</code></td><td><a href="sindi_v2.html">SINDI_V2</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product; supports both in-memory and disk-based I/O</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="pyramid.html">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
 </tbody>
 </table>
@@ -336,14 +337,14 @@ structures and trade-offs they use under the hood.</p>
 </thead>
 <tbody>
 <tr><td><code>dim</code></td><td>positive integer</td><td>Vector dimensionality; fixed after build</td></tr>
-<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> is SINDI only</td></tr>
-<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Must match at query time (SINDI is <code>ip</code> only)</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> is for SINDI / SINDI_V2</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>Must match at query time (SINDI / SINDI_V2 are <code>ip</code> only)</td></tr>
 </tbody>
 </table>
 </div>
 <p>Index-specific build parameters live under the <code>index_param</code> sub-object; search-time
 parameters live under a sub-object named after the index (e.g. <code>hgraph</code>, <code>ivf</code>,
-<code>sindi</code>, <code>pyramid</code>). LazyHGraph also uses the <code>hgraph</code> search object after it
+<code>sindi</code>, <code>sindi_v2</code>, <code>pyramid</code>). LazyHGraph also uses the <code>hgraph</code> search object after it
 converts to graph phase. Concrete schemas are documented on each page and enumerated in
 <a href="../resources/index_parameters.html">Index Parameters</a>.</p>
 

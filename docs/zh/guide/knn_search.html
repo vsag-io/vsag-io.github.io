@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -379,7 +379,7 @@
 <p>搜索请求至多返回 k 个结果，这些结果按照最近邻和查询向量的距离升序排序。输出的结果类似于：</p>
 <h2 id="按阈值过滤"><a class="header" href="#按阈值过滤">按阈值过滤</a></h2>
 <p>阈值过滤支持仍在维护的索引：BruteForce、HGraph、IVF、Pyramid、SINDI 和 SIMQ。
-HNSW 和 DiskANN 已弃用，是明确不在范围内的目标；本选项不会为这两个旧索引新增或修改行为。</p>
+HNSW 和 DiskANN 已移除且不受支持；本选项不会为这两个旧索引新增或修改行为。</p>
 <p>KNN 搜索参数支持在 JSON 顶层设置可选的 <code>threshold</code>：</p>
 <pre><code class="language-json">{
   "threshold": 4.0,

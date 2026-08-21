@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -312,7 +312,7 @@
 <li><strong>Compiler</strong>: GCC 9.4.0+, Clang 13.0.0+, or Apple Clang from Xcode Command Line Tools</li>
 <li><strong>CMake</strong>: 3.18.0+</li>
 <li><strong>clang-format / clang-tidy</strong>: exactly version 15 (enforced)</li>
-<li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for DiskANN async IO),
+<li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for the <code>async_io</code> data-cell backend),
 liburing (for <code>uring_io</code> on Linux), Intel MKL.</li>
 </ul>
 <p>We recommend using the official Docker dev image, which already contains the matching toolchain:</p>
@@ -362,7 +362,7 @@ cache options (<code>ENABLE_*</code>). Defaults below reflect a plain <code>make
 </thead>
 <tbody>
 <tr><td><code>VSAG_ENABLE_INTEL_MKL</code></td><td><code>ENABLE_INTEL_MKL</code></td><td><code>OFF</code></td><td>Use Intel MKL for BLAS kernels</td></tr>
-<tr><td><code>VSAG_ENABLE_LIBAIO</code></td><td><code>ENABLE_LIBAIO</code></td><td><code>ON</code> on Linux</td><td>Enable DiskANN async IO via libaio</td></tr>
+<tr><td><code>VSAG_ENABLE_LIBAIO</code></td><td><code>ENABLE_LIBAIO</code></td><td><code>ON</code> on Linux</td><td>Enable the <code>async_io</code> data-cell backend via libaio</td></tr>
 <tr><td><code>VSAG_ENABLE_TOOLS</code></td><td><code>ENABLE_TOOLS</code></td><td><code>OFF</code></td><td>Build utilities under <code>tools/</code></td></tr>
 <tr><td><code>VSAG_ENABLE_EXAMPLES</code></td><td><code>ENABLE_EXAMPLES</code></td><td><code>OFF</code></td><td>Build sample programs under <code>examples/cpp/</code></td></tr>
 <tr><td>n/a</td><td><code>ENABLE_LIBURING</code></td><td><code>OFF</code></td><td>Enable the Linux <code>uring_io</code> backend when liburing is installed</td></tr>
@@ -381,7 +381,7 @@ that requests <code>uring_io</code> then logs a one-time warning and falls back 
 <p>VSAG downloads its third-party libraries at configure/build time. In offline or
 restricted-network environments, set the per-dependency <code>VSAG_THIRDPARTY_*</code>
 environment variables to fetch each archive from a local path or an internal
-mirror (internal HTTP server, OSS bucket, etc.). See
+mirror (internal HTTP server, object storage, etc.). See
 <a href="offline_build.html">Offline / Air-gapped Builds</a> for the full list of variables
 and worked examples.</p>
 <h2 id="python-wheel-pyvsag"><a class="header" href="#python-wheel-pyvsag">Python Wheel (pyvsag)</a></h2>

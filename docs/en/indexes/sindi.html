@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -309,7 +309,7 @@
 <p>SINDI (<strong>S</strong>parse <strong>IN</strong>verted <strong>D</strong>ense <strong>I</strong>ndex) is VSAG’s index for <strong>sparse
 vectors</strong> — the kind produced by BM25, SPLADE, and other learned-sparse encoders.
 Unlike the dense indexes (HGraph, IVF), SINDI operates directly on term/value
-pairs and is the only VSAG index that accepts <code>dtype: "sparse"</code>.</p>
+pairs and is one of the VSAG indexes that accepts <code>dtype: "sparse"</code>.</p>
 <ul>
 <li>Source: <code>src/algorithm/sindi/</code></li>
 <li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/109_index_sindi.cpp"><code>examples/cpp/109_index_sindi.cpp</code></a></li>
@@ -331,6 +331,8 @@ DMQ store to reduce rerank memory.</li>
 </ol>
 <p>Distance is returned as <code>1 - inner_product</code> so results sort ascending as in the
 dense indexes.</p>
+<p>For deployments that need both in-memory and disk-based I/O, use
+<a href="sindi_v2.html">SINDI_V2</a>.</p>
 <h2 id="quick-start"><a class="header" href="#quick-start">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
@@ -446,6 +448,7 @@ Indexes written without this marker remain compatible and are normalized during 
 </thead>
 <tbody>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Candidate heap size. When <code>0</code>, defaults to <code>SPARSE_AMPLIFICATION_FACTOR · topk</code> (500×). If set, must satisfy <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code>.</td></tr>
+<tr><td><code>filter_callback_limit</code></td><td>uint64</td><td><code>0</code></td><td>Maximum user <code>Filter::CheckValid</code> callback invocations for one filtered search request. A value of <code>0</code> disables the limit. Internal checks such as the deleted-ID filter do not count. Reaching a positive limit stops candidate and window scanning after processing the final callback result and returns the already filtered candidates, so the result may be partial. The limit applies to KNN and range search through both the regular APIs and <code>SearchWithRequest</code>.</td></tr>
 <tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight query terms skipped (<code>[0.0, 1.0)</code>).</td></tr>
 <tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest-value postings skipped from each term list (<code>[0.0, 1.0)</code>).</td></tr>
 <tr><td><code>term_retain_threshold</code></td><td>uint64</td><td><code>0</code></td><td>Maximum postings for one term across all windows. A value of <code>0</code> disables this limit; positive values allow each non-empty window posting list to scan at most <code>max(1, floor(threshold / window_count))</code> postings.</td></tr>
@@ -454,7 +457,11 @@ Indexes written without this marker remain compatible and are normalized during 
 </div>
 <p>After combining the ratio and threshold limits, SINDI scans at least one posting from every
 non-empty term list.</p>
-<p>SINDI chooses the heap-insertion strategy automatically from the build-time
+<p>Within each window, postings for a term are sorted by their stored value in descending
+order, then by internal document id in ascending order. If both term-prune limits are
+enabled, the scanned prefix is the smaller of
+<code>floor(list_size · (1 - ratio))</code> and <code>floor(threshold / window_count)</code>.
+SINDI chooses the heap-insertion strategy automatically from the build-time
 <code>doc_prune_ratio</code> and search-time <code>query_prune_ratio</code>. With the current <code>0.1</code>
 threshold, SINDI uses the distance-array insertion path when both ratios are
 <code>&lt;= 0.1</code>; if either ratio is greater than <code>0.1</code>, it uses term-list heap
@@ -463,7 +470,7 @@ insertion. The legacy
 ratios instead.</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
-    R"({"sindi": {"n_candidate": 200, "query_prune_ratio": 0.1}})").value();
+    R"({"sindi": {"n_candidate": 200, "filter_callback_limit": 10000, "query_prune_ratio": 0.1}})").value();
 </code></pre>
 <h2 id="when-to-use-sindi"><a class="header" href="#when-to-use-sindi">When to use SINDI</a></h2>
 <ul>
@@ -538,7 +545,7 @@ is not physically reclaimed.</p>
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../indexes/simq.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/sindi_v2.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -552,7 +559,7 @@ is not physically reclaimed.</p>
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../indexes/simq.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/sindi_v2.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

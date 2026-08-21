@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -458,6 +458,27 @@
 </code></pre>
 <p><code>use_quantization</code>、不可变构建与 <code>n_candidate</code> 等搜索参数见
 <a href="../indexes/sindi.html">SINDI 页面</a>。</p>
+<h2 id="sindi_v2稀疏向量"><a class="header" href="#sindi_v2稀疏向量">SINDI_V2（稀疏向量）</a></h2>
+<p>SINDI_V2 兼容 SINDI 的全部功能，并支持内存与磁盘 I/O。</p>
+<pre><code class="language-json">{
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
+        "use_reorder": true,
+        "term_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.terms"
+        },
+        "rerank_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.rerank"
+        }
+    }
+}
+</code></pre>
+<p>详情见 <a href="../indexes/sindi_v2.html">SINDI_V2 页面</a>。</p>
 <h2 id="运行期参数"><a class="header" href="#运行期参数">运行期参数</a></h2>
 <p>除构建参数外，<code>Index::Tune</code> 与 <code>SearchParam</code> 可在运行时调整 <code>ef_search</code>、<code>nprobe</code> 等参数。参考
 <a href="../advanced/optimizer.html">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>

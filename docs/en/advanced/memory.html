@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -356,8 +356,8 @@ intermediate data structures that exist only while <code>Build</code> is running
 build is typically higher than the post-build footprint:</p>
 <pre><code class="language-cpp">uint64_t peak = index-&gt;EstimateBuildMemory(1000000);  // bytes
 </code></pre>
-<p>Currently only DiskANN provides a non-trivial implementation; other index types throw
-an exception by default.</p>
+<p>No maintained index currently provides a non-trivial implementation; callers must handle the
+default unsupported-operation exception.</p>
 <h3 id="getmemoryusage"><a class="header" href="#getmemoryusage"><code>GetMemoryUsage()</code></a></h3>
 <p><code>Index::GetMemoryUsage()</code> returns the <strong>current</strong> memory footprint of an index in bytes:</p>
 <pre><code class="language-cpp">uint64_t bytes = index-&gt;GetMemoryUsage();

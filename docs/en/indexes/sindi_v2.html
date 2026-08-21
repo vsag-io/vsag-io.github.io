@@ -1,9 +1,9 @@
 <!DOCTYPE HTML>
-<html lang="zh" class="light sidebar-visible" dir="ltr">
+<html lang="en" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Factory 与 Engine - VSAG文档</title>
+        <title>SINDI_V2 - VSAG Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f46b13c0.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -267,7 +267,7 @@
                         </button>
                     </div>
 
-                    <h1 class="menu-title">VSAG文档</h1>
+                    <h1 class="menu-title">VSAG Documentation</h1>
 
                     <div class="right-buttons">
                         <a href="../print.html" title="Print this book" aria-label="Print this book">
@@ -304,134 +304,132 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="factory-与-engine"><a class="header" href="#factory-与-engine">Factory 与 Engine</a></h1>
-<p>每个 VSAG 工作流都从获取一个 <code>Index</code> 开始。这里有两个入口：</p>
+                        <h1 id="sindi_v2"><a class="header" href="#sindi_v2">SINDI_V2</a></h1>
+<p>SINDI_V2 is VSAG’s term-first sparse-vector index. It uses the same windowed
+inverted-list scoring model and <code>1 - inner_product</code> distance as
+<a href="sindi.html">SINDI</a>, but persists postings by term so a search can read only the
+lists needed by the query.</p>
 <ul>
-<li><a href="#factory"><code>Factory</code></a> —— 创建索引或文件 reader 的最简单方式。它使用默认（或调用方提供）的
-allocator，并在内部管理资源。</li>
-<li><a href="#engine"><code>Engine</code></a> —— 显式持有共享资源（allocator + 线程池）。当你希望多个索引共享同一个内存
-allocator / 线程池，或需要对资源生命周期进行确定性控制时，使用它。</li>
+<li>Factory entry: <code>sindi_v2</code></li>
+<li>Source: <code>src/algorithm/sindi_v2/</code></li>
+<li>Required <code>dtype</code>: <code>sparse</code></li>
+<li>Required <code>metric_type</code>: <code>ip</code></li>
 </ul>
-<p>本页还介绍进程级的<a href="#库初始化">库初始化</a>，以及用于参数生成与校验的<a href="#顶层辅助函数">顶层辅助函数</a>。</p>
-<h2 id="库初始化"><a class="header" href="#库初始化">库初始化</a></h2>
+<h2 id="storage-layout"><a class="header" href="#storage-layout">Storage layout</a></h2>
+<p>Each term payload stores only non-empty windows:</p>
+<pre><code class="language-text">non_empty_window_count
+ordered {window_id, posting_count}[]
+local_doc_ids[]
+alignment padding
+encoded_values[]
+</code></pre>
+<p>At query time, SINDI_V2 expands the sparse metadata into <code>window_count + 1</code>
+window offsets. A query loads postings only for its retained terms through
+<code>reader_io</code>, <code>mmap_io</code>, <code>buffer_io</code>, <code>async_io</code>, or an in-memory backend.</p>
+<p>This differs from SINDI’s window-first serialization. The two factory entries
+therefore require different persisted formats and must not be used
+interchangeably when loading an index.</p>
+<h2 id="quick-start"><a class="header" href="#quick-start">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
-vsag::init();                       // 在调用其他任何 API 之前调用一次
-std::string ver = vsag::version();  // 例如由 git 派生的构建版本字符串
-</code></pre>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>函数</th><th>签名</th><th>说明</th></tr>
-</thead>
-<tbody>
-<tr><td><code>vsag::init</code></td><td><code>bool init()</code></td><td>进程级一次性初始化。返回 <code>true</code>。</td></tr>
-<tr><td><code>vsag::version</code></td><td><code>std::string version()</code></td><td>由 git 版本号派生的构建版本。</td></tr>
-</tbody>
-</table>
-</div>
-<h2 id="factory"><a class="header" href="#factory">Factory</a></h2>
-<p>声明于 <code>vsag/factory.h</code>。<code>Factory</code> 是一个无状态的工具类，只有静态方法，无法被实例化。</p>
-<h3 id="createindex"><a class="header" href="#createindex"><code>CreateIndex</code></a></h3>
-<pre><code class="language-cpp">static tl::expected&lt;std::shared_ptr&lt;Index&gt;, Error&gt;
-CreateIndex(const std::string&amp; name,
-            const std::string&amp; parameters,
-            Allocator* allocator = nullptr);
-</code></pre>
-<p>创建给定类型的索引。</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>参数</th><th>说明</th></tr>
-</thead>
-<tbody>
-<tr><td><code>name</code></td><td>索引类型名，例如 <code>"hgraph"</code>、<code>"ivf"</code>、<code>"brute_force"</code>、<code>"sindi"</code>、<code>"pyramid"</code>。已移除的 <code>"hnsw"</code>、<code>"fresh_hnsw"</code> 与 <code>"diskann"</code> 返回 <code>UNSUPPORTED_INDEX</code>。</td></tr>
-<tr><td><code>parameters</code></td><td>描述索引配置的 JSON 字符串（dtype、dim、metric，以及各索引特有的键）。见 <a href="../resources/index_parameters.html">索引参数</a>。</td></tr>
-<tr><td><code>allocator</code></td><td>可选的自定义 <a href="resource.html#allocator"><code>Allocator</code></a>。为 <code>nullptr</code> 时，VSAG 使用内置的默认 allocator。调用方必须在返回索引的整个生命周期内保持 allocator 有效。</td></tr>
-</tbody>
-</table>
-</div>
-<p>成功时返回 <code>std::shared_ptr&lt;Index&gt;</code>，失败时返回 <code>Error</code>（<code>name</code> 未知时通常是 <code>UNSUPPORTED_INDEX</code>，
-<code>parameters</code> 非法时是 <code>INVALID_ARGUMENT</code>）。</p>
-<pre><code class="language-cpp">auto index = vsag::Factory::CreateIndex("hgraph", R"(
-{
-    "dtype": "float32",
-    "metric_type": "l2",
-    "dim": 128,
-    "index_param": { "base_quantization_type": "sq8" }
-})");
-if (not index.has_value()) {
-    std::cerr &lt;&lt; index.error().message &lt;&lt; std::endl;
-    return;
-}
-std::shared_ptr&lt;vsag::Index&gt; hgraph = index.value();
-</code></pre>
-<h3 id="createlocalfilereader"><a class="header" href="#createlocalfilereader"><code>CreateLocalFileReader</code></a></h3>
-<pre><code class="language-cpp">static std::shared_ptr&lt;Reader&gt;
-CreateLocalFileReader(const std::string&amp; filename, int64_t base_offset, int64_t size);
-</code></pre>
-<p>创建一个 <a href="serialization.html#reader"><code>Reader</code></a>，它从本地文件的 <code>base_offset</code> 处开始读取 <code>size</code> 字节的
-窗口。最常见的用法是构建 <a href="serialization.html#readerset"><code>ReaderSet</code></a> 以流式反序列化磁盘上的索引。与上面
-的方法不同，它返回一个普通的 <code>std::shared_ptr</code>（没有可失败的 <code>Error</code> 通道）。</p>
-<h2 id="engine"><a class="header" href="#engine">Engine</a></h2>
-<p>声明于 <code>vsag/engine.h</code>。<code>Engine</code> 绑定一个 <a href="resource.html#resource"><code>Resource</code></a>（allocator + 线程池），
-并让你创建共享它的索引。engine 不会接管传入的 <code>Resource*</code> 的所有权；其生命周期由你控制。</p>
-<pre><code class="language-cpp">vsag::Resource resource(vsag::Engine::CreateDefaultAllocator().get(), nullptr);
-vsag::Engine engine(&amp;resource);
+std::string params = R"({
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
+        "window_size": 50000,
+        "doc_prune_ratio": 0.1,
+        "use_quantization": true,
+        "use_reorder": true,
+        "remap_term_ids": true,
+        "term_io": {
+            "type": "buffer_io",
+            "file_path": "/tmp/sindi_v2.terms"
+        },
+        "rerank_io": {
+            "type": "block_memory_io"
+        }
+    }
+})";
+auto index = vsag::Factory::CreateIndex("sindi_v2", params).value();
+index-&gt;Build(base);
 
-auto index = engine.CreateIndex("hgraph", params);
-// ... 使用 index ...
-
-engine.Shutdown();   // 释放 engine 持有的状态；若存在悬挂引用会发出告警
+auto result = index-&gt;KnnSearch(
+    query, 10,
+    R"({"sindi_v2": {
+        "n_candidate": 100,
+        "query_prune_ratio": 0.1,
+        "term_prune_ratio": 0.2,
+        "term_retain_threshold": 10000
+    }})").value();
 </code></pre>
-<h3 id="构造与生命周期"><a class="header" href="#构造与生命周期">构造与生命周期</a></h3>
+<h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
+<p>Build parameters live under <code>index_param</code>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>成员</th><th>签名</th><th>说明</th></tr>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td>构造函数</td><td><code>explicit Engine(Resource* resource)</code></td><td>绑定一个外部持有的 <code>Resource</code>。该 <code>Resource</code> <strong>不</strong>由 engine 管理。</td></tr>
-<tr><td><code>Shutdown</code></td><td><code>void Shutdown()</code></td><td>优雅地拆除 engine 持有的状态。若仍存在对 engine 资源的外部引用，会发出告警，以防悬挂引用。</td></tr>
+<tr><td><code>dim</code></td><td>int</td><td>required</td><td>Maximum number of non-zero elements per sparse vector, not the vocabulary size.</td></tr>
+<tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term IDs; maximum 50 000 000.</td></tr>
+<tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window, from 10 000 to 60 000.</td></tr>
+<tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight document terms removed during build (<code>[0.0, 1.0)</code>).</td></tr>
+<tr><td><code>use_quantization</code></td><td>bool or string</td><td><code>false</code></td><td><code>false</code> stores FP32, <code>true</code> stores SQ8, and <code>"fp16"</code> stores FP16 values.</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Store high-precision vectors and rerank coarse candidates.</td></tr>
+<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Rerank storage type: <code>fp32</code> or <code>dmq8</code>.</td></tr>
+<tr><td><code>dmq_shared_codebook_threshold</code></td><td>int</td><td><code>1024</code></td><td>Low-frequency term threshold for the shared DMQ codebook.</td></tr>
+<tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>Compact sparse or widely separated external term IDs.</td></tr>
+<tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>Memory-estimation hint only.</td></tr>
+<tr><td><code>immutable</code></td><td>bool</td><td><code>false</code></td><td>Select the compact read-only in-memory term DataCell.</td></tr>
+<tr><td><code>term_io</code></td><td>object</td><td><code>{"type": "reader_io"}</code></td><td>Backend used for term-first postings after load.</td></tr>
+<tr><td><code>rerank_io</code></td><td>object</td><td><code>{"type": "block_memory_io"}</code></td><td>Backend used for rerank vectors.</td></tr>
+<tr><td><code>rerank_layout</code></td><td>uint32</td><td><code>0</code></td><td>Number of leading terms in the top-terms-signature layout; <code>0</code> disables it.</td></tr>
 </tbody>
 </table>
 </div>
-<h3 id="createindex-1"><a class="header" href="#createindex-1"><code>CreateIndex</code></a></h3>
-<pre><code class="language-cpp">[[nodiscard]] tl::expected&lt;std::shared_ptr&lt;Index&gt;, Error&gt;
-CreateIndex(const std::string&amp; name, const std::string&amp; parameters);
-</code></pre>
-<p>语义与 <a href="#createindex"><code>Factory::CreateIndex</code></a> 相同，区别在于索引是基于 engine 的共享 <code>Resource</code>
-（allocator 与线程池）创建的，而不是每次调用各自的 allocator。</p>
-<h3 id="静态资源辅助方法"><a class="header" href="#静态资源辅助方法">静态资源辅助方法</a></h3>
+<p>File-backed <code>term_io</code> supports <code>mmap_io</code>, <code>buffer_io</code>, and <code>async_io</code>, and
+requires <code>file_path</code>. If a file-backed <code>rerank_io</code> omits <code>file_path</code>, VSAG
+derives it as <code>&lt;term_io.file_path&gt;.rerank</code>.</p>
+<p><code>rerank_layout &gt; 0</code> requires <code>use_reorder: true</code>. <code>rerank_type: "dmq8"</code>
+requires <code>rerank_layout: 0</code> and the default <code>block_memory_io</code> rerank backend.</p>
+<h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
+<p>Search parameters live under <code>{"sindi_v2": {...}}</code>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>成员</th><th>签名</th><th>说明</th></tr>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>CreateDefaultAllocator</code></td><td><code>static std::shared_ptr&lt;Allocator&gt; CreateDefaultAllocator()</code></td><td>创建 VSAG 内置的 allocator。失败时返回空指针 —— 需检查是否为 null。</td></tr>
-<tr><td><code>CreateThreadPool</code></td><td><code>static tl::expected&lt;std::shared_ptr&lt;ThreadPool&gt;, Error&gt; CreateThreadPool(uint32_t num_threads)</code></td><td>创建含 <code>num_threads</code> 个工作线程的线程池。数量非法时返回 <code>Error</code>。</td></tr>
+<tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Coarse candidate count; <code>0</code> uses the index default derived from <code>topk</code>.</td></tr>
+<tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest-weight query terms skipped (<code>[0.0, 1.0)</code>).</td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest stored values skipped in each term list (<code>[0.0, 1.0)</code>).</td></tr>
+<tr><td><code>term_retain_threshold</code></td><td>uint64</td><td><code>0</code></td><td>Maximum postings for one term across all windows. <code>0</code> disables the limit; positive values allow each non-empty window posting list to scan at most <code>max(1, floor(threshold / window_count))</code> postings.</td></tr>
 </tbody>
 </table>
 </div>
-<p>关于 <code>Resource</code>、<code>Allocator</code> 与 <code>ThreadPool</code> 如何协作，见 <a href="resource.html">资源管理</a>；可运行示例见
-<code>examples/cpp/201_custom_allocator.cpp</code> / <code>203_custom_thread_pool.cpp</code>。</p>
-<h2 id="参见"><a class="header" href="#参见">参见</a></h2>
-<ul>
-<li><a href="index_class.html">Index</a> —— 索引创建之后你能用它做什么。</li>
-<li><a href="resource.html">资源管理</a> —— allocator、线程池与 <code>Resource</code> 细节。</li>
-<li><a href="../resources/index_parameters.html">索引参数</a> —— <code>CreateIndex</code> 接受的 JSON 模式。</li>
-</ul>
+<p>After combining the ratio and threshold limits, SINDI V2 scans at least one posting from every
+non-empty term list.</p>
+<p>SINDI V2 chooses the heap-insertion strategy automatically from the build-time
+<code>doc_prune_ratio</code> and search-time <code>query_prune_ratio</code>. With the current <code>0.1</code>
+threshold, it uses distance-array insertion when both ratios are <code>&lt;= 0.1</code>; if
+either ratio is greater than <code>0.1</code>, it uses term-list heap insertion.</p>
+<h2 id="choosing-between-sindi-and-sindi_v2"><a class="header" href="#choosing-between-sindi-and-sindi_v2">Choosing between SINDI and SINDI_V2</a></h2>
+<p>Use SINDI when the full sparse index remains in memory and window-first
+serialization is appropriate. Use SINDI_V2 when persisted postings should be
+organized by term or when searches should fetch only the query’s term lists
+from external storage.</p>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../api/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../indexes/sindi.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../api/index_class.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/simq.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -441,11 +439,11 @@ CreateIndex(const std::string&amp; name, const std::string&amp; parameters);
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../api/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../indexes/sindi.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../api/index_class.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/simq.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

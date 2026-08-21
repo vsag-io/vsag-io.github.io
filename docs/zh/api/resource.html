@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -416,7 +416,6 @@ vsag::Options::Instance().set_logger(&amp;my_logger);
 <tr><th>配置项</th><th>访问器</th><th>默认值</th><th>含义</th></tr>
 </thead>
 <tbody>
-<tr><td>IO 线程</td><td><code>num_threads_io()</code> / <code>set_num_threads_io(n)</code></td><td><code>8</code></td><td>搜索期间磁盘索引 IO 的线程数（1–200）。</td></tr>
 <tr><td>构建线程</td><td><code>num_threads_building()</code> / <code>set_num_threads_building(n)</code></td><td><code>4</code></td><td>构建索引的线程数。</td></tr>
 <tr><td>块大小上限</td><td><code>block_size_limit()</code> / <code>set_block_size_limit(bytes)</code></td><td><code>128 MB</code></td><td>每个分配块的最大字节数（必须 &gt; 2 MB）。</td></tr>
 <tr><td>Direct-IO 对齐</td><td><code>direct_IO_object_align_bit()</code> / <code>set_direct_IO_object_align_bit(bits)</code></td><td><code>9</code></td><td>Direct-IO 对象对齐，以位为单位（&lt; 21）。</td></tr>

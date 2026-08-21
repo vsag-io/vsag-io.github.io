@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -320,6 +320,7 @@
 <tr><td>HGraph</td><td><code>hgraph</code></td><td><a href="../indexes/hgraph.html">HGraph</a></td><td>VSAG 自研图索引，支持多级量化和调优（详见 <code>examples/cpp/103_index_hgraph.cpp</code>）</td></tr>
 <tr><td>IVF</td><td><code>ivf</code></td><td><a href="../indexes/ivf.html">IVF</a></td><td>倒排索引，适合大 <code>k</code> 和批量查询</td></tr>
 <tr><td>SINDI</td><td><code>sindi</code></td><td><a href="../indexes/sindi.html">SINDI</a></td><td>稀疏向量上的倒排索引</td></tr>
+<tr><td>SINDI_V2</td><td><code>sindi_v2</code></td><td><a href="../indexes/sindi_v2.html">SINDI_V2</a></td><td>支持内存与磁盘 I/O 的稀疏向量索引</td></tr>
 <tr><td>Pyramid</td><td><code>pyramid</code></td><td><a href="../indexes/pyramid.html">Pyramid</a></td><td>多层级 / 按路径分区的索引结构</td></tr>
 <tr><td>BruteForce</td><td><code>brute_force</code></td><td>—</td><td>暴力搜索，用作基准或小数据集</td></tr>
 <tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>—</td><td>基于 GNO-IMI 的倒排索引变体（作为 <code>ivf</code> 的 <code>partition_strategy_type</code>）</td></tr>
@@ -329,6 +330,28 @@
 <blockquote>
 <p>完整示例可在 <a href="https://github.com/antgroup/vsag/tree/main/examples/cpp"><code>examples/cpp/</code></a> 目录中按照前缀编号依次查看（<code>101_</code> ~ <code>109_</code> 为索引类型，<code>2xx_</code> 为自定义资源，<code>3xx_</code> 为功能特性）。</p>
 </blockquote>
+<h3 id="使用磁盘-io-的-sindi_v2"><a class="header" href="#使用磁盘-io-的-sindi_v2">使用磁盘 I/O 的 SINDI_V2</a></h3>
+<pre><code class="language-cpp">std::string params = R"(
+{
+    "dim": 1024,
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "index_param": {
+        "term_id_limit": 30000,
+        "use_reorder": true,
+        "term_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.terms"
+        },
+        "rerank_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.rerank"
+        }
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("sindi_v2", params).value();
+</code></pre>
 <h2 id="通用的构建参数"><a class="header" href="#通用的构建参数">通用的构建参数</a></h2>
 <p>所有索引在创建时都需要声明以下字段：</p>
 <ul>

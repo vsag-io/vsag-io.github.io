@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -308,8 +308,8 @@
 <p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/indexes/sindi-overview.svg" alt="SINDI：按窗口维护的每词项倒排表，只对查询非零词项对应的列表做遍历并累加进 n_candidate 候选堆"><span class="img-wrapper"><img src="../figures/indexes/sindi-overview.svg" alt="SINDI：按窗口维护的每词项倒排表，只对查询非零词项对应的列表做遍历并累加进 n_candidate 候选堆"></span></label></p>
 <p>SINDI（<strong>S</strong>parse <strong>IN</strong>verted <strong>D</strong>ense <strong>I</strong>ndex）是 VSAG 面向 <strong>稀疏向量</strong> 的索引——
 例如 BM25、SPLADE 以及其他学习稀疏（learned sparse）编码器产出的向量。与稠密索引
-（HGraph、IVF）不同，SINDI 直接在“词项-权重”对上工作，是 VSAG 中唯一接受
-<code>dtype: "sparse"</code> 的索引。</p>
+（HGraph、IVF）不同，SINDI 直接在“词项-权重”对上工作，是 VSAG 中接受
+<code>dtype: "sparse"</code> 的索引之一。</p>
 <ul>
 <li>源码：<code>src/algorithm/sindi/</code></li>
 <li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/109_index_sindi.cpp"><code>examples/cpp/109_index_sindi.cpp</code></a></li>
@@ -326,6 +326,7 @@
 DMQ 正排以降低重排内存。</li>
 </ol>
 <p>返回的距离为 <code>1 - inner_product</code>，使结果与稠密索引一样按升序排序。</p>
+<p>需要同时支持内存与磁盘 I/O 时，请选择 <a href="sindi_v2.html">SINDI_V2</a>。</p>
 <h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
@@ -436,6 +437,7 @@ auto result = index-&gt;KnnSearch(
 </thead>
 <tbody>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>候选堆大小。为 <code>0</code> 时自动取 <code>SPARSE_AMPLIFICATION_FACTOR · topk</code>（500 倍）；若显式设置，须满足 <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code></td></tr>
+<tr><td><code>filter_callback_limit</code></td><td>uint64</td><td><code>0</code></td><td>单次带过滤检索最多调用用户 <code>Filter::CheckValid</code> 回调的次数；<code>0</code> 表示不限制。删除 ID 过滤器等内部检查不计数。达到正数上限时，在正常处理最后一次回调结果后停止候选及后续窗口扫描，并返回已经通过过滤的候选，因此结果可能不完整。该限制同时适用于 KNN、范围检索以及常规 API 和 <code>SearchWithRequest</code></td></tr>
 <tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>查询时丢弃权重最低查询项的比例，取值范围为 <code>[0.0, 1.0)</code></td></tr>
 <tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>每条倒排链中按 value 丢弃低权 posting 的比例，取值范围为 <code>[0.0, 1.0)</code></td></tr>
 <tr><td><code>term_retain_threshold</code></td><td>uint64</td><td><code>0</code></td><td>单个 term 在所有 window 中最多扫描的 posting 总数；<code>0</code> 表示关闭此限制，正数使每个 window 的非空 posting list 最多扫描 <code>max(1, floor(threshold / window_count))</code> 个</td></tr>
@@ -443,13 +445,16 @@ auto result = index-&gt;KnnSearch(
 </table>
 </div>
 <p>合并 ratio 与 threshold 限制后，每条非空倒排链至少扫描一个 posting。</p>
-<p>SINDI 会根据构建阶段的 <code>doc_prune_ratio</code> 与检索阶段的 <code>query_prune_ratio</code>
+<p>同一 window 内的单 term posting 先按实际存储值降序排列，值相同时按内部 doc id
+升序排列。ratio 和 threshold 同时生效时，实际扫描
+<code>floor(list_size · (1 - ratio))</code> 与 <code>floor(threshold / window_count)</code> 中的较小值。
+SINDI 会根据构建阶段的 <code>doc_prune_ratio</code> 与检索阶段的 <code>query_prune_ratio</code>
 自动选择堆插入策略。按当前 <code>0.1</code> 阈值，当两个比例都 <code>&lt;= 0.1</code> 时，SINDI 使用
 基于距离数组的入堆路径；只要任一比例大于 <code>0.1</code>，就使用基于 term-list 的入堆路径。
 旧版 <code>use_term_lists_heap_insert</code> 检索参数会被忽略；请改用剪枝比例控制该行为。</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
-    R"({"sindi": {"n_candidate": 200, "query_prune_ratio": 0.1}})").value();
+    R"({"sindi": {"n_candidate": 200, "filter_callback_limit": 10000, "query_prune_ratio": 0.1}})").value();
 </code></pre>
 <h2 id="何时选择-sindi"><a class="header" href="#何时选择-sindi">何时选择 SINDI</a></h2>
 <ul>
@@ -514,7 +519,7 @@ SPLADE。</li>
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../indexes/simq.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/sindi_v2.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -528,7 +533,7 @@ SPLADE。</li>
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../indexes/simq.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/sindi_v2.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

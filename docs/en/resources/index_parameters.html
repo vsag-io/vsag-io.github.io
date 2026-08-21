@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -466,6 +466,27 @@ storage/recall tradeoffs.</p>
 </code></pre>
 <p>See the <a href="../indexes/sindi.html">SINDI page</a> for <code>use_quantization</code>, immutable builds, and search
 parameters such as <code>n_candidate</code>.</p>
+<h2 id="sindi_v2-sparse-vectors"><a class="header" href="#sindi_v2-sparse-vectors">SINDI_V2 (sparse vectors)</a></h2>
+<p>SINDI_V2 supports all SINDI features with both in-memory and disk-based I/O.</p>
+<pre><code class="language-json">{
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
+        "use_reorder": true,
+        "term_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.terms"
+        },
+        "rerank_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.rerank"
+        }
+    }
+}
+</code></pre>
+<p>See the <a href="../indexes/sindi_v2.html">SINDI_V2 page</a> for details.</p>
 <h2 id="runtime-parameters"><a class="header" href="#runtime-parameters">Runtime Parameters</a></h2>
 <p>Beyond build-time parameters, <code>Index::Tune</code> and <code>SearchParam</code> tweak runtime settings such as
 <code>ef_search</code> and <code>nprobe</code>. See <a href="../advanced/optimizer.html">Optimizer</a> and the

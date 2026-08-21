@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -371,7 +371,7 @@ std::shared_ptr&lt;vsag::Index&gt; index = result.value();
 <tr><td>行为</td><td><code>INDEX_EMPTY</code></td><td>索引为空，无法搜索或序列化。</td></tr>
 <tr><td>运行时</td><td><code>NO_ENOUGH_MEMORY</code></td><td>内存分配失败。</td></tr>
 <tr><td>运行时</td><td><code>READ_ERROR</code></td><td>从二进制读取失败。</td></tr>
-<tr><td>运行时</td><td><code>MISSING_FILE</code></td><td>缺少必需的文件（如 DiskANN 反序列化）。</td></tr>
+<tr><td>运行时</td><td><code>MISSING_FILE</code></td><td>反序列化时缺少必需的索引文件。</td></tr>
 <tr><td>运行时</td><td><code>INVALID_BINARY</code></td><td>序列化的二进制内容非法。</td></tr>
 </tbody>
 </table>

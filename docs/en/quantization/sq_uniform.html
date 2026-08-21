@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -376,7 +376,7 @@ inputs.</li>
 <tr><th>Key</th><th>Type</th><th>Default</th><th>Applies to</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td><code>sq4_uniform</code> only</td><td>Symmetric truncation rate for outliers (<code>src/quantization/scalar_quantization/sq4_uniform_quantizer_parameter.h:39</code>). Higher values clip more extreme coordinates, reducing range loss for the bulk of the data at the cost of clipping the tails.</td></tr>
+<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td><code>sq4_uniform</code> only</td><td>Finite symmetric truncation rate for outliers in the inclusive range <code>[0.0, 0.5]</code>. Higher values clip more extreme coordinates, reducing range loss for the bulk of the data at the cost of clipping the tails.</td></tr>
 </tbody>
 </table>
 </div>

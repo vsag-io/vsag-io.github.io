@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -320,6 +320,7 @@
 <tr><td><code>ivf</code></td><td><a href="ivf.html">IVF</a></td><td>基于分桶的检索，适合高吞吐批查询与超大规模语料</td></tr>
 <tr><td><code>sindi</code></td><td><a href="sindi.html">SINDI</a></td><td>稀疏向量（BM25 / 学习稀疏）上的内积检索</td></tr>
 <tr><td><code>simq</code></td><td><a href="simq.html">SIMQ</a></td><td>多向量检索（ColBERT / late-interaction），基于 MaxSim 打分</td></tr>
+<tr><td><code>sindi_v2</code></td><td><a href="sindi_v2.html">SINDI_V2</a></td><td>支持内存与磁盘 I/O 的稀疏向量（BM25 / 学习稀疏）检索</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="pyramid.html">Pyramid</a></td><td>多租户 / 标签分区的层级索引</td></tr>
 </tbody>
 </table>
@@ -335,13 +336,13 @@
 </thead>
 <tbody>
 <tr><td><code>dim</code></td><td>正整数</td><td>向量维度；构建后不可变</td></tr>
-<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> 仅 SINDI 使用</td></tr>
-<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>查询时必须保持一致（SINDI 仅支持 <code>ip</code>）</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> 仅 SINDI / SINDI_V2 使用</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>查询时必须保持一致（SINDI / SINDI_V2 仅支持 <code>ip</code>）</td></tr>
 </tbody>
 </table>
 </div>
 <p>索引特有的构建参数放在 <code>index_param</code> 子对象中；查询参数放在以索引名命名的子对象中
-（例如 <code>hgraph</code>、<code>ivf</code>、<code>sindi</code>、<code>pyramid</code>）。LazyHGraph 转换到 graph 阶段后也使用
+（例如 <code>hgraph</code>、<code>ivf</code>、<code>sindi</code>、<code>sindi_v2</code>、<code>pyramid</code>）。LazyHGraph 转换到 graph 阶段后也使用
 <code>hgraph</code> 搜索参数。具体参数定义在各索引页面内给出，也可查阅
 <a href="../resources/index_parameters.html">索引参数</a> 进行总览。</p>
 

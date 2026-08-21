@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-2c86ce63.js";
+            window.path_to_searchindex_js = "../searchindex-16dab223.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e766644c.js"></script>
+        <script src="../toc-2a2dc95d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -381,9 +381,8 @@ named binary stream. Implement <code>Read</code>, <code>AsyncRead</code>, and <c
 <code>MultiRead</code> is optional and improves throughput when the backend supports
 batched IO. <code>vsag::Factory::CreateLocalFileReader</code> is a reference
 implementation for local files.</p>
-<p>Runnable example: <code>examples/cpp/102_index_diskann.cpp</code> (DiskANN deserialization
-uses <code>ReaderSet</code>). See <a href="serialization.html">Serialization</a> for the full
-serialize / deserialize matrix.</p>
+<p>See <a href="../api/serialization.html#readerset">Serialization Types</a> for a <code>ReaderSet</code> construction example
+and <a href="serialization.html">Serialization</a> for the full serialize / deserialize matrix.</p>
 <h2 id="logger"><a class="header" href="#logger">Logger</a></h2>
 <p>VSAG uses a single global logger configured through the <code>Options</code> singleton:</p>
 <pre><code class="language-cpp">class MyLogger : public vsag::Logger { /* implement Trace/Debug/Info/... */ };
@@ -402,7 +401,6 @@ settings that do not belong to a specific index:</p>
 <tr><th>Setter</th><th>Default</th><th>Notes</th></tr>
 </thead>
 <tbody>
-<tr><td><code>set_num_threads_io(n)</code></td><td><code>8</code></td><td>Threads used for disk-index IO during search. Must be in <code>[1, 200]</code>.</td></tr>
 <tr><td><code>set_num_threads_building(n)</code></td><td><code>4</code></td><td>Threads used while building disk indexes.</td></tr>
 <tr><td><code>set_block_size_limit(bytes)</code></td><td><code>128 MiB</code></td><td>Maximum size of a single allocation block. Must be <code>≥ 256 KiB</code> (<code>src/options.cpp:53-57</code>).</td></tr>
 <tr><td><code>set_direct_IO_object_align_bit(bits)</code></td><td><code>9</code></td><td>Direct-IO alignment, in bits. Must be <code>≤ 21</code> (alignment size up to 2 MiB; <code>src/options.cpp:40-46</code>).</td></tr>
@@ -435,7 +433,7 @@ applications.</p>
 <li><code>examples/cpp/202_custom_logger.cpp</code></li>
 <li><code>examples/cpp/203_custom_thread_pool.cpp</code></li>
 <li><code>examples/cpp/301_feature_filter.cpp</code></li>
-<li><code>examples/cpp/102_index_diskann.cpp</code></li>
+<li><code>examples/cpp/401_persistent_kv.cpp</code></li>
 </ul>
 
                     </main>

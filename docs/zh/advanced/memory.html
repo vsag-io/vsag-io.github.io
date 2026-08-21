@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -352,7 +352,7 @@ auto result = index-&gt;KnnSearch(query, k, search_param);
 过程中仅临时存在的缓冲区与中间数据结构。构建期间的峰值内存通常高于构建完成后的内存占用：</p>
 <pre><code class="language-cpp">uint64_t peak = index-&gt;EstimateBuildMemory(1000000);  // 字节
 </code></pre>
-<p>目前仅 DiskANN 提供了有效实现，其他索引类型默认抛出异常。</p>
+<p>目前维护中的索引均未提供有效实现；调用方需处理默认的“不支持操作”异常。</p>
 <h3 id="getmemoryusage"><a class="header" href="#getmemoryusage"><code>GetMemoryUsage()</code></a></h3>
 <p><code>Index::GetMemoryUsage()</code> 返回索引<strong>当前</strong>占用的字节数：</p>
 <pre><code class="language-cpp">uint64_t bytes = index-&gt;GetMemoryUsage();

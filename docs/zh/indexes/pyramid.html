@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-0993d4d0.js"></script>
+        <script src="../toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -399,6 +399,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>RaBitQ 快速编码的微调轮数，范围 <code>[1, 32]</code></td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>底层与精排存储后端；以 liburing 构建时可用 <code>uring_io</code></td></tr>
 <tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td><code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>mmap_io</code> 等磁盘存储必须设置</td></tr>
+<tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>保留 FP32 原始向量，用于 <code>GetRawVectorByIds</code> 和精确的按 ID 距离计算</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>子索引的最小规模；小于该值的分区会退化为线性扫描</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否允许重复 ID</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>构建阶段并发线程数</td></tr>
@@ -436,6 +437,8 @@ auto result = index-&gt;KnnSearch(
 同一个截断后向量。Pyramid 使用 split code-code 距离完成构图提升，不保留原始 FP32
 向量；除非构建时启用 <code>store_raw_vector</code>，否则依赖可解码向量的 Analyzer 指标会被标记为
 不可用。如果 embedding 模型没有针对前缀维度训练，截断可能显著降低召回率。</p>
+<h2 id="构建缓存"><a class="header" href="#构建缓存">构建缓存</a></h2>
+<p><code>ExportCache</code> 会保存每个层级、每个节点的 NSW 图种子，<code>ImportCache</code> 可在后续 <code>Build</code> 中复用。缓存数据使用索引缓存 payload 格式，而非 streaming 索引序列化格式。需要复用缓存的索引通过 footer 序列化前应设置 <code>persist_source_id: true</code>，并且两次构建中的每个向量都必须提供唯一的 <code>Dataset::SourceID</code>。缓存预热仅适用于 <code>graph_type: "nsw"</code>；ODescent、重复 ID 模式、缺少 source ID 或 source ID 重复时会自动回退到普通冷构建。<code>ef_construction</code> 不作为缓存路径的准入条件。完整恢复的缓存图行会被保留，缓存未命中的节点则使用当前向量构建。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>pyramid</code> 子对象下：</p>
 <div class="table-wrapper">
@@ -556,8 +559,11 @@ new_index-&gt;Deserialize(binary_set);
 </ul>
 <p>如果不需要按路径限定查询范围，<a href="hgraph.html">HGraph</a> 更简洁，性能通常也更高。</p>
 <p>可以通过<a href="../resources/analyze_index.html">索引分析</a>检查 Pyramid 的树结构、子索引质量、
-<code>GetStats()</code> 输出的 base 采样召回率和重复比例。Pyramid 目前不通过
-<code>AnalyzeIndexBySearch</code> 提供查询驱动指标。</p>
+<code>GetStats()</code> 输出的 base 采样召回率和重复比例。<code>AnalyzeIndexBySearch</code> 还会输出按路径限定的
+query 召回率、距离、耗时，以及开启 reorder 时的量化指标。query 数据集必须包含与
+<code>KnnSearch</code> 相同的默认或命名 hierarchy 路径；批量数据集在需要或提供路径时，应为每条 query
+提供一条路径。<code>analyze_index</code> 工具当前无法从 dense query 文件加载 hierarchy 路径，因此
+按路径执行动态分析时请使用 C++ 接口。</p>
 <h2 id="标记删除"><a class="header" href="#标记删除">标记删除</a></h2>
 <p>Pyramid 支持 <code>RemoveMode::MARK_REMOVE</code>。调用 <code>Remove(ids)</code>（默认模式）会为给定的 id
 打上删除标记：它们会从后续检索结果中排除，<code>GetNumElements()</code> 相应减少，

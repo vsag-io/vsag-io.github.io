@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-ebab544a.js";
+            window.path_to_searchindex_js = "searchindex-8ad6ad1a.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-0993d4d0.js"></script>
+        <script src="toc-f46b13c0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -317,7 +317,7 @@
 <ul>
 <li><strong>低内存占用</strong>：通过量化（RaBitQ、PQ、SQ4/SQ8）降低使用成本；</li>
 <li><strong>高性能检索</strong>：针对 x86_64（SSE/AVX/AVX2/AVX512/AMX）和 ARM（Neon/SVE）做了指令集适配；</li>
-<li><strong>丰富的索引类型</strong>：HGraph、IVF、Pyramid、BruteForce、SINDI（稀疏）等；</li>
+<li><strong>丰富的索引类型</strong>：HGraph、IVF、Pyramid、BruteForce、SINDI / SINDI_V2（稀疏）等；</li>
 <li><strong>灵活的过滤与混合搜索</strong>：支持 bitmap 与 callback 两种过滤方式，以及混合 <code>(data vector, attribute)</code> 查询；</li>
 <li><strong>易于集成</strong>：提供基于 CMake 的集成方式，详见 <a href="https://github.com/antgroup/vsag/blob/main/README.md#integrate-with-cmake">README</a>。</li>
 </ul>
@@ -426,6 +426,7 @@ arm64。macOS 当前验证范围是核心 C++ 库的 <code>make debug</code>、<
 <tr><td>HGraph</td><td><code>hgraph</code></td><td><a href="#hgraph-1">HGraph</a></td><td>VSAG 自研图索引，支持多级量化和调优（详见 <code>examples/cpp/103_index_hgraph.cpp</code>）</td></tr>
 <tr><td>IVF</td><td><code>ivf</code></td><td><a href="#ivf-1">IVF</a></td><td>倒排索引，适合大 <code>k</code> 和批量查询</td></tr>
 <tr><td>SINDI</td><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>稀疏向量上的倒排索引</td></tr>
+<tr><td>SINDI_V2</td><td><code>sindi_v2</code></td><td><a href="#sindi_v2">SINDI_V2</a></td><td>支持内存与磁盘 I/O 的稀疏向量索引</td></tr>
 <tr><td>Pyramid</td><td><code>pyramid</code></td><td><a href="#pyramid-1">Pyramid</a></td><td>多层级 / 按路径分区的索引结构</td></tr>
 <tr><td>BruteForce</td><td><code>brute_force</code></td><td>—</td><td>暴力搜索，用作基准或小数据集</td></tr>
 <tr><td>GNO-IMI</td><td><code>gno_imi</code></td><td>—</td><td>基于 GNO-IMI 的倒排索引变体（作为 <code>ivf</code> 的 <code>partition_strategy_type</code>）</td></tr>
@@ -435,6 +436,28 @@ arm64。macOS 当前验证范围是核心 C++ 库的 <code>make debug</code>、<
 <blockquote>
 <p>完整示例可在 <a href="https://github.com/antgroup/vsag/tree/main/examples/cpp"><code>examples/cpp/</code></a> 目录中按照前缀编号依次查看（<code>101_</code> ~ <code>109_</code> 为索引类型，<code>2xx_</code> 为自定义资源，<code>3xx_</code> 为功能特性）。</p>
 </blockquote>
+<h3 id="使用磁盘-io-的-sindi_v2"><a class="header" href="#使用磁盘-io-的-sindi_v2">使用磁盘 I/O 的 SINDI_V2</a></h3>
+<pre><code class="language-cpp">std::string params = R"(
+{
+    "dim": 1024,
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "index_param": {
+        "term_id_limit": 30000,
+        "use_reorder": true,
+        "term_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.terms"
+        },
+        "rerank_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.rerank"
+        }
+    }
+}
+)";
+auto index = vsag::Factory::CreateIndex("sindi_v2", params).value();
+</code></pre>
 <h2 id="通用的构建参数"><a class="header" href="#通用的构建参数">通用的构建参数</a></h2>
 <p>所有索引在创建时都需要声明以下字段：</p>
 <ul>
@@ -552,7 +575,7 @@ auto index = vsag::Factory::CreateIndex("hgraph", hgraph_build_parameters).value
 <p>搜索请求至多返回 k 个结果，这些结果按照最近邻和查询向量的距离升序排序。输出的结果类似于：</p>
 <h2 id="按阈值过滤"><a class="header" href="#按阈值过滤">按阈值过滤</a></h2>
 <p>阈值过滤支持仍在维护的索引：BruteForce、HGraph、IVF、Pyramid、SINDI 和 SIMQ。
-HNSW 和 DiskANN 已弃用，是明确不在范围内的目标；本选项不会为这两个旧索引新增或修改行为。</p>
+HNSW 和 DiskANN 已移除且不受支持；本选项不会为这两个旧索引新增或修改行为。</p>
 <p>KNN 搜索参数支持在 JSON 顶层设置可选的 <code>threshold</code>：</p>
 <pre><code class="language-json">{
   "threshold": 4.0,
@@ -790,6 +813,7 @@ removed = index.remove(candidate_ids)
 <tr><td><code>ivf</code></td><td><a href="#ivf-1">IVF</a></td><td>基于分桶的检索，适合高吞吐批查询与超大规模语料</td></tr>
 <tr><td><code>sindi</code></td><td><a href="#sindi">SINDI</a></td><td>稀疏向量（BM25 / 学习稀疏）上的内积检索</td></tr>
 <tr><td><code>simq</code></td><td><a href="#simq">SIMQ</a></td><td>多向量检索（ColBERT / late-interaction），基于 MaxSim 打分</td></tr>
+<tr><td><code>sindi_v2</code></td><td><a href="#sindi_v2">SINDI_V2</a></td><td>支持内存与磁盘 I/O 的稀疏向量（BM25 / 学习稀疏）检索</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="#pyramid-1">Pyramid</a></td><td>多租户 / 标签分区的层级索引</td></tr>
 </tbody>
 </table>
@@ -805,13 +829,13 @@ removed = index.remove(candidate_ids)
 </thead>
 <tbody>
 <tr><td><code>dim</code></td><td>正整数</td><td>向量维度；构建后不可变</td></tr>
-<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> 仅 SINDI 使用</td></tr>
-<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>查询时必须保持一致（SINDI 仅支持 <code>ip</code>）</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code> / <code>float16</code> / <code>bfloat16</code> / <code>int8</code> / <code>sparse</code></td><td><code>sparse</code> 仅 SINDI / SINDI_V2 使用</td></tr>
+<tr><td><code>metric_type</code></td><td><code>l2</code> / <code>ip</code> / <code>cosine</code></td><td>查询时必须保持一致（SINDI / SINDI_V2 仅支持 <code>ip</code>）</td></tr>
 </tbody>
 </table>
 </div>
 <p>索引特有的构建参数放在 <code>index_param</code> 子对象中；查询参数放在以索引名命名的子对象中
-（例如 <code>hgraph</code>、<code>ivf</code>、<code>sindi</code>、<code>pyramid</code>）。LazyHGraph 转换到 graph 阶段后也使用
+（例如 <code>hgraph</code>、<code>ivf</code>、<code>sindi</code>、<code>sindi_v2</code>、<code>pyramid</code>）。LazyHGraph 转换到 graph 阶段后也使用
 <code>hgraph</code> 搜索参数。具体参数定义在各索引页面内给出，也可查阅
 <a href="#索引参数">索引参数</a> 进行总览。</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -969,6 +993,27 @@ removed = index.remove(candidate_ids)
 </code></pre>
 <p><code>use_quantization</code>、不可变构建与 <code>n_candidate</code> 等搜索参数见
 <a href="#sindi">SINDI 页面</a>。</p>
+<h2 id="sindi_v2稀疏向量"><a class="header" href="#sindi_v2稀疏向量">SINDI_V2（稀疏向量）</a></h2>
+<p>SINDI_V2 兼容 SINDI 的全部功能，并支持内存与磁盘 I/O。</p>
+<pre><code class="language-json">{
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
+        "use_reorder": true,
+        "term_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.terms"
+        },
+        "rerank_io": {
+            "type": "async_io",
+            "file_path": "/path/to/sindi_v2.rerank"
+        }
+    }
+}
+</code></pre>
+<p>详情见 <a href="#sindi_v2">SINDI_V2 页面</a>。</p>
 <h2 id="运行期参数"><a class="header" href="#运行期参数">运行期参数</a></h2>
 <p>除构建参数外，<code>Index::Tune</code> 与 <code>SearchParam</code> 可在运行时调整 <code>ef_search</code>、<code>nprobe</code> 等参数。参考
 <a href="#优化器tune">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>
@@ -1067,7 +1112,7 @@ auto result = index-&gt;KnnSearch(
 <h3 id="向量存储去重"><a class="header" href="#向量存储去重">向量存储去重</a></h3>
 <p>同时设置 <code>support_duplicate: true</code> 和 <code>deduplicate_storage: true</code> 后，重复向量会共享
 同一个物理编码槽位，但仍保留各自的标签。该选项目前仅支持使用 <code>graph_type: "nsw"</code> 的
-稠密向量 HGraph 索引；独立的 HNSW 索引以及 <code>graph_type: "odescent"</code> 均不支持。</p>
+稠密向量 HGraph 索引；<code>graph_type: "odescent"</code> 不支持。</p>
 <p>启用存储去重后，暂不支持以下操作和配置：</p>
 <ul>
 <li>强制删除（<code>support_force_remove: true</code>）；</li>
@@ -1458,6 +1503,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第一级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
 <tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第二级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
 <tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>中心训练方式：<code>kmeans</code> 或 <code>random</code></td></tr>
+<tr><td><code>route_max_degree</code></td><td>int</td><td><code>64</code></td><td>路由 HGraph 的最大度数（<code>ivf</code> 策略下生效）</td></tr>
+<tr><td><code>route_ef_construction</code></td><td>int</td><td><code>300</code></td><td>路由 HGraph 的构建搜索宽度（<code>ivf</code> 策略下生效）</td></tr>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> —— 各量化器细节见<a href="quantization/README.html">量化章节</a></td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
 <tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td><code>base_quantization_type: "rabitq"</code> 时可选的 PCA 预处理维度</td></tr>
@@ -1470,12 +1517,31 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>CAQ 微调轮数，允许范围 <code>[1, 32]</code></td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排量化类型（<code>use_reorder: true</code> 时使用）</td></tr>
+<tr><td><code>precise_codes_layout</code></td><td>string</td><td><code>"flat"</code></td><td>精排 codes 的存储布局：<code>"flat"</code> 保持旧的一向量一码布局；<code>"bucket"</code> 在 basic posting 的相同 bucket 和 offset 保存高精度 code</td></tr>
 <tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>粗排向量的存储后端；以 liburing 构建时支持 <code>uring_io</code></td></tr>
 <tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>精排向量的存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>mmap_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>reader_io</code>）</td></tr>
 <tr><td><code>precise_file_path</code></td><td>string</td><td><code>""</code></td><td>当精排 IO 为磁盘后端时的文件路径</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>precise_codes_layout: "bucket"</code> 要求 <code>use_reorder: true</code>，支持 <code>memory_io</code>、
+<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code> 和 <code>uring_io</code>
+（需要构建环境支持 io_uring）。不支持 <code>mmap_io</code> 和 <code>pqfs</code> 精排量化。bucket 布局当前
+要求 <code>buckets_per_data: 1</code>；一个向量分配到多个 bucket 的配置会被拒绝。</p>
+<p>对于 <code>flat</code> 和 <code>bucket</code> 两种布局，序列化后的精排 codes 都可以通过外部 <code>Reader</code>
+只读加载。向 <code>Index::Load</code> 传入 <code>precise_io_type: "reader_io"</code> 和 <code>precise_reader</code>。
+<code>flat</code> 布局的 reader 必须恰好对应 <code>high_precision_codes</code> block payload，<code>bucket</code> 布局
+则必须对应 <code>ivf_precise_bucket</code> block payload。启用 <code>precise_enable_read_cache</code> 后，
+<code>reader_io</code> 会使用通用读缓存。</p>
+<pre><code class="language-cpp">vsag::LoadParameters load_parameters;
+load_parameters.Set("precise_io_type", "reader_io")
+    .Set("precise_enable_read_cache", true)
+    .Set("precise_cache_total_size", 256ULL * 1024 * 1024)
+    .SetReader("precise_reader", precise_codes_reader);
+auto loaded = vsag::Index::Load(stream, load_parameters).value();
+</code></pre>
+<p><code>reader_io</code> 是加载与查询阶段的只读放置策略。构建时应使用可写的 precise IO，序列化后
+再在查询服务加载索引时绑定外部 reader。</p>
 <p><code>buckets_count</code> 的经验值一般为 <code>sqrt(N)</code> ~ <code>4 * sqrt(N)</code>，其中 <code>N</code> 是语料规模。</p>
 <h2 id="检索参数-1"><a class="header" href="#检索参数-1">检索参数</a></h2>
 <p>检索参数放在 <code>ivf</code> 子对象下：</p>
@@ -1522,8 +1588,8 @@ auto result = index-&gt;KnnSearch(
 <p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/indexes/sindi-overview.svg" alt="SINDI：按窗口维护的每词项倒排表，只对查询非零词项对应的列表做遍历并累加进 n_candidate 候选堆"><span class="img-wrapper"><img src="figures/indexes/sindi-overview.svg" alt="SINDI：按窗口维护的每词项倒排表，只对查询非零词项对应的列表做遍历并累加进 n_candidate 候选堆"></span></label></p>
 <p>SINDI（<strong>S</strong>parse <strong>IN</strong>verted <strong>D</strong>ense <strong>I</strong>ndex）是 VSAG 面向 <strong>稀疏向量</strong> 的索引——
 例如 BM25、SPLADE 以及其他学习稀疏（learned sparse）编码器产出的向量。与稠密索引
-（HGraph、IVF）不同，SINDI 直接在“词项-权重”对上工作，是 VSAG 中唯一接受
-<code>dtype: "sparse"</code> 的索引。</p>
+（HGraph、IVF）不同，SINDI 直接在“词项-权重”对上工作，是 VSAG 中接受
+<code>dtype: "sparse"</code> 的索引之一。</p>
 <ul>
 <li>源码：<code>src/algorithm/sindi/</code></li>
 <li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/109_index_sindi.cpp"><code>examples/cpp/109_index_sindi.cpp</code></a></li>
@@ -1540,6 +1606,7 @@ auto result = index-&gt;KnnSearch(
 DMQ 正排以降低重排内存。</li>
 </ol>
 <p>返回的距离为 <code>1 - inner_product</code>，使结果与稠密索引一样按升序排序。</p>
+<p>需要同时支持内存与磁盘 I/O 时，请选择 <a href="#sindi_v2">SINDI_V2</a>。</p>
 <h2 id="快速开始-4"><a class="header" href="#快速开始-4">快速开始</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
@@ -1650,6 +1717,7 @@ auto result = index-&gt;KnnSearch(
 </thead>
 <tbody>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>候选堆大小。为 <code>0</code> 时自动取 <code>SPARSE_AMPLIFICATION_FACTOR · topk</code>（500 倍）；若显式设置，须满足 <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code></td></tr>
+<tr><td><code>filter_callback_limit</code></td><td>uint64</td><td><code>0</code></td><td>单次带过滤检索最多调用用户 <code>Filter::CheckValid</code> 回调的次数；<code>0</code> 表示不限制。删除 ID 过滤器等内部检查不计数。达到正数上限时，在正常处理最后一次回调结果后停止候选及后续窗口扫描，并返回已经通过过滤的候选，因此结果可能不完整。该限制同时适用于 KNN、范围检索以及常规 API 和 <code>SearchWithRequest</code></td></tr>
 <tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>查询时丢弃权重最低查询项的比例，取值范围为 <code>[0.0, 1.0)</code></td></tr>
 <tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>每条倒排链中按 value 丢弃低权 posting 的比例，取值范围为 <code>[0.0, 1.0)</code></td></tr>
 <tr><td><code>term_retain_threshold</code></td><td>uint64</td><td><code>0</code></td><td>单个 term 在所有 window 中最多扫描的 posting 总数；<code>0</code> 表示关闭此限制，正数使每个 window 的非空 posting list 最多扫描 <code>max(1, floor(threshold / window_count))</code> 个</td></tr>
@@ -1657,13 +1725,16 @@ auto result = index-&gt;KnnSearch(
 </table>
 </div>
 <p>合并 ratio 与 threshold 限制后，每条非空倒排链至少扫描一个 posting。</p>
-<p>SINDI 会根据构建阶段的 <code>doc_prune_ratio</code> 与检索阶段的 <code>query_prune_ratio</code>
+<p>同一 window 内的单 term posting 先按实际存储值降序排列，值相同时按内部 doc id
+升序排列。ratio 和 threshold 同时生效时，实际扫描
+<code>floor(list_size · (1 - ratio))</code> 与 <code>floor(threshold / window_count)</code> 中的较小值。
+SINDI 会根据构建阶段的 <code>doc_prune_ratio</code> 与检索阶段的 <code>query_prune_ratio</code>
 自动选择堆插入策略。按当前 <code>0.1</code> 阈值，当两个比例都 <code>&lt;= 0.1</code> 时，SINDI 使用
 基于距离数组的入堆路径；只要任一比例大于 <code>0.1</code>，就使用基于 term-list 的入堆路径。
 旧版 <code>use_term_lists_heap_insert</code> 检索参数会被忽略；请改用剪枝比例控制该行为。</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
-    R"({"sindi": {"n_candidate": 200, "query_prune_ratio": 0.1}})").value();
+    R"({"sindi": {"n_candidate": 200, "filter_callback_limit": 10000, "query_prune_ratio": 0.1}})").value();
 </code></pre>
 <h2 id="何时选择-sindi"><a class="header" href="#何时选择-sindi">何时选择 SINDI</a></h2>
 <ul>
@@ -1720,6 +1791,117 @@ SPLADE。</li>
 <li><a href="#k-近邻搜索">k-近邻搜索</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="sindi_v2"><a class="header" href="#sindi_v2">SINDI_V2</a></h1>
+<p>SINDI_V2 是 VSAG 的 term-first 稀疏向量索引。它与
+<a href="#sindi">SINDI</a> 使用相同的窗口化倒排检索模型和 <code>1 - inner_product</code>
+距离定义，但按 term 保存 posting，因此搜索时只需读取查询实际使用的倒排链。</p>
+<ul>
+<li>工厂入口：<code>sindi_v2</code></li>
+<li>源码：<code>src/algorithm/sindi_v2/</code></li>
+<li><code>dtype</code> 必须为：<code>sparse</code></li>
+<li><code>metric_type</code> 必须为：<code>ip</code></li>
+</ul>
+<h2 id="存储布局"><a class="header" href="#存储布局">存储布局</a></h2>
+<p>每个 term payload 只保存非空 window：</p>
+<pre><code class="language-text">non_empty_window_count
+ordered {window_id, posting_count}[]
+local_doc_ids[]
+alignment padding
+encoded_values[]
+</code></pre>
+<p>查询时，SINDI_V2 将稀疏 metadata 展开为 <code>window_count + 1</code> 个 window offset，
+并通过 <code>reader_io</code>、<code>mmap_io</code>、<code>buffer_io</code>、<code>async_io</code> 或内存后端，只加载
+查询保留 term 对应的 posting。</p>
+<p>这与 SINDI 的 window-first 序列化不同。两个工厂入口使用不同的持久化格式，
+加载索引时不能互换。</p>
+<h2 id="快速开始-5"><a class="header" href="#快速开始-5">快速开始</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string params = R"({
+    "dtype": "sparse",
+    "metric_type": "ip",
+    "dim": 1024,
+    "index_param": {
+        "term_id_limit": 30000,
+        "window_size": 50000,
+        "doc_prune_ratio": 0.1,
+        "use_quantization": true,
+        "use_reorder": true,
+        "remap_term_ids": true,
+        "term_io": {
+            "type": "buffer_io",
+            "file_path": "/tmp/sindi_v2.terms"
+        },
+        "rerank_io": {
+            "type": "block_memory_io"
+        }
+    }
+})";
+auto index = vsag::Factory::CreateIndex("sindi_v2", params).value();
+index-&gt;Build(base);
+
+auto result = index-&gt;KnnSearch(
+    query, 10,
+    R"({"sindi_v2": {
+        "n_candidate": 100,
+        "query_prune_ratio": 0.1,
+        "term_prune_ratio": 0.2,
+        "term_retain_threshold": 10000
+    }})").value();
+</code></pre>
+<h2 id="构建参数-4"><a class="header" href="#构建参数-4">构建参数</a></h2>
+<p>构建参数放在 <code>index_param</code> 下。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>int</td><td>必填</td><td>单条稀疏向量允许的最大非零项数量，不是词表大小。</td></tr>
+<tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>term ID 上界，最高为 50 000 000。</td></tr>
+<tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>每个 window 的文档数，范围为 10 000 到 60 000。</td></tr>
+<tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建时丢弃最低权重文档 term 的比例，范围为 <code>[0.0, 1.0)</code>。</td></tr>
+<tr><td><code>use_quantization</code></td><td>bool 或 string</td><td><code>false</code></td><td><code>false</code> 存 FP32，<code>true</code> 存 SQ8，<code>"fp16"</code> 存 FP16。</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>保存高精度向量并对粗排候选重排。</td></tr>
+<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>重排存储类型：<code>fp32</code> 或 <code>dmq8</code>。</td></tr>
+<tr><td><code>dmq_shared_codebook_threshold</code></td><td>int</td><td><code>1024</code></td><td>低频 term 使用共享 DMQ codebook 的阈值。</td></tr>
+<tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>压缩稀疏或间隔很大的外部 term ID。</td></tr>
+<tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>仅用于内存估算。</td></tr>
+<tr><td><code>immutable</code></td><td>bool</td><td><code>false</code></td><td>选择紧凑的只读内存 term DataCell。</td></tr>
+<tr><td><code>term_io</code></td><td>object</td><td><code>{"type": "reader_io"}</code></td><td>加载后保存 term-first posting 的后端。</td></tr>
+<tr><td><code>rerank_io</code></td><td>object</td><td><code>{"type": "block_memory_io"}</code></td><td>保存重排向量的后端。</td></tr>
+<tr><td><code>rerank_layout</code></td><td>uint32</td><td><code>0</code></td><td>top-terms-signature 布局使用的前导 term 数量；<code>0</code> 表示关闭。</td></tr>
+</tbody>
+</table>
+</div>
+<p>文件型 <code>term_io</code> 支持 <code>mmap_io</code>、<code>buffer_io</code> 和 <code>async_io</code>，并要求设置
+<code>file_path</code>。文件型 <code>rerank_io</code> 未设置 <code>file_path</code> 时，VSAG 使用
+<code>&lt;term_io.file_path&gt;.rerank</code>。</p>
+<p><code>rerank_layout &gt; 0</code> 要求 <code>use_reorder: true</code>。<code>rerank_type: "dmq8"</code> 要求
+<code>rerank_layout: 0</code>，并使用默认的 <code>block_memory_io</code> 重排后端。</p>
+<h2 id="检索参数-3"><a class="header" href="#检索参数-3">检索参数</a></h2>
+<p>检索参数放在 <code>{"sindi_v2": {...}}</code> 下。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>粗排候选数量；<code>0</code> 使用根据 <code>topk</code> 推导的索引默认值。</td></tr>
+<tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>跳过最低权重查询 term 的比例，范围为 <code>[0.0, 1.0)</code>。</td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>每条 term list 中跳过最低存储权重的比例，范围为 <code>[0.0, 1.0)</code>。</td></tr>
+<tr><td><code>term_retain_threshold</code></td><td>uint64</td><td><code>0</code></td><td>单个 term 在所有 window 中最多扫描的 posting 总数；<code>0</code> 表示关闭，正数使每个非空 window posting list 最多扫描 <code>max(1, floor(threshold / window_count))</code> 条。</td></tr>
+</tbody>
+</table>
+</div>
+<p>合并 ratio 与 threshold 限制后，每条非空 term list 至少扫描一个 posting。</p>
+<p>SINDI V2 会根据构建阶段的 <code>doc_prune_ratio</code> 与检索阶段的 <code>query_prune_ratio</code>
+自动选择堆插入策略。按当前 <code>0.1</code> 阈值，当两个比例都 <code>&lt;= 0.1</code> 时，使用基于距离数组的
+入堆路径；只要任一比例大于 <code>0.1</code>，就使用基于 term-list 的入堆路径。</p>
+<h2 id="如何选择-sindi-与-sindi_v2"><a class="header" href="#如何选择-sindi-与-sindi_v2">如何选择 SINDI 与 SINDI_V2</a></h2>
+<p>完整稀疏索引常驻内存、且 window-first 序列化合适时选择 SINDI。需要按 term
+组织持久化 posting，或希望搜索时只从外部存储读取查询 term list 时选择 SINDI_V2。</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="simq"><a class="header" href="#simq">SIMQ</a></h1>
 <p>SIMQ 是 VSAG 面向 <strong>多向量（multi-vector）</strong> 检索的索引——适用于每篇文档
 由一组 token 级向量（而非单个 embedding）表示的数据场景。这种模式常见于
@@ -1741,7 +1923,7 @@ token 在该图上搜索最近的若干个簇（由 <code>coarse_k</code> 控制
 </ol>
 <p>聚类粗排与精确精排的两阶段结合，
 为多向量检索提供了可调的召回率/延迟权衡。</p>
-<h2 id="快速开始-5"><a class="header" href="#快速开始-5">快速开始</a></h2>
+<h2 id="快速开始-6"><a class="header" href="#快速开始-6">快速开始</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string build_params = R"({
@@ -1807,7 +1989,7 @@ for (int64_t i = 0; i &lt; result_count; ++i) {
     float dist = result_dists[i];
 }
 </code></pre>
-<h2 id="构建参数-4"><a class="header" href="#构建参数-4">构建参数</a></h2>
+<h2 id="构建参数-5"><a class="header" href="#构建参数-5">构建参数</a></h2>
 <p>SIMQ 专属构建参数放在 <code>index_param</code> 下。<code>dim</code>、<code>dtype</code>、<code>metric_type</code>
 是顶层字段。<code>dtype</code> <strong>必须</strong> 为 <code>"float32"</code>，<code>metric_type</code> <strong>必须</strong> 为 <code>"ip"</code>。</p>
 <div class="table-wrapper">
@@ -1848,7 +2030,7 @@ for (int64_t i = 0; i &lt; result_count; ++i) {
 会产生更少的簇，粗排更快但召回降低。建议以 <code>init_cluster_ratio = 0.1</code>–<code>0.2</code>、
 <code>max_cluster_size = 2 × split_start_idx</code> 为起点，再通过检索参数调优。</p>
 </blockquote>
-<h2 id="检索参数-3"><a class="header" href="#检索参数-3">检索参数</a></h2>
+<h2 id="检索参数-4"><a class="header" href="#检索参数-4">检索参数</a></h2>
 <p>检索参数放在 <code>simq</code> 子对象下：</p>
 <div class="table-wrapper">
 <table>
@@ -1962,7 +2144,7 @@ auto values = result-&gt;GetStatistics(
 <li><strong>检索。</strong> 查询向量同样要附带路径。搜索会顺路径树向下走到最具体匹配查询路径的子图，
 然后在该子图内执行图检索（<code>ef_search</code>；中间层由 <code>subindex_ef_search</code> 控制）。</li>
 </ol>
-<h2 id="快速开始-6"><a class="header" href="#快速开始-6">快速开始</a></h2>
+<h2 id="快速开始-7"><a class="header" href="#快速开始-7">快速开始</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string params = R"({
@@ -2005,7 +2187,7 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"pyramid": {"ef_search": 100}})").value();
 </code></pre>
-<h2 id="构建参数-5"><a class="header" href="#构建参数-5">构建参数</a></h2>
+<h2 id="构建参数-6"><a class="header" href="#构建参数-6">构建参数</a></h2>
 <p>构建参数放在 <code>index_param</code> 下。</p>
 <div class="table-wrapper">
 <table>
@@ -2031,6 +2213,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>RaBitQ 快速编码的微调轮数，范围 <code>[1, 32]</code></td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>底层与精排存储后端；以 liburing 构建时可用 <code>uring_io</code></td></tr>
 <tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td><code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>mmap_io</code> 等磁盘存储必须设置</td></tr>
+<tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>保留 FP32 原始向量，用于 <code>GetRawVectorByIds</code> 和精确的按 ID 距离计算</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>子索引的最小规模；小于该值的分区会退化为线性扫描</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否允许重复 ID</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>构建阶段并发线程数</td></tr>
@@ -2068,7 +2251,9 @@ auto result = index-&gt;KnnSearch(
 同一个截断后向量。Pyramid 使用 split code-code 距离完成构图提升，不保留原始 FP32
 向量；除非构建时启用 <code>store_raw_vector</code>，否则依赖可解码向量的 Analyzer 指标会被标记为
 不可用。如果 embedding 模型没有针对前缀维度训练，截断可能显著降低召回率。</p>
-<h2 id="检索参数-4"><a class="header" href="#检索参数-4">检索参数</a></h2>
+<h2 id="构建缓存"><a class="header" href="#构建缓存">构建缓存</a></h2>
+<p><code>ExportCache</code> 会保存每个层级、每个节点的 NSW 图种子，<code>ImportCache</code> 可在后续 <code>Build</code> 中复用。缓存数据使用索引缓存 payload 格式，而非 streaming 索引序列化格式。需要复用缓存的索引通过 footer 序列化前应设置 <code>persist_source_id: true</code>，并且两次构建中的每个向量都必须提供唯一的 <code>Dataset::SourceID</code>。缓存预热仅适用于 <code>graph_type: "nsw"</code>；ODescent、重复 ID 模式、缺少 source ID 或 source ID 重复时会自动回退到普通冷构建。<code>ef_construction</code> 不作为缓存路径的准入条件。完整恢复的缓存图行会被保留，缓存未命中的节点则使用当前向量构建。</p>
+<h2 id="检索参数-5"><a class="header" href="#检索参数-5">检索参数</a></h2>
 <p>检索参数放在 <code>pyramid</code> 子对象下：</p>
 <div class="table-wrapper">
 <table>
@@ -2188,8 +2373,11 @@ new_index-&gt;Deserialize(binary_set);
 </ul>
 <p>如果不需要按路径限定查询范围，<a href="#hgraph-1">HGraph</a> 更简洁，性能通常也更高。</p>
 <p>可以通过<a href="#索引分析analyzeindexbysearch-与-analyze_index">索引分析</a>检查 Pyramid 的树结构、子索引质量、
-<code>GetStats()</code> 输出的 base 采样召回率和重复比例。Pyramid 目前不通过
-<code>AnalyzeIndexBySearch</code> 提供查询驱动指标。</p>
+<code>GetStats()</code> 输出的 base 采样召回率和重复比例。<code>AnalyzeIndexBySearch</code> 还会输出按路径限定的
+query 召回率、距离、耗时，以及开启 reorder 时的量化指标。query 数据集必须包含与
+<code>KnnSearch</code> 相同的默认或命名 hierarchy 路径；批量数据集在需要或提供路径时，应为每条 query
+提供一条路径。<code>analyze_index</code> 工具当前无法从 dense query 文件加载 hierarchy 路径，因此
+按路径执行动态分析时请使用 C++ 接口。</p>
 <h2 id="标记删除-1"><a class="header" href="#标记删除-1">标记删除</a></h2>
 <p>Pyramid 支持 <code>RemoveMode::MARK_REMOVE</code>。调用 <code>Remove(ids)</code>（默认模式）会为给定的 id
 打上删除标记：它们会从后续检索结果中排除，<code>GetNumElements()</code> 相应减少，
@@ -2227,7 +2415,7 @@ top-k —— 没有图遍历、没有倒排表、不做近似。它的主要用�
 <p>由于索引保留了每一条向量（除非选择了有损量化器），当 <code>base_quantization_type = fp32</code> 时
 结果是<strong>完全精确的</strong>，因此 <code>eval_performance</code> 工具默认用 BruteForce 作为生成 ground truth 的
 参考索引。</p>
-<h2 id="快速开始-7"><a class="header" href="#快速开始-7">快速开始</a></h2>
+<h2 id="快速开始-8"><a class="header" href="#快速开始-8">快速开始</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
 std::string params = R"({
@@ -2249,7 +2437,7 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 </code></pre>
 <p>完整可运行示例见
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>。</p>
-<h2 id="构建参数-6"><a class="header" href="#构建参数-6">构建参数</a></h2>
+<h2 id="构建参数-7"><a class="header" href="#构建参数-7">构建参数</a></h2>
 <p>最简配置只需要三个顶层字段（<code>dtype</code>、<code>metric_type</code>、<code>dim</code>）。大多数场景下不需要
 <code>index_param</code>，这也是
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp">示例 105</a>
@@ -2775,7 +2963,7 @@ scale 与 offset</strong>。这在热路径上带来三点收益：</p>
 <tr><th>Key</th><th>类型</th><th>默认</th><th>适用</th><th>含义</th></tr>
 </thead>
 <tbody>
-<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td>仅 <code>sq4_uniform</code></td><td>对离群值的对称截断比例（<code>src/quantization/scalar_quantization/sq4_uniform_quantizer_parameter.h:39</code>）。值越大，越多极端坐标被截断，从而减少主体数据的范围浪费，代价是尾部被裁掉。</td></tr>
+<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td>仅 <code>sq4_uniform</code></td><td>对离群值的有限对称截断比例，取值范围为闭区间 <code>[0.0, 0.5]</code>。值越大，越多极端坐标被截断，从而减少主体数据的范围浪费，代价是尾部被裁掉。</td></tr>
 </tbody>
 </table>
 </div>
@@ -3763,11 +3951,11 @@ mutation 后的搜索正确性。</li>
 </ul>
 </li>
 <li>
-<p><input disabled="" type="checkbox"> 模型导出、clone、merge、tune、feedback 和 cache 导入/导出。</p>
+<p><input disabled="" type="checkbox"> 模型导出、clone、merge、tune 和 cache 导入/导出。</p>
 <ul>
 <li>当索引可以在不错误共享可变存储的情况下复制时，实现 <code>Clone()</code> 和 <code>ExportModel()</code>。</li>
 <li>只有在参数兼容性、ID 重映射和删除语义清晰时，才实现 <code>Merge()</code>。</li>
-<li>只有带有明确参数解析和测试时，才实现 <code>Tune()</code>、<code>Feedback()</code>、<code>ExportCache()</code> 和
+<li>只有带有明确参数解析和测试时，才实现 <code>Tune()</code>、<code>ExportCache()</code> 和
 <code>ImportCache()</code>。</li>
 </ul>
 </li>
@@ -3921,20 +4109,16 @@ install:                 ## Build and install the release version of vsag.
 <h1 id="离线--内网环境构建-1"><a class="header" href="#离线--内网环境构建-1">离线 / 内网环境构建</a></h1>
 <p>VSAG 在 CMake <strong>配置 / 构建阶段</strong>会下载一批第三方库（通过 <code>ExternalProject_Add</code>
 与 <code>FetchContent</code>）。在没有外网访问、或网络较慢 / 受限的机器上，这些下载可能失败或
-超时。本文介绍如何把每个依赖指向<strong>本地路径</strong>或<strong>内网镜像</strong>（内网 HTTP 服务、OSS
-存储桶、Artifactory 等），从而在完全离线的环境中完成编译。</p>
+超时。本文介绍如何把每个依赖指向<strong>本地路径</strong>或<strong>内网镜像</strong>（内网 HTTP 服务、对象
+存储、Artifactory 等），从而在完全离线的环境中完成编译。</p>
 <h2 id="第三方下载的解析顺序"><a class="header" href="#第三方下载的解析顺序">第三方下载的解析顺序</a></h2>
 <p>对每一个需要下载的依赖，VSAG 会构造一个候选 URL <em>列表</em>，由 CMake <strong>按顺序</strong>依次尝试，
 命中第一个成功的即停止。以 <code>antlr4</code> 为代表
 （<a href="https://github.com/antgroup/vsag/blob/main/extern/antlr4/antlr4.cmake"><code>extern/antlr4/antlr4.cmake</code></a>）：</p>
 <pre><code class="language-cmake">set (antlr4_urls
-    https://github.com/antlr/antlr4/archive/refs/tags/4.13.2.tar.gz   # 1. 上游
-    https://vsagcache.oss-rg-china-mainland.aliyuncs.com/antlr4/v4.13.2.tar.gz  # 2. 项目镜像
+    https://github.com/antlr/antlr4/archive/refs/tags/4.13.2.tar.gz
 )
-if (DEFINED ENV{VSAG_THIRDPARTY_ANTLR4})
-    message (STATUS "Using local path for antlr4: $ENV{VSAG_THIRDPARTY_ANTLR4}")
-    list (PREPEND antlr4_urls "$ENV{VSAG_THIRDPARTY_ANTLR4}")   # 0. 你的覆盖项（最先尝试）
-endif ()
+vsag_resolve_thirdparty_override (ANTLR4 4.13.2 antlr4_urls)
 
 ExternalProject_Add (antlr4
     URL ${antlr4_urls}
@@ -3943,58 +4127,69 @@ ExternalProject_Add (antlr4
 </code></pre>
 <p>因此解析顺序为：</p>
 <ol>
-<li><strong><code>VSAG_THIRDPARTY_&lt;LIB&gt;</code></strong> —— 你设置的覆盖项（如果该环境变量已设置为<strong>非空</strong>值）。<strong>最先尝试</strong>。</li>
-<li><strong>上游</strong> URL（GitHub / 项目发布页）。</li>
-<li>项目维护的 <strong>阿里云 OSS 镜像</strong>
-（<code>vsagcache.oss-rg-china-mainland.aliyuncs.com</code>）。该兜底地址始终存在，在中国大陆 /
-弱网环境下很有帮助，但<strong>不可由用户配置</strong>——若要使用纯内网镜像，请使用环境变量。</li>
+<li>当前分支确切依赖标识符对应的<strong>固定版本变量（pinned variable）</strong>
+<code>VSAG_THIRDPARTY_&lt;LIB&gt;_&lt;PIN_SUFFIX&gt;</code>。</li>
+<li>未带版本的 <code>VSAG_THIRDPARTY_&lt;LIB&gt;</code>，作为已弃用的兼容兜底。如果两者都设置，固定版本变量优先。</li>
+<li>权威的<strong>上游</strong> URL（一个或多个，来自 GitHub / 项目发布页）。</li>
 </ol>
-<blockquote>
-<p><strong>可用版本：</strong> <code>VSAG_THIRDPARTY_*</code> 覆盖能力在 <code>main</code> 分支以及 <code>0.15</code>、<code>0.16</code>、
-<code>0.17</code>、<code>0.18</code> 发布线上均可用——详见<a href="#版本可用性">版本可用性</a>。</p>
-</blockquote>
+<p>VSAG 不提供项目控制的压缩包镜像。如需使用本地或内网镜像，请设置固定版本变量（推荐），
+或临时使用已弃用的旧变量。</p>
+<p>只会读取当前分支确切 pin 对应的固定版本变量。其他版本的变量可以一直保留在环境中，它们会被
+忽略，因此同一个 CI 镜像或 shell 配置可以安全地支持多个 VSAG 分支。</p>
+<h2 id="固定版本变量命名"><a class="header" href="#固定版本变量命名">固定版本变量命名</a></h2>
+<p>后缀由确切的固定标识符生成：</p>
+<ul>
+<li>数字版本会去掉一个开头的 <code>v</code>/<code>V</code>，以及紧挨数字之前的依赖名装饰；ASCII 字母转为大写，
+其他字符的连续段替换为一个下划线。因此 <code>10.2.1</code> 和 <code>v10.2.1</code> 得到 <code>10_2_1</code>，
+<code>hdf5_1.14.4</code> 得到 <code>1_14_4</code>，<code>yaml-cpp-0.9.0</code> 得到 <code>0_9_0</code>。</li>
+<li>完整提交哈希得到 <code>COMMIT_&lt;12_HEX&gt;</code>，例如
+<code>VSAG_THIRDPARTY_CPUINFO_COMMIT_CA678952A9A8</code>。</li>
+<li>其他标签或 ref 得到 <code>TAG_&lt;NORMALIZED&gt;_H&lt;12_HEX&gt;</code>。十六进制部分是对大小写敏感的确切
+标识符计算 SHA-256 后的大写前缀，所以规范化后相同的不同拼写仍可区分。</li>
+<li>同一依赖的两个 pin 若在 12 个十六进制字符处冲突，两边会确定性地逐字符扩展。如果完整哈希
+或摘要仍无法区分，配置会失败，而不会接受有歧义的名称。</li>
+</ul>
 <h2 id="开始前的关键事项"><a class="header" href="#开始前的关键事项">开始前的关键事项</a></h2>
 <ul>
 <li><strong>取值可以是本地路径，也可以是 URL。</strong> 支持绝对文件路径
 （<code>/data/deps/fmt-10.2.1.tar.gz</code>）、<code>file://</code> URL，或任意 <code>http(s)://</code> URL——
-包括内网 HTTP 服务或 OSS / S3 存储桶。</li>
+包括内网 HTTP 服务或对象存储。</li>
 <li><strong>依然会校验压缩包哈希。</strong> 每个依赖都声明了 <code>URL_HASH</code>（MD5 或 SHA256）。你镜像 /
 本地的压缩包必须与<strong>上游压缩包逐字节一致</strong>，否则 CMake 会因哈希不匹配而中止。最稳妥的
 做法是把上游原始文件下载一次，原封不动地重新托管。</li>
 <li><strong>覆盖项在配置阶段读取。</strong> 如果你在上一次配置之后修改了变量，请重新执行 CMake 配置或
 先运行 <code>make clean</code>，新值才会生效。</li>
 <li><strong>请使用非空值，否则就不要设置。</strong> CMake 把“已 export 但为空”的变量视为<em>已定义</em>，因此
-<code>export VSAG_THIRDPARTY_FMT=</code> 会把一个空项 prepend 到 URL 列表里，导致下载失败。若要停用
+<code>export VSAG_THIRDPARTY_FMT_10_2_1=</code> 会把一个空项 prepend 到 URL 列表里，导致下载失败。若要停用
 某个覆盖项，请 <code>unset</code> 它，而不要把它设为空字符串。</li>
-<li><strong>每个依赖相互独立。</strong> 没有单一的全局镜像变量；每个需要的依赖各自设置一个
-<code>VSAG_THIRDPARTY_&lt;LIB&gt;</code>。你只需为本次构建实际拉取的依赖设置变量（见
+<li><strong>每个依赖相互独立。</strong> 没有单一的全局镜像变量；每个需要的依赖各自设置一个固定版本变量。
+你只需为本次构建实际拉取的依赖设置变量（见
 <a href="#我需要哪些依赖">我需要哪些依赖？</a>）。</li>
-<li><strong>日志中的确认信息。</strong> 覆盖项生效时，CMake 会打印
-<code>-- Using local path for &lt;lib&gt;: &lt;你的取值&gt;</code>。</li>
+<li><strong>日志中的确认信息。</strong> CMake 会报告依赖、pin、选中的来源类别与变量，以及兜底 / 弃用行为。
+由于 URL 可能包含凭据，日志不会打印变量值。</li>
 </ul>
 <h2 id="环境变量-1"><a class="header" href="#环境变量-1">环境变量</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>环境变量</th><th>库</th><th>需镜像的上游压缩包</th><th>何时被拉取</th></tr>
+<tr><th><code>main</code> 上的固定版本变量</th><th>库</th><th>需镜像的上游压缩包</th><th>何时被拉取</th></tr>
 </thead>
 <tbody>
-<tr><td><code>VSAG_THIRDPARTY_JSON</code></td><td>nlohmann/json 3.11.3</td><td><code>github.com/nlohmann/json/.../v3.11.3.tar.gz</code></td><td>始终</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_ANTLR4</code></td><td>ANTLR4 runtime 4.13.2</td><td><code>github.com/antlr/antlr4/.../4.13.2.tar.gz</code></td><td>始终</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_BOOST</code></td><td>Boost 1.67.0（头文件）</td><td><code>archives.boost.io/.../boost_1_67_0.tar.gz</code></td><td>始终</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_OPENBLAS</code></td><td>OpenBLAS 0.3.24</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.24.tar.gz</code></td><td>默认 BLAS 后端（未使用系统库 / MKL 时）</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_CPUINFO</code></td><td>pytorch/cpuinfo</td><td><code>github.com/pytorch/cpuinfo/archive/ca678952...tar.gz</code></td><td>始终</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_FMT</code></td><td>fmt 10.2.1</td><td><code>github.com/fmtlib/fmt/.../10.2.1.tar.gz</code></td><td>始终（除非使用系统 fmt）</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_THREAD_POOL</code></td><td>log4cplus/ThreadPool</td><td><code>github.com/log4cplus/ThreadPool/archive/3507796e...tar.gz</code></td><td>始终</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_TSL</code></td><td>Tessil/robin-map 1.4.0</td><td><code>github.com/Tessil/robin-map/.../v1.4.0.tar.gz</code></td><td>始终</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_ROARINGBITMAP</code></td><td>CRoaring 3.0.1</td><td><code>github.com/RoaringBitmap/CRoaring/.../v3.0.1.tar.gz</code></td><td>始终</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_CATCH2</code></td><td>Catch2 3.7.1</td><td><code>github.com/catchorg/Catch2/.../v3.7.1.tar.gz</code></td><td><code>ENABLE_TESTS=ON</code></td></tr>
-<tr><td><code>VSAG_THIRDPARTY_HDF5</code></td><td>HDF5 1.14.4</td><td><code>github.com/HDFGroup/hdf5/.../hdf5_1.14.4.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_ARGPARSE</code></td><td>p-ranav/argparse 3.1</td><td><code>github.com/p-ranav/argparse/.../v3.1.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_YAML_CPP</code></td><td>yaml-cpp 0.9.0</td><td><code>github.com/jbeder/yaml-cpp/.../yaml-cpp-0.9.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_TABULATE</code></td><td>p-ranav/tabulate</td><td><code>github.com/p-ranav/tabulate/archive/3a583010...tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_HTTPLIB</code></td><td>cpp-httplib 0.35.0</td><td><code>github.com/yhirose/cpp-httplib/.../v0.35.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_PYBIND11</code></td><td>pybind11 2.11.1</td><td><code>github.com/pybind/pybind11/.../v2.11.1.tar.gz</code></td><td>Python 绑定（<code>pyvsag</code> / <code>ENABLE_PYBINDS=ON</code>）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_JSON_3_11_3</code></td><td>nlohmann/json 3.11.3</td><td><code>github.com/nlohmann/json/.../v3.11.3.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ANTLR4_4_13_2</code></td><td>ANTLR4 runtime 4.13.2</td><td><code>github.com/antlr/antlr4/.../4.13.2.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_OPENBLAS_0_3_24</code></td><td>OpenBLAS 0.3.24</td><td><code>github.com/OpenMathLib/OpenBLAS/.../OpenBLAS-0.3.24.tar.gz</code></td><td>默认 BLAS 后端（未使用系统库 / MKL 时）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CPUINFO_COMMIT_CA678952A9A8</code></td><td>pytorch/cpuinfo</td><td><code>github.com/pytorch/cpuinfo/archive/ca678952...tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_FMT_10_2_1</code></td><td>fmt 10.2.1</td><td><code>github.com/fmtlib/fmt/.../10.2.1.tar.gz</code></td><td>始终（除非使用系统 fmt）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_THREAD_POOL_COMMIT_3507796E172D</code></td><td>log4cplus/ThreadPool</td><td><code>github.com/log4cplus/ThreadPool/archive/3507796e...tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TSL_1_4_0</code></td><td>Tessil/robin-map 1.4.0</td><td><code>github.com/Tessil/robin-map/.../v1.4.0.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ROARINGBITMAP_3_0_1</code></td><td>CRoaring 3.0.1</td><td><code>github.com/RoaringBitmap/CRoaring/.../v3.0.1.tar.gz</code></td><td>始终</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_CATCH2_3_7_1</code></td><td>Catch2 3.7.1</td><td><code>github.com/catchorg/Catch2/.../v3.7.1.tar.gz</code></td><td><code>ENABLE_TESTS=ON</code></td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HDF5_1_14_4</code></td><td>HDF5 1.14.4</td><td><code>github.com/HDFGroup/hdf5/.../hdf5_1.14.4.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_ARGPARSE_3_1</code></td><td>p-ranav/argparse 3.1</td><td><code>github.com/p-ranav/argparse/.../v3.1.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_YAML_CPP_0_9_0</code></td><td>yaml-cpp 0.9.0</td><td><code>github.com/jbeder/yaml-cpp/.../yaml-cpp-0.9.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_TABULATE_COMMIT_3A58301067BB</code></td><td>p-ranav/tabulate</td><td><code>github.com/p-ranav/tabulate/archive/3a583010...tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_HTTPLIB_0_35_0</code></td><td>cpp-httplib 0.35.0</td><td><code>github.com/yhirose/cpp-httplib/.../v0.35.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
+<tr><td><code>VSAG_THIRDPARTY_PYBIND11_2_11_1</code></td><td>pybind11 2.11.1</td><td><code>github.com/pybind/pybind11/.../v2.11.1.tar.gz</code></td><td>Python 绑定（<code>pyvsag</code> / <code>ENABLE_PYBINDS=ON</code>）</td></tr>
 </tbody>
 </table>
 </div>
@@ -4003,12 +4198,11 @@ ExternalProject_Add (antlr4
 <a href="https://github.com/antgroup/vsag/tree/main/extern"><code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code></a>
 文件。镜像时（尤其是版本升级后）请以该文件为准。</p>
 </blockquote>
-<p>此处未列出的（不下载，因此无需覆盖）：<strong>Intel MKL</strong>（通过 <code>find_path</code> 在主机上查找）与
-<strong>DiskANN</strong>（以源码内置于 <code>extern/diskann/</code>）。</p>
+<p>此处未列出的（不下载，因此无需覆盖）：<strong>Intel MKL</strong>（通过 <code>find_path</code> 在主机上查找）。</p>
 <h2 id="我需要哪些依赖"><a class="header" href="#我需要哪些依赖">我需要哪些依赖？</a></h2>
 <p>你只需镜像本次构建实际会下载的依赖：</p>
 <ul>
-<li><strong>核心库</strong>（<code>make debug</code> / <code>make release</code>）：<code>JSON</code>、<code>ANTLR4</code>、<code>BOOST</code>、
+<li><strong>核心库</strong>（<code>make debug</code> / <code>make release</code>）：<code>JSON</code>、<code>ANTLR4</code>、
 <code>OPENBLAS</code>、<code>CPUINFO</code>、<code>FMT</code>、<code>THREAD_POOL</code>、<code>TSL</code>、<code>ROARINGBITMAP</code>。
 其中两个是条件依赖：当 BLAS 由 Intel MKL（x86_64 且 <code>ENABLE_INTEL_MKL=ON</code>）或系统
 OpenBLAS 提供时，<code>OPENBLAS</code> <strong>不会</strong>下载；当找到系统 <code>fmt</code> 时，<code>FMT</code> 会被跳过。</li>
@@ -4019,46 +4213,54 @@ OpenBLAS 提供时，<code>OPENBLAS</code> <strong>不会</strong>下载；当�
 <li><strong>+ Python wheel</strong>（<code>make pyvsag</code>）：另加 <code>PYBIND11</code>。</li>
 </ul>
 <h2 id="示例"><a class="header" href="#示例">示例</a></h2>
-<h3 id="a-内网-http-服务或-oss-存储桶推荐"><a class="header" href="#a-内网-http-服务或-oss-存储桶推荐">A. 内网 HTTP 服务或 OSS 存储桶（推荐）</a></h3>
+<h3 id="a-内网-http-服务或对象存储推荐"><a class="header" href="#a-内网-http-服务或对象存储推荐">A. 内网 HTTP 服务或对象存储（推荐）</a></h3>
 <p>将上游压缩包原封不动地重新托管到内网地址，再让每个变量指向它。用一个基础 URL 的 shell
 变量可以让配置更简洁：</p>
 <pre><code class="language-bash"># 内网镜像，逐字节提供上游压缩包
 export VSAG_MIRROR=https://mirror.corp.example.com/vsag-thirdparty
 
-export VSAG_THIRDPARTY_JSON=$VSAG_MIRROR/v3.11.3.tar.gz
-export VSAG_THIRDPARTY_ANTLR4=$VSAG_MIRROR/antlr4-4.13.2.tar.gz
-export VSAG_THIRDPARTY_BOOST=$VSAG_MIRROR/boost_1_67_0.tar.gz
-export VSAG_THIRDPARTY_OPENBLAS=$VSAG_MIRROR/OpenBLAS-0.3.24.tar.gz
-export VSAG_THIRDPARTY_CPUINFO=$VSAG_MIRROR/cpuinfo-ca678952.tar.gz
-export VSAG_THIRDPARTY_FMT=$VSAG_MIRROR/fmt-10.2.1.tar.gz
-export VSAG_THIRDPARTY_THREAD_POOL=$VSAG_MIRROR/thread_pool-3507796e.tar.gz
-export VSAG_THIRDPARTY_TSL=$VSAG_MIRROR/robin-map-1.4.0.tar.gz
-export VSAG_THIRDPARTY_ROARINGBITMAP=$VSAG_MIRROR/CRoaring-3.0.1.tar.gz
+export VSAG_THIRDPARTY_JSON_3_11_3=$VSAG_MIRROR/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4_4_13_2=$VSAG_MIRROR/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS_0_3_24=$VSAG_MIRROR/OpenBLAS-0.3.24.tar.gz
+export VSAG_THIRDPARTY_CPUINFO_COMMIT_CA678952A9A8=$VSAG_MIRROR/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT_10_2_1=$VSAG_MIRROR/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL_COMMIT_3507796E172D=$VSAG_MIRROR/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL_1_4_0=$VSAG_MIRROR/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP_3_0_1=$VSAG_MIRROR/CRoaring-3.0.1.tar.gz
 
 make release
 </code></pre>
-<p>OSS / S3 存储桶用法完全相同——直接使用其公网（或网络可达）的对象 URL，例如
-<code>https://my-bucket.oss-cn-hangzhou.aliyuncs.com/vsag/OpenBLAS-0.3.24.tar.gz</code>。</p>
+<p>对象存储端点的用法完全相同：使用其网络可达的对象 URL 即可。</p>
 <h3 id="b-预先下载的本地文件完全离线"><a class="header" href="#b-预先下载的本地文件完全离线">B. 预先下载的本地文件（完全离线）</a></h3>
 <p>在完全没有网络的机器上，先把压缩包拷贝到本机（例如 <code>/data/vsag-deps</code>），再让变量指向本地
 文件：</p>
-<pre><code class="language-bash">export VSAG_THIRDPARTY_JSON=/data/vsag-deps/v3.11.3.tar.gz
-export VSAG_THIRDPARTY_ANTLR4=/data/vsag-deps/antlr4-4.13.2.tar.gz
-export VSAG_THIRDPARTY_BOOST=/data/vsag-deps/boost_1_67_0.tar.gz
-export VSAG_THIRDPARTY_OPENBLAS=/data/vsag-deps/OpenBLAS-0.3.24.tar.gz
-export VSAG_THIRDPARTY_CPUINFO=/data/vsag-deps/cpuinfo-ca678952.tar.gz
-export VSAG_THIRDPARTY_FMT=/data/vsag-deps/fmt-10.2.1.tar.gz
-export VSAG_THIRDPARTY_THREAD_POOL=/data/vsag-deps/thread_pool-3507796e.tar.gz
-export VSAG_THIRDPARTY_TSL=/data/vsag-deps/robin-map-1.4.0.tar.gz
-export VSAG_THIRDPARTY_ROARINGBITMAP=/data/vsag-deps/CRoaring-3.0.1.tar.gz
+<pre><code class="language-bash">export VSAG_THIRDPARTY_JSON_3_11_3=/data/vsag-deps/v3.11.3.tar.gz
+export VSAG_THIRDPARTY_ANTLR4_4_13_2=/data/vsag-deps/antlr4-4.13.2.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS_0_3_24=/data/vsag-deps/OpenBLAS-0.3.24.tar.gz
+export VSAG_THIRDPARTY_CPUINFO_COMMIT_CA678952A9A8=/data/vsag-deps/cpuinfo-ca678952.tar.gz
+export VSAG_THIRDPARTY_FMT_10_2_1=/data/vsag-deps/fmt-10.2.1.tar.gz
+export VSAG_THIRDPARTY_THREAD_POOL_COMMIT_3507796E172D=/data/vsag-deps/thread_pool-3507796e.tar.gz
+export VSAG_THIRDPARTY_TSL_1_4_0=/data/vsag-deps/robin-map-1.4.0.tar.gz
+export VSAG_THIRDPARTY_ROARINGBITMAP_3_0_1=/data/vsag-deps/CRoaring-3.0.1.tar.gz
 
 make release
 </code></pre>
-<p>使用 <code>file://</code> URL（<code>export VSAG_THIRDPARTY_FMT=file:///data/vsag-deps/fmt-10.2.1.tar.gz</code>）
+<p>使用 <code>file://</code> URL（<code>export VSAG_THIRDPARTY_FMT_10_2_1=file:///data/vsag-deps/fmt-10.2.1.tar.gz</code>）
 同样有效。</p>
 <h3 id="c-只覆盖单个依赖"><a class="header" href="#c-只覆盖单个依赖">C. 只覆盖单个依赖</a></h3>
 <p>如果只有某一个下载不稳定，只覆盖它即可，其余继续使用默认地址：</p>
-<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS=https://mirror.corp.example.com/OpenBLAS-0.3.24.tar.gz
+<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS_0_3_24=https://mirror.example.com/OpenBLAS-0.3.24.tar.gz
+make release
+</code></pre>
+<h3 id="d-同时保留多个分支的-pin"><a class="header" href="#d-同时保留多个分支的-pin">D. 同时保留多个分支的 pin</a></h3>
+<p>这些变量可以共存。后续各发布分支独立回移后，切换分支时会自动选择该分支自己的 pin，
+无需修改环境：</p>
+<pre><code class="language-bash">export VSAG_THIRDPARTY_OPENBLAS_0_3_23=/data/vsag-deps/OpenBLAS-0.3.23.tar.gz
+export VSAG_THIRDPARTY_OPENBLAS_0_3_24=/data/vsag-deps/OpenBLAS-0.3.24.tar.gz
+export VSAG_THIRDPARTY_YAML_CPP_0_8_0=/data/vsag-deps/yaml-cpp-0.8.0.tar.gz
+export VSAG_THIRDPARTY_YAML_CPP_0_9_0=/data/vsag-deps/yaml-cpp-0.9.0.tar.gz
+
+git switch main   # 选择 OpenBLAS 0.3.24 与 yaml-cpp 0.9.0
 make release
 </code></pre>
 <h2 id="备选方案复用系统库"><a class="header" href="#备选方案复用系统库">备选方案：复用系统库</a></h2>
@@ -4072,26 +4274,26 @@ make release
 一致。请重新下载确切的上游压缩包并原样托管，或在 <code>extern/&lt;lib&gt;/&lt;lib&gt;.cmake</code> 中核对期望的
 <code>URL_HASH</code>。</li>
 <li><strong>覆盖项似乎未生效</strong> —— 确认变量是在运行 <code>make</code> / <code>cmake</code> 的同一个 shell 中 <code>export</code> 的，
-然后重新执行配置（或 <code>make clean</code>），因为取值是在 CMake 配置阶段读取的。确认配置输出中出现
-<code>-- Using local path for &lt;lib&gt;: &lt;你的取值&gt;</code> 这一行。</li>
+然后重新执行配置（或 <code>make clean</code>），因为取值是在 CMake 配置阶段读取的。确认配置输出中的
+<code>Third-party override</code> 诊断包含预期的 pin 与变量。</li>
 <li><strong>仍然在访问网络</strong> —— 多半是漏掉了本次构建会拉取的某个依赖。请对照
 <a href="#我需要哪些依赖">我需要哪些依赖？</a> 与你启用的选项（<code>ENABLE_TESTS</code>、<code>ENABLE_TOOLS</code>、
 Python 绑定）逐项核对。</li>
 </ul>
 <h2 id="版本可用性"><a class="header" href="#版本可用性">版本可用性</a></h2>
-<p>按依赖配置的 <code>VSAG_THIRDPARTY_*</code> 覆盖能力在 <code>main</code> 开发线以及 <code>0.15</code>、<code>0.16</code>、<code>0.17</code>、
-<code>0.18</code> 发布线上均可用，因此本地路径与内网镜像覆盖在所有这些分支上的行为完全一致。该能力最初由
-<a href="https://github.com/antgroup/vsag/pull/1606">#1606</a> 在 <code>main</code> 引入，并已合入各发布线（跟踪于
-<a href="https://github.com/antgroup/vsag/issues/2308">#2308</a>）。内置的“上游 + 阿里云 OSS 镜像”兜底在
-每条线上依然保留；若你不想镜像某个依赖，也仍可使用<a href="#备选方案复用系统库">复用系统库</a>。</p>
+<p>固定版本变量目前在 <code>main</code> 上实现；<code>1.0</code>、<code>0.18</code>、<code>0.17</code> 与 <code>0.16</code> 的回移需要独立完成，
+因为每个分支拥有自己的 pin。已弃用的未带版本覆盖仍保持兼容。它最初由
+<a href="https://github.com/antgroup/vsag/pull/1606">#1606</a> 在 <code>main</code> 引入，并通过
+<a href="https://github.com/antgroup/vsag/issues/2308">#2308</a> 回移到发布线。内置 URL 兜底与
+<a href="#备选方案复用系统库">复用系统库</a>的行为不变。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="运行测试"><a class="header" href="#运行测试">运行测试</a></h1>
 <p>VSAG 采用 <a href="https://github.com/catchorg/Catch2">Catch2</a> 作为测试框架，测试分为两类：</p>
 <ul>
 <li><strong>单元测试</strong>：与源码同目录，位于 <code>src/</code> 下，聚焦单个类/函数的行为。</li>
-<li><strong>功能测试</strong>：位于 <code>tests/</code> 目录，覆盖跨模块、端到端的索引行为。典型用例包括 <code>test_hnsw.cpp</code>、
-<code>test_hgraph.cpp</code>、<code>test_diskann.cpp</code>、<code>test_ivf.cpp</code>、<code>test_pyramid.cpp</code>、<code>test_sindi.cpp</code>、
-<code>test_brute_force.cpp</code>、<code>test_multi_thread.cpp</code>、<code>test_memleak.cpp</code> 等。</li>
+<li><strong>功能测试</strong>：位于 <code>tests/</code> 目录，覆盖跨模块、端到端的索引行为。典型用例包括
+<code>test_hgraph.cpp</code>、<code>test_ivf.cpp</code>、<code>test_pyramid.cpp</code>、<code>test_sindi.cpp</code>、
+<code>test_brute_force.cpp</code>、<code>test_memleak.cpp</code> 等。</li>
 </ul>
 <h2 id="构建并运行全部测试"><a class="header" href="#构建并运行全部测试">构建并运行全部测试</a></h2>
 <p><code>make test</code> 会以 Debug 配置重新编译（启用 <code>ENABLE_TESTS=ON</code>）并运行单元与功能测试：</p>
@@ -4107,7 +4309,7 @@ Python 绑定）逐项核对。</li>
 <h2 id="仅运行单个测试二进制"><a class="header" href="#仅运行单个测试二进制">仅运行单个测试二进制</a></h2>
 <p>构建完成后，可直接运行单个测试：</p>
 <pre><code class="language-bash">./build-debug/tests/functional_tests "[hgraph]"
-./build-debug/tests/functional_tests "[hnsw][concurrent]"
+./build-debug/tests/functional_tests "[hgraph][concurrent]"
 </code></pre>
 <p>Catch2 支持按名字、tag、通配符等方式筛选用例，详见 <code>--help</code>。</p>
 <h2 id="覆盖率"><a class="header" href="#覆盖率">覆盖率</a></h2>
@@ -4120,7 +4322,8 @@ Python 绑定）逐项核对。</li>
 <h2 id="内存泄漏与多线程"><a class="header" href="#内存泄漏与多线程">内存泄漏与多线程</a></h2>
 <ul>
 <li><code>test_memleak.cpp</code>：基于 AddressSanitizer / LeakSanitizer，对索引的构造/销毁路径进行验证。</li>
-<li><code>test_multi_thread.cpp</code>：验证并发 <code>Build</code> / <code>KnnSearch</code> / <code>RangeSearch</code> 下的正确性。</li>
+<li><code>test_index/test_index_concurrent.cpp</code>：对声明了相应 feature flag 的在维护索引，
+验证共享的并发添加与搜索行为。</li>
 </ul>
 <h2 id="python-测试"><a class="header" href="#python-测试">Python 测试</a></h2>
 <p><code>tests/python/</code> 包含 <code>pyvsag</code> 的 pytest 用例。构建好 <code>pyvsag</code> 后：</p>
@@ -4698,8 +4901,6 @@ auto d = index-&gt;CalcDistanceById(query, /*id=*/42);
 <tr><td>pyramid</td><td>支持</td><td>支持</td><td>支持</td><td></td></tr>
 <tr><td>lazy_hgraph</td><td>支持</td><td>不支持</td><td>取决于当前生效的内部索引</td><td>DatasetPtr 批量调用会委托给当前 BruteForce/HGraph；可用性可能在 phase 切换后改变。</td></tr>
 <tr><td>sindi</td><td>不支持</td><td>支持</td><td>支持</td><td>仅稀疏向量。</td></tr>
-<tr><td>hnsw</td><td>支持</td><td>不支持</td><td>不支持</td><td>稠密批量接口仅支持 <code>topk == -1</code>。</td></tr>
-<tr><td>diskann</td><td>支持</td><td>不支持</td><td>不支持</td><td>稠密批量接口仅支持 <code>topk == -1</code>。</td></tr>
 </tbody>
 </table>
 </div>
@@ -5386,8 +5587,9 @@ auto loaded = vsag::Index::Load(in, load_parameters).value();
 parameters 用来控制已支持 block 的加载策略；参数对象既可以从 JSON 字符串构造，也可以通过
 <code>SetReader</code> 携带 reader 对象。不支持的策略会返回错误，不会静默 fallback。当前该 API 支持 streaming
 BruteForce、HGraph、IVF、SINDI 和 Pyramid 索引。其中 BruteForce 支持有限的 block placement 策略；
-HGraph 支持通过 <code>precise_reader</code> 将 <code>high_precision_codes</code> 绑定到外部 reader；IVF、SINDI 和 Pyramid
-目前会把写出的 streaming blocks 加载到内存。</p>
+HGraph 支持通过 <code>precise_reader</code> 将 <code>high_precision_codes</code> 绑定到外部 reader；IVF 的两种
+精排 codes 布局也都支持外部 reader；SINDI 和 Pyramid 目前会把写出的 streaming blocks
+加载到内存。</p>
 <h2 id="文件布局"><a class="header" href="#文件布局">文件布局</a></h2>
 <p>流式文件由固定头部和一组 TLV block 构成：</p>
 <pre><code class="language-text">magic("vsagstm0")
@@ -5475,13 +5677,20 @@ reader 的 payload checksum，然后将 reorder codes 绑定到该 reader。</p>
 <tr><td><code>ivf_bucket</code></td><td>倒排列表使用的 bucket datacell 数据</td><td>是</td></tr>
 <tr><td><code>ivf_partition_strategy</code></td><td>partition strategy 状态，例如已训练的中心点</td><td>是</td></tr>
 <tr><td><code>label_table</code></td><td>外部 label 和 label remap</td><td>是</td></tr>
-<tr><td><code>high_precision_codes</code></td><td>IVF reorder 开启时的 reorder codes</td><td>条件必需</td></tr>
+<tr><td><code>high_precision_codes</code></td><td>IVF reorder 使用 <code>flat</code> 布局时的精排 codes</td><td>条件必需</td></tr>
+<tr><td><code>ivf_precise_bucket</code></td><td>IVF 使用 <code>bucket</code> 布局时与倒排桶对齐的精排 codes</td><td>条件必需</td></tr>
 <tr><td><code>attribute_filter</code></td><td>开启属性过滤时写入的可选属性过滤索引</td><td>条件必需</td></tr>
 </tbody>
 </table>
 </div>
+<p><code>Load</code> 可以把任一种精排 codes block 绑定到外部 reader。设置
+<code>precise_io_type: "reader_io"</code> 并提供 <code>precise_reader</code>；<code>flat</code> 布局的 reader 必须恰好
+对应 <code>high_precision_codes</code> payload，<code>bucket</code> 布局则对应 <code>ivf_precise_bucket</code> payload。
+<code>Load</code> 会先校验 reader 的大小和 checksum，再返回可查询的索引。
+<code>precise_enable_read_cache</code> 和 <code>precise_cache_total_size</code> 用于配置远程精排 codes 的通用读缓存。</p>
 <p><code>DeserializeStreaming</code> 会恢复完整的内存 IVF 索引。<code>Index::Load</code> 可以直接从 streaming metadata
-创建 IVF 索引对象，当前会把写出的 IVF blocks 都加载到内存中。</p>
+创建 IVF 索引对象。默认情况下会把 IVF blocks 加载到内存；使用 reader 的精排 codes
+会保留在外部。两种精排 codes block 互斥，由 <code>precise_codes_layout</code> 选择。</p>
 <h2 id="sindi-blocks"><a class="header" href="#sindi-blocks">SINDI Blocks</a></h2>
 <p>SINDI 按顺序写入以下 streaming blocks：</p>
 <div class="table-wrapper">
@@ -5577,7 +5786,7 @@ auto result = index-&gt;KnnSearch(query, k, search_param);
 过程中仅临时存在的缓冲区与中间数据结构。构建期间的峰值内存通常高于构建完成后的内存占用：</p>
 <pre><code class="language-cpp">uint64_t peak = index-&gt;EstimateBuildMemory(1000000);  // 字节
 </code></pre>
-<p>目前仅 DiskANN 提供了有效实现，其他索引类型默认抛出异常。</p>
+<p>目前维护中的索引均未提供有效实现；调用方需处理默认的“不支持操作”异常。</p>
 <h3 id="getmemoryusage"><a class="header" href="#getmemoryusage"><code>GetMemoryUsage()</code></a></h3>
 <p><code>Index::GetMemoryUsage()</code> 返回索引<strong>当前</strong>占用的字节数：</p>
 <pre><code class="language-cpp">uint64_t bytes = index-&gt;GetMemoryUsage();
@@ -5667,7 +5876,7 @@ auto result = index-&gt;SearchWithRequest(req).value();
 <blockquote>
 <p><strong>可用性。</strong> <code>Index::SearchWithRequest</code> 默认实现会返回 <em>不支持</em> 错误。目前只有 HGraph、
 IVF、BruteForce、WARP 实现了它（<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>）。对于
-尚未 override 的索引（HNSW、DiskANN、SINDI、Pyramid），请使用下文的旧版
+尚未 override 的索引（SINDI、SINDI_V2、Pyramid），请使用下文的旧版
 <code>SearchParam</code> 路径。</p>
 </blockquote>
 <h2 id="旧版-api--searchparamallocator已弃用"><a class="header" href="#旧版-api--searchparamallocator已弃用">旧版 API —— <code>SearchParam::allocator</code>（已弃用）</a></h2>
@@ -5787,7 +5996,7 @@ if (not index-&gt;CheckFeature(vsag::SUPPORT_DELETE_BY_ID)) {
 <pre><code class="language-cpp">// 稠密向量索引（HGraph、BruteForce、IVF）
 auto r = index-&gt;CalcDistancesById(query_ptr, ids, count, /*calculate_precise_distance=*/true);
 
-// 稀疏向量索引（SINDI）—— 用 Dataset 封装查询
+// 稀疏向量索引（SINDI、SINDI_V2）—— 用 Dataset 封装查询
 auto query_ds = vsag::Dataset::Make();
 query_ds-&gt;NumElements(1)-&gt;SparseVectors(/* ... */);
 auto r = index-&gt;CalcDistancesById(query_ds, ids, count, /*calculate_precise_distance=*/true);
@@ -5949,8 +6158,8 @@ per-stream 的 <code>Reader</code> 从任意存储后端（本地文件、对象
 反序列化索引。至少实现 <code>Read</code>、<code>AsyncRead</code>、<code>Size</code> 三个方法；<code>MultiRead</code> 是
 可选的，当底层支持批量 IO 时能显著提升吞吐。<code>vsag::Factory::CreateLocalFileReader</code>
 是本地文件的参考实现。</p>
-<p>可运行示例：<code>examples/cpp/102_index_diskann.cpp</code>（DiskANN 的反序列化基于
-<code>ReaderSet</code>）。完整的序列化/反序列化矩阵见 <a href="#序列化格式">序列化</a>。</p>
+<p>如何构造 <code>ReaderSet</code> 见 <a href="#readerset">序列化类型</a>；完整的
+序列化/反序列化矩阵见 <a href="#序列化格式">序列化</a>。</p>
 <h2 id="logger"><a class="header" href="#logger">Logger</a></h2>
 <p>VSAG 使用全局唯一的 logger，通过 <code>Options</code> 单例配置：</p>
 <pre><code class="language-cpp">class MyLogger : public vsag::Logger { /* 实现 Trace/Debug/Info/... */ };
@@ -5969,7 +6178,6 @@ vsag::Options::Instance().set_logger(&amp;my_logger);
 <tr><th>接口</th><th>默认值</th><th>备注</th></tr>
 </thead>
 <tbody>
-<tr><td><code>set_num_threads_io(n)</code></td><td><code>8</code></td><td>搜索时磁盘索引的 IO 线程数，取值范围 <code>[1, 200]</code>。</td></tr>
 <tr><td><code>set_num_threads_building(n)</code></td><td><code>4</code></td><td>构建磁盘索引使用的线程数。</td></tr>
 <tr><td><code>set_block_size_limit(bytes)</code></td><td><code>128 MiB</code></td><td>单次分配 block 的最大值，必须 ≥ 256 KiB（见 <code>src/options.cpp:53-57</code>）。</td></tr>
 <tr><td><code>set_direct_IO_object_align_bit(bits)</code></td><td><code>9</code></td><td>Direct-IO 对齐位数，必须 ≤ 21（见 <code>src/options.cpp:40-46</code>）。</td></tr>
@@ -6000,7 +6208,7 @@ C++ 应用应直接使用标准的 <code>vsag::Index</code> API。</p>
 <li><code>examples/cpp/202_custom_logger.cpp</code></li>
 <li><code>examples/cpp/203_custom_thread_pool.cpp</code></li>
 <li><code>examples/cpp/301_feature_filter.cpp</code></li>
-<li><code>examples/cpp/102_index_diskann.cpp</code></li>
+<li><code>examples/cpp/401_persistent_kv.cpp</code></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="图索引增强"><a class="header" href="#图索引增强">图索引增强</a></h1>
@@ -6528,7 +6736,7 @@ std::shared_ptr&lt;vsag::Index&gt; index = result.value();
 <tr><td>行为</td><td><code>INDEX_EMPTY</code></td><td>索引为空，无法搜索或序列化。</td></tr>
 <tr><td>运行时</td><td><code>NO_ENOUGH_MEMORY</code></td><td>内存分配失败。</td></tr>
 <tr><td>运行时</td><td><code>READ_ERROR</code></td><td>从二进制读取失败。</td></tr>
-<tr><td>运行时</td><td><code>MISSING_FILE</code></td><td>缺少必需的文件（如 DiskANN 反序列化）。</td></tr>
+<tr><td>运行时</td><td><code>MISSING_FILE</code></td><td>反序列化时缺少必需的索引文件。</td></tr>
 <tr><td>运行时</td><td><code>INVALID_BINARY</code></td><td>序列化的二进制内容非法。</td></tr>
 </tbody>
 </table>
@@ -6605,7 +6813,7 @@ CreateIndex(const std::string&amp; name,
 <tr><th>参数</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>name</code></td><td>索引类型名，例如 <code>"hgraph"</code>、<code>"ivf"</code>、<code>"diskann"</code>、<code>"brute_force"</code>、<code>"sindi"</code>、<code>"pyramid"</code>。</td></tr>
+<tr><td><code>name</code></td><td>索引类型名，例如 <code>"hgraph"</code>、<code>"ivf"</code>、<code>"brute_force"</code>、<code>"sindi"</code>、<code>"pyramid"</code>。已移除的 <code>"hnsw"</code>、<code>"fresh_hnsw"</code> 与 <code>"diskann"</code> 返回 <code>UNSUPPORTED_INDEX</code>。</td></tr>
 <tr><td><code>parameters</code></td><td>描述索引配置的 JSON 字符串（dtype、dim、metric，以及各索引特有的键）。见 <a href="#索引参数">索引参数</a>。</td></tr>
 <tr><td><code>allocator</code></td><td>可选的自定义 <a href="#allocator"><code>Allocator</code></a>。为 <code>nullptr</code> 时，VSAG 使用内置的默认 allocator。调用方必须在返回索引的整个生命周期内保持 allocator 有效。</td></tr>
 </tbody>
@@ -6676,35 +6884,6 @@ CreateIndex(const std::string&amp; name, const std::string&amp; parameters);
 </div>
 <p>关于 <code>Resource</code>、<code>Allocator</code> 与 <code>ThreadPool</code> 如何协作，见 <a href="#资源管理">资源管理</a>；可运行示例见
 <code>examples/cpp/201_custom_allocator.cpp</code> / <code>203_custom_thread_pool.cpp</code>。</p>
-<h2 id="顶层辅助函数"><a class="header" href="#顶层辅助函数">顶层辅助函数</a></h2>
-<p>这些自由函数（声明于 <code>vsag/index.h</code>）帮助你在创建索引前生成并校验配置字符串。它们都返回
-<code>tl::expected&lt;..., Error&gt;</code>。</p>
-<h3 id="generate_build_parameters"><a class="header" href="#generate_build_parameters"><code>generate_build_parameters</code></a></h3>
-<pre><code class="language-cpp">tl::expected&lt;std::string, Error&gt;
-generate_build_parameters(std::string metric_type,
-                          int64_t num_elements,
-                          int64_t dim,
-                          bool use_conjugate_graph = false);
-</code></pre>
-<p><em>（实验性。）</em> 根据数据集形状（<code>metric_type</code>、<code>num_elements</code>、<code>dim</code>）生成一份建议的构建参数 JSON
-字符串。传入 <code>use_conjugate_graph = true</code> 可启用<a href="#图索引增强">共轭图增强</a>。</p>
-<h3 id="estimate_search_time"><a class="header" href="#estimate_search_time"><code>estimate_search_time</code></a></h3>
-<pre><code class="language-cpp">tl::expected&lt;float, Error&gt;
-estimate_search_time(const std::string&amp; index_name,
-                     int64_t data_num,
-                     int64_t data_dim,
-                     const std::string&amp; parameters);
-</code></pre>
-<p>估算给定索引类型与配置下的单次查询搜索时间（毫秒）。</p>
-<h3 id="check_diskann_hnsw_build_parameters--check_diskann_hnsw_search_parameters"><a class="header" href="#check_diskann_hnsw_build_parameters--check_diskann_hnsw_search_parameters"><code>check_diskann_hnsw_build_parameters</code> / <code>check_diskann_hnsw_search_parameters</code></a></h3>
-<pre><code class="language-cpp">tl::expected&lt;bool, Error&gt;
-check_diskann_hnsw_build_parameters(const std::string&amp; json_string);
-
-tl::expected&lt;bool, Error&gt;
-check_diskann_hnsw_search_parameters(const std::string&amp; json_string);
-</code></pre>
-<p>分别校验 DiskANN/HNSW 的构建与搜索参数 JSON。成功时值为 <code>true</code>；失败时 <code>Error</code> 的 message 会说明问题
-所在。此类校验的命令行封装见<a href="#兼容性检查工具check_compatibility">兼容性检查工具</a>。</p>
 <h2 id="参见"><a class="header" href="#参见">参见</a></h2>
 <ul>
 <li><a href="#index">Index</a> —— 索引创建之后你能用它做什么。</li>
@@ -6713,7 +6892,7 @@ check_diskann_hnsw_search_parameters(const std::string&amp; json_string);
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="index"><a class="header" href="#index">Index</a></h1>
-<p><code>vsag::Index</code>（声明于 <code>vsag/index.h</code>）是本库的核心抽象。每一种具体索引 —— HGraph、IVF、DiskANN、
+<p><code>vsag::Index</code>（声明于 <code>vsag/index.h</code>）是本库的核心抽象。每一种具体索引 —— HGraph、IVF、
 BruteForce、SINDI、Pyramid 等 —— 都实现这一接口。你从不直接实例化 <code>Index</code>，而是通过
 <a href="#createindex"><code>Factory::CreateIndex</code></a> 或
 <a href="#createindex-1"><code>Engine::CreateIndex</code></a> 获取，并用 <code>IndexPtr</code>
@@ -6736,7 +6915,8 @@ BruteForce、SINDI、Pyramid 等 —— 都实现这一接口。你从不直接�
 <h2 id="枚举与辅助类型"><a class="header" href="#枚举与辅助类型">枚举与辅助类型</a></h2>
 <h3 id="indextype"><a class="header" href="#indextype"><code>IndexType</code></a></h3>
 <pre><code class="language-cpp">enum class IndexType {
-    HNSW, DISKANN, HGRAPH, IVF, PYRAMID, BRUTEFORCE, SPARSE, SINDI, WARP, LAZY_HGRAPH, SIMQ
+    HGRAPH = 2, IVF = 3, PYRAMID = 4, BRUTEFORCE = 5, SPARSE = 6, SINDI = 7,
+    WARP = 8, LAZY_HGRAPH = 9, SIMQ = 10
 };
 </code></pre>
 <p>由 <a href="#getindextype"><code>GetIndexType</code></a> 返回。</p>
@@ -7654,7 +7834,6 @@ vsag::Options::Instance().set_logger(&amp;my_logger);
 <tr><th>配置项</th><th>访问器</th><th>默认值</th><th>含义</th></tr>
 </thead>
 <tbody>
-<tr><td>IO 线程</td><td><code>num_threads_io()</code> / <code>set_num_threads_io(n)</code></td><td><code>8</code></td><td>搜索期间磁盘索引 IO 的线程数（1–200）。</td></tr>
 <tr><td>构建线程</td><td><code>num_threads_building()</code> / <code>set_num_threads_building(n)</code></td><td><code>4</code></td><td>构建索引的线程数。</td></tr>
 <tr><td>块大小上限</td><td><code>block_size_limit()</code> / <code>set_block_size_limit(bytes)</code></td><td><code>128 MB</code></td><td>每个分配块的最大字节数（必须 &gt; 2 MB）。</td></tr>
 <tr><td>Direct-IO 对齐</td><td><code>direct_IO_object_align_bit()</code> / <code>set_direct_IO_object_align_bit(bits)</code></td><td><code>9</code></td><td>Direct-IO 对象对齐，以位为单位（&lt; 21）。</td></tr>
@@ -7898,12 +8077,12 @@ float range_search_recall(const float* base, const int64_t* base_ids, int64_t nu
 <tr><th>组</th><th>示例</th></tr>
 </thead>
 <tbody>
-<tr><td>索引类型名</td><td><code>INDEX_HGRAPH</code>、<code>INDEX_IVF</code>、<code>INDEX_DISKANN</code>、<code>INDEX_BRUTE_FORCE</code>、<code>INDEX_SINDI</code>、<code>INDEX_PYRAMID</code></td></tr>
+<tr><td>索引类型名</td><td><code>INDEX_HGRAPH</code>、<code>INDEX_IVF</code>、<code>INDEX_BRUTE_FORCE</code>、<code>INDEX_SINDI</code>、<code>INDEX_PYRAMID</code></td></tr>
 <tr><td>Dataset 字段名</td><td><code>DIM</code>、<code>NUM_ELEMENTS</code>、<code>IDS</code>、<code>DISTS</code>、<code>FLOAT32_VECTORS</code>、<code>SPARSE_VECTORS</code></td></tr>
 <tr><td>度量名</td><td><code>METRIC_L2</code>、<code>METRIC_COSINE</code>、<code>METRIC_IP</code></td></tr>
 <tr><td>数据类型名</td><td><code>DATATYPE_FLOAT32</code>、<code>DATATYPE_FLOAT16</code>、<code>DATATYPE_BFLOAT16</code>、<code>DATATYPE_INT8</code>、<code>DATATYPE_SPARSE</code></td></tr>
 <tr><td>顶层参数</td><td><code>PARAMETER_DTYPE</code>、<code>PARAMETER_DIM</code>、<code>PARAMETER_METRIC_TYPE</code>、<code>INDEX_PARAM</code></td></tr>
-<tr><td>各索引参数</td><td><code>HGRAPH_*</code>、<code>IVF_*</code>、<code>DISKANN_PARAMETER_*</code>、<code>PYRAMID_*</code>、<code>BRUTE_FORCE_*</code></td></tr>
+<tr><td>各索引参数</td><td><code>HGRAPH_*</code>、<code>IVF_*</code>、<code>PYRAMID_*</code>、<code>BRUTE_FORCE_*</code></td></tr>
 <tr><td>统计键</td><td><code>STATSTIC_MEMORY</code>、<code>STATSTIC_KNN_TIME</code>、<code>STATSTIC_RANGE_TIME</code></td></tr>
 </tbody>
 </table>
@@ -7952,7 +8131,6 @@ float range_search_recall(const float* base, const int64_t* base_ids, int64_t nu
 <h2 id="调优"><a class="header" href="#调优">调优</a></h2>
 <ul>
 <li>使用 <a href="#优化器tune"><code>Tune</code></a> 对真实查询分布进行调参；</li>
-<li>对尾部困难查询，启用 <a href="#图索引增强">共轭图</a>；</li>
 <li>使用 <a href="#性能评估工具eval_performance"><code>eval_performance</code></a> 做持续回归测试。</li>
 </ul>
 <h2 id="部署"><a class="header" href="#部署">部署</a></h2>
@@ -9426,15 +9604,20 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 <ul>
 <li><strong>输入</strong>：<code>SearchRequest</code>（查询数据集 + <code>topk</code> + 搜索参数 JSON）。</li>
 <li><strong>输出</strong>：JSON 字符串，包含基于查询的动态指标。</li>
-<li><strong>支持的索引类型</strong>：当前支持 <code>HGraph</code>、<code>IVF</code> 与 <code>SINDI</code>。未实现该接口的
+<li><strong>支持的索引类型</strong>：当前支持 <code>HGraph</code>、<code>IVF</code>、<code>Pyramid</code> 与 <code>SINDI</code>。未实现该接口的
 索引在调用时会抛出异常。</li>
 </ul>
 <p>该接口与 <code>Index::GetStats()</code> 互为补充：后者无需查询数据，只输出索引的静态结构指标。
 对于基于图的索引，度分布、入口点质量、子索引召回率以及低召回热点节点等图健康度信息，
 通过 <code>GetStats()</code> 而非 <code>AnalyzeIndexBySearch</code> 输出。</p>
-<p>Pyramid 只通过 <code>GetStats()</code> 暴露其 analyzer，目前没有覆写
-<code>AnalyzeIndexBySearch</code>。因此对 Pyramid 索引调用该接口，或使用
-<code>analyze_index --query_path</code>，都会抛出 <code>UNSUPPORTED_INDEX_OPERATION</code>。</p>
+<p>Pyramid 的查询分析遵循与 <code>KnnSearch</code> 相同的路径限定语义。对于默认 hierarchy，
+使用 <code>Dataset::Paths</code> 为每条 query 设置路径；对于命名 hierarchy，使用
+<code>Dataset::Paths(hierarchy_name, paths)</code> 设置路径，并在 Pyramid 搜索参数中选择该
+hierarchy。当选中 hierarchy 的根节点为 <code>NO_INDEX</code> 时必须提供路径。批量 query
+数据集在需要或提供路径时，必须为每条 query 提供对应路径。Pyramid 只在每条 query 的
+hierarchy 和路径所允许的向量中计算真值集，并排除已标记删除的向量。Pyramid 查询分析
+目前只支持 KNN 请求，并使用 <code>SearchRequest</code> 中的 <code>query_</code>、<code>topk_</code> 和 <code>params_str_</code>；不支持
+带过滤条件或 iterator 的请求。分析期间应保持索引稳定，不要并发执行 add 或 remove。</p>
 <h3 id="getstats-输出的静态指标"><a class="header" href="#getstats-输出的静态指标"><code>GetStats()</code> 输出的静态指标</a></h3>
 <h4 id="hgraph-指标"><a class="header" href="#hgraph-指标">HGraph 指标</a></h4>
 <div class="table-wrapper">
@@ -9526,6 +9709,21 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 </tbody>
 </table>
 </div>
+<h4 id="pyramid-指标-1"><a class="header" href="#pyramid-指标-1">Pyramid 指标</a></h4>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>指标</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>recall_query</code></td><td>搜索结果相对每条 query 所选 hierarchy 和路径内精确真值集的召回率</td></tr>
+<tr><td><code>avg_distance_query</code></td><td>路径范围内精确真值邻居的平均距离</td></tr>
+<tr><td><code>time_cost_query</code></td><td>平均单次查询耗时，单位毫秒</td></tr>
+<tr><td><code>quantization_error_query</code></td><td>base 量化引入的查询距离误差；开启 reorder 时输出</td></tr>
+<tr><td><code>quantization_inversion_ratio_query</code></td><td>base 量化引入的查询顺序倒置率；开启 reorder 时输出</td></tr>
+</tbody>
+</table>
+</div>
 <h4 id="sindi-指标-1"><a class="header" href="#sindi-指标-1">SINDI 指标</a></h4>
 <div class="table-wrapper">
 <table>
@@ -9566,11 +9764,13 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 <tr><td><code>HGraph</code></td><td><code>quantization_inversion_count_rate_query</code></td><td>搜索阶段量化引起的距离顺序倒置率</td></tr>
 <tr><td><code>IVF</code></td><td><code>quantization_bias_ratio</code></td><td>搜索阶段观察到的量化偏差（仅在 <code>use_reorder_</code> 启用时输出）</td></tr>
 <tr><td><code>IVF</code></td><td><code>quantization_inversion_count_rate</code></td><td>搜索阶段量化引起的距离顺序倒置率（仅在 <code>use_reorder_</code> 启用时输出）</td></tr>
-<tr><td>静态结构和健康度信息（包括度分布、入口点分析与 Pyramid 子索引质量）请查看</td><td></td><td></td></tr>
-<tr><td><code>GetStats()</code> 的 JSON 输出。</td><td></td><td></td></tr>
+<tr><td><code>Pyramid</code></td><td><code>quantization_error_query</code></td><td>搜索阶段的量化距离误差（仅在开启 reorder 时输出）</td></tr>
+<tr><td><code>Pyramid</code></td><td><code>quantization_inversion_ratio_query</code></td><td>搜索阶段量化引起的顺序倒置率（仅在开启 reorder 时输出）</td></tr>
 </tbody>
 </table>
 </div>
+<p>静态结构和健康度信息（包括度分布、入口点分析与 Pyramid 子索引质量）请查看
+<code>GetStats()</code> 的 JSON 输出。</p>
 <h2 id="analyze_index-工具"><a class="header" href="#analyze_index-工具"><code>analyze_index</code> 工具</a></h2>
 <p><code>analyze_index</code> 是上述分析接口的命令行封装。它从磁盘加载一个已序列化的 VSAG 索引，
 打印元数据与 <code>GetStats()</code> 结果，并可选地针对查询文件运行 <code>AnalyzeIndexBySearch</code>。</p>
@@ -9593,7 +9793,7 @@ cmake --build build-release -j
 <tbody>
 <tr><td><code>--index_path</code></td><td><code>-i</code></td><td><strong>是</strong></td><td>待分析的 VSAG 索引文件路径。</td></tr>
 <tr><td><code>--build_parameter</code></td><td><code>-bp</code></td><td>否</td><td>加载索引时使用的构建参数（JSON）。默认使用索引文件内嵌的原始参数。</td></tr>
-<tr><td><code>--query_path</code></td><td><code>-qp</code></td><td>否</td><td>查询数据集路径。如果未提供，则只进行静态分析。</td></tr>
+<tr><td><code>--query_path</code></td><td><code>-qp</code></td><td>否</td><td>查询向量数据集的文件路径，不是 Pyramid hierarchy 路径元数据。如果未提供，则只进行静态分析。</td></tr>
 <tr><td><code>--query_data_type</code></td><td></td><td>否</td><td>查询数据类型：<code>auto</code>、<code>dense</code> 或 <code>sparse</code>。<code>auto</code> 会对 SINDI 使用 sparse 加载。</td></tr>
 <tr><td><code>--base_path</code></td><td></td><td>否</td><td>SINDI 分析可选的 sparse CSR 原始 base 数据集路径。</td></tr>
 <tr><td><code>--groundtruth_path</code></td><td></td><td>否</td><td>SINDI 可选的 <code>.dev.gt</code> 真值集路径；提供后直接复用。</td></tr>
@@ -9605,6 +9805,10 @@ cmake --build build-release -j
 </div>
 <p>查询文件格式为 <code>tools/analyze_index/analyze_index.cpp</code> 中 <code>load_query()</code> 所读取的简单二进制
 布局：<code>(uint32 rows, uint32 cols, float32 data...)</code>。</p>
+<p>该 dense query 格式只包含向量。当前工具无法向加载后的 <code>Dataset</code> 附加默认或命名
+Pyramid hierarchy 路径。因此，工具无法表达按路径限定的 Pyramid query，也无法在选中
+hierarchy 的根节点为 <code>NO_INDEX</code> 时运行动态分析。通过 <code>GetStats()</code> 执行的 Pyramid 静态分析
+仍可正常使用。如需按路径执行动态分析，请调用 C++ 接口并为 query 数据集设置路径。</p>
 <p>SINDI 的 query/base 数据使用 CSR sparse 二进制布局：<code>int64 nrow, int64 ncol, int64 nnz</code>，
 随后是 <code>int64 indptr[nrow + 1]</code>、<code>int32 indices[nnz]</code> 和 <code>float32 data[nnz]</code>。SINDI 真值集
 使用 <code>.dev.gt</code> 布局：<code>uint32 query_count, uint32 topk</code>，随后是展开后的 <code>int32 ids</code> 与
@@ -9660,7 +9864,7 @@ cmake --build build-release -j
 cmake --build build-release -j
 </code></pre>
 <h2 id="输入"><a class="header" href="#输入">输入</a></h2>
-<p>命令接收一个形如 <code>&lt;tag&gt;_&lt;algo_name&gt;</code> 的位置参数，例如 <code>v1.0.0_hnsw</code>。对于该标识，工具会在
+<p>命令接收一个形如 <code>&lt;tag&gt;_&lt;algo_name&gt;</code> 的位置参数，例如 <code>v1.1.0_hgraph</code>。对于该标识，工具会在
 <code>/tmp/</code> 下查找以下文件：</p>
 <div class="table-wrapper">
 <table>
@@ -9677,7 +9881,7 @@ cmake --build build-release -j
 </div>
 <p>这些文件通常由旧版本兼容性 fixture 生成。</p>
 <h2 id="使用"><a class="header" href="#使用">使用</a></h2>
-<pre><code class="language-bash">./build-release/tools/check_compatibility/check_compatibility v1.0.0_hnsw
+<pre><code class="language-bash">./build-release/tools/check_compatibility/check_compatibility v1.1.0_hgraph
 </code></pre>
 <p>工具会创建当前版本的索引实例，反序列化旧索引文件，然后执行一次小规模 KNN 搜索。加载和搜索都成功
 时输出 <code>&lt;identifier&gt; success</code>；否则输出 <code>&lt;identifier&gt; failed</code> 并以非零状态退出。</p>
