@@ -97,6 +97,7 @@ auto result = index->KnnSearch(
 | `fast_encode_rabitq_rounds` | int | `6` | RaBitQ 快速编码的微调轮数，范围 `[1, 32]` |
 | `base_io_type` / `precise_io_type` | string | `"block_memory_io"` | 底层与精排存储后端；以 liburing 构建时可用 `uring_io` |
 | `base_file_path` / `precise_file_path` | string | — | `buffer_io`、`async_io`、`uring_io`、`mmap_io` 等磁盘存储必须设置 |
+| `store_raw_vector` | bool | `false` | 保留 FP32 原始向量，用于 `GetRawVectorByIds` 和精确的按 ID 距离计算 |
 | `index_min_size` | int | `0` | 子索引的最小规模；小于该值的分区会退化为线性扫描 |
 | `support_duplicate` | bool | `false` | 是否允许重复 ID |
 | `build_thread_count` | int | `1` | 构建阶段并发线程数 |
@@ -141,6 +142,10 @@ Pyramid 使用 split code 的 code-code 距离完成增量 FLAT→GRAPH 晋升�
 同一个截断后向量。Pyramid 使用 split code-code 距离完成构图提升，不保留原始 FP32
 向量；除非构建时启用 `store_raw_vector`，否则依赖可解码向量的 Analyzer 指标会被标记为
 不可用。如果 embedding 模型没有针对前缀维度训练，截断可能显著降低召回率。
+
+## 构建缓存
+
+`ExportCache` 会保存每个层级、每个节点的 NSW 图种子，`ImportCache` 可在后续 `Build` 中复用。缓存数据使用索引缓存 payload 格式，而非 streaming 索引序列化格式。需要复用缓存的索引通过 footer 序列化前应设置 `persist_source_id: true`，并且两次构建中的每个向量都必须提供唯一的 `Dataset::SourceID`。缓存预热仅适用于 `graph_type: "nsw"`；ODescent、重复 ID 模式、缺少 source ID 或 source ID 重复时会自动回退到普通冷构建。`ef_construction` 不作为缓存路径的准入条件。完整恢复的缓存图行会被保留，缓存未命中的节点则使用当前向量构建。
 
 ## 检索参数
 
@@ -287,8 +292,11 @@ new_index->Deserialize(binary_set);
 如果不需要按路径限定查询范围，[HGraph](hgraph.md) 更简洁，性能通常也更高。
 
 可以通过[索引分析](../resources/analyze_index.md)检查 Pyramid 的树结构、子索引质量、
-`GetStats()` 输出的 base 采样召回率和重复比例。Pyramid 目前不通过
-`AnalyzeIndexBySearch` 提供查询驱动指标。
+`GetStats()` 输出的 base 采样召回率和重复比例。`AnalyzeIndexBySearch` 还会输出按路径限定的
+query 召回率、距离、耗时，以及开启 reorder 时的量化指标。query 数据集必须包含与
+`KnnSearch` 相同的默认或命名 hierarchy 路径；批量数据集在需要或提供路径时，应为每条 query
+提供一条路径。`analyze_index` 工具当前无法从 dense query 文件加载 hierarchy 路径，因此
+按路径执行动态分析时请使用 C++ 接口。
 
 ## 标记删除
 
