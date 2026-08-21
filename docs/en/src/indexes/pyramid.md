@@ -102,6 +102,7 @@ Build-time parameters live under `index_param`.
 | `fast_encode_rabitq_rounds` | int | `6` | Fast RaBitQ refinement rounds in `[1, 32]`. |
 | `base_io_type` / `precise_io_type` | string | `"block_memory_io"` | Base and reorder storage backends; `uring_io` is available in builds with liburing. |
 | `base_file_path` / `precise_file_path` | string | — | Required for disk-backed storage such as `buffer_io`, `async_io`, `uring_io`, or `mmap_io`. |
+| `store_raw_vector` | bool | `false` | Preserve an FP32 copy for `GetRawVectorByIds` and precise distance-by-id calculations. |
 | `index_min_size` | int | `0` | Minimum sub-index size; smaller groups fall back to scan. |
 | `support_duplicate` | bool | `false` | Allow duplicate ids. |
 | `build_thread_count` | int | `1` | Threads used for parallel build. |
@@ -147,6 +148,10 @@ reordering; both encode the same truncated vector. Pyramid uses split code-to-co
 graph promotion and does not retain the original FP32 vectors. Metrics that require decodable
 vectors are marked unavailable unless `store_raw_vector` was enabled at build time. Truncation can
 reduce recall unless the embedding model was trained for prefix dimensions.
+
+## Build cache
+
+`ExportCache` captures per-hierarchy, per-node NSW graph seeds and `ImportCache` makes them available to a later `Build`. Cache data uses the index cache payload format, not the streaming index serialization format. Set `persist_source_id: true` before footer-serializing an index whose cache will be reused, and provide a unique `Dataset::SourceID` for every vector in both builds. Cache warm builds apply only to `graph_type: "nsw"`; ODescent, duplicate-ID mode, missing source IDs, and duplicate source IDs automatically fall back to a normal cold build. `ef_construction` is not an eligibility condition for the cache path. Fully restored cached graph rows are retained, while cache misses are constructed from the current vectors.
 
 ## Search parameters
 
@@ -302,8 +307,12 @@ If you don't need path-based scoping, [HGraph](hgraph.md) is simpler and general
 faster.
 
 Use [Index Analysis](../resources/analyze_index.md) to inspect Pyramid tree structure,
-per-subindex quality, sampled base recall, and duplicate ratios reported by `GetStats()`. Pyramid
-does not currently expose query-driven metrics through `AnalyzeIndexBySearch`.
+per-subindex quality, sampled base recall, and duplicate ratios reported by `GetStats()`.
+`AnalyzeIndexBySearch` also reports path-scoped query recall, distance, latency, and, when reorder
+is enabled, quantization metrics. Its query dataset must carry the same default or named-hierarchy
+paths required by `KnnSearch`; when paths are required or supplied for a batched dataset, provide
+one path per query. The `analyze_index` tool cannot currently load hierarchy paths from its dense
+query file, so use the C++ API for path-scoped dynamic analysis.
 
 ## Mark remove
 
