@@ -166,7 +166,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-8ad6ad1a.js";
+            window.path_to_searchindex_js = "searchindex-7e2e5c33.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-f46b13c0.js"></script>
@@ -892,6 +892,7 @@ removed = index.remove(candidate_ids)
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>label map 实现：默认 <code>pg</code>，或 <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>从 <code>precise</code> 存储或直接从 <code>base</code> 重排；RaBitQ x+y split（包括 <code>tq_chain="mrle, rabitq"</code>）会自动选择 <code>base</code></td></tr>
 <tr><td><code>persist_source_id</code></td><td><code>false</code></td><td>序列化 HGraph 时保留 Source ID 元数据；适用于恢复索引后继续导出构建缓存</td></tr>
+<tr><td><code>use_conjugate_graph</code></td><td><code>false</code></td><td>启用 HGraph 反馈/预训练并持久化辅助共轭图</td></tr>
 <tr><td><code>mrle_dim</code></td><td><code>0</code></td><td>MRLE 输出维度，范围 <code>[0, dim]</code>；<code>0</code> 表示输入维度</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td><code>true</code></td><td>使用多 bit RaBitQ 快速编码；设为 <code>false</code> 恢复精确编码器</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td><code>6</code></td><td>快速编码器微调轮数，范围 <code>[1, 32]</code></td></tr>
@@ -902,7 +903,9 @@ removed = index.remove(candidate_ids)
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
 <p><code>ef_search</code> 接受任意正的有符号 64 位整数，不再存在与 <code>topk</code> 相关的上限。非常大的取值会
-明显增加延迟和搜索前沿占用的内存。</p>
+明显增加延迟和搜索前沿占用的内存。
+<code>use_conjugate_graph_search</code> 为布尔值（默认 <code>true</code>）；当构建时设置
+<code>use_conjugate_graph: true</code> 后，它控制是否使用已学习的共轭边。</p>
 <p><code>hgraph</code> 搜索参数还接受 <code>brute_force_threshold</code>（<code>[0.0, 1.0]</code> 区间的 float，
 默认 <code>0.0</code>）。当取值 <code>&gt; 0</code> 且当前请求的 filter 的 <code>ValidRatio()</code> 不超过该
 阈值时，HGraph 会跳过图遍历，直接在通过过滤的 id 上做精确暴扫。详见
@@ -1101,6 +1104,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>base_direct_read</code> / <code>precise_direct_read</code></td><td>bool</td><td><code>false</code></td><td>使用 <code>uring_io</code> 时，以 direct IO 打开对应文件而非经过页缓存</td></tr>
 <tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>初始容量提示（不会限制最终规模）</td></tr>
 <tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>序列化时保留 Source ID 元数据，使恢复后的索引仍可导出可复用的构建缓存</td></tr>
+<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td><code>false</code></td><td>启用 <code>Feedback</code>/<code>Pretrain</code> 图增强；详见<a href="#图索引增强">图索引增强</a></td></tr>
 <tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td>扩容批次 slot 数的 <code>log2</code>，取值范围为 <code>1</code> 到 <code>31</code>。<code>1</code> 表示每次按 2 个 slot 对齐，<code>10</code> 表示按 1024 个 slot 对齐。较小取值减少预分配，但可能增加重分配次数。</td></tr>
 </tbody>
 </table>
@@ -5875,8 +5879,9 @@ auto result = index-&gt;SearchWithRequest(req).value();
 <code>search_allocator_</code> 字段是可选的，留空时索引会回退到它所属 <code>Resource</code> 上的 allocator。</p>
 <blockquote>
 <p><strong>可用性。</strong> <code>Index::SearchWithRequest</code> 默认实现会返回 <em>不支持</em> 错误。目前只有 HGraph、
-IVF、BruteForce、WARP 实现了它（<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>）。对于
-尚未 override 的索引（SINDI、SINDI_V2、Pyramid），请使用下文的旧版
+IVF、BruteForce、WARP、SINDI 和 Pyramid 实现了它。Pyramid 支持 KNN 请求搜索，并可通过
+<code>expected_labels_</code> 生成 reasoning 报告；携带 expected labels 的 Range 请求暂不支持。对于
+尚未 override 的索引（SINDI_V2），请使用下文的旧版
 <code>SearchParam</code> 路径。</p>
 </blockquote>
 <h2 id="旧版-api--searchparamallocator已弃用"><a class="header" href="#旧版-api--searchparamallocator已弃用">旧版 API —— <code>SearchParam::allocator</code>（已弃用）</a></h2>
@@ -6218,7 +6223,8 @@ VSAG 通过 <strong>Conjugate Graph</strong>（共轭图）机制对这类查询
 <h2 id="启用共轭图"><a class="header" href="#启用共轭图">启用共轭图</a></h2>
 <p>构建时开启：</p>
 <pre><code class="language-json">{
-    "hnsw": {
+    "index_param": {
+        "base_quantization_type": "fp32",
         "max_degree": 32,
         "ef_construction": 400,
         "use_conjugate_graph": true
@@ -6228,7 +6234,7 @@ VSAG 通过 <strong>Conjugate Graph</strong>（共轭图）机制对这类查询
 <p>搜索时通过搜索参数 JSON 中的 <code>use_conjugate_graph_search</code> 字段控制是否启用
 （<code>KnnSearch</code> 并不存在额外的布尔参数重载）：</p>
 <pre><code class="language-cpp">std::string search_param_json = R"({
-    "hnsw": {
+    "hgraph": {
         "ef_search": 100,
         "use_conjugate_graph_search": true
     }
@@ -6236,8 +6242,14 @@ VSAG 通过 <strong>Conjugate Graph</strong>（共轭图）机制对这类查询
 auto result = index-&gt;KnnSearch(query, k, search_param_json);
 </code></pre>
 <h2 id="工作原理-8"><a class="header" href="#工作原理-8">工作原理</a></h2>
-<p>共轭图由原图在训练数据上的“失败路径“反向构建而成，在搜索时作为补充的候选边参与贪心扩展。
-它相当于对主图的一层轻量索引补丁，典型体积 &lt; 主图 10%。</p>
+<p>已知困难查询的精确最近邻标签时，可调用
+<code>Feedback(query, k, search_parameters, global_optimum_id)</code>；省略 <code>global_optimum_id</code> 时，
+HGraph 会通过精确扫描计算。离线增强可调用 <code>Pretrain(base_ids, k, search_parameters)</code>，
+它会在选定的 float32 基础向量及其近邻之间生成查询并反馈失败路径。两个方法均返回新插入的
+共轭边数量，重复反馈返回 0。</p>
+<p>共轭图保存从局部结果标签到已知全局最优标签的映射，并在 HGraph 常规遍历后补充候选。
+<code>use_conjugate_graph</code> 默认关闭；未开启时调用 <code>Feedback</code> 或 <code>Pretrain</code> 会返回
+<code>UNSUPPORTED_INDEX_OPERATION</code>。索引启用共轭图后，搜索增强默认开启，也可按次搜索关闭。</p>
 <h2 id="示例-3"><a class="header" href="#示例-3">示例</a></h2>
 <p><code>examples/cpp/304_feature_enhance_graph.cpp</code> 给出了从构建、训练到对比召回率的完整流程。</p>
 <h2 id="适用场景-1"><a class="header" href="#适用场景-1">适用场景</a></h2>
@@ -6250,6 +6262,8 @@ auto result = index-&gt;KnnSearch(query, k, search_param_json);
 <ul>
 <li>启用后构建时间会略有增加。</li>
 <li>共轭图数据会随索引一并序列化。</li>
+<li><code>UpdateId</code> 会同时更新 HGraph 标签表与共轭边。</li>
+<li><code>Pretrain</code> 当前支持 float32 HGraph；<code>Feedback</code> 支持 HGraph 的全部数据类型。</li>
 <li>与 <code>Tune</code> 可以叠加使用，分别作用于路由质量与运行期参数。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -10621,7 +10635,7 @@ codex
 </blockquote>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="贡献者列表"><a class="header" href="#贡献者列表">贡献者列表</a></h1>
-<p>以下是 VSAG 项目的贡献者（更新于 2026-06-09），按照第一次贡献的时间排序：</p>
+<p>以下是 VSAG 项目的贡献者（更新于 2026-08-21），按照第一次贡献的时间排序：</p>
 <ul>
 <li>2024-07-26 Xiangyu Wang (<a href="https://github.com/wxyucs/">wxyucs</a>) from AntGroup</li>
 <li>2024-08-21 Jiabao Jin (<a href="https://github.com/inabao">inabao</a>) from AntGroup</li>
@@ -10655,6 +10669,9 @@ codex
 <li>2026-05-14 <a href="https://github.com/LightWant">LightWant</a> from AntGroup</li>
 <li>2026-06-09 <a href="https://github.com/mukejane">mukejane</a></li>
 <li>2026-06-09 Jiangtian Feng (<a href="https://github.com/jfeng18">jfeng18</a>) from Alibaba</li>
+<li>2026-06-29 Wen Huanzhi (<a href="https://github.com/Sia-Sheerland">Sia-Sheerland</a>)</li>
+<li>2026-08-04 Siyang Tang (<a href="https://github.com/Hastyshell">Hastyshell</a>) from Xiaohongshu</li>
+<li>2026-08-16 Charles xu (<a href="https://github.com/CharlesXu-HQ">CharlesXu-HQ</a>) from AntGroup</li>
 </ul>
 
                     </main>

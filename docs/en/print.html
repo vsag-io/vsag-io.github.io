@@ -166,7 +166,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-16dab223.js";
+            window.path_to_searchindex_js = "searchindex-0875361c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2a2dc95d.js"></script>
@@ -880,6 +880,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>Label-map implementation: <code>pg</code> (default) or <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>Reorder from the <code>precise</code> store or directly from <code>base</code>; RaBitQ x+y split, including <code>tq_chain="mrle, rabitq"</code>, selects <code>base</code> automatically</td></tr>
 <tr><td><code>persist_source_id</code></td><td><code>false</code></td><td>Include HGraph source-ID metadata in serialization; useful when a restored index must later export a build cache</td></tr>
+<tr><td><code>use_conjugate_graph</code></td><td><code>false</code></td><td>Enable HGraph feedback/pretraining and persist the auxiliary conjugate graph</td></tr>
 <tr><td><code>mrle_dim</code></td><td><code>0</code></td><td>MRLE output dimension in <code>[0, dim]</code>; <code>0</code> means input dimension</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td><code>true</code></td><td>Use fast multi-bit RaBitQ encoding; <code>false</code> restores the exact encoder</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td><code>6</code></td><td>Fast-encoder refinement rounds in <code>[1, 32]</code></td></tr>
@@ -890,7 +891,9 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
 <p><code>ef_search</code> accepts any positive signed 64-bit integer. It is no longer capped relative to
-<code>topk</code>; very large values can substantially increase latency and memory used by the frontier.</p>
+<code>topk</code>; very large values can substantially increase latency and memory used by the frontier.
+<code>use_conjugate_graph_search</code> is a boolean (default <code>true</code>) that uses learned conjugate edges when
+the index was built with <code>use_conjugate_graph: true</code>.</p>
 <p>The <code>hgraph</code> search-param object also accepts <code>brute_force_threshold</code> (a float
 in <code>[0.0, 1.0]</code>, default <code>0.0</code>). When set above zero and the request carries a
 filter whose <code>ValidRatio()</code> is at most this threshold, HGraph skips the graph
@@ -1101,6 +1104,7 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 <tr><td><code>base_direct_read</code> / <code>precise_direct_read</code></td><td>bool</td><td><code>false</code></td><td>With <code>uring_io</code>, open the corresponding file using direct IO instead of the page cache.</td></tr>
 <tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>Initial capacity hint (doesn’t cap the final size)</td></tr>
 <tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>Persist source-ID metadata during serialization so a restored index can later export a reusable build cache.</td></tr>
+<tr><td><code>use_conjugate_graph</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>Feedback</code>/<code>Pretrain</code> graph enhancement; see <a href="#graph-index-enhancement">Graph Index Enhancement</a>.</td></tr>
 <tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td><code>log2</code> of the slot-growth batch. Valid range is <code>1</code> to <code>31</code>; <code>1</code> grows in 2-slot batches and <code>10</code> in 1,024-slot batches. Smaller values reduce preallocation but can increase reallocations.</td></tr>
 </tbody>
 </table>
@@ -6273,9 +6277,10 @@ a single search call. The <code>search_allocator_</code> field is optional — w
 index falls back to the allocator that was attached to its owning <code>Resource</code>.</p>
 <blockquote>
 <p><strong>Availability.</strong> <code>Index::SearchWithRequest</code> has a default implementation that returns an
-<em>unsupported</em> error. Only HGraph, IVF, BruteForce and WARP implement it today
-(<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>). For indexes that do not yet override
-<code>SearchWithRequest</code> (SINDI, SINDI_V2 and Pyramid), use the legacy <code>SearchParam</code>
+<em>unsupported</em> error. HGraph, IVF, BruteForce, WARP, SINDI and Pyramid implement it today.
+Pyramid supports KNN request searches, including <code>expected_labels_</code> reasoning reports; range
+requests with expected labels are not supported. For indexes that do not yet override
+<code>SearchWithRequest</code> (SINDI_V2), use the legacy <code>SearchParam</code>
 path described below.</p>
 </blockquote>
 <h2 id="legacy-api--searchparamallocator-deprecated"><a class="header" href="#legacy-api--searchparamallocator-deprecated">Legacy API — <code>SearchParam::allocator</code> <em>(deprecated)</em></a></h2>
@@ -6640,7 +6645,8 @@ using a <strong>conjugate graph</strong>, noticeably improving tail recall at al
 <h2 id="enabling-the-conjugate-graph"><a class="header" href="#enabling-the-conjugate-graph">Enabling the Conjugate Graph</a></h2>
 <p>At build time:</p>
 <pre><code class="language-json">{
-    "hnsw": {
+    "index_param": {
+        "base_quantization_type": "fp32",
         "max_degree": 32,
         "ef_construction": 400,
         "use_conjugate_graph": true
@@ -6650,7 +6656,7 @@ using a <strong>conjugate graph</strong>, noticeably improving tail recall at al
 <p>At search time, toggle it via the <code>use_conjugate_graph_search</code> key in the search-parameter JSON
 (there is no boolean overload on <code>KnnSearch</code>):</p>
 <pre><code class="language-cpp">std::string search_param_json = R"({
-    "hnsw": {
+    "hgraph": {
         "ef_search": 100,
         "use_conjugate_graph_search": true
     }
@@ -6658,9 +6664,15 @@ using a <strong>conjugate graph</strong>, noticeably improving tail recall at al
 auto result = index-&gt;KnnSearch(query, k, search_param_json);
 </code></pre>
 <h2 id="how-it-works-9"><a class="header" href="#how-it-works-9">How It Works</a></h2>
-<p>The conjugate graph is built by inverting “failure paths” over the training data on the original
-graph and then used as additional candidate edges during greedy expansion at search time. It is a
-lightweight patch on the main graph, typically below 10% of the main graph’s size.</p>
+<p>Call <code>Feedback(query, k, search_parameters, global_optimum_id)</code> after a hard query when the exact
+nearest label is known. Omitting <code>global_optimum_id</code> makes HGraph compute it by an exact scan.
+For offline enhancement, <code>Pretrain(base_ids, k, search_parameters)</code> generates queries between the
+chosen float32 base vectors and their neighbors, then feeds the resulting failures back. Both
+methods return the number of newly inserted conjugate edges; redundant feedback returns zero.</p>
+<p>The conjugate graph maps local-result labels to known global optima and contributes extra
+candidates after HGraph’s normal traversal. <code>use_conjugate_graph</code> is disabled by default; calling
+<code>Feedback</code> or <code>Pretrain</code> without it returns <code>UNSUPPORTED_INDEX_OPERATION</code>. Search enhancement is
+enabled by default for an enabled graph and can be disabled per search.</p>
 <h2 id="example"><a class="header" href="#example">Example</a></h2>
 <p><code>examples/cpp/304_feature_enhance_graph.cpp</code> walks through building, training, and comparing
 recall end-to-end.</p>
@@ -6674,6 +6686,8 @@ recall end-to-end.</p>
 <ul>
 <li>Build time increases slightly when enabled.</li>
 <li>Conjugate-graph data is serialized together with the index.</li>
+<li><code>UpdateId</code> updates conjugate edges as well as the HGraph label table.</li>
+<li><code>Pretrain</code> currently supports float32 HGraph indexes; <code>Feedback</code> supports all HGraph dtypes.</li>
 <li>It can be combined with <code>Tune</code> — they target route quality and runtime parameters respectively.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -11354,7 +11368,7 @@ into VSAG.</p>
 </blockquote>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="contributors"><a class="header" href="#contributors">Contributors</a></h1>
-<p>The following is the list of VSAG contributors (updated 2026-06-09), ordered by the date of their
+<p>The following is the list of VSAG contributors (updated 2026-08-21), ordered by the date of their
 first contribution:</p>
 <ul>
 <li>2024-07-26 Xiangyu Wang (<a href="https://github.com/wxyucs/">wxyucs</a>) from AntGroup</li>
@@ -11389,6 +11403,9 @@ first contribution:</p>
 <li>2026-05-14 <a href="https://github.com/LightWant">LightWant</a> from AntGroup</li>
 <li>2026-06-09 <a href="https://github.com/mukejane">mukejane</a></li>
 <li>2026-06-09 Jiangtian Feng (<a href="https://github.com/jfeng18">jfeng18</a>) from Alibaba</li>
+<li>2026-06-29 Wen Huanzhi (<a href="https://github.com/Sia-Sheerland">Sia-Sheerland</a>)</li>
+<li>2026-08-04 Siyang Tang (<a href="https://github.com/Hastyshell">Hastyshell</a>) from Xiaohongshu</li>
+<li>2026-08-16 Charles xu (<a href="https://github.com/CharlesXu-HQ">CharlesXu-HQ</a>) from AntGroup</li>
 </ul>
 
                     </main>

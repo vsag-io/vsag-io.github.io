@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-16dab223.js";
+            window.path_to_searchindex_js = "../searchindex-0875361c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2a2dc95d.js"></script>
@@ -343,9 +343,10 @@ a single search call. The <code>search_allocator_</code> field is optional — w
 index falls back to the allocator that was attached to its owning <code>Resource</code>.</p>
 <blockquote>
 <p><strong>Availability.</strong> <code>Index::SearchWithRequest</code> has a default implementation that returns an
-<em>unsupported</em> error. Only HGraph, IVF, BruteForce and WARP implement it today
-(<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>). For indexes that do not yet override
-<code>SearchWithRequest</code> (SINDI, SINDI_V2 and Pyramid), use the legacy <code>SearchParam</code>
+<em>unsupported</em> error. HGraph, IVF, BruteForce, WARP, SINDI and Pyramid implement it today.
+Pyramid supports KNN request searches, including <code>expected_labels_</code> reasoning reports; range
+requests with expected labels are not supported. For indexes that do not yet override
+<code>SearchWithRequest</code> (SINDI_V2), use the legacy <code>SearchParam</code>
 path described below.</p>
 </blockquote>
 <h2 id="legacy-api--searchparamallocator-deprecated"><a class="header" href="#legacy-api--searchparamallocator-deprecated">Legacy API — <code>SearchParam::allocator</code> <em>(deprecated)</em></a></h2>

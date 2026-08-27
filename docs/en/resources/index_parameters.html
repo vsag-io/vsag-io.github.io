@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-16dab223.js";
+            window.path_to_searchindex_js = "../searchindex-0875361c.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2a2dc95d.js"></script>
@@ -360,6 +360,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>Label-map implementation: <code>pg</code> (default) or <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>Reorder from the <code>precise</code> store or directly from <code>base</code>; RaBitQ x+y split, including <code>tq_chain="mrle, rabitq"</code>, selects <code>base</code> automatically</td></tr>
 <tr><td><code>persist_source_id</code></td><td><code>false</code></td><td>Include HGraph source-ID metadata in serialization; useful when a restored index must later export a build cache</td></tr>
+<tr><td><code>use_conjugate_graph</code></td><td><code>false</code></td><td>Enable HGraph feedback/pretraining and persist the auxiliary conjugate graph</td></tr>
 <tr><td><code>mrle_dim</code></td><td><code>0</code></td><td>MRLE output dimension in <code>[0, dim]</code>; <code>0</code> means input dimension</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td><code>true</code></td><td>Use fast multi-bit RaBitQ encoding; <code>false</code> restores the exact encoder</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td><code>6</code></td><td>Fast-encoder refinement rounds in <code>[1, 32]</code></td></tr>
@@ -370,7 +371,9 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
 <p><code>ef_search</code> accepts any positive signed 64-bit integer. It is no longer capped relative to
-<code>topk</code>; very large values can substantially increase latency and memory used by the frontier.</p>
+<code>topk</code>; very large values can substantially increase latency and memory used by the frontier.
+<code>use_conjugate_graph_search</code> is a boolean (default <code>true</code>) that uses learned conjugate edges when
+the index was built with <code>use_conjugate_graph: true</code>.</p>
 <p>The <code>hgraph</code> search-param object also accepts <code>brute_force_threshold</code> (a float
 in <code>[0.0, 1.0]</code>, default <code>0.0</code>). When set above zero and the request carries a
 filter whose <code>ValidRatio()</code> is at most this threshold, HGraph skips the graph

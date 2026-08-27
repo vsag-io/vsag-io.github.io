@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
+            window.path_to_searchindex_js = "../searchindex-7e2e5c33.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f46b13c0.js"></script>
@@ -338,8 +338,9 @@ auto result = index-&gt;SearchWithRequest(req).value();
 <code>search_allocator_</code> 字段是可选的，留空时索引会回退到它所属 <code>Resource</code> 上的 allocator。</p>
 <blockquote>
 <p><strong>可用性。</strong> <code>Index::SearchWithRequest</code> 默认实现会返回 <em>不支持</em> 错误。目前只有 HGraph、
-IVF、BruteForce、WARP 实现了它（<code>src/algorithm/{hgraph,ivf,brute_force,warp}.cpp</code>）。对于
-尚未 override 的索引（SINDI、SINDI_V2、Pyramid），请使用下文的旧版
+IVF、BruteForce、WARP、SINDI 和 Pyramid 实现了它。Pyramid 支持 KNN 请求搜索，并可通过
+<code>expected_labels_</code> 生成 reasoning 报告；携带 expected labels 的 Range 请求暂不支持。对于
+尚未 override 的索引（SINDI_V2），请使用下文的旧版
 <code>SearchParam</code> 路径。</p>
 </blockquote>
 <h2 id="旧版-api--searchparamallocator已弃用"><a class="header" href="#旧版-api--searchparamallocator已弃用">旧版 API —— <code>SearchParam::allocator</code>（已弃用）</a></h2>

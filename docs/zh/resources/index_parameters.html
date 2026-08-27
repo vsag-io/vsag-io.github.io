@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-8ad6ad1a.js";
+            window.path_to_searchindex_js = "../searchindex-7e2e5c33.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f46b13c0.js"></script>
@@ -357,6 +357,7 @@
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>label map 实现：默认 <code>pg</code>，或 <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>从 <code>precise</code> 存储或直接从 <code>base</code> 重排；RaBitQ x+y split（包括 <code>tq_chain="mrle, rabitq"</code>）会自动选择 <code>base</code></td></tr>
 <tr><td><code>persist_source_id</code></td><td><code>false</code></td><td>序列化 HGraph 时保留 Source ID 元数据；适用于恢复索引后继续导出构建缓存</td></tr>
+<tr><td><code>use_conjugate_graph</code></td><td><code>false</code></td><td>启用 HGraph 反馈/预训练并持久化辅助共轭图</td></tr>
 <tr><td><code>mrle_dim</code></td><td><code>0</code></td><td>MRLE 输出维度，范围 <code>[0, dim]</code>；<code>0</code> 表示输入维度</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td><code>true</code></td><td>使用多 bit RaBitQ 快速编码；设为 <code>false</code> 恢复精确编码器</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td><code>6</code></td><td>快速编码器微调轮数，范围 <code>[1, 32]</code></td></tr>
@@ -367,7 +368,9 @@
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
 <p><code>ef_search</code> 接受任意正的有符号 64 位整数，不再存在与 <code>topk</code> 相关的上限。非常大的取值会
-明显增加延迟和搜索前沿占用的内存。</p>
+明显增加延迟和搜索前沿占用的内存。
+<code>use_conjugate_graph_search</code> 为布尔值（默认 <code>true</code>）；当构建时设置
+<code>use_conjugate_graph: true</code> 后，它控制是否使用已学习的共轭边。</p>
 <p><code>hgraph</code> 搜索参数还接受 <code>brute_force_threshold</code>（<code>[0.0, 1.0]</code> 区间的 float，
 默认 <code>0.0</code>）。当取值 <code>&gt; 0</code> 且当前请求的 filter 的 <code>ValidRatio()</code> 不超过该
 阈值时，HGraph 会跳过图遍历，直接在通过过滤的 id 上做精确暴扫。详见
