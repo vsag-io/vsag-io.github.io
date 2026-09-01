@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7e2e5c33.js";
+            window.path_to_searchindex_js = "../searchindex-fba82a51.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f46b13c0.js"></script>
@@ -358,6 +358,8 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"ivf": {"scan_buckets_count": 16}})").value();
 </code></pre>
+<h2 id="支持的输入数据类型"><a class="header" href="#支持的输入数据类型">支持的输入数据类型</a></h2>
+<p>当前公开的 <code>Build</code>、<code>Add</code> 和检索路径接收通过 <code>Dataset::Float32Vectors</code> 提供的 FP32 向量，<code>dtype</code> 应设为 <code>"float32"</code>。<code>base_quantization_type</code> 选择的是内部编码和存储，不会使 API 接受 FP16/BF16 输入。创建 IVF 索引时不支持 <code>dtype: "int8"</code>。</p>
 <h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
 <p>构建参数放在 <code>index_param</code> 下。完整列表请见 <a href="../resources/index_parameters.html">索引参数</a>。</p>
 <div class="table-wrapper">

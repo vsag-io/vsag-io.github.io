@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0875361c.js";
+            window.path_to_searchindex_js = "../searchindex-c4d5e41d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2a2dc95d.js"></script>
@@ -446,10 +446,16 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
     "index_param": {
         "base_quantization_type": "sq8",
         "max_degree": 24,
-        "ef_construction": 300
+        "ef_construction": 300,
+        "store_paths": true
     }
 }
 </code></pre>
+<p><code>store_paths</code> is a top-level Pyramid build parameter and defaults to <code>false</code>. Enable it when
+<code>GetDataByIdsWithFlag</code> must return the original default or named-hierarchy paths with
+<code>DATA_FLAG_PATH</code>; see the
+<a href="../indexes/pyramid.html#build-parameters">Pyramid parameter table</a> for its completeness and
+persistence semantics.</p>
 <p>MRLE with split RaBitQ uses <code>base_quantization_type: "tq"</code>,
 <code>tq_chain: "mrle, rabitq"</code>, <code>mrle_dim</code>, and the
 <code>rabitq_bits_per_dim_base</code>/<code>rabitq_bits_per_dim_precise</code> pair. It automatically reorders from the

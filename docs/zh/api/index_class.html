@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7e2e5c33.js";
+            window.path_to_searchindex_js = "../searchindex-fba82a51.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f46b13c0.js"></script>
@@ -371,6 +371,7 @@ struct MergeUnit {
 <tr><td><code>DATA_FLAG_EXTRA_INFO</code></td><td><code>0x10</code></td><td>extra info 数据块</td></tr>
 <tr><td><code>DATA_FLAG_ATTRIBUTE</code></td><td><code>0x20</code></td><td>属性</td></tr>
 <tr><td><code>DATA_FLAG_ID</code></td><td><code>0x40</code></td><td>id</td></tr>
+<tr><td><code>DATA_FLAG_PATH</code></td><td><code>0x80</code></td><td>Pyramid 通过 <code>store_paths</code> 保留的路径</td></tr>
 </tbody>
 </table>
 </div>
@@ -526,8 +527,8 @@ RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; pa
 <tr><td><code>GetMinAndMaxId</code></td><td><code>tl::expected&lt;std::pair&lt;int64_t, int64_t&gt;, Error&gt; GetMinAndMaxId() const</code></td><td>索引中最小与最大的 id。</td></tr>
 <tr><td><code>GetExtraInfoByIds</code></td><td><code>tl::expected&lt;void, Error&gt; GetExtraInfoByIds(const int64_t* ids, int64_t count, char* extra_infos) const</code></td><td>把 <code>ids</code> 的 extra-info 数据块拷贝到调用方提供的缓冲区。</td></tr>
 <tr><td><code>GetRawVectorByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetRawVectorByIds(const int64_t* ids, int64_t count, Allocator* specified_allocator = nullptr) const</code></td><td>返回已存向量。其值<em>接近</em>原始值，但不保证逐位一致（量化/精度）。</td></tr>
-<tr><td><code>GetDataByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIds(const int64_t* ids, int64_t count) const</code></td><td>返回 <code>ids</code> 的全部已存数据（向量、属性、extra info）。</td></tr>
-<tr><td><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>类似 <code>GetDataByIds</code>，但通过 <a href="#数据选择标志"><code>DATA_FLAG_*</code></a> 选择字段。</td></tr>
+<tr><td><code>GetDataByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIds(const int64_t* ids, int64_t count) const</code></td><td>返回实现默认提供的已存字段；可选字段可能需要显式选择。</td></tr>
+<tr><td><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>通过 <a href="#数据选择标志"><code>DATA_FLAG_*</code></a> 选择支持的字段。Pyramid 路径需要同时设置 <code>store_paths: true</code> 和 <code>DATA_FLAG_PATH</code>。</td></tr>
 <tr><td><code>GetIndexDetailInfos</code></td><td><code>tl::expected&lt;std::vector&lt;IndexDetailInfo&gt;, Error&gt; GetIndexDetailInfos() const</code></td><td>列出可自省的细节字段。见 <a href="types.html#索引细节信息"><code>IndexDetailInfo</code></a>。</td></tr>
 <tr><td><code>GetDetailDataByName</code></td><td><code>tl::expected&lt;DetailDataPtr, Error&gt; GetDetailDataByName(const std::string&amp; name, IndexDetailInfo&amp; info) const</code></td><td>按名称获取一份细节数据负载。</td></tr>
 </tbody>

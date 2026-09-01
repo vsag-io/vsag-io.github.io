@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7e2e5c33.js";
+            window.path_to_searchindex_js = "../searchindex-fba82a51.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f46b13c0.js"></script>
@@ -313,19 +313,20 @@
 <li><code>Clone</code> —— 对已有索引进行深拷贝。</li>
 <li><code>ExportModel</code> —— 将训练好的模型导出为空索引以复用。</li>
 </ul>
-<p>每个操作均为可选项，仅当底层索引通过 <code>index-&gt;CheckFeature(...)</code> 公布对应能力标志时才可用。</p>
+<p>每个操作均为可选项。带有专用能力标志的操作应通过 <code>index-&gt;CheckFeature(...)</code> 检查；<code>Remove</code>
+没有专用标志，必须按索引类型和 <code>RemoveMode</code> 判断。</p>
 <h2 id="能力标志"><a class="header" href="#能力标志">能力标志</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>操作</th><th>能力标志</th><th style="text-align: center">HGraph</th><th style="text-align: center">IVF</th><th style="text-align: center">SINDI</th></tr>
+<tr><th>操作</th><th>能力标志</th><th style="text-align: center">HGraph</th><th style="text-align: center">Pyramid</th><th style="text-align: center">IVF</th><th style="text-align: center">BruteForce</th><th style="text-align: center">SINDI</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Remove</code></td><td><em>（暂无专用标志，参见下文）</em></td><td style="text-align: center">是</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
-<tr><td><code>UpdateVector</code></td><td><code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code></td><td style="text-align: center">是</td><td style="text-align: center">—</td><td style="text-align: center">是</td></tr>
-<tr><td><code>UpdateId</code></td><td><code>SUPPORT_UPDATE_ID_CONCURRENT</code></td><td style="text-align: center">是</td><td style="text-align: center">—</td><td style="text-align: center">是</td></tr>
-<tr><td><code>Clone</code></td><td><code>SUPPORT_CLONE</code></td><td style="text-align: center">是</td><td style="text-align: center">是</td><td style="text-align: center">—</td></tr>
-<tr><td><code>ExportModel</code></td><td><code>SUPPORT_EXPORT_MODEL</code></td><td style="text-align: center">是</td><td style="text-align: center">是</td><td style="text-align: center">—</td></tr>
+<tr><td><code>Remove</code></td><td><em>（暂无专用标志，参见下文）</em></td><td style="text-align: center">是</td><td style="text-align: center">仅 <code>RemoveMode::MARK_REMOVE</code></td><td style="text-align: center">仅 <code>RemoveMode::MARK_REMOVE</code></td><td style="text-align: center">是</td><td style="text-align: center">仅 <code>RemoveMode::MARK_REMOVE</code></td></tr>
+<tr><td><code>UpdateVector</code></td><td><code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code></td><td style="text-align: center">是</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">是</td><td style="text-align: center">是</td></tr>
+<tr><td><code>UpdateId</code></td><td><code>SUPPORT_UPDATE_ID_CONCURRENT</code></td><td style="text-align: center">是</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">是</td></tr>
+<tr><td><code>Clone</code></td><td><code>SUPPORT_CLONE</code></td><td style="text-align: center">是</td><td style="text-align: center">是</td><td style="text-align: center">是</td><td style="text-align: center">是</td><td style="text-align: center">—</td></tr>
+<tr><td><code>ExportModel</code></td><td><code>SUPPORT_EXPORT_MODEL</code></td><td style="text-align: center">是</td><td style="text-align: center">是</td><td style="text-align: center">是</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
 </tbody>
 </table>
 </div>
@@ -385,10 +386,15 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2, id3});
 </div>
 <p><code>Remove</code> 返回成功删除的 id 数量。原本不存在的 id 会被静默跳过，不计入返回值。</p>
 <p>可运行示例：<code>examples/cpp/303_feature_remove.cpp</code>。</p>
+<h3 id="pyramid-与-ivf-删除"><a class="header" href="#pyramid-与-ivf-删除">Pyramid 与 IVF 删除</a></h3>
+<p>Pyramid 和 IVF 都只支持 <code>RemoveMode::MARK_REMOVE</code>：操作写入墓碑、让后续检索排除对应 id，但不会
+物理回收向量存储。两者均不支持 <code>FORCE_REMOVE</code>。</p>
 <h3 id="bruteforce-删除"><a class="header" href="#bruteforce-删除">BruteForce 删除</a></h3>
 <p>BruteForce 也支持这两种模式，但它<strong>不使用</strong> HGraph 的 <code>support_force_remove</code> 配置。
 <code>MARK_REMOVE</code> 会写入墓碑并保留向量存储。<code>FORCE_REMOVE</code> 不需要额外配置：它会物理删除条目，必要时
 移动最后一个内部槽位，同时保持外部 id 不变。</p>
+<p>BruteForce 处于非 multi-vector 模式且启用 <code>use_attribute_filter: true</code> 时，不支持任一种删除模式；如需删除属性过滤数据，请重建索引。</p>
+<p>在 multi-vector 模式下，BruteForce 仅支持 <code>RemoveMode::MARK_REMOVE</code>，不支持 <code>FORCE_REMOVE</code>；即使启用 <code>use_attribute_filter: true</code> 也是如此。</p>
 <p>BruteForce 默认使用 <code>block_memory_io</code>。每个成功的物理删除批次都会将逻辑向量和可选额外信息存储收缩到
 存活条目数，并释放末尾完整的块；最后一个未填满的块会保留。标签表会在存活条目数不超过当前容量一半时
 回收底层分配，以避免反复复制整张表。<code>GetMemoryUsage()</code> 会反映紧凑后的索引分配量。这不保证进程分配器
@@ -414,12 +420,16 @@ if (status.has_value() &amp;&amp; *status) {
 }
 </code></pre>
 <p>将 <code>force_update</code> 置为 <code>true</code> 会跳过检查并强制更新；请谨慎使用，可能损失召回率。</p>
+<p>上述连通性检查适用于 HGraph。BruteForce 也支持使用维度相同的 FP32 向量进行 <code>UpdateVector</code>，但它
+没有图连通性检查，因此 <code>force_update</code> 不会改变更新行为。Pyramid 和 IVF 不支持 <code>UpdateVector</code>。</p>
 <h3 id="updateid"><a class="header" href="#updateid"><code>UpdateId</code></a></h3>
 <p><code>UpdateId(old_id, new_id)</code> 重命名已有 id 而不动底层向量。成功返回 <code>true</code>，若 <code>old_id</code> 不存在
 或 <code>new_id</code> 已被占用则返回 <code>false</code>。</p>
 <pre><code class="language-cpp">index-&gt;UpdateId(123, 456);
 </code></pre>
 <p>结合 <code>UpdateVector</code>、<code>Remove</code>、<code>Add</code> 的可运行示例：<code>examples/cpp/305_feature_update.cpp</code>。</p>
+<p>多个索引可经共享的 label table 路径调用 <code>UpdateId</code>，但只有声明
+<code>SUPPORT_UPDATE_ID_CONCURRENT</code> 的索引承诺对应的并发更新语义。</p>
 <h2 id="克隆索引"><a class="header" href="#克隆索引">克隆索引</a></h2>
 <p><code>Clone()</code> 对整个索引做深拷贝 —— 包括向量、图、量化器状态与元数据 —— 返回一个独立的
 <code>IndexPtr</code>。该克隆体可独立于源索引进行搜索、修改或序列化。</p>

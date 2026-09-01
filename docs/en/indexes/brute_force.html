@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0875361c.js";
+            window.path_to_searchindex_js = "../searchindex-c4d5e41d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2a2dc95d.js"></script>
@@ -353,6 +353,9 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 </code></pre>
 <p>A full runnable program is at
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>.</p>
+<h2 id="input-data-type"><a class="header" href="#input-data-type">Input data type</a></h2>
+<p>The public <code>Build</code>, <code>Add</code>, <code>KnnSearch</code>, <code>RangeSearch</code>, and <code>UpdateVector</code> paths accept FP32 vectors only. At runtime, supply vectors via <code>Dataset::Float32Vectors</code>. At index creation, set <code>dtype</code> to <code>"float32"</code>; <code>dtype: "int8"</code> is not supported when creating a BruteForce index.</p>
+<p>The <code>base_quantization_type</code> parameter controls the index’s internal encoding and storage, not the input type. Selecting an internal <code>fp16</code>, <code>bf16</code>, or other quantizer does not enable FP16/BF16 input.</p>
 <h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
 <p>The minimal config consists of the three top-level fields (<code>dtype</code>, <code>metric_type</code>, <code>dim</code>).
 For most uses no <code>index_param</code> is needed — that is the form shown in
@@ -421,6 +424,7 @@ auto r3 = index-&gt;RangeSearch(query, radius, R"({"parallelism": 8})").value();
 <h2 id="removing-vectors"><a class="header" href="#removing-vectors">Removing vectors</a></h2>
 <p>BruteForce supports both <code>RemoveMode::MARK_REMOVE</code> and <code>RemoveMode::FORCE_REMOVE</code>; neither mode
 needs an HGraph-style <code>support_force_remove</code> setting.</p>
+<p>When <code>use_attribute_filter: true</code> is enabled, neither removal mode is available. Rebuild the index instead if attribute-filtered data must be deleted.</p>
 <ul>
 <li><code>MARK_REMOVE</code> is the default. It records a tombstone, so the id is excluded from later searches
 while its vector storage remains allocated. <code>GetNumElements()</code> excludes marked ids and
@@ -459,6 +463,7 @@ immediately returns memory to the operating system or that RSS drops.</p>
 <tr><td><code>SUPPORT_RANGE_SEARCH</code> / <code>SUPPORT_RANGE_SEARCH_WITH_ID_FILTER</code></td><td>Available with non-training quantizers (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>).</td></tr>
 <tr><td><code>SUPPORT_DELETE_BY_ID</code> / <code>SUPPORT_DELETE_CONCURRENT</code></td><td><code>Remove</code> by id is supported. Searches and delete operations are synchronized; <code>FORCE_REMOVE</code> takes an exclusive lock.</td></tr>
 <tr><td><code>SUPPORT_CAL_DISTANCE_BY_ID</code></td><td>Distance lookup against stored vectors (non-training quantizers only).</td></tr>
+<tr><td><code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code></td><td><code>UpdateVector</code> replaces an existing FP32 vector with the same dimension. BruteForce has no graph connectivity check, so <code>force_update</code> does not change its update behavior.</td></tr>
 <tr><td><code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code></td><td>Available only when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the underlying quantizer holds molds (<code>hold_molds</code>). Quantized BruteForce indexes do <strong>not</strong> advertise this flag.</td></tr>
 <tr><td><code>SUPPORT_CHECK_ID_EXIST</code> / <code>SUPPORT_CLONE</code> / <code>SUPPORT_ESTIMATE_MEMORY</code> / <code>SUPPORT_GET_MEMORY_USAGE</code></td><td>Standard introspection and lifecycle.</td></tr>
 <tr><td><code>SUPPORT_SERIALIZE_BINARY_SET</code> / <code>SUPPORT_SERIALIZE_FILE</code> / <code>SUPPORT_SERIALIZE_WRITE_FUNC</code></td><td>Full save surface.</td></tr>
@@ -467,8 +472,8 @@ immediately returns memory to the operating system or that RSS drops.</p>
 </tbody>
 </table>
 </div>
-<p>Notably <strong>not</strong> supported by BruteForce: <code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code>,
-<code>SUPPORT_UPDATE_ID_CONCURRENT</code>, and <code>SUPPORT_EXPORT_MODEL</code>.</p>
+<p>Notably <strong>not</strong> supported by BruteForce: <code>SUPPORT_UPDATE_ID_CONCURRENT</code> and
+<code>SUPPORT_EXPORT_MODEL</code>.</p>
 <h2 id="when-to-use-bruteforce"><a class="header" href="#when-to-use-bruteforce">When to use BruteForce</a></h2>
 <ul>
 <li><strong>Recall baseline.</strong> Compute the ground truth that approximate indexes are scored against

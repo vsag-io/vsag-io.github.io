@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7e2e5c33.js";
+            window.path_to_searchindex_js = "../searchindex-fba82a51.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f46b13c0.js"></script>
@@ -351,7 +351,7 @@ clean-release:           ## Clear build-release/ directory.
 install:                 ## Build and install the release version of vsag.
 </code></pre>
 <h2 id="编译-vsag-库"><a class="header" href="#编译-vsag-库">编译 VSAG 库</a></h2>
-<p><code>make debug</code> 是我们开发中最常用的命令，它会以开发模式编译整个项目，禁用大多数优化（<code>-O0</code>）并生成调试信息（<code>-g</code>）。该目标默认关闭测试、示例、工具、Python 绑定与 <code>mockimpl</code>；如需同时启用它们，可使用 <code>make dev</code>。</p>
+<p><code>make debug</code> 是我们开发中最常用的命令，它会以开发模式编译整个项目，禁用大多数优化（<code>-O0</code>）并生成调试信息（<code>-g</code>）。该目标默认关闭测试、示例、工具和 Python 绑定；如需同时启用它们，可使用 <code>make dev</code>。</p>
 <p>在默认设置下，开发模式的编译产物会生成在 <code>./build/</code> 目录中。可以通过如下命令运行单元测试：</p>
 <pre><code class="language-bash">./build/tests/unittests
 </code></pre>

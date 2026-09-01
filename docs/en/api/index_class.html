@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0875361c.js";
+            window.path_to_searchindex_js = "../searchindex-c4d5e41d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2a2dc95d.js"></script>
@@ -373,6 +373,7 @@ target id <code>new_id</code>. Used by <a href="#merge"><code>Merge</code></a>.<
 <tr><td><code>DATA_FLAG_EXTRA_INFO</code></td><td><code>0x10</code></td><td>extra info blobs</td></tr>
 <tr><td><code>DATA_FLAG_ATTRIBUTE</code></td><td><code>0x20</code></td><td>attributes</td></tr>
 <tr><td><code>DATA_FLAG_ID</code></td><td><code>0x40</code></td><td>ids</td></tr>
+<tr><td><code>DATA_FLAG_PATH</code></td><td><code>0x80</code></td><td>Pyramid paths retained with <code>store_paths</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -531,8 +532,8 @@ quantized codes. See <a href="../advanced/calc_distance_by_id.html">Calculate Di
 <tr><td><code>GetMinAndMaxId</code></td><td><code>tl::expected&lt;std::pair&lt;int64_t, int64_t&gt;, Error&gt; GetMinAndMaxId() const</code></td><td>Smallest and largest ids in the index.</td></tr>
 <tr><td><code>GetExtraInfoByIds</code></td><td><code>tl::expected&lt;void, Error&gt; GetExtraInfoByIds(const int64_t* ids, int64_t count, char* extra_infos) const</code></td><td>Copies extra-info blobs for <code>ids</code> into a caller-provided buffer.</td></tr>
 <tr><td><code>GetRawVectorByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetRawVectorByIds(const int64_t* ids, int64_t count, Allocator* specified_allocator = nullptr) const</code></td><td>Returns stored vectors. Values are <em>close to</em> the originals but not guaranteed bit-identical (quantization/precision).</td></tr>
-<tr><td><code>GetDataByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIds(const int64_t* ids, int64_t count) const</code></td><td>Returns all stored data (vectors, attributes, extra info) for <code>ids</code>.</td></tr>
-<tr><td><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>Like <code>GetDataByIds</code> but selects fields via <a href="#data-selection-flags"><code>DATA_FLAG_*</code></a>.</td></tr>
+<tr><td><code>GetDataByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIds(const int64_t* ids, int64_t count) const</code></td><td>Returns the implementation’s default stored fields for <code>ids</code>; optional fields may require explicit selection.</td></tr>
+<tr><td><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>Selects supported fields via <a href="#data-selection-flags"><code>DATA_FLAG_*</code></a>. Pyramid paths require <code>store_paths: true</code> and <code>DATA_FLAG_PATH</code>.</td></tr>
 <tr><td><code>GetIndexDetailInfos</code></td><td><code>tl::expected&lt;std::vector&lt;IndexDetailInfo&gt;, Error&gt; GetIndexDetailInfos() const</code></td><td>Lists the introspectable detail fields. See <a href="types.html#index-detail-info"><code>IndexDetailInfo</code></a>.</td></tr>
 <tr><td><code>GetDetailDataByName</code></td><td><code>tl::expected&lt;DetailDataPtr, Error&gt; GetDetailDataByName(const std::string&amp; name, IndexDetailInfo&amp; info) const</code></td><td>Fetches one detail-data payload by name.</td></tr>
 </tbody>

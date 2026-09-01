@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0875361c.js";
+            window.path_to_searchindex_js = "../searchindex-c4d5e41d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2a2dc95d.js"></script>
@@ -363,6 +363,8 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"ivf": {"scan_buckets_count": 16}})").value();
 </code></pre>
+<h2 id="input-data-type"><a class="header" href="#input-data-type">Input data type</a></h2>
+<p>The public <code>Build</code>, <code>Add</code>, and search paths currently accept FP32 vectors supplied with <code>Dataset::Float32Vectors</code>; set <code>dtype</code> to <code>"float32"</code>. <code>base_quantization_type</code> selects internal encoding and storage and does not enable FP16/BF16 input. <code>dtype: "int8"</code> is not supported when creating an IVF index.</p>
 <h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>. See
 <a href="../resources/index_parameters.html">Index Parameters</a> for the exhaustive list.</p>

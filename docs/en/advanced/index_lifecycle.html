@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0875361c.js";
+            window.path_to_searchindex_js = "../searchindex-c4d5e41d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2a2dc95d.js"></script>
@@ -313,20 +313,21 @@ produce a new index derived from it. This page documents the full lifecycle surf
 <li><code>Clone</code> — produce a deep copy of an existing index.</li>
 <li><code>ExportModel</code> — extract the trained model as an empty index for reuse.</li>
 </ul>
-<p>Each operation is optional and is exposed only when the underlying index advertises the matching
-capability flag via <code>index-&gt;CheckFeature(...)</code>.</p>
+<p>Each operation is optional. For operations with a dedicated capability flag, check it through
+<code>index-&gt;CheckFeature(...)</code>; <code>Remove</code> has no dedicated flag and must be checked by index type and
+<code>RemoveMode</code>.</p>
 <h2 id="capability-flags"><a class="header" href="#capability-flags">Capability Flags</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Operation</th><th>Capability Flag</th><th style="text-align: center">HGraph</th><th style="text-align: center">IVF</th><th style="text-align: center">SINDI</th></tr>
+<tr><th>Operation</th><th>Capability Flag</th><th style="text-align: center">HGraph</th><th style="text-align: center">Pyramid</th><th style="text-align: center">IVF</th><th style="text-align: center">BruteForce</th><th style="text-align: center">SINDI</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Remove</code></td><td><em>(no dedicated flag — see below)</em></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
-<tr><td><code>UpdateVector</code></td><td><code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td></tr>
-<tr><td><code>UpdateId</code></td><td><code>SUPPORT_UPDATE_ID_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td></tr>
-<tr><td><code>Clone</code></td><td><code>SUPPORT_CLONE</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
-<tr><td><code>ExportModel</code></td><td><code>SUPPORT_EXPORT_MODEL</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+<tr><td><code>Remove</code></td><td><em>(no dedicated flag — see below)</em></td><td style="text-align: center">Yes</td><td style="text-align: center"><code>RemoveMode::MARK_REMOVE</code> only</td><td style="text-align: center"><code>RemoveMode::MARK_REMOVE</code> only</td><td style="text-align: center">Yes</td><td style="text-align: center"><code>RemoveMode::MARK_REMOVE</code> only</td></tr>
+<tr><td><code>UpdateVector</code></td><td><code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
+<tr><td><code>UpdateId</code></td><td><code>SUPPORT_UPDATE_ID_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td></tr>
+<tr><td><code>Clone</code></td><td><code>SUPPORT_CLONE</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+<tr><td><code>ExportModel</code></td><td><code>SUPPORT_EXPORT_MODEL</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
 </tbody>
 </table>
 </div>
@@ -390,11 +391,17 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2, id3});
 <p><code>Remove</code> returns the number of ids that were successfully removed. Ids that did not exist are
 silently skipped and not counted.</p>
 <p>A runnable example is available at <code>examples/cpp/303_feature_remove.cpp</code>.</p>
+<h3 id="pyramid-and-ivf-deletion"><a class="header" href="#pyramid-and-ivf-deletion">Pyramid and IVF Deletion</a></h3>
+<p>Pyramid and IVF support <code>RemoveMode::MARK_REMOVE</code> only. The operation writes tombstones, excludes
+the ids from later searches, and does not physically reclaim vector storage. <code>FORCE_REMOVE</code> is not
+supported for either index.</p>
 <h3 id="bruteforce-deletion"><a class="header" href="#bruteforce-deletion">BruteForce Deletion</a></h3>
 <p>BruteForce also supports both modes, but it does <strong>not</strong> use HGraph’s
 <code>support_force_remove</code> setting. <code>MARK_REMOVE</code> writes a tombstone and keeps vector storage.
 <code>FORCE_REMOVE</code> needs no extra configuration: it physically removes entries, moving the final
 internal slot when necessary while keeping external ids intact.</p>
+<p>When BruteForce is not in multi-vector mode and <code>use_attribute_filter: true</code> is enabled, neither removal mode is available; rebuild the index instead if attribute-filtered data must be deleted.</p>
+<p>In multi-vector mode, BruteForce supports <code>RemoveMode::MARK_REMOVE</code> only; <code>FORCE_REMOVE</code> is not available, including when <code>use_attribute_filter: true</code> is enabled.</p>
 <p>BruteForce uses <code>block_memory_io</code> by default. Every successful force-removal batch reduces its
 logical vector and optional extra-information storage to the live entry count and releases trailing
 complete blocks; its final partial block remains allocated. The label table reclaims its backing
@@ -426,6 +433,9 @@ if (status.has_value() &amp;&amp; *status) {
 </code></pre>
 <p>Setting <code>force_update = true</code> skips the check and always applies the update; use with caution as
 it may degrade recall.</p>
+<p>This connectivity check applies to HGraph. BruteForce also supports <code>UpdateVector</code> for a
+same-dimension FP32 replacement, but it has no graph connectivity check and therefore does not
+give <code>force_update</code> a separate effect. Pyramid and IVF do not support <code>UpdateVector</code>.</p>
 <h3 id="updateid"><a class="header" href="#updateid"><code>UpdateId</code></a></h3>
 <p><code>UpdateId(old_id, new_id)</code> renames an existing id without touching the underlying vector.
 Returns <code>true</code> on success, <code>false</code> if <code>old_id</code> was not found or <code>new_id</code> already exists.</p>
@@ -433,6 +443,9 @@ Returns <code>true</code> on success, <code>false</code> if <code>old_id</code> 
 </code></pre>
 <p>A runnable example combining <code>UpdateVector</code>, <code>Remove</code>, and <code>Add</code> is available at
 <code>examples/cpp/305_feature_update.cpp</code>.</p>
+<p><code>UpdateId</code> is implemented through a shared label-table path on several indexes, but only indexes
+that advertise <code>SUPPORT_UPDATE_ID_CONCURRENT</code> promise the corresponding concurrent-update
+semantics.</p>
 <h2 id="cloning-an-index"><a class="header" href="#cloning-an-index">Cloning an Index</a></h2>
 <p><code>Clone()</code> produces a deep copy of the entire index — vectors, graph, quantizer state, and
 metadata — as an independent <code>IndexPtr</code>. The clone can be searched, mutated, or serialized

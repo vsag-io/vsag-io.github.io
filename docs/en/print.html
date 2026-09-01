@@ -166,7 +166,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-0875361c.js";
+            window.path_to_searchindex_js = "searchindex-c4d5e41d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-2a2dc95d.js"></script>
@@ -966,10 +966,16 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
     "index_param": {
         "base_quantization_type": "sq8",
         "max_degree": 24,
-        "ef_construction": 300
+        "ef_construction": 300,
+        "store_paths": true
     }
 }
 </code></pre>
+<p><code>store_paths</code> is a top-level Pyramid build parameter and defaults to <code>false</code>. Enable it when
+<code>GetDataByIdsWithFlag</code> must return the original default or named-hierarchy paths with
+<code>DATA_FLAG_PATH</code>; see the
+<a href="#build-parameters-6">Pyramid parameter table</a> for its completeness and
+persistence semantics.</p>
 <p>MRLE with split RaBitQ uses <code>base_quantization_type: "tq"</code>,
 <code>tq_chain: "mrle, rabitq"</code>, <code>mrle_dim</code>, and the
 <code>rabitq_bits_per_dim_base</code>/<code>rabitq_bits_per_dim_precise</code> pair. It automatically reorders from the
@@ -1533,6 +1539,8 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"ivf": {"scan_buckets_count": 16}})").value();
 </code></pre>
+<h2 id="input-data-type"><a class="header" href="#input-data-type">Input data type</a></h2>
+<p>The public <code>Build</code>, <code>Add</code>, and search paths currently accept FP32 vectors supplied with <code>Dataset::Float32Vectors</code>; set <code>dtype</code> to <code>"float32"</code>. <code>base_quantization_type</code> selects internal encoding and storage and does not enable FP16/BF16 input. <code>dtype: "int8"</code> is not supported when creating an IVF index.</p>
 <h2 id="build-parameters-2"><a class="header" href="#build-parameters-2">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>. See
 <a href="#index-parameters">Index Parameters</a> for the exhaustive list.</p>
@@ -2290,6 +2298,8 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"pyramid": {"ef_search": 100}})").value();
 </code></pre>
+<h2 id="input-data-type-1"><a class="header" href="#input-data-type-1">Input data type</a></h2>
+<p>The public <code>Build</code>, <code>Add</code>, and search paths currently accept FP32 vectors supplied with <code>Dataset::Float32Vectors</code>; set <code>dtype</code> to <code>"float32"</code>. <code>base_quantization_type</code> selects internal encoding and storage and does not by itself enable FP16, BF16, or INT8 input.</p>
 <h2 id="build-parameters-6"><a class="header" href="#build-parameters-6">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>.</p>
 <div class="table-wrapper">
@@ -2317,6 +2327,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Base and reorder storage backends; <code>uring_io</code> is available in builds with liburing.</td></tr>
 <tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>Required for disk-backed storage such as <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, or <code>mmap_io</code>.</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Preserve an FP32 copy for <code>GetRawVectorByIds</code> and precise distance-by-id calculations.</td></tr>
+<tr><td><code>store_paths</code></td><td>bool</td><td><code>false</code></td><td>Top-level switch that preserves the original paths supplied to <code>Build</code> and <code>Add</code> so <code>GetDataByIdsWithFlag</code> can return them when <code>DATA_FLAG_PATH</code> is selected. It applies to every configured hierarchy and cannot be overridden per hierarchy.</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>Minimum sub-index size; smaller groups fall back to scan.</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Allow duplicate ids.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>Threads used for parallel build.</td></tr>
@@ -2432,6 +2443,24 @@ base-&gt;NumElements(n)
     -&gt;Owner(false);
 index-&gt;Build(base);
 </code></pre>
+<h3 id="retrieving-paths-by-id"><a class="header" href="#retrieving-paths-by-id">Retrieving paths by ID</a></h3>
+<p>Set the top-level build parameter <code>store_paths</code> to <code>true</code> to retain the original paths for ID-based
+retrieval. Select <code>DATA_FLAG_PATH</code> in <code>GetDataByIdsWithFlag</code>; the returned paths follow the requested
+ID order. Use <code>GetPaths()</code> for the default unnamed hierarchy and <code>GetPaths(hierarchy_name)</code> for a
+named hierarchy:</p>
+<pre><code class="language-cpp">int64_t requested_ids[] = {product_id_b, product_id_a};
+auto data = index-&gt;GetDataByIdsWithFlag(
+    requested_ids, 2, DATA_FLAG_ID | DATA_FLAG_PATH).value();
+
+const std::string* site_paths = data-&gt;GetPaths("site");
+const std::string* category_paths = data-&gt;GetPaths("category");
+</code></pre>
+<p><code>GetDataByIds</code> and <code>GetDataByIdsWithFlag</code> calls without <code>DATA_FLAG_PATH</code> do not attach path arrays.
+Selecting <code>DATA_FLAG_PATH</code> while <code>store_paths</code> is <code>false</code> returns an invalid-argument error. When
+path storage is enabled, a hierarchy is included only if every requested ID has a recorded path in
+that hierarchy. If even one requested ID was built or added without that hierarchy’s path, its
+getter returns <code>nullptr</code>; other hierarchies whose requested paths are complete are still returned.
+In single-hierarchy mode, the same completeness rule applies to <code>GetPaths()</code>.</p>
 <h3 id="searching-a-specific-hierarchy"><a class="header" href="#searching-a-specific-hierarchy">Searching a specific hierarchy</a></h3>
 <p>Specify which hierarchy to search via <code>"hierarchies"</code> in the search parameters.
 The query dataset must also set its path on the matching hierarchy name:</p>
@@ -2465,8 +2494,11 @@ index-&gt;Add(new_data);
     R"({"pyramid": {"ef_search": 100, "hierarchies": ["category"]}})").value();
 </code></pre>
 <h3 id="serialize--deserialize"><a class="header" href="#serialize--deserialize">Serialize &amp; Deserialize</a></h3>
-<p>Multi-hierarchy indexes serialize and deserialize transparently. The serialized
-format includes all hierarchy names and their graph structures:</p>
+<p>Multi-hierarchy indexes serialize and deserialize transparently. The serialized format includes
+all hierarchy names and their graph structures. With <code>store_paths: true</code>, both regular and
+streaming serialization also persist the retained original paths, making them available through
+<code>GetDataByIdsWithFlag</code> after deserialization. With the default <code>false</code>, the graph hierarchy is
+persisted but the original per-ID paths are not:</p>
 <pre><code class="language-cpp">// Serialize
 auto binary_set = index-&gt;Serialize().value();
 
@@ -2557,6 +2589,9 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 </code></pre>
 <p>A full runnable program is at
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>.</p>
+<h2 id="input-data-type-2"><a class="header" href="#input-data-type-2">Input data type</a></h2>
+<p>The public <code>Build</code>, <code>Add</code>, <code>KnnSearch</code>, <code>RangeSearch</code>, and <code>UpdateVector</code> paths accept FP32 vectors only. At runtime, supply vectors via <code>Dataset::Float32Vectors</code>. At index creation, set <code>dtype</code> to <code>"float32"</code>; <code>dtype: "int8"</code> is not supported when creating a BruteForce index.</p>
+<p>The <code>base_quantization_type</code> parameter controls the index’s internal encoding and storage, not the input type. Selecting an internal <code>fp16</code>, <code>bf16</code>, or other quantizer does not enable FP16/BF16 input.</p>
 <h2 id="build-parameters-7"><a class="header" href="#build-parameters-7">Build parameters</a></h2>
 <p>The minimal config consists of the three top-level fields (<code>dtype</code>, <code>metric_type</code>, <code>dim</code>).
 For most uses no <code>index_param</code> is needed — that is the form shown in
@@ -2625,6 +2660,7 @@ auto r3 = index-&gt;RangeSearch(query, radius, R"({"parallelism": 8})").value();
 <h2 id="removing-vectors"><a class="header" href="#removing-vectors">Removing vectors</a></h2>
 <p>BruteForce supports both <code>RemoveMode::MARK_REMOVE</code> and <code>RemoveMode::FORCE_REMOVE</code>; neither mode
 needs an HGraph-style <code>support_force_remove</code> setting.</p>
+<p>When <code>use_attribute_filter: true</code> is enabled, neither removal mode is available. Rebuild the index instead if attribute-filtered data must be deleted.</p>
 <ul>
 <li><code>MARK_REMOVE</code> is the default. It records a tombstone, so the id is excluded from later searches
 while its vector storage remains allocated. <code>GetNumElements()</code> excludes marked ids and
@@ -2663,6 +2699,7 @@ immediately returns memory to the operating system or that RSS drops.</p>
 <tr><td><code>SUPPORT_RANGE_SEARCH</code> / <code>SUPPORT_RANGE_SEARCH_WITH_ID_FILTER</code></td><td>Available with non-training quantizers (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>).</td></tr>
 <tr><td><code>SUPPORT_DELETE_BY_ID</code> / <code>SUPPORT_DELETE_CONCURRENT</code></td><td><code>Remove</code> by id is supported. Searches and delete operations are synchronized; <code>FORCE_REMOVE</code> takes an exclusive lock.</td></tr>
 <tr><td><code>SUPPORT_CAL_DISTANCE_BY_ID</code></td><td>Distance lookup against stored vectors (non-training quantizers only).</td></tr>
+<tr><td><code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code></td><td><code>UpdateVector</code> replaces an existing FP32 vector with the same dimension. BruteForce has no graph connectivity check, so <code>force_update</code> does not change its update behavior.</td></tr>
 <tr><td><code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code></td><td>Available only when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the underlying quantizer holds molds (<code>hold_molds</code>). Quantized BruteForce indexes do <strong>not</strong> advertise this flag.</td></tr>
 <tr><td><code>SUPPORT_CHECK_ID_EXIST</code> / <code>SUPPORT_CLONE</code> / <code>SUPPORT_ESTIMATE_MEMORY</code> / <code>SUPPORT_GET_MEMORY_USAGE</code></td><td>Standard introspection and lifecycle.</td></tr>
 <tr><td><code>SUPPORT_SERIALIZE_BINARY_SET</code> / <code>SUPPORT_SERIALIZE_FILE</code> / <code>SUPPORT_SERIALIZE_WRITE_FUNC</code></td><td>Full save surface.</td></tr>
@@ -2671,8 +2708,8 @@ immediately returns memory to the operating system or that RSS drops.</p>
 </tbody>
 </table>
 </div>
-<p>Notably <strong>not</strong> supported by BruteForce: <code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code>,
-<code>SUPPORT_UPDATE_ID_CONCURRENT</code>, and <code>SUPPORT_EXPORT_MODEL</code>.</p>
+<p>Notably <strong>not</strong> supported by BruteForce: <code>SUPPORT_UPDATE_ID_CONCURRENT</code> and
+<code>SUPPORT_EXPORT_MODEL</code>.</p>
 <h2 id="when-to-use-bruteforce"><a class="header" href="#when-to-use-bruteforce">When to use BruteForce</a></h2>
 <ul>
 <li><strong>Recall baseline.</strong> Compute the ground truth that approximate indexes are scored against
@@ -6875,20 +6912,21 @@ produce a new index derived from it. This page documents the full lifecycle surf
 <li><code>Clone</code> — produce a deep copy of an existing index.</li>
 <li><code>ExportModel</code> — extract the trained model as an empty index for reuse.</li>
 </ul>
-<p>Each operation is optional and is exposed only when the underlying index advertises the matching
-capability flag via <code>index-&gt;CheckFeature(...)</code>.</p>
+<p>Each operation is optional. For operations with a dedicated capability flag, check it through
+<code>index-&gt;CheckFeature(...)</code>; <code>Remove</code> has no dedicated flag and must be checked by index type and
+<code>RemoveMode</code>.</p>
 <h2 id="capability-flags-2"><a class="header" href="#capability-flags-2">Capability Flags</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Operation</th><th>Capability Flag</th><th style="text-align: center">HGraph</th><th style="text-align: center">IVF</th><th style="text-align: center">SINDI</th></tr>
+<tr><th>Operation</th><th>Capability Flag</th><th style="text-align: center">HGraph</th><th style="text-align: center">Pyramid</th><th style="text-align: center">IVF</th><th style="text-align: center">BruteForce</th><th style="text-align: center">SINDI</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Remove</code></td><td><em>(no dedicated flag — see below)</em></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
-<tr><td><code>UpdateVector</code></td><td><code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td></tr>
-<tr><td><code>UpdateId</code></td><td><code>SUPPORT_UPDATE_ID_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td></tr>
-<tr><td><code>Clone</code></td><td><code>SUPPORT_CLONE</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
-<tr><td><code>ExportModel</code></td><td><code>SUPPORT_EXPORT_MODEL</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+<tr><td><code>Remove</code></td><td><em>(no dedicated flag — see below)</em></td><td style="text-align: center">Yes</td><td style="text-align: center"><code>RemoveMode::MARK_REMOVE</code> only</td><td style="text-align: center"><code>RemoveMode::MARK_REMOVE</code> only</td><td style="text-align: center">Yes</td><td style="text-align: center"><code>RemoveMode::MARK_REMOVE</code> only</td></tr>
+<tr><td><code>UpdateVector</code></td><td><code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
+<tr><td><code>UpdateId</code></td><td><code>SUPPORT_UPDATE_ID_CONCURRENT</code></td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">—</td><td style="text-align: center">Yes</td></tr>
+<tr><td><code>Clone</code></td><td><code>SUPPORT_CLONE</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td></tr>
+<tr><td><code>ExportModel</code></td><td><code>SUPPORT_EXPORT_MODEL</code></td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">—</td><td style="text-align: center">—</td></tr>
 </tbody>
 </table>
 </div>
@@ -6952,11 +6990,17 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id1, id2, id3});
 <p><code>Remove</code> returns the number of ids that were successfully removed. Ids that did not exist are
 silently skipped and not counted.</p>
 <p>A runnable example is available at <code>examples/cpp/303_feature_remove.cpp</code>.</p>
+<h3 id="pyramid-and-ivf-deletion"><a class="header" href="#pyramid-and-ivf-deletion">Pyramid and IVF Deletion</a></h3>
+<p>Pyramid and IVF support <code>RemoveMode::MARK_REMOVE</code> only. The operation writes tombstones, excludes
+the ids from later searches, and does not physically reclaim vector storage. <code>FORCE_REMOVE</code> is not
+supported for either index.</p>
 <h3 id="bruteforce-deletion"><a class="header" href="#bruteforce-deletion">BruteForce Deletion</a></h3>
 <p>BruteForce also supports both modes, but it does <strong>not</strong> use HGraph’s
 <code>support_force_remove</code> setting. <code>MARK_REMOVE</code> writes a tombstone and keeps vector storage.
 <code>FORCE_REMOVE</code> needs no extra configuration: it physically removes entries, moving the final
 internal slot when necessary while keeping external ids intact.</p>
+<p>When BruteForce is not in multi-vector mode and <code>use_attribute_filter: true</code> is enabled, neither removal mode is available; rebuild the index instead if attribute-filtered data must be deleted.</p>
+<p>In multi-vector mode, BruteForce supports <code>RemoveMode::MARK_REMOVE</code> only; <code>FORCE_REMOVE</code> is not available, including when <code>use_attribute_filter: true</code> is enabled.</p>
 <p>BruteForce uses <code>block_memory_io</code> by default. Every successful force-removal batch reduces its
 logical vector and optional extra-information storage to the live entry count and releases trailing
 complete blocks; its final partial block remains allocated. The label table reclaims its backing
@@ -6988,6 +7032,9 @@ if (status.has_value() &amp;&amp; *status) {
 </code></pre>
 <p>Setting <code>force_update = true</code> skips the check and always applies the update; use with caution as
 it may degrade recall.</p>
+<p>This connectivity check applies to HGraph. BruteForce also supports <code>UpdateVector</code> for a
+same-dimension FP32 replacement, but it has no graph connectivity check and therefore does not
+give <code>force_update</code> a separate effect. Pyramid and IVF do not support <code>UpdateVector</code>.</p>
 <h3 id="updateid"><a class="header" href="#updateid"><code>UpdateId</code></a></h3>
 <p><code>UpdateId(old_id, new_id)</code> renames an existing id without touching the underlying vector.
 Returns <code>true</code> on success, <code>false</code> if <code>old_id</code> was not found or <code>new_id</code> already exists.</p>
@@ -6995,6 +7042,9 @@ Returns <code>true</code> on success, <code>false</code> if <code>old_id</code> 
 </code></pre>
 <p>A runnable example combining <code>UpdateVector</code>, <code>Remove</code>, and <code>Add</code> is available at
 <code>examples/cpp/305_feature_update.cpp</code>.</p>
+<p><code>UpdateId</code> is implemented through a shared label-table path on several indexes, but only indexes
+that advertise <code>SUPPORT_UPDATE_ID_CONCURRENT</code> promise the corresponding concurrent-update
+semantics.</p>
 <h2 id="cloning-an-index"><a class="header" href="#cloning-an-index">Cloning an Index</a></h2>
 <p><code>Clone()</code> produces a deep copy of the entire index — vectors, graph, quantizer state, and
 metadata — as an independent <code>IndexPtr</code>. The clone can be searched, mutated, or serialized
@@ -7440,6 +7490,7 @@ target id <code>new_id</code>. Used by <a href="#merge"><code>Merge</code></a>.<
 <tr><td><code>DATA_FLAG_EXTRA_INFO</code></td><td><code>0x10</code></td><td>extra info blobs</td></tr>
 <tr><td><code>DATA_FLAG_ATTRIBUTE</code></td><td><code>0x20</code></td><td>attributes</td></tr>
 <tr><td><code>DATA_FLAG_ID</code></td><td><code>0x40</code></td><td>ids</td></tr>
+<tr><td><code>DATA_FLAG_PATH</code></td><td><code>0x80</code></td><td>Pyramid paths retained with <code>store_paths</code></td></tr>
 </tbody>
 </table>
 </div>
@@ -7598,8 +7649,8 @@ quantized codes. See <a href="#calculate-distance-by-id">Calculate Distance by I
 <tr><td><code>GetMinAndMaxId</code></td><td><code>tl::expected&lt;std::pair&lt;int64_t, int64_t&gt;, Error&gt; GetMinAndMaxId() const</code></td><td>Smallest and largest ids in the index.</td></tr>
 <tr><td><code>GetExtraInfoByIds</code></td><td><code>tl::expected&lt;void, Error&gt; GetExtraInfoByIds(const int64_t* ids, int64_t count, char* extra_infos) const</code></td><td>Copies extra-info blobs for <code>ids</code> into a caller-provided buffer.</td></tr>
 <tr><td><code>GetRawVectorByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetRawVectorByIds(const int64_t* ids, int64_t count, Allocator* specified_allocator = nullptr) const</code></td><td>Returns stored vectors. Values are <em>close to</em> the originals but not guaranteed bit-identical (quantization/precision).</td></tr>
-<tr><td><code>GetDataByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIds(const int64_t* ids, int64_t count) const</code></td><td>Returns all stored data (vectors, attributes, extra info) for <code>ids</code>.</td></tr>
-<tr><td><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>Like <code>GetDataByIds</code> but selects fields via <a href="#data-selection-flags"><code>DATA_FLAG_*</code></a>.</td></tr>
+<tr><td><code>GetDataByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIds(const int64_t* ids, int64_t count) const</code></td><td>Returns the implementation’s default stored fields for <code>ids</code>; optional fields may require explicit selection.</td></tr>
+<tr><td><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>Selects supported fields via <a href="#data-selection-flags"><code>DATA_FLAG_*</code></a>. Pyramid paths require <code>store_paths: true</code> and <code>DATA_FLAG_PATH</code>.</td></tr>
 <tr><td><code>GetIndexDetailInfos</code></td><td><code>tl::expected&lt;std::vector&lt;IndexDetailInfo&gt;, Error&gt; GetIndexDetailInfos() const</code></td><td>Lists the introspectable detail fields. See <a href="#index-detail-info"><code>IndexDetailInfo</code></a>.</td></tr>
 <tr><td><code>GetDetailDataByName</code></td><td><code>tl::expected&lt;DetailDataPtr, Error&gt; GetDetailDataByName(const std::string&amp; name, IndexDetailInfo&amp; info) const</code></td><td>Fetches one detail-data payload by name.</td></tr>
 </tbody>

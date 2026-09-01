@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-7e2e5c33.js";
+            window.path_to_searchindex_js = "../searchindex-fba82a51.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-f46b13c0.js"></script>
@@ -349,6 +349,9 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 </code></pre>
 <p>完整可运行示例见
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/105_index_brute_force.cpp"><code>examples/cpp/105_index_brute_force.cpp</code></a>。</p>
+<h2 id="支持的输入数据类型"><a class="header" href="#支持的输入数据类型">支持的输入数据类型</a></h2>
+<p>当前公开的 <code>Build</code>、<code>Add</code>、<code>KnnSearch</code>、<code>RangeSearch</code> 与 <code>UpdateVector</code> 路径仅接受 FP32 向量。运行时通过 <code>Dataset::Float32Vectors</code> 传入向量；创建索引时 <code>dtype</code> 应设为 <code>"float32"</code>，不支持 <code>dtype: "int8"</code>。</p>
+<p><code>base_quantization_type</code> 描述的是索引内部编码和存储，而非输入类型。选择内部 <code>fp16</code>、<code>bf16</code> 等量化器不会使 API 接受 FP16/BF16 输入。</p>
 <h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
 <p>最简配置只需要三个顶层字段（<code>dtype</code>、<code>metric_type</code>、<code>dim</code>）。大多数场景下不需要
 <code>index_param</code>，这也是
@@ -414,6 +417,7 @@ auto r3 = index-&gt;RangeSearch(query, radius, R"({"parallelism": 8})").value();
 <h2 id="删除向量"><a class="header" href="#删除向量">删除向量</a></h2>
 <p>BruteForce 同时支持 <code>RemoveMode::MARK_REMOVE</code> 与 <code>RemoveMode::FORCE_REMOVE</code>；两种模式都不需要
 配置 HGraph 专用的 <code>support_force_remove</code>。</p>
+<p>启用 <code>use_attribute_filter: true</code> 时，BruteForce 不支持任一种删除模式；如需删除属性过滤数据，请重建索引。</p>
 <ul>
 <li><code>MARK_REMOVE</code> 是默认模式。它只写入墓碑标记，后续搜索会过滤该 id，但向量存储仍保持已分配状态。
 <code>GetNumElements()</code> 不计已标记的 id，<code>GetNumberRemoved()</code> 返回其数量。</li>
@@ -445,6 +449,7 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id3, id4}, vsag::RemoveMode::FORCE_R
 <tr><td><code>SUPPORT_RANGE_SEARCH</code> / <code>SUPPORT_RANGE_SEARCH_WITH_ID_FILTER</code></td><td>仅在非训练型量化器（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>）下可用。</td></tr>
 <tr><td><code>SUPPORT_DELETE_BY_ID</code> / <code>SUPPORT_DELETE_CONCURRENT</code></td><td>支持按 id 删除。查询和删除操作会同步；<code>FORCE_REMOVE</code> 会获取独占锁。</td></tr>
 <tr><td><code>SUPPORT_CAL_DISTANCE_BY_ID</code></td><td>与已存储向量计算距离（仅非训练型量化器）。</td></tr>
+<tr><td><code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code></td><td>支持 <code>UpdateVector</code>：以维度相同的 FP32 向量替换已有向量。BruteForce 没有图连通性检查，因此 <code>force_update</code> 不改变更新行为。</td></tr>
 <tr><td><code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code></td><td>仅当 <code>base_quantization_type = fp32</code>，且度量不是 <code>cosine</code> 或底层量化器持有向量范数（<code>hold_molds</code>）时才声明。量化的 BruteForce 索引<strong>不会</strong>声明该能力。</td></tr>
 <tr><td><code>SUPPORT_CHECK_ID_EXIST</code> / <code>SUPPORT_CLONE</code> / <code>SUPPORT_ESTIMATE_MEMORY</code> / <code>SUPPORT_GET_MEMORY_USAGE</code></td><td>标准的内省与生命周期接口。</td></tr>
 <tr><td><code>SUPPORT_SERIALIZE_BINARY_SET</code> / <code>SUPPORT_SERIALIZE_FILE</code> / <code>SUPPORT_SERIALIZE_WRITE_FUNC</code></td><td>完整的保存能力。</td></tr>
@@ -453,8 +458,7 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id3, id4}, vsag::RemoveMode::FORCE_R
 </tbody>
 </table>
 </div>
-<p>BruteForce <strong>不支持</strong> 的能力包括：<code>SUPPORT_UPDATE_VECTOR_CONCURRENT</code>、
-<code>SUPPORT_UPDATE_ID_CONCURRENT</code>、<code>SUPPORT_EXPORT_MODEL</code>。</p>
+<p>BruteForce <strong>不支持</strong> 的能力包括：<code>SUPPORT_UPDATE_ID_CONCURRENT</code>、<code>SUPPORT_EXPORT_MODEL</code>。</p>
 <h2 id="适用场景"><a class="header" href="#适用场景">适用场景</a></h2>
 <ul>
 <li><strong>召回基准。</strong> 为近似索引计算 ground truth（<code>eval_performance</code> 工具就是这么做的）。</li>

@@ -165,7 +165,7 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0875361c.js";
+            window.path_to_searchindex_js = "../searchindex-c4d5e41d.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-2a2dc95d.js"></script>
@@ -378,6 +378,8 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"pyramid": {"ef_search": 100}})").value();
 </code></pre>
+<h2 id="input-data-type"><a class="header" href="#input-data-type">Input data type</a></h2>
+<p>The public <code>Build</code>, <code>Add</code>, and search paths currently accept FP32 vectors supplied with <code>Dataset::Float32Vectors</code>; set <code>dtype</code> to <code>"float32"</code>. <code>base_quantization_type</code> selects internal encoding and storage and does not by itself enable FP16, BF16, or INT8 input.</p>
 <h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>.</p>
 <div class="table-wrapper">
@@ -405,6 +407,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Base and reorder storage backends; <code>uring_io</code> is available in builds with liburing.</td></tr>
 <tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>Required for disk-backed storage such as <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, or <code>mmap_io</code>.</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Preserve an FP32 copy for <code>GetRawVectorByIds</code> and precise distance-by-id calculations.</td></tr>
+<tr><td><code>store_paths</code></td><td>bool</td><td><code>false</code></td><td>Top-level switch that preserves the original paths supplied to <code>Build</code> and <code>Add</code> so <code>GetDataByIdsWithFlag</code> can return them when <code>DATA_FLAG_PATH</code> is selected. It applies to every configured hierarchy and cannot be overridden per hierarchy.</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>Minimum sub-index size; smaller groups fall back to scan.</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Allow duplicate ids.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>Threads used for parallel build.</td></tr>
@@ -520,6 +523,24 @@ base-&gt;NumElements(n)
     -&gt;Owner(false);
 index-&gt;Build(base);
 </code></pre>
+<h3 id="retrieving-paths-by-id"><a class="header" href="#retrieving-paths-by-id">Retrieving paths by ID</a></h3>
+<p>Set the top-level build parameter <code>store_paths</code> to <code>true</code> to retain the original paths for ID-based
+retrieval. Select <code>DATA_FLAG_PATH</code> in <code>GetDataByIdsWithFlag</code>; the returned paths follow the requested
+ID order. Use <code>GetPaths()</code> for the default unnamed hierarchy and <code>GetPaths(hierarchy_name)</code> for a
+named hierarchy:</p>
+<pre><code class="language-cpp">int64_t requested_ids[] = {product_id_b, product_id_a};
+auto data = index-&gt;GetDataByIdsWithFlag(
+    requested_ids, 2, DATA_FLAG_ID | DATA_FLAG_PATH).value();
+
+const std::string* site_paths = data-&gt;GetPaths("site");
+const std::string* category_paths = data-&gt;GetPaths("category");
+</code></pre>
+<p><code>GetDataByIds</code> and <code>GetDataByIdsWithFlag</code> calls without <code>DATA_FLAG_PATH</code> do not attach path arrays.
+Selecting <code>DATA_FLAG_PATH</code> while <code>store_paths</code> is <code>false</code> returns an invalid-argument error. When
+path storage is enabled, a hierarchy is included only if every requested ID has a recorded path in
+that hierarchy. If even one requested ID was built or added without that hierarchy’s path, its
+getter returns <code>nullptr</code>; other hierarchies whose requested paths are complete are still returned.
+In single-hierarchy mode, the same completeness rule applies to <code>GetPaths()</code>.</p>
 <h3 id="searching-a-specific-hierarchy"><a class="header" href="#searching-a-specific-hierarchy">Searching a specific hierarchy</a></h3>
 <p>Specify which hierarchy to search via <code>"hierarchies"</code> in the search parameters.
 The query dataset must also set its path on the matching hierarchy name:</p>
@@ -553,8 +574,11 @@ index-&gt;Add(new_data);
     R"({"pyramid": {"ef_search": 100, "hierarchies": ["category"]}})").value();
 </code></pre>
 <h3 id="serialize--deserialize"><a class="header" href="#serialize--deserialize">Serialize &amp; Deserialize</a></h3>
-<p>Multi-hierarchy indexes serialize and deserialize transparently. The serialized
-format includes all hierarchy names and their graph structures:</p>
+<p>Multi-hierarchy indexes serialize and deserialize transparently. The serialized format includes
+all hierarchy names and their graph structures. With <code>store_paths: true</code>, both regular and
+streaming serialization also persist the retained original paths, making them available through
+<code>GetDataByIdsWithFlag</code> after deserialization. With the default <code>false</code>, the graph hierarchy is
+persisted but the original per-ID paths are not:</p>
 <pre><code class="language-cpp">// Serialize
 auto binary_set = index-&gt;Serialize().value();
 
