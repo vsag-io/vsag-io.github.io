@@ -122,10 +122,44 @@ auto result = index->KnnSearch(
 
 不可变运行态支持 KNN、范围搜索以及旧版 `Serialize`/`Deserialize`。它不支持增量
 `Add`、`GetSparseVectorByInnerId`、`CalcDistanceById` 与 `CalDistanceById`。
-不可变 SINDI 不支持流式序列化；需要流式格式时应保持索引可变，或使用匹配的旧版序列化接口。
+mutable 和 immutable 运行态均支持 `SerializeStreaming`、`DeserializeStreaming` 与
+`Index::Load`。
 反序列化时，新建 SINDI 的 `immutable` 设置必须与存储格式一致。
 新索引会记录有序倒排链格式版本，加载时可跳过归一化排序；缺少该标记的旧索引仍保持兼容，
 并在加载时完成排序归一化。
+
+### Host 过滤
+
+mutable 和 immutable SINDI 及 [SINDI_V2](sindi_v2.md) 索引都可以按单值数值 host 对文档
+分组，避免返回其他 host 的文档。host-aware `Build()` 或 mutable `Add()` 批次需要提供完整的
+`uint32_t` `host_id` 数组；没有 host 的文档使用 `0`：
+
+```cpp
+base->NumElements(n)
+    ->SparseVectors(sparse_vectors)
+    ->Ids(ids)
+    ->UInt32Metadata("host_id", base_host_ids)
+    ->Owner(false);
+index->Build(base);
+
+uint32_t query_host_id = 42;
+query->NumElements(1)
+    ->SparseVectors(&query_vec)
+    ->UInt32Metadata("host_id", &query_host_id)
+    ->Owner(false);
+```
+
+每个 `Build()` 或 mutable `Add()` 批次都会按 host 对 inner ID 分组，同时保持 external label
+不变。host 查询统一扫描相关 posting window，并在该 host 的一个或多个 inner-ID 区间上执行
+精确成员检查。多次 mutable `Add()` 可以为同一 host 追加互不连续的区间；删除标记和额外的
+用户 `Filter` 会与 host 成员检查共同生效。
+
+host ID `0` 是缺失 host 分组，`1` 到 `UINT32_MAX` 表示普通 host；不同 host 的数量不能超过
+成功写入索引的文档数。mutable 索引一旦包含 host metadata，后续每次 `Add()` 都必须提供
+完整的 `host_id` 数组；已有 host-unaware 文档后不能再引入 host metadata。查询
+`host_id: 0` 时只检索缺失 host 的文档，不提供 `host_id` 时保留全索引 KNN 行为；查询没有
+已索引文档的 host 返回空结果。构建时没有 base host metadata 的索引会忽略查询 host
+metadata，行为保持不变。host 过滤当前仅适用于 KNN；范围搜索仍使用原有全索引路径。
 
 ## 检索参数
 

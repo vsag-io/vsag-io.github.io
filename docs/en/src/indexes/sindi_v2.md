@@ -96,6 +96,15 @@ derives it as `<term_io.file_path>.rerank`.
 `rerank_layout > 0` requires `use_reorder: true`. `rerank_type: "dmq8"`
 requires `rerank_layout: 0` and the default `block_memory_io` rerank backend.
 
+### Host filtering
+
+SINDI_V2 supports the same `uint32_t` `host_id` build and KNN-query metadata contract as
+[SINDI](sindi.md#host-filtering). Both mutable and immutable indexes are supported. It uses the
+shared host grouping and routing component while retaining its own term-first posting storage.
+Host membership is enforced during posting-window search, including multiple ranges created by
+mutable `Add()`. Missing host ID `0`, mutable `Add()` metadata rules, streaming serialization, and
+the KNN-only scope are the same as SINDI.
+
 ## Search parameters
 
 Search parameters live under `{"sindi_v2": {...}}`.
