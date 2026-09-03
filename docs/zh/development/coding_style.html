@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>HGraph MCI 挂件 - VSAG文档</title>
+        <title>C++ 编码指南 - VSAG文档</title>
 
 
         <!-- Custom HTML head -->
@@ -304,104 +304,197 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="hgraph-mci-挂件"><a class="header" href="#hgraph-mci-挂件">HGraph MCI 挂件</a></h1>
-<p>HGraph 可以选择构建一个 MCI（Maximal Clique Index）挂件，用于带过滤条件的 KNN
-搜索。这个挂件把团信息存放在 HGraph 索引内部，并复用 HGraph 的向量存储。它不是
-独立索引类型：创建索引时仍然使用 <code>hgraph</code>，不要使用 <code>mci</code>。</p>
-<p>当主要负载是过滤搜索，并且过滤后只保留较小比例的向量时，可以启用这个功能。搜索
-时，HGraph 会比较 <code>Filter::ValidRatio()</code> 和阈值，自动选择普通 HGraph 搜索或 MCI
-挂件搜索。</p>
-<h2 id="构建配置"><a class="header" href="#构建配置">构建配置</a></h2>
-<p>MCI 构建参数直接放在 <code>index_param</code> 下，不再使用嵌套对象。满足以下任一条件即
-启用挂件：<code>use_mci</code> 为 true，或出现任意 MCI 构建参数。<code>mci_knng_source</code> 用于
-选择构团所需 KNN 图的来源：可以从已经构建好的 HGraph bottom graph 派生，也可以
-单独构建一张 ODescent 图。</p>
-<pre><code class="language-json">{
-  "dtype": "float32",
-  "metric_type": "l2",
-  "dim": 128,
-  "index_param": {
-    "base_quantization_type": "fp32",
-    "max_degree": 32,
-    "ef_construction": 400,
-    "mci_mcs": 200,
-    "mci_clique_max": 50,
-    "mci_alpha": 1.2,
-    "mci_knng_source": "odescent"
-  }
-}
-</code></pre>
-<p><code>mci_knng_source</code> 默认为 <code>hgraph</code>，保持现有行为不变。设为 <code>odescent</code> 时，
-MCI 会直接基于已存储向量构建专用 KNN 图。若内部配置了外部 KNN 图文件路径，
-外部文件的优先级高于此选项。</p>
+                        <h1 id="c-编码指南"><a class="header" href="#c-编码指南">C++ 编码指南</a></h1>
+<p>VSAG 以 <a href="https://google.github.io/styleguide/cppguide.html">Google C++ 风格指南</a> 为基础，并针对
+代码格式、命名和静态检查制定了项目规则。仓库根目录下的配置文件是这些规则的准确定义：</p>
+<ul>
+<li><a href="https://github.com/antgroup/vsag/blob/main/.clang-format"><code>.clang-format</code></a> 定义自动格式化规则；</li>
+<li><a href="https://github.com/antgroup/vsag/blob/main/.clang-tidy"><code>.clang-tidy</code></a> 定义命名与静态检查规则。</li>
+</ul>
+<p>VSAG 严格要求使用 <strong>clang-format 15</strong> 和 <strong>clang-tidy 15</strong>。其他版本可能产生不同的格式化
+结果或诊断信息，无法通过 CI。</p>
+<h2 id="代码组织"><a class="header" href="#代码组织">代码组织</a></h2>
+<ul>
+<li>公开 API 放在 <code>include/vsag/</code>，实现代码放在 <code>src/</code>；</li>
+<li>C++ 源文件使用 <code>.cpp</code> 后缀，不使用 <code>.cc</code>；</li>
+<li>除非文件有明确的特殊要求，代码应放在 <code>vsag</code> 命名空间中；</li>
+<li>除非明确计划进行破坏性变更，否则应保持 API 兼容；</li>
+<li>修改公开 API 时，应添加或更新 Doxygen 注释；</li>
+<li>新代码优先使用 <code>uint64_t</code> 而不是 <code>size_t</code>，避免 macOS 兼容性问题；</li>
+<li>除非修改目标明确涉及第三方依赖，否则不要修改 <code>extern/</code>；</li>
+<li>所有提交的文本文件都应以换行符结尾。</li>
+</ul>
+<h2 id="格式化规则"><a class="header" href="#格式化规则">格式化规则</a></h2>
+<p>格式化配置以 Google 风格为基础，并应用以下 VSAG 规则：</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>参数</th><th>作用</th></tr>
+<tr><th>规则</th><th>VSAG 风格</th></tr>
 </thead>
 <tbody>
-<tr><td><code>use_mci</code></td><td>设为 <code>true</code> 时使用默认构建参数启用 MCI。</td></tr>
-<tr><td><code>mci_mcs</code></td><td>构建团时使用的候选邻居数量。</td></tr>
-<tr><td><code>mci_clique_max</code></td><td>全量构建时的最大团大小。</td></tr>
-<tr><td><code>mci_knng_source</code></td><td>KNN 图来源：<code>hgraph</code>（默认）或 <code>odescent</code>。</td></tr>
-<tr><td><code>mci_alpha</code></td><td>团构建扩展系数。</td></tr>
-<tr><td><code>mci_incremental_join_ratio_threshold</code></td><td>Add 时加入已有团的阈值。</td></tr>
-<tr><td><code>mci_incremental_added_mct</code></td><td>新节点最多加入的已有团数量。</td></tr>
-<tr><td><code>mci_incremental_clique_max</code></td><td>增量创建新团时的最大团大小。</td></tr>
+<tr><td>缩进</td><td>4 个空格</td></tr>
+<tr><td>C++ 行宽</td><td>最多 100 列</td></tr>
+<tr><td>访问控制符</td><td>相对成员代码减少一级缩进</td></tr>
+<tr><td>返回类型</td><td>与函数名分行书写</td></tr>
+<tr><td>简短代码块、函数和 <code>if</code> 语句</td><td>不压缩到单行</td></tr>
+<tr><td>指针和引用</td><td><code>*</code>、<code>&amp;</code> 与类型结合</td></tr>
+<tr><td>头文件引用</td><td>自动排序</td></tr>
+<tr><td>换行后的参数和实参</td><td>每行一个，不进行 bin-pack</td></tr>
+<tr><td>行尾注释</td><td>连续成组时自动对齐</td></tr>
+<tr><td>已有注释文本</td><td>不自动重新换行</td></tr>
 </tbody>
 </table>
 </div>
-<h2 id="搜索配置"><a class="header" href="#搜索配置">搜索配置</a></h2>
-<p>搜索参数放在 <code>hgraph</code> 搜索对象下：</p>
-<pre><code class="language-json">{
-    "hgraph": {
-      "ef_search": 120,
-      "use_mci": true,
-      "mci_seed_ratio": 0.1,
-      "hgraph_valid_ratio_threshold": 0.2
-    }
-}
+<p>例如，clang-format 15 会将类声明格式化为：</p>
+<pre><code class="language-cpp">class Example {
+public:
+    Result&lt;DatasetPtr&gt;
+    Build(const DatasetPtr&amp; base, const std::string&amp; parameters);
+
+private:
+    void
+    reset_state();
+
+    DatasetPtr dataset_;
+};
 </code></pre>
-<p><code>use_mci</code> 在搜索时默认为 true，可以设为 false 来仅对本次查询关闭 MCI。
-<code>hgraph_valid_ratio_threshold</code> 是搜索路由阈值：<code>ValidRatio()</code> 低于该阈值时走 MCI，
-否则走 HGraph。默认值是 <code>0.05</code>。</p>
-<p>seed 数量按 <code>ceil(sqrt(当前向量总数) * mci_seed_ratio)</code> 计算，并且至少为 1。
-<code>mci_seed_ratio</code> 默认值为 <code>0.1</code>，必须是有限的非负数。最终 seed 数量不会超过
-满足过滤条件的点数。</p>
-<p>MCI 挂件依赖过滤器提供合理的 <code>ValidRatio()</code>。bitset 和函数过滤器也可以
-使用，但自定义 <code>Filter</code> 能给搜索规划提供更准确的选择率信息。</p>
-<h2 id="add序列化和统计"><a class="header" href="#add序列化和统计">Add、序列化和统计</a></h2>
-<p>通过扁平构建参数启用 MCI 后，<code>HGraph::Add()</code> 会在每个新点插入 HGraph 后更新
-MCI 挂件。它会先尝试加入合适的已有团；如果没有好的候选团，则为新点创建
-一个小的增量团。</p>
-<p>注意：MCI 索引不应通过在空索引上不断调用 <code>Add()</code> 从 0 开始构建。增量添加路径适用于
-已有初始索引后，再追加少量向量的场景。</p>
-<p>团数据会作为 HGraph 索引的一部分序列化。加载 HGraph 索引时，MCI 挂件会自动恢复。</p>
-<p><code>GetStats()</code> 会包含以下 MCI 质量字段：</p>
+<p>100 列限制只适用于 C++ 源文件和头文件，不要求 Markdown 或其他非 C++ 文本遵循这一行宽。</p>
+<h2 id="命名规则"><a class="header" href="#命名规则">命名规则</a></h2>
+<p><code>.clang-tidy</code> 中的 <code>readability-identifier-naming</code> 会检查以下命名：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>对象</th><th>风格</th><th>示例</th></tr>
+</thead>
+<tbody>
+<tr><td>命名空间</td><td><code>lower_case</code></td><td><code>vsag::storage</code></td></tr>
+<tr><td>类</td><td><code>CamelCase</code></td><td><code>HGraphIndex</code></td></tr>
+<tr><td>结构体</td><td><code>CamelCase</code></td><td><code>SearchResult</code></td></tr>
+<tr><td>类型模板参数</td><td><code>CamelCase</code></td><td><code>DataType</code></td></tr>
+<tr><td>值模板参数</td><td><code>lower_case</code></td><td><code>max_degree</code></td></tr>
+<tr><td>自由函数或 C 风格函数</td><td><code>lower_case</code></td><td><code>normalize_vector</code></td></tr>
+<tr><td>公有方法</td><td><code>CamelCase</code></td><td><code>Build</code></td></tr>
+<tr><td>私有方法</td><td><code>lower_case</code></td><td><code>reset_state</code></td></tr>
+<tr><td>变量</td><td><code>lower_case</code></td><td><code>search_result</code></td></tr>
+<tr><td>私有或受保护的数据成员</td><td><code>lower_case_</code></td><td><code>search_result_</code></td></tr>
+<tr><td>宏定义</td><td><code>UPPER_CASE</code></td><td><code>CHECK_ARGUMENT</code></td></tr>
+<tr><td>枚举值</td><td><code>UPPER_CASE</code></td><td><code>ROUTING</code></td></tr>
+<tr><td>全局常量</td><td><code>UPPER_CASE</code></td><td><code>DEFAULT_RESIZE_INCREASE_COUNT_BIT</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>make lint</code> 还会运行 <code>scripts/linters/check-struct-names.py</code>，检查所有已被 Git 跟踪的项目 C/C++
+文件中的具名结构体，包括 clang-tidy 常规检查范围之外的文件。因此，新建的具名结构体都必须使用
+<code>CamelCase</code>。</p>
+<p>对于没有项目专用规则的对象，请遵循 Google C++ 风格以及所在模块的现有约定。</p>
+<h2 id="选择-class-还是-struct"><a class="header" href="#选择-class-还是-struct">选择 <code>class</code> 还是 <code>struct</code></a></h2>
+<p>当类型是被动、值语义的数据载体时，使用 <code>struct</code>：</p>
 <ul>
-<li><code>mci_has_index</code></li>
-<li><code>mci_total_nodes</code></li>
-<li><code>mci_covered_nodes</code></li>
-<li><code>mci_total_clique_count</code></li>
-<li><code>mci_total_membership_count</code></li>
-<li><code>mci_avg_membership_per_node</code></li>
-<li><code>mci_avg_clique_size</code></li>
-<li><code>mci_max_clique_size</code></li>
-<li><code>mci_memory_usage</code></li>
+<li>主要用途是将一组相关数据组织在一起；</li>
+<li>数据成员有意保持公开，调用方可以彼此独立地修改它们；</li>
+<li>不需要保护对象不变量，也不需要隐藏内部表示；</li>
+<li>不负责需要受控访问或生命周期管理的资源。</li>
 </ul>
-<h2 id="示例"><a class="header" href="#示例">示例</a></h2>
-<p>最小构建和过滤搜索流程见
-<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/324_feature_hgraph_mci_companion.cpp"><code>examples/cpp/324_feature_hgraph_mci_companion.cpp</code></a>。</p>
+<p>例如 <code>Binary</code>、<code>SparseVector</code> 和 <code>MultiVector</code>。<code>struct</code> 仍然可以包含成员默认值、构造函数或简单的
+辅助函数。是否存在成员函数并不是选择 <code>class</code> 的决定因素，关键在于该类型是否仍是透明的数据值。</p>
+<p>当类型表示行为或必须控制自身状态时，使用 <code>class</code>：</p>
+<ul>
+<li>通过公开方法维护对象不变量；</li>
+<li>使用私有或受保护成员隐藏实现细节；</li>
+<li>持有或管理需要控制生命周期的资源；</li>
+<li>提供行为接口或多态接口，尤其是包含虚函数的接口。</li>
+</ul>
+<p>例如 <code>BinarySet</code>、<code>Dataset</code>、<code>Filter</code> 和 <code>Index</code>。新建接口和多态基类时，优先使用 <code>class</code>。</p>
+<p>无法确定时，可以判断调用方是否应当以任意顺序直接修改每一个数据成员。如果允许，使用 <code>struct</code>；如果
+类型必须校验、协调或限制这些修改，使用 <code>class</code>。不要仅仅为了省略 <code>public:</code> 而使用 <code>struct</code>，也不要
+为了支持聚合初始化而暴露可变的实现细节。</p>
+<p>类和结构体都使用 <code>CamelCase</code>。除非有意进行 API 变更，否则应保留公开类型当前使用的形式，不要把
+<code>class</code> 与 <code>struct</code> 之间的转换作为纯风格清理。</p>
+<h2 id="静态检查"><a class="header" href="#静态检查">静态检查</a></h2>
+<p>所有已启用的 clang-tidy 诊断都按错误处理。当前配置启用了以下检查组：</p>
+<ul>
+<li><code>bugprone-*</code>：发现可能的逻辑缺陷和可疑写法；</li>
+<li><code>clang-analyzer-*</code>：进行路径敏感的正确性和生命周期分析；</li>
+<li><code>clang-diagnostic-*</code>：通过 clang-tidy 报告编译器诊断；</li>
+<li><code>modernize-*</code>：检查项目支持的现代 C++ 写法；</li>
+<li><code>openmp-*</code>：检查 OpenMP 使用的正确性；</li>
+<li><code>performance-*</code>：发现不必要的复制和低效操作；</li>
+<li><code>readability-*</code>：检查可维护性和命名一致性。</li>
+</ul>
+<p>部分检查会与 VSAG 的底层、高性能代码冲突，或者在当前代码库中产生过多噪声，因此被明确禁用：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>禁用的检查</th><th>原因</th></tr>
+</thead>
+<tbody>
+<tr><td><code>clang-analyzer-deadcode.DeadStores</code></td><td>“写入但未读取”的诊断噪声过多</td></tr>
+<tr><td><code>clang-diagnostic-deprecated-builtins</code></td><td>工具链或平台兼容仍需要部分已弃用的 builtin</td></tr>
+<tr><td><code>bugprone-easily-swappable-parameters</code></td><td>误报过多</td></tr>
+<tr><td><code>modernize-use-trailing-return-type</code></td><td>与项目的返回类型风格冲突</td></tr>
+<tr><td><code>modernize-avoid-c-arrays</code></td><td>SIMD 和其他底层代码会有意使用 C 数组</td></tr>
+<tr><td><code>readability-identifier-length</code></td><td>上下文清晰时允许使用短名称</td></tr>
+<tr><td><code>readability-magic-numbers</code></td><td>数值密集的向量索引代码会产生过多噪声</td></tr>
+<tr><td><code>readability-function-cognitive-complexity</code></td><td>在解决现有问题前暂不启用</td></tr>
+<tr><td><code>readability-redundant-access-specifiers</code></td><td>允许重复访问控制符来划分方法组</td></tr>
+</tbody>
+</table>
+</div>
+<p>禁用检查并不意味着可以忽略它所关注的问题。在能够提升可读性的情况下，仍应使用含义明确的参数名和
+具名常量。</p>
+<h3 id="抑制诊断"><a class="header" href="#抑制诊断">抑制诊断</a></h3>
+<p>应优先修复诊断指出的问题。如果诊断属于误报，或者相关写法是兼容性或性能所必需的，应使用范围最小的
+抑制，并说明这样做安全的原因：</p>
+<pre><code class="language-cpp">// NOLINTNEXTLINE(performance-no-int-to-ptr): platform API 将该句柄存储为整数。
+auto* handle = reinterpret_cast&lt;Handle*&gt;(raw_handle);
+</code></pre>
+<p>在 <code>NOLINT</code>、<code>NOLINTNEXTLINE</code> 或范围严格受控的 <code>NOLINTBEGIN</code>/<code>NOLINTEND</code> 中写出具体检查名。
+除非无法采用更小的范围，否则不要使用不带检查名的 <code>NOLINT</code> 或对整个文件禁用检查。</p>
+<h2 id="运行检查"><a class="header" href="#运行检查">运行检查</a></h2>
+<p>首先安装指定版本的工具：</p>
+<pre><code class="language-bash"># Ubuntu 或 Debian
+sudo apt-get install clang-format-15 clang-tidy-15 clang-tools-15
+
+# macOS
+brew install llvm@15
+</code></pre>
+<p>格式化所有项目 C++ 文件并检查修改：</p>
+<pre><code class="language-bash">make fmt
+git diff --check
+</code></pre>
+<p>clang-tidy 需要 <code>build-release/</code> 中的编译数据库，因此应先完成发布模式构建：</p>
+<pre><code class="language-bash">make release
+make lint
+</code></pre>
+<p>默认 lint 目标以 <code>src/</code> 下的生产环境 <code>.cpp</code> 文件作为 clang-tidy 入口，并排除 <code>*_test.cpp</code>；同时还会
+运行覆盖整个仓库的结构体命名检查。测试和其他目录不会在该命令中作为独立的 clang-tidy 入口。</p>
+<p><code>make fix-lint</code> 会直接应用 clang-tidy 建议的修改，可能产生较大范围的变更。请在干净或已安全备份的
+工作区中使用，检查完整 diff，然后重新运行格式化、静态检查和相关测试：</p>
+<pre><code class="language-bash">make fix-lint
+make fmt
+make lint
+make test
+</code></pre>
+<h2 id="提交修改前"><a class="header" href="#提交修改前">提交修改前</a></h2>
+<ul>
+<li>使用 clang-format 15 格式化所有修改过的 C++ 文件；</li>
+<li>使用 clang-tidy 15 检查修改过的生产环境源码；</li>
+<li>确认命名符合上述规则，尤其是结构体使用 <code>CamelCase</code>；</li>
+<li>确保每个 <code>NOLINT</code> 都指定具体检查，并说明原因；</li>
+<li>新功能包含测试，bug 修复包含回归测试；</li>
+<li>保持 C++ 库的单元测试覆盖率不低于 90%；</li>
+<li>运行 <code>git diff --check</code> 并检查完整 diff。</li>
+</ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../advanced/index_lifecycle.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../development/code_structure.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../api/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../development/new_index_checklist.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -411,11 +504,11 @@ MCI 挂件。它会先尝试加入合适的已有团；如果没有好的候选�
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../advanced/index_lifecycle.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../development/code_structure.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../api/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../development/new_index_checklist.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

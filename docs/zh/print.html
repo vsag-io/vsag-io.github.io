@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-fba82a51.js";
+            window.path_to_searchindex_js = "searchindex-87b5aa0f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-f46b13c0.js"></script>
+        <script src="toc-88150941.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1714,10 +1714,38 @@ auto result = index-&gt;KnnSearch(
 构建时间则从约 330 秒增加到 599 秒。这些数字是特定负载的实测证据，不是容量保证。</p>
 <p>不可变运行态支持 KNN、范围搜索以及旧版 <code>Serialize</code>/<code>Deserialize</code>。它不支持增量
 <code>Add</code>、<code>GetSparseVectorByInnerId</code>、<code>CalcDistanceById</code> 与 <code>CalDistanceById</code>。
-不可变 SINDI 不支持流式序列化；需要流式格式时应保持索引可变，或使用匹配的旧版序列化接口。
+mutable 和 immutable 运行态均支持 <code>SerializeStreaming</code>、<code>DeserializeStreaming</code> 与
+<code>Index::Load</code>。
 反序列化时，新建 SINDI 的 <code>immutable</code> 设置必须与存储格式一致。
 新索引会记录有序倒排链格式版本，加载时可跳过归一化排序；缺少该标记的旧索引仍保持兼容，
 并在加载时完成排序归一化。</p>
+<h3 id="host-过滤"><a class="header" href="#host-过滤">Host 过滤</a></h3>
+<p>mutable 和 immutable SINDI 及 <a href="#sindi_v2">SINDI_V2</a> 索引都可以按单值数值 host 对文档
+分组，避免返回其他 host 的文档。host-aware <code>Build()</code> 或 mutable <code>Add()</code> 批次需要提供完整的
+<code>uint32_t</code> <code>host_id</code> 数组；没有 host 的文档使用 <code>0</code>：</p>
+<pre><code class="language-cpp">base-&gt;NumElements(n)
+    -&gt;SparseVectors(sparse_vectors)
+    -&gt;Ids(ids)
+    -&gt;UInt32Metadata("host_id", base_host_ids)
+    -&gt;Owner(false);
+index-&gt;Build(base);
+
+uint32_t query_host_id = 42;
+query-&gt;NumElements(1)
+    -&gt;SparseVectors(&amp;query_vec)
+    -&gt;UInt32Metadata("host_id", &amp;query_host_id)
+    -&gt;Owner(false);
+</code></pre>
+<p>每个 <code>Build()</code> 或 mutable <code>Add()</code> 批次都会按 host 对 inner ID 分组，同时保持 external label
+不变。host 查询统一扫描相关 posting window，并在该 host 的一个或多个 inner-ID 区间上执行
+精确成员检查。多次 mutable <code>Add()</code> 可以为同一 host 追加互不连续的区间；删除标记和额外的
+用户 <code>Filter</code> 会与 host 成员检查共同生效。</p>
+<p>host ID <code>0</code> 是缺失 host 分组，<code>1</code> 到 <code>UINT32_MAX</code> 表示普通 host；不同 host 的数量不能超过
+成功写入索引的文档数。mutable 索引一旦包含 host metadata，后续每次 <code>Add()</code> 都必须提供
+完整的 <code>host_id</code> 数组；已有 host-unaware 文档后不能再引入 host metadata。查询
+<code>host_id: 0</code> 时只检索缺失 host 的文档，不提供 <code>host_id</code> 时保留全索引 KNN 行为；查询没有
+已索引文档的 host 返回空结果。构建时没有 base host metadata 的索引会忽略查询 host
+metadata，行为保持不变。host 过滤当前仅适用于 KNN；范围搜索仍使用原有全索引路径。</p>
 <h2 id="检索参数-2"><a class="header" href="#检索参数-2">检索参数</a></h2>
 <p>检索参数放在 <code>sindi</code> 子对象下：</p>
 <div class="table-wrapper">
@@ -1889,6 +1917,12 @@ auto result = index-&gt;KnnSearch(
 <code>&lt;term_io.file_path&gt;.rerank</code>。</p>
 <p><code>rerank_layout &gt; 0</code> 要求 <code>use_reorder: true</code>。<code>rerank_type: "dmq8"</code> 要求
 <code>rerank_layout: 0</code>，并使用默认的 <code>block_memory_io</code> 重排后端。</p>
+<h3 id="host-过滤-1"><a class="header" href="#host-过滤-1">Host 过滤</a></h3>
+<p>SINDI_V2 支持与 <a href="#host-过滤">SINDI</a> 相同的 <code>uint32_t</code> <code>host_id</code> 构建数据和 KNN 查询
+metadata 约定。mutable 与 immutable 索引均支持该功能。两者共用 host 分组与路由组件，同时
+SINDI_V2 保持自己的 term-first posting 存储。host 成员检查统一在 posting-window 检索中执行，
+并支持 mutable <code>Add()</code> 产生的多个区间。缺失 host ID <code>0</code>、mutable <code>Add()</code> metadata、streaming
+序列化及仅支持 KNN 的规则均与 SINDI 相同。</p>
 <h2 id="检索参数-3"><a class="header" href="#检索参数-3">检索参数</a></h2>
 <p>检索参数放在 <code>{"sindi_v2": {...}}</code> 下。</p>
 <div class="table-wrapper">
@@ -2212,6 +2246,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>MRLE 保留的前缀维度；<code>0</code> 表示保持输入维度。</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>子图内节点的最大出度</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code> 或 <code>odescent</code></td></tr>
+<tr><td><code>graph_storage_type</code></td><td>string</td><td><code>"flat"</code></td><td><code>multi_layer</code> 根节点的底图存储：<code>flat</code> 偏向构建和检索速度，<code>compressed</code> 减少图内存。压缩存储要求 <code>max_degree &lt;= 255</code>。单层根图、路由图和子图仍使用 Sparse。</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td><code>nsw</code> 构图时的候选集大小</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.2</code></td><td>构图剪枝系数</td></tr>
 <tr><td><code>graph_iter_turn</code></td><td>int</td><td>—</td><td>ODescent 迭代轮数（<code>graph_type: "odescent"</code> 时生效）</td></tr>
@@ -2228,9 +2263,10 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>保留 FP32 原始向量，用于 <code>GetRawVectorByIds</code> 和精确的按 ID 距离计算</td></tr>
 <tr><td><code>store_paths</code></td><td>bool</td><td><code>false</code></td><td>顶层开关；保留传给 <code>Build</code> 和 <code>Add</code> 的原始路径，使 <code>GetDataByIdsWithFlag</code> 在选择 <code>DATA_FLAG_PATH</code> 时可以返回它们。该开关对所有已配置的 hierarchy 生效，不支持按 hierarchy 覆盖</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>子索引的最小规模；小于该值的分区会退化为线性扫描</td></tr>
+<tr><td><code>root_graph_type</code></td><td>string</td><td><code>"single_layer"</code></td><td>根图结构：<code>single_layer</code> 保留原有稀疏底图；<code>multi_layer</code> 使用预分配的 Flat 或 Compressed 底图、类似 HGraph 的稀疏路由层以及联合构图流程。<code>multi_layer</code> 要求 <code>graph_type: "nsw"</code>。<code>no_build_levels</code> 禁用第 0 层时不要显式指定此选项。</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否允许重复 ID</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>构建阶段并发线程数</td></tr>
-<tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>命名层级定义。每个元素可以是字符串（继承全部顶层参数）或对象（含 <code>name</code> 及可选覆盖参数：<code>max_degree</code>、<code>ef_construction</code>、<code>alpha</code>、<code>no_build_levels</code>、<code>index_min_size</code>）。设置后激活多层级模式，每个层级维护独立的路径树。</td></tr>
+<tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>命名层级定义。每个元素可以是字符串（继承全部顶层参数）或对象（含 <code>name</code> 及可选覆盖参数：<code>max_degree</code>、<code>ef_construction</code>、<code>alpha</code>、<code>no_build_levels</code>、<code>index_min_size</code>、<code>root_graph_type</code>）。设置后激活多层级模式，每个层级维护独立的路径树。</td></tr>
 </tbody>
 </table>
 </div>
@@ -2275,7 +2311,8 @@ auto result = index-&gt;KnnSearch(
 </thead>
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>叶子层子图检索的候选集大小</td></tr>
-<tr><td><code>hops_limit</code></td><td>int</td><td>不限</td><td>根图 KNN 检索的最大跳数；不大于 <code>ef_search</code> 时忽略</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td>未设置</td><td>KNN 重排候选倍率。值 <code>&lt;= 1</code> 时不增加限制；值大于 <code>1</code> 时，Pyramid 保持各子图原有搜索行为，先合并子图结果，再将至多 <code>min(max(ef_search, topk), floor(topk * factor))</code> 个主图候选送入重排。与 HGraph 一致，RaBitQ lower-bound 安全候选可在该限制后额外并入，<code>reorder_candidate_count</code> 记录实际合并数量。参数必须为有限正数；范围检索或关闭重排时不生效。</td></tr>
+<tr><td><code>hops_limit</code></td><td>int</td><td>不限</td><td>根节点底图及每个非根 GRAPH 的逐图 KNN 跳数上限；不大于 <code>ef_search</code> 时忽略。根节点的稀疏路由层不受限制，FLAT 扫描与范围检索不受影响。</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>沿路径向下遍历中间子图时的候选集大小</td></tr>
 <tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>指定检索哪个层级。空数组表示使用默认（匿名）层级。</td></tr>
 <tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>多层级结果合并方式：<code>single</code>（检索单个层级）、<code>union</code>、<code>intersection</code>。<strong>注意：</strong> <code>union</code> 和 <code>intersection</code> 尚未实现——设置后 <code>KnnSearch</code>/<code>RangeSearch</code> 会返回错误。</td></tr>
@@ -2302,7 +2339,14 @@ auto result = index-&gt;KnnSearch(
 <code>{"name": "category", "max_degree": 64, "no_build_levels": [0]}</code></li>
 </ul>
 <p>可按层级覆盖的参数：<code>max_degree</code>、<code>ef_construction</code>、<code>alpha</code>、<code>no_build_levels</code>、
-<code>index_min_size</code>。</p>
+<code>index_min_size</code>、<code>root_graph_type</code>。</p>
+<p><code>root_graph_type: "multi_layer"</code> 只改变所选层级的根节点。底图使用顶层
+<code>graph_storage_type</code>：默认使用 Flat，也可使用 Compressed，以构建和检索速度换取更低的图
+内存；路由图和子图仍使用 Sparse。稀疏路由图先选择更好的入口点，再进入底图检索。批量
+Build 与增量 Add 都使用类似 HGraph 的 route 与 bottom 联合插入流程。该结构要求
+<code>graph_type: "nsw"</code>；参数校验会拒绝 <code>multi_layer</code> 与 <code>odescent</code> 的组合。存在独立 precise
+storage 时，底图和路由图的边统一使用 precise codes 构建，否则使用 base codes；查询遍历
+继续使用 base codes，最终精排使用配置的 reorder source。</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -2407,7 +2451,10 @@ new_index-&gt;Deserialize(binary_set);
 </ul>
 <p>如果不需要按路径限定查询范围，<a href="#hgraph-1">HGraph</a> 更简洁，性能通常也更高。</p>
 <p>可以通过<a href="#索引分析analyzeindexbysearch-与-analyze_index">索引分析</a>检查 Pyramid 的树结构、子索引质量、
-<code>GetStats()</code> 输出的 base 采样召回率和重复比例。<code>AnalyzeIndexBySearch</code> 还会输出按路径限定的
+<code>GetStats()</code> 输出的 base 采样召回率和重复比例。每个 hierarchy 的 <code>root_graphs</code> 会报告
+<code>root_graph_type</code>、<code>bottom_graph_storage_type</code>、<code>bottom_graph_node_count</code>、
+<code>bottom_graph_size</code>、<code>route_graph_count</code>、<code>route_node_counts</code> 和 <code>route_graph_size</code>。
+<code>AnalyzeIndexBySearch</code> 还会输出按路径限定的
 query 召回率、距离、耗时，以及开启 reorder 时的量化指标。query 数据集必须包含与
 <code>KnnSearch</code> 相同的默认或命名 hierarchy 路径；批量数据集在需要或提供路径时，应为每条 query
 提供一条路径。<code>analyze_index</code> 工具当前无法从 dense query 文件加载 hierarchy 路径，因此
@@ -3815,6 +3862,188 @@ RaBitQ 编码器，并保留 RaBitQ 内部的 FHT/ROM 随机旋转；其他带�
 <li><code>src/utils/</code>：工具函数目录。</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="c-编码指南"><a class="header" href="#c-编码指南">C++ 编码指南</a></h1>
+<p>VSAG 以 <a href="https://google.github.io/styleguide/cppguide.html">Google C++ 风格指南</a> 为基础，并针对
+代码格式、命名和静态检查制定了项目规则。仓库根目录下的配置文件是这些规则的准确定义：</p>
+<ul>
+<li><a href="https://github.com/antgroup/vsag/blob/main/.clang-format"><code>.clang-format</code></a> 定义自动格式化规则；</li>
+<li><a href="https://github.com/antgroup/vsag/blob/main/.clang-tidy"><code>.clang-tidy</code></a> 定义命名与静态检查规则。</li>
+</ul>
+<p>VSAG 严格要求使用 <strong>clang-format 15</strong> 和 <strong>clang-tidy 15</strong>。其他版本可能产生不同的格式化
+结果或诊断信息，无法通过 CI。</p>
+<h2 id="代码组织"><a class="header" href="#代码组织">代码组织</a></h2>
+<ul>
+<li>公开 API 放在 <code>include/vsag/</code>，实现代码放在 <code>src/</code>；</li>
+<li>C++ 源文件使用 <code>.cpp</code> 后缀，不使用 <code>.cc</code>；</li>
+<li>除非文件有明确的特殊要求，代码应放在 <code>vsag</code> 命名空间中；</li>
+<li>除非明确计划进行破坏性变更，否则应保持 API 兼容；</li>
+<li>修改公开 API 时，应添加或更新 Doxygen 注释；</li>
+<li>新代码优先使用 <code>uint64_t</code> 而不是 <code>size_t</code>，避免 macOS 兼容性问题；</li>
+<li>除非修改目标明确涉及第三方依赖，否则不要修改 <code>extern/</code>；</li>
+<li>所有提交的文本文件都应以换行符结尾。</li>
+</ul>
+<h2 id="格式化规则"><a class="header" href="#格式化规则">格式化规则</a></h2>
+<p>格式化配置以 Google 风格为基础，并应用以下 VSAG 规则：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>规则</th><th>VSAG 风格</th></tr>
+</thead>
+<tbody>
+<tr><td>缩进</td><td>4 个空格</td></tr>
+<tr><td>C++ 行宽</td><td>最多 100 列</td></tr>
+<tr><td>访问控制符</td><td>相对成员代码减少一级缩进</td></tr>
+<tr><td>返回类型</td><td>与函数名分行书写</td></tr>
+<tr><td>简短代码块、函数和 <code>if</code> 语句</td><td>不压缩到单行</td></tr>
+<tr><td>指针和引用</td><td><code>*</code>、<code>&amp;</code> 与类型结合</td></tr>
+<tr><td>头文件引用</td><td>自动排序</td></tr>
+<tr><td>换行后的参数和实参</td><td>每行一个，不进行 bin-pack</td></tr>
+<tr><td>行尾注释</td><td>连续成组时自动对齐</td></tr>
+<tr><td>已有注释文本</td><td>不自动重新换行</td></tr>
+</tbody>
+</table>
+</div>
+<p>例如，clang-format 15 会将类声明格式化为：</p>
+<pre><code class="language-cpp">class Example {
+public:
+    Result&lt;DatasetPtr&gt;
+    Build(const DatasetPtr&amp; base, const std::string&amp; parameters);
+
+private:
+    void
+    reset_state();
+
+    DatasetPtr dataset_;
+};
+</code></pre>
+<p>100 列限制只适用于 C++ 源文件和头文件，不要求 Markdown 或其他非 C++ 文本遵循这一行宽。</p>
+<h2 id="命名规则"><a class="header" href="#命名规则">命名规则</a></h2>
+<p><code>.clang-tidy</code> 中的 <code>readability-identifier-naming</code> 会检查以下命名：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>对象</th><th>风格</th><th>示例</th></tr>
+</thead>
+<tbody>
+<tr><td>命名空间</td><td><code>lower_case</code></td><td><code>vsag::storage</code></td></tr>
+<tr><td>类</td><td><code>CamelCase</code></td><td><code>HGraphIndex</code></td></tr>
+<tr><td>结构体</td><td><code>CamelCase</code></td><td><code>SearchResult</code></td></tr>
+<tr><td>类型模板参数</td><td><code>CamelCase</code></td><td><code>DataType</code></td></tr>
+<tr><td>值模板参数</td><td><code>lower_case</code></td><td><code>max_degree</code></td></tr>
+<tr><td>自由函数或 C 风格函数</td><td><code>lower_case</code></td><td><code>normalize_vector</code></td></tr>
+<tr><td>公有方法</td><td><code>CamelCase</code></td><td><code>Build</code></td></tr>
+<tr><td>私有方法</td><td><code>lower_case</code></td><td><code>reset_state</code></td></tr>
+<tr><td>变量</td><td><code>lower_case</code></td><td><code>search_result</code></td></tr>
+<tr><td>私有或受保护的数据成员</td><td><code>lower_case_</code></td><td><code>search_result_</code></td></tr>
+<tr><td>宏定义</td><td><code>UPPER_CASE</code></td><td><code>CHECK_ARGUMENT</code></td></tr>
+<tr><td>枚举值</td><td><code>UPPER_CASE</code></td><td><code>ROUTING</code></td></tr>
+<tr><td>全局常量</td><td><code>UPPER_CASE</code></td><td><code>DEFAULT_RESIZE_INCREASE_COUNT_BIT</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>make lint</code> 还会运行 <code>scripts/linters/check-struct-names.py</code>，检查所有已被 Git 跟踪的项目 C/C++
+文件中的具名结构体，包括 clang-tidy 常规检查范围之外的文件。因此，新建的具名结构体都必须使用
+<code>CamelCase</code>。</p>
+<p>对于没有项目专用规则的对象，请遵循 Google C++ 风格以及所在模块的现有约定。</p>
+<h2 id="选择-class-还是-struct"><a class="header" href="#选择-class-还是-struct">选择 <code>class</code> 还是 <code>struct</code></a></h2>
+<p>当类型是被动、值语义的数据载体时，使用 <code>struct</code>：</p>
+<ul>
+<li>主要用途是将一组相关数据组织在一起；</li>
+<li>数据成员有意保持公开，调用方可以彼此独立地修改它们；</li>
+<li>不需要保护对象不变量，也不需要隐藏内部表示；</li>
+<li>不负责需要受控访问或生命周期管理的资源。</li>
+</ul>
+<p>例如 <code>Binary</code>、<code>SparseVector</code> 和 <code>MultiVector</code>。<code>struct</code> 仍然可以包含成员默认值、构造函数或简单的
+辅助函数。是否存在成员函数并不是选择 <code>class</code> 的决定因素，关键在于该类型是否仍是透明的数据值。</p>
+<p>当类型表示行为或必须控制自身状态时，使用 <code>class</code>：</p>
+<ul>
+<li>通过公开方法维护对象不变量；</li>
+<li>使用私有或受保护成员隐藏实现细节；</li>
+<li>持有或管理需要控制生命周期的资源；</li>
+<li>提供行为接口或多态接口，尤其是包含虚函数的接口。</li>
+</ul>
+<p>例如 <code>BinarySet</code>、<code>Dataset</code>、<code>Filter</code> 和 <code>Index</code>。新建接口和多态基类时，优先使用 <code>class</code>。</p>
+<p>无法确定时，可以判断调用方是否应当以任意顺序直接修改每一个数据成员。如果允许，使用 <code>struct</code>；如果
+类型必须校验、协调或限制这些修改，使用 <code>class</code>。不要仅仅为了省略 <code>public:</code> 而使用 <code>struct</code>，也不要
+为了支持聚合初始化而暴露可变的实现细节。</p>
+<p>类和结构体都使用 <code>CamelCase</code>。除非有意进行 API 变更，否则应保留公开类型当前使用的形式，不要把
+<code>class</code> 与 <code>struct</code> 之间的转换作为纯风格清理。</p>
+<h2 id="静态检查"><a class="header" href="#静态检查">静态检查</a></h2>
+<p>所有已启用的 clang-tidy 诊断都按错误处理。当前配置启用了以下检查组：</p>
+<ul>
+<li><code>bugprone-*</code>：发现可能的逻辑缺陷和可疑写法；</li>
+<li><code>clang-analyzer-*</code>：进行路径敏感的正确性和生命周期分析；</li>
+<li><code>clang-diagnostic-*</code>：通过 clang-tidy 报告编译器诊断；</li>
+<li><code>modernize-*</code>：检查项目支持的现代 C++ 写法；</li>
+<li><code>openmp-*</code>：检查 OpenMP 使用的正确性；</li>
+<li><code>performance-*</code>：发现不必要的复制和低效操作；</li>
+<li><code>readability-*</code>：检查可维护性和命名一致性。</li>
+</ul>
+<p>部分检查会与 VSAG 的底层、高性能代码冲突，或者在当前代码库中产生过多噪声，因此被明确禁用：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>禁用的检查</th><th>原因</th></tr>
+</thead>
+<tbody>
+<tr><td><code>clang-analyzer-deadcode.DeadStores</code></td><td>“写入但未读取”的诊断噪声过多</td></tr>
+<tr><td><code>clang-diagnostic-deprecated-builtins</code></td><td>工具链或平台兼容仍需要部分已弃用的 builtin</td></tr>
+<tr><td><code>bugprone-easily-swappable-parameters</code></td><td>误报过多</td></tr>
+<tr><td><code>modernize-use-trailing-return-type</code></td><td>与项目的返回类型风格冲突</td></tr>
+<tr><td><code>modernize-avoid-c-arrays</code></td><td>SIMD 和其他底层代码会有意使用 C 数组</td></tr>
+<tr><td><code>readability-identifier-length</code></td><td>上下文清晰时允许使用短名称</td></tr>
+<tr><td><code>readability-magic-numbers</code></td><td>数值密集的向量索引代码会产生过多噪声</td></tr>
+<tr><td><code>readability-function-cognitive-complexity</code></td><td>在解决现有问题前暂不启用</td></tr>
+<tr><td><code>readability-redundant-access-specifiers</code></td><td>允许重复访问控制符来划分方法组</td></tr>
+</tbody>
+</table>
+</div>
+<p>禁用检查并不意味着可以忽略它所关注的问题。在能够提升可读性的情况下，仍应使用含义明确的参数名和
+具名常量。</p>
+<h3 id="抑制诊断"><a class="header" href="#抑制诊断">抑制诊断</a></h3>
+<p>应优先修复诊断指出的问题。如果诊断属于误报，或者相关写法是兼容性或性能所必需的，应使用范围最小的
+抑制，并说明这样做安全的原因：</p>
+<pre><code class="language-cpp">// NOLINTNEXTLINE(performance-no-int-to-ptr): platform API 将该句柄存储为整数。
+auto* handle = reinterpret_cast&lt;Handle*&gt;(raw_handle);
+</code></pre>
+<p>在 <code>NOLINT</code>、<code>NOLINTNEXTLINE</code> 或范围严格受控的 <code>NOLINTBEGIN</code>/<code>NOLINTEND</code> 中写出具体检查名。
+除非无法采用更小的范围，否则不要使用不带检查名的 <code>NOLINT</code> 或对整个文件禁用检查。</p>
+<h2 id="运行检查"><a class="header" href="#运行检查">运行检查</a></h2>
+<p>首先安装指定版本的工具：</p>
+<pre><code class="language-bash"># Ubuntu 或 Debian
+sudo apt-get install clang-format-15 clang-tidy-15 clang-tools-15
+
+# macOS
+brew install llvm@15
+</code></pre>
+<p>格式化所有项目 C++ 文件并检查修改：</p>
+<pre><code class="language-bash">make fmt
+git diff --check
+</code></pre>
+<p>clang-tidy 需要 <code>build-release/</code> 中的编译数据库，因此应先完成发布模式构建：</p>
+<pre><code class="language-bash">make release
+make lint
+</code></pre>
+<p>默认 lint 目标以 <code>src/</code> 下的生产环境 <code>.cpp</code> 文件作为 clang-tidy 入口，并排除 <code>*_test.cpp</code>；同时还会
+运行覆盖整个仓库的结构体命名检查。测试和其他目录不会在该命令中作为独立的 clang-tidy 入口。</p>
+<p><code>make fix-lint</code> 会直接应用 clang-tidy 建议的修改，可能产生较大范围的变更。请在干净或已安全备份的
+工作区中使用，检查完整 diff，然后重新运行格式化、静态检查和相关测试：</p>
+<pre><code class="language-bash">make fix-lint
+make fmt
+make lint
+make test
+</code></pre>
+<h2 id="提交修改前"><a class="header" href="#提交修改前">提交修改前</a></h2>
+<ul>
+<li>使用 clang-format 15 格式化所有修改过的 C++ 文件；</li>
+<li>使用 clang-tidy 15 检查修改过的生产环境源码；</li>
+<li>确认命名符合上述规则，尤其是结构体使用 <code>CamelCase</code>；</li>
+<li>确保每个 <code>NOLINT</code> 都指定具体检查，并说明原因；</li>
+<li>新功能包含测试，bug 修复包含回归测试；</li>
+<li>保持 C++ 库的单元测试覆盖率不低于 90%；</li>
+<li>运行 <code>git diff --check</code> 并检查完整 diff。</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="新索引接入检查清单"><a class="header" href="#新索引接入检查清单">新索引接入检查清单</a></h1>
 <p>新增 VSAG 索引实现时使用这份检查清单。第一版应保持范围可控：先让索引能通过公开
 factory 创建，支持它声明的生命周期方法；只有在行为已经实现并经过测试后，再开启对应的
@@ -4452,21 +4681,8 @@ Assisted-by: OpenCode:claude-opus-4.7
 </li>
 </ul>
 <h3 id="编码风格"><a class="header" href="#编码风格">编码风格</a></h3>
-<p>VSAG 项目编码风格基于 <a href="https://google.github.io/styleguide/cppguide.html">Google C++ 风格指南</a> 做了一些修改，包括缩进、命名规则、行宽等，具体可以参考以下两个配置文件：</p>
-<ul>
-<li>clang-format：https://github.com/antgroup/vsag/blob/main/.clang-format</li>
-<li>clang-tidy：https://github.com/antgroup/vsag/blob/main/.clang-tidy</li>
-</ul>
-<blockquote>
-<p>clang-tidy 是一个静态代码分析的工具，配置文件中不仅定义了函数/变量的命名标准，定义了一些编码风格的检查，例如 Magic Number 使用的检查等。</p>
-</blockquote>
-<p>VSAG 项目通过 Makefile 提供了格式化代码的命令，需要安装 clang-format 和 clang-tidy。</p>
-<p>运行命令可以直接格式化代码：</p>
-<pre><code class="language-bash">make fmt
-</code></pre>
-<p>运行命令会静态代码检查，需要根据提示手动修复：</p>
-<pre><code class="language-bash">make lint
-</code></pre>
+<p>修改 C++ 代码前，请阅读 <a href="#c-编码指南">C++ 编码指南</a>。其中说明了 VSAG 要求的
+clang-format 15 和 clang-tidy 15 规则、命名约定、诊断抑制方式以及本地检查命令。</p>
 <h3 id="本地测试"><a class="header" href="#本地测试">本地测试</a></h3>
 <p>VSAG 项目使用 Makefile 提供了方便运行所有测试的命令，请执行并确认所有测试通过：</p>
 <pre><code class="language-bash">make test
@@ -5740,12 +5956,32 @@ reader 的 payload checksum，然后将 reorder codes 绑定到该 reader。</p>
 <tr><td><code>label_table</code></td><td>外部 label 和 label remap</td><td>是</td></tr>
 <tr><td><code>sindi_rerank_index</code></td><td>rerank 开启时的可选 rerank flat index</td><td>条件必需</td></tr>
 <tr><td><code>sindi_term_id_mapper</code></td><td>可选 term-id remap 表</td><td>条件必需</td></tr>
+<tr><td><code>sindi_host_metadata</code></td><td>可选 host ID 及每个 host 的一个或多个 inner-ID 区间</td><td>条件必需</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>DeserializeStreaming</code> 会恢复完整的内存 SINDI 索引。<code>Index::Load</code> 可以直接从 streaming metadata
-创建 SINDI 索引对象，当前会把写出的 SINDI blocks 都加载到内存中。immutable SINDI runtime 暂不支持
-该 streaming 序列化路径。</p>
+创建 SINDI 索引对象，当前会把写出的 SINDI blocks 都加载到内存中。mutable 与 immutable SINDI
+运行态均支持该 streaming 路径。旧版序列化格式保持不变，不保存 host metadata。</p>
+<h2 id="sindi_v2-blocks"><a class="header" href="#sindi_v2-blocks">SINDI_V2 Blocks</a></h2>
+<p>SINDI_V2 按顺序写入以下 streaming blocks：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>内容</th><th>是否必需</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sindi_v2_term_layout</code></td><td>term-first posting 布局、文档数量和量化状态</td><td>是</td></tr>
+<tr><td><code>label_table</code></td><td>外部 label 和 label remap</td><td>是</td></tr>
+<tr><td><code>sindi_rerank_index</code></td><td>rerank 开启时的可选 rerank index</td><td>条件必需</td></tr>
+<tr><td><code>extra_info</code></td><td>可选逐文档 extra information</td><td>条件必需</td></tr>
+<tr><td><code>sindi_term_id_mapper</code></td><td>可选 term-id remap 表</td><td>条件必需</td></tr>
+<tr><td><code>sindi_host_metadata</code></td><td>可选 host ID 及每个 host 的一个或多个 inner-ID 区间</td><td>条件必需</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> 与 <code>Index::Load</code> 可以从这些 blocks 恢复 mutable 或 immutable SINDI_V2。
+旧版序列化格式保持不变，不保存 host metadata。</p>
 <h2 id="pyramid-blocks"><a class="header" href="#pyramid-blocks">Pyramid Blocks</a></h2>
 <p>Pyramid 按顺序写入以下 streaming blocks：</p>
 <div class="table-wrapper">

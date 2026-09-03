@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fba82a51.js";
+            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f46b13c0.js"></script>
+        <script src="../toc-88150941.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -383,21 +383,8 @@ Assisted-by: OpenCode:claude-opus-4.7
 </li>
 </ul>
 <h3 id="编码风格"><a class="header" href="#编码风格">编码风格</a></h3>
-<p>VSAG 项目编码风格基于 <a href="https://google.github.io/styleguide/cppguide.html">Google C++ 风格指南</a> 做了一些修改，包括缩进、命名规则、行宽等，具体可以参考以下两个配置文件：</p>
-<ul>
-<li>clang-format：https://github.com/antgroup/vsag/blob/main/.clang-format</li>
-<li>clang-tidy：https://github.com/antgroup/vsag/blob/main/.clang-tidy</li>
-</ul>
-<blockquote>
-<p>clang-tidy 是一个静态代码分析的工具，配置文件中不仅定义了函数/变量的命名标准，定义了一些编码风格的检查，例如 Magic Number 使用的检查等。</p>
-</blockquote>
-<p>VSAG 项目通过 Makefile 提供了格式化代码的命令，需要安装 clang-format 和 clang-tidy。</p>
-<p>运行命令可以直接格式化代码：</p>
-<pre><code class="language-bash">make fmt
-</code></pre>
-<p>运行命令会静态代码检查，需要根据提示手动修复：</p>
-<pre><code class="language-bash">make lint
-</code></pre>
+<p>修改 C++ 代码前，请阅读 <a href="coding_style.html">C++ 编码指南</a>。其中说明了 VSAG 要求的
+clang-format 15 和 clang-tidy 15 规则、命名约定、诊断抑制方式以及本地检查命令。</p>
 <h3 id="本地测试"><a class="header" href="#本地测试">本地测试</a></h3>
 <p>VSAG 项目使用 Makefile 提供了方便运行所有测试的命令，请执行并确认所有测试通过：</p>
 <pre><code class="language-bash">make test

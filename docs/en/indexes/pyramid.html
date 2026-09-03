@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c4d5e41d.js";
+            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2a2dc95d.js"></script>
+        <script src="../toc-e1c0f3be.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -393,6 +393,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Prefix dimension retained by MRLE; <code>0</code> keeps the input dimension.</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per node within a sub-graph.</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code> or <code>odescent</code>.</td></tr>
+<tr><td><code>graph_storage_type</code></td><td>string</td><td><code>"flat"</code></td><td>Bottom-graph storage for a <code>multi_layer</code> root: <code>flat</code> favors construction and search speed, while <code>compressed</code> reduces graph memory. Compressed storage requires <code>max_degree &lt;= 255</code>. Single-layer roots, routing graphs, and child graphs remain sparse.</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size for <code>nsw</code> builds.</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.2</code></td><td>Pruning factor during graph construction.</td></tr>
 <tr><td><code>graph_iter_turn</code></td><td>int</td><td>—</td><td>ODescent iterations (effective with <code>graph_type: "odescent"</code>).</td></tr>
@@ -409,9 +410,10 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Preserve an FP32 copy for <code>GetRawVectorByIds</code> and precise distance-by-id calculations.</td></tr>
 <tr><td><code>store_paths</code></td><td>bool</td><td><code>false</code></td><td>Top-level switch that preserves the original paths supplied to <code>Build</code> and <code>Add</code> so <code>GetDataByIdsWithFlag</code> can return them when <code>DATA_FLAG_PATH</code> is selected. It applies to every configured hierarchy and cannot be overridden per hierarchy.</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>Minimum sub-index size; smaller groups fall back to scan.</td></tr>
+<tr><td><code>root_graph_type</code></td><td>string</td><td><code>"single_layer"</code></td><td>Root graph layout: <code>single_layer</code> preserves the original sparse bottom graph; <code>multi_layer</code> uses a preallocated Flat or Compressed bottom graph with HGraph-style sparse routing layers and joint construction. <code>multi_layer</code> requires <code>graph_type: "nsw"</code>. Do not specify this option when <code>no_build_levels</code> disables level 0.</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Allow duplicate ids.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>Threads used for parallel build.</td></tr>
-<tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>Named hierarchy definitions. Each element is either a string (inherits all top-level params) or an object with <code>name</code> and optional overrides (<code>max_degree</code>, <code>ef_construction</code>, <code>alpha</code>, <code>no_build_levels</code>, <code>index_min_size</code>). When present, multi-hierarchy mode is activated and each hierarchy maintains its own independent path tree.</td></tr>
+<tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>Named hierarchy definitions. Each element is either a string (inherits all top-level params) or an object with <code>name</code> and optional overrides (<code>max_degree</code>, <code>ef_construction</code>, <code>alpha</code>, <code>no_build_levels</code>, <code>index_min_size</code>, <code>root_graph_type</code>). When present, multi-hierarchy mode is activated and each hierarchy maintains its own independent path tree.</td></tr>
 </tbody>
 </table>
 </div>
@@ -457,7 +459,8 @@ reduce recall unless the embedding model was trained for prefix dimensions.</p>
 </thead>
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>Candidate list size for the leaf-level graph search.</td></tr>
-<tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Hard cap on hops for root-graph KNN search; ignored when it is not greater than <code>ef_search</code>.</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td>unset</td><td>KNN reorder candidate multiplier. Values <code>&lt;= 1</code> add no limit. When greater than <code>1</code>, Pyramid first completes the unchanged subgraph searches and merges their results, then sends at most <code>min(max(ef_search, topk), floor(topk * factor))</code> main-graph candidates to reorder. RaBitQ lower-bound safety candidates may be merged after this limit, matching HGraph; <code>reorder_candidate_count</code> reports the actual merged count. The value must be finite and positive. It has no effect on range search or when reorder is disabled.</td></tr>
+<tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Per-graph KNN hop cap for the root bottom graph and every non-root graph; ignored when it is not greater than <code>ef_search</code>. Sparse root routing layers are never hop-limited. FLAT scans and range search are unaffected.</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>Candidate list size used when traversing intermediate sub-graphs on the path.</td></tr>
 <tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>Select which hierarchy to search. Empty means use the default (unnamed) hierarchy.</td></tr>
 <tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>How to combine results across hierarchies: <code>single</code> (search one hierarchy), <code>union</code>, or <code>intersection</code>. <strong>Note:</strong> <code>union</code> and <code>intersection</code> are not yet implemented — setting them will cause <code>KnnSearch</code>/<code>RangeSearch</code> to return an error.</td></tr>
@@ -487,7 +490,16 @@ independently.</p>
 <code>{"name": "category", "max_degree": 64, "no_build_levels": [0]}</code></li>
 </ul>
 <p>Overridable per-hierarchy parameters: <code>max_degree</code>, <code>ef_construction</code>, <code>alpha</code>,
-<code>no_build_levels</code>, <code>index_min_size</code>.</p>
+<code>no_build_levels</code>, <code>index_min_size</code>, <code>root_graph_type</code>.</p>
+<p><code>root_graph_type: "multi_layer"</code> changes only the selected hierarchy’s root. Its bottom graph uses
+the top-level <code>graph_storage_type</code>: Flat by default, or Compressed to trade construction and search
+speed for lower graph memory. Sparse routing graphs choose a better entry point before the bottom
+search; child graphs remain sparse. Bulk Build and incremental Add jointly construct the route and
+bottom layers with the same HGraph-style insertion protocol. This layout requires
+<code>graph_type: "nsw"</code>; combining <code>multi_layer</code> with <code>odescent</code> is rejected during parameter
+validation. Bottom and routing edges use the precise codes when an independent precise store
+exists, otherwise they use the base codes. Query traversal continues to use the base codes, and
+final reordering uses the configured reorder source.</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -599,6 +611,9 @@ let you skip graph construction for partitions too small to benefit.</li>
 faster.</p>
 <p>Use <a href="../resources/analyze_index.html">Index Analysis</a> to inspect Pyramid tree structure,
 per-subindex quality, sampled base recall, and duplicate ratios reported by <code>GetStats()</code>.
+For each hierarchy, <code>root_graphs</code> reports <code>root_graph_type</code>, <code>bottom_graph_storage_type</code>,
+<code>bottom_graph_node_count</code>, <code>bottom_graph_size</code>, <code>route_graph_count</code>, <code>route_node_counts</code>, and
+<code>route_graph_size</code>.
 <code>AnalyzeIndexBySearch</code> also reports path-scoped query recall, distance, latency, and, when reorder
 is enabled, quantization metrics. Its query dataset must carry the same default or named-hierarchy
 paths required by <code>KnnSearch</code>; when paths are required or supplied for a batched dataset, provide

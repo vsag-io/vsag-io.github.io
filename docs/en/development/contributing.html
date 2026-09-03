@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c4d5e41d.js";
+            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2a2dc95d.js"></script>
+        <script src="../toc-e1c0f3be.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -396,29 +396,9 @@ compliance, and taking full responsibility for the contribution.</p>
 </li>
 </ul>
 <h2 id="coding-style"><a class="header" href="#coding-style">Coding Style</a></h2>
-<p>VSAG follows the
-<a href="https://google.github.io/styleguide/cppguide.html">Google C++ Style Guide</a> with project-specific
-tweaks covering indentation, naming, and line width. The authoritative configuration lives in the
-repository:</p>
-<ul>
-<li>clang-format: <a href="https://github.com/antgroup/vsag/blob/main/.clang-format">https://github.com/antgroup/vsag/blob/main/.clang-format</a></li>
-<li>clang-tidy: <a href="https://github.com/antgroup/vsag/blob/main/.clang-tidy">https://github.com/antgroup/vsag/blob/main/.clang-tidy</a></li>
-</ul>
-<blockquote>
-<p><code>clang-tidy</code> enforces not only naming conventions but also style checks such as magic-number
-usage.</p>
-</blockquote>
-<p>The Makefile exposes formatting targets; <code>clang-format</code> and <code>clang-tidy</code> (both version 15) must be
-installed.</p>
-<p>Format code:</p>
-<pre><code class="language-bash">make fmt
-</code></pre>
-<p>Run static analysis (fix the reported issues manually):</p>
-<pre><code class="language-bash">make lint
-</code></pre>
-<p>Some clang-tidy findings can be auto-fixed:</p>
-<pre><code class="language-bash">make fix-lint
-</code></pre>
+<p>Read the <a href="coding_style.html">C++ Coding Guide</a> before changing C++ code. It documents the exact
+clang-format 15 and clang-tidy 15 rules, naming conventions, diagnostic suppressions, and local
+commands required by VSAG.</p>
 <h2 id="local-testing"><a class="header" href="#local-testing">Local Testing</a></h2>
 <p>Run the full test suite and make sure it passes:</p>
 <pre><code class="language-bash">make test

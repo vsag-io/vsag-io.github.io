@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-c4d5e41d.js";
+            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-2a2dc95d.js"></script>
+        <script src="../toc-e1c0f3be.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -495,12 +495,33 @@ by <code>precise_codes_layout</code>.</p>
 <tr><td><code>label_table</code></td><td>external labels and label remap</td><td>yes</td></tr>
 <tr><td><code>sindi_rerank_index</code></td><td>optional rerank flat index when rerank is enabled</td><td>conditional</td></tr>
 <tr><td><code>sindi_term_id_mapper</code></td><td>optional term-id remapping table</td><td>conditional</td></tr>
+<tr><td><code>sindi_host_metadata</code></td><td>optional host IDs and one-or-more inner-ID ranges per host</td><td>conditional</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>DeserializeStreaming</code> restores the full in-memory SINDI index. <code>Index::Load</code> can create the SINDI
 index directly from streaming metadata and currently loads all emitted SINDI blocks into memory.
-Immutable SINDI runtime serialization is not supported by this streaming path.</p>
+Mutable and immutable SINDI runtimes both support this streaming path. The legacy serialization
+format remains unchanged and does not persist host metadata.</p>
+<h2 id="sindi_v2-blocks"><a class="header" href="#sindi_v2-blocks">SINDI_V2 Blocks</a></h2>
+<p>SINDI_V2 writes these streaming blocks in order:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>Contents</th><th>Required</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sindi_v2_term_layout</code></td><td>term-first posting layout, element count, and quantization state</td><td>yes</td></tr>
+<tr><td><code>label_table</code></td><td>external labels and label remap</td><td>yes</td></tr>
+<tr><td><code>sindi_rerank_index</code></td><td>optional rerank index when rerank is enabled</td><td>conditional</td></tr>
+<tr><td><code>extra_info</code></td><td>optional per-document extra information</td><td>conditional</td></tr>
+<tr><td><code>sindi_term_id_mapper</code></td><td>optional term-id remapping table</td><td>conditional</td></tr>
+<tr><td><code>sindi_host_metadata</code></td><td>optional host IDs and one-or-more inner-ID ranges per host</td><td>conditional</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> and <code>Index::Load</code> restore mutable or immutable SINDI_V2 runtimes from these
+blocks. The legacy serialization format remains unchanged and does not persist host metadata.</p>
 <h2 id="pyramid-blocks"><a class="header" href="#pyramid-blocks">Pyramid Blocks</a></h2>
 <p>Pyramid writes these streaming blocks in order:</p>
 <div class="table-wrapper">

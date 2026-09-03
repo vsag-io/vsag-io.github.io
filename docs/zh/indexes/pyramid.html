@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fba82a51.js";
+            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f46b13c0.js"></script>
+        <script src="../toc-88150941.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -388,6 +388,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>MRLE 保留的前缀维度；<code>0</code> 表示保持输入维度。</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>子图内节点的最大出度</td></tr>
 <tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code> 或 <code>odescent</code></td></tr>
+<tr><td><code>graph_storage_type</code></td><td>string</td><td><code>"flat"</code></td><td><code>multi_layer</code> 根节点的底图存储：<code>flat</code> 偏向构建和检索速度，<code>compressed</code> 减少图内存。压缩存储要求 <code>max_degree &lt;= 255</code>。单层根图、路由图和子图仍使用 Sparse。</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td><code>nsw</code> 构图时的候选集大小</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.2</code></td><td>构图剪枝系数</td></tr>
 <tr><td><code>graph_iter_turn</code></td><td>int</td><td>—</td><td>ODescent 迭代轮数（<code>graph_type: "odescent"</code> 时生效）</td></tr>
@@ -404,9 +405,10 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>保留 FP32 原始向量，用于 <code>GetRawVectorByIds</code> 和精确的按 ID 距离计算</td></tr>
 <tr><td><code>store_paths</code></td><td>bool</td><td><code>false</code></td><td>顶层开关；保留传给 <code>Build</code> 和 <code>Add</code> 的原始路径，使 <code>GetDataByIdsWithFlag</code> 在选择 <code>DATA_FLAG_PATH</code> 时可以返回它们。该开关对所有已配置的 hierarchy 生效，不支持按 hierarchy 覆盖</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>子索引的最小规模；小于该值的分区会退化为线性扫描</td></tr>
+<tr><td><code>root_graph_type</code></td><td>string</td><td><code>"single_layer"</code></td><td>根图结构：<code>single_layer</code> 保留原有稀疏底图；<code>multi_layer</code> 使用预分配的 Flat 或 Compressed 底图、类似 HGraph 的稀疏路由层以及联合构图流程。<code>multi_layer</code> 要求 <code>graph_type: "nsw"</code>。<code>no_build_levels</code> 禁用第 0 层时不要显式指定此选项。</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否允许重复 ID</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>构建阶段并发线程数</td></tr>
-<tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>命名层级定义。每个元素可以是字符串（继承全部顶层参数）或对象（含 <code>name</code> 及可选覆盖参数：<code>max_degree</code>、<code>ef_construction</code>、<code>alpha</code>、<code>no_build_levels</code>、<code>index_min_size</code>）。设置后激活多层级模式，每个层级维护独立的路径树。</td></tr>
+<tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>命名层级定义。每个元素可以是字符串（继承全部顶层参数）或对象（含 <code>name</code> 及可选覆盖参数：<code>max_degree</code>、<code>ef_construction</code>、<code>alpha</code>、<code>no_build_levels</code>、<code>index_min_size</code>、<code>root_graph_type</code>）。设置后激活多层级模式，每个层级维护独立的路径树。</td></tr>
 </tbody>
 </table>
 </div>
@@ -451,7 +453,8 @@ auto result = index-&gt;KnnSearch(
 </thead>
 <tbody>
 <tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>叶子层子图检索的候选集大小</td></tr>
-<tr><td><code>hops_limit</code></td><td>int</td><td>不限</td><td>根图 KNN 检索的最大跳数；不大于 <code>ef_search</code> 时忽略</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td>未设置</td><td>KNN 重排候选倍率。值 <code>&lt;= 1</code> 时不增加限制；值大于 <code>1</code> 时，Pyramid 保持各子图原有搜索行为，先合并子图结果，再将至多 <code>min(max(ef_search, topk), floor(topk * factor))</code> 个主图候选送入重排。与 HGraph 一致，RaBitQ lower-bound 安全候选可在该限制后额外并入，<code>reorder_candidate_count</code> 记录实际合并数量。参数必须为有限正数；范围检索或关闭重排时不生效。</td></tr>
+<tr><td><code>hops_limit</code></td><td>int</td><td>不限</td><td>根节点底图及每个非根 GRAPH 的逐图 KNN 跳数上限；不大于 <code>ef_search</code> 时忽略。根节点的稀疏路由层不受限制，FLAT 扫描与范围检索不受影响。</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>沿路径向下遍历中间子图时的候选集大小</td></tr>
 <tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>指定检索哪个层级。空数组表示使用默认（匿名）层级。</td></tr>
 <tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>多层级结果合并方式：<code>single</code>（检索单个层级）、<code>union</code>、<code>intersection</code>。<strong>注意：</strong> <code>union</code> 和 <code>intersection</code> 尚未实现——设置后 <code>KnnSearch</code>/<code>RangeSearch</code> 会返回错误。</td></tr>
@@ -478,7 +481,14 @@ auto result = index-&gt;KnnSearch(
 <code>{"name": "category", "max_degree": 64, "no_build_levels": [0]}</code></li>
 </ul>
 <p>可按层级覆盖的参数：<code>max_degree</code>、<code>ef_construction</code>、<code>alpha</code>、<code>no_build_levels</code>、
-<code>index_min_size</code>。</p>
+<code>index_min_size</code>、<code>root_graph_type</code>。</p>
+<p><code>root_graph_type: "multi_layer"</code> 只改变所选层级的根节点。底图使用顶层
+<code>graph_storage_type</code>：默认使用 Flat，也可使用 Compressed，以构建和检索速度换取更低的图
+内存；路由图和子图仍使用 Sparse。稀疏路由图先选择更好的入口点，再进入底图检索。批量
+Build 与增量 Add 都使用类似 HGraph 的 route 与 bottom 联合插入流程。该结构要求
+<code>graph_type: "nsw"</code>；参数校验会拒绝 <code>multi_layer</code> 与 <code>odescent</code> 的组合。存在独立 precise
+storage 时，底图和路由图的边统一使用 precise codes 构建，否则使用 base codes；查询遍历
+继续使用 base codes，最终精排使用配置的 reorder source。</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -583,7 +593,10 @@ new_index-&gt;Deserialize(binary_set);
 </ul>
 <p>如果不需要按路径限定查询范围，<a href="hgraph.html">HGraph</a> 更简洁，性能通常也更高。</p>
 <p>可以通过<a href="../resources/analyze_index.html">索引分析</a>检查 Pyramid 的树结构、子索引质量、
-<code>GetStats()</code> 输出的 base 采样召回率和重复比例。<code>AnalyzeIndexBySearch</code> 还会输出按路径限定的
+<code>GetStats()</code> 输出的 base 采样召回率和重复比例。每个 hierarchy 的 <code>root_graphs</code> 会报告
+<code>root_graph_type</code>、<code>bottom_graph_storage_type</code>、<code>bottom_graph_node_count</code>、
+<code>bottom_graph_size</code>、<code>route_graph_count</code>、<code>route_node_counts</code> 和 <code>route_graph_size</code>。
+<code>AnalyzeIndexBySearch</code> 还会输出按路径限定的
 query 召回率、距离、耗时，以及开启 reorder 时的量化指标。query 数据集必须包含与
 <code>KnnSearch</code> 相同的默认或命名 hierarchy 路径；批量数据集在需要或提供路径时，应为每条 query
 提供一条路径。<code>analyze_index</code> 工具当前无法从 dense query 文件加载 hierarchy 路径，因此

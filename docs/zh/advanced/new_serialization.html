@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fba82a51.js";
+            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f46b13c0.js"></script>
+        <script src="../toc-88150941.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -474,12 +474,32 @@ reader 的 payload checksum，然后将 reorder codes 绑定到该 reader。</p>
 <tr><td><code>label_table</code></td><td>外部 label 和 label remap</td><td>是</td></tr>
 <tr><td><code>sindi_rerank_index</code></td><td>rerank 开启时的可选 rerank flat index</td><td>条件必需</td></tr>
 <tr><td><code>sindi_term_id_mapper</code></td><td>可选 term-id remap 表</td><td>条件必需</td></tr>
+<tr><td><code>sindi_host_metadata</code></td><td>可选 host ID 及每个 host 的一个或多个 inner-ID 区间</td><td>条件必需</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>DeserializeStreaming</code> 会恢复完整的内存 SINDI 索引。<code>Index::Load</code> 可以直接从 streaming metadata
-创建 SINDI 索引对象，当前会把写出的 SINDI blocks 都加载到内存中。immutable SINDI runtime 暂不支持
-该 streaming 序列化路径。</p>
+创建 SINDI 索引对象，当前会把写出的 SINDI blocks 都加载到内存中。mutable 与 immutable SINDI
+运行态均支持该 streaming 路径。旧版序列化格式保持不变，不保存 host metadata。</p>
+<h2 id="sindi_v2-blocks"><a class="header" href="#sindi_v2-blocks">SINDI_V2 Blocks</a></h2>
+<p>SINDI_V2 按顺序写入以下 streaming blocks：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Block</th><th>内容</th><th>是否必需</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sindi_v2_term_layout</code></td><td>term-first posting 布局、文档数量和量化状态</td><td>是</td></tr>
+<tr><td><code>label_table</code></td><td>外部 label 和 label remap</td><td>是</td></tr>
+<tr><td><code>sindi_rerank_index</code></td><td>rerank 开启时的可选 rerank index</td><td>条件必需</td></tr>
+<tr><td><code>extra_info</code></td><td>可选逐文档 extra information</td><td>条件必需</td></tr>
+<tr><td><code>sindi_term_id_mapper</code></td><td>可选 term-id remap 表</td><td>条件必需</td></tr>
+<tr><td><code>sindi_host_metadata</code></td><td>可选 host ID 及每个 host 的一个或多个 inner-ID 区间</td><td>条件必需</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>DeserializeStreaming</code> 与 <code>Index::Load</code> 可以从这些 blocks 恢复 mutable 或 immutable SINDI_V2。
+旧版序列化格式保持不变，不保存 host metadata。</p>
 <h2 id="pyramid-blocks"><a class="header" href="#pyramid-blocks">Pyramid Blocks</a></h2>
 <p>Pyramid 按顺序写入以下 streaming blocks：</p>
 <div class="table-wrapper">

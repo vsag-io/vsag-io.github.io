@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-fba82a51.js";
+            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-f46b13c0.js"></script>
+        <script src="../toc-88150941.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -392,6 +392,12 @@ auto result = index-&gt;KnnSearch(
 <code>&lt;term_io.file_path&gt;.rerank</code>。</p>
 <p><code>rerank_layout &gt; 0</code> 要求 <code>use_reorder: true</code>。<code>rerank_type: "dmq8"</code> 要求
 <code>rerank_layout: 0</code>，并使用默认的 <code>block_memory_io</code> 重排后端。</p>
+<h3 id="host-过滤"><a class="header" href="#host-过滤">Host 过滤</a></h3>
+<p>SINDI_V2 支持与 <a href="sindi.html#host-过滤">SINDI</a> 相同的 <code>uint32_t</code> <code>host_id</code> 构建数据和 KNN 查询
+metadata 约定。mutable 与 immutable 索引均支持该功能。两者共用 host 分组与路由组件，同时
+SINDI_V2 保持自己的 term-first posting 存储。host 成员检查统一在 posting-window 检索中执行，
+并支持 mutable <code>Add()</code> 产生的多个区间。缺失 host ID <code>0</code>、mutable <code>Add()</code> metadata、streaming
+序列化及仅支持 KNN 的规则均与 SINDI 相同。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>{"sindi_v2": {...}}</code> 下。</p>
 <div class="table-wrapper">
