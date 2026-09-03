@@ -132,11 +132,46 @@ evidence, not a capacity guarantee.
 
 The immutable runtime supports KNN and range search plus legacy `Serialize`/`Deserialize`.
 It rejects incremental `Add`, `GetSparseVectorByInnerId`, `CalcDistanceById`, and
-`CalDistanceById`. Streaming serialization is not supported for immutable SINDI; use the matching
-legacy serialization APIs or keep the index mutable when the streaming format is required.
+`CalDistanceById`. Mutable and immutable runtimes both support `SerializeStreaming`,
+`DeserializeStreaming`, and `Index::Load`.
 The serialized index must be loaded into a SINDI created with the same `immutable` setting.
 New indexes record the sorted posting-list format version and skip normalization when loaded.
 Indexes written without this marker remain compatible and are normalized during loading.
+
+### Host filtering
+
+Mutable and immutable SINDI and [SINDI_V2](sindi_v2.md) indexes can group documents by a single
+numeric host and avoid returning documents from other hosts. Attach a complete `uint32_t` `host_id`
+array to a host-aware `Build()` or mutable `Add()` batch. Use `0` for a document with no host:
+
+```cpp
+base->NumElements(n)
+    ->SparseVectors(sparse_vectors)
+    ->Ids(ids)
+    ->UInt32Metadata("host_id", base_host_ids)
+    ->Owner(false);
+index->Build(base);
+
+uint32_t query_host_id = 42;
+query->NumElements(1)
+    ->SparseVectors(&query_vec)
+    ->UInt32Metadata("host_id", &query_host_id)
+    ->Owner(false);
+```
+
+Each `Build()` or mutable `Add()` batch groups internal IDs by host while preserving external
+labels. Host queries scan the relevant posting windows and apply exact membership checks over the
+host's one or more internal-ID ranges. Repeated mutable `Add()` calls may append disjoint ranges for
+the same host. Tombstones and an additional user `Filter` are applied together with host membership.
+
+Host ID `0` is the missing-host bucket; values from `1` through `UINT32_MAX` identify normal hosts.
+The number of distinct hosts cannot exceed the number of successfully indexed documents. Once a
+mutable index contains host metadata, every later `Add()` must provide a complete `host_id` array;
+host metadata cannot be introduced after host-unaware documents. A query with `host_id: 0` searches
+only missing-host documents, while omitting `host_id` preserves full-index KNN behavior. A host with
+no indexed documents returns an empty result. Indexes built without base host metadata ignore query
+host metadata and retain their previous behavior. Host filtering currently applies only to KNN;
+range search keeps its existing full-index behavior.
 
 ## Search parameters
 

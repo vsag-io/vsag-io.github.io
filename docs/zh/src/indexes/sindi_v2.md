@@ -94,6 +94,14 @@ auto result = index->KnnSearch(
 `rerank_layout > 0` 要求 `use_reorder: true`。`rerank_type: "dmq8"` 要求
 `rerank_layout: 0`，并使用默认的 `block_memory_io` 重排后端。
 
+### Host 过滤
+
+SINDI_V2 支持与 [SINDI](sindi.md#host-过滤) 相同的 `uint32_t` `host_id` 构建数据和 KNN 查询
+metadata 约定。mutable 与 immutable 索引均支持该功能。两者共用 host 分组与路由组件，同时
+SINDI_V2 保持自己的 term-first posting 存储。host 成员检查统一在 posting-window 检索中执行，
+并支持 mutable `Add()` 产生的多个区间。缺失 host ID `0`、mutable `Add()` metadata、streaming
+序列化及仅支持 KNN 的规则均与 SINDI 相同。
+
 ## 检索参数
 
 检索参数放在 `{"sindi_v2": {...}}` 下。
