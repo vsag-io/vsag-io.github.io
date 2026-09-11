@@ -146,6 +146,16 @@ struct MultiVector {
 当设置了 `Owner(true)` 时，每个元素的 `vectors_` 必须各自独立分配，因为析构函数会分别释放每个
 `vectors_`。
 
+## 命名 metadata
+
+`UInt32Metadata(name, values)` 为每个 dataset 元素附加一个无符号整数，
+`GetUInt32Metadata` 返回对应命名数组，不存在时返回 `nullptr`。`StringMetadata(name, values)`
+和 `GetStringMetadata(name)` 提供对应的通用命名字符串数组。SINDI 和 SINDI_V2 使用名为
+`host` 的字符串 metadata 实现 host 过滤。日期过滤复用现有命名字符串 path API，通过
+`Paths("date", values)` 和 `GetPaths("date")` 传递日期 bucket。单元素查询 Dataset 的日期范围
+使用独立的 `date_begin` 和 `date_end` 命名 path；两者各指向一个规范的 `YYYY`、`YYYY/MM` 或
+`YYYY/MM/DD` 字符串。这些数组遵循 Dataset 通用的 ownership、深拷贝和 Append 规则。
+
 ## 参见
 
 - [Index](index_class.md) —— 消费并返回 dataset 的方法。
@@ -162,7 +172,10 @@ struct MultiVector {
 和稀疏表示族，不包含 ISA 或批量变体。
 
 `distance_evaluations` 等于阶段之和；已知 backend 之和等于总数。未知工作记入 `unknown` 并使
-`complete` 为 `false`。数值是无符号 64 位 JSON 整数，加法饱和。旧的 `dist_cmp` 与
+`complete` 为 `false`。数值是无符号 64 位 JSON 整数，加法饱和。
+`SINDI` 和 `SINDI_V2` 为避免在搜索热路径中逐 posting ID 跟踪，不统计 approximate 阶段的
+evaluation；其他已测量阶段仍会返回，但发生 approximate evaluation 时 `complete` 为 `false`。
+旧的 `dist_cmp` 与
 `reorder_distance_count` 保持兼容且含义不变。Python 保留 `(ids, distances)` 解包方式；可通过
 `knn_search_with_statistics` 显式获取统计信息：稠密重载返回一个统计 JSON 字符串，稀疏 CSR
 重载为每个查询返回一个字符串。`range_search_with_statistics` 返回范围搜索数组及一个统计
