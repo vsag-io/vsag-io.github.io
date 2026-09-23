@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -334,7 +334,7 @@ auto result = index-&gt;SearchWithRequest(request);
 <tr><th>字段</th><th>类型</th><th>默认值</th><th>含义</th></tr>
 </thead>
 <tbody>
-<tr><td><code>query_</code></td><td><code>DatasetPtr</code></td><td><code>nullptr</code></td><td>查询。IVF KNN 请求支持多个查询向量，其他请求只允许一个。</td></tr>
+<tr><td><code>query_</code></td><td><code>DatasetPtr</code></td><td><code>nullptr</code></td><td>查询。HGraph 和 IVF KNN 请求支持多个查询向量，其他请求只允许一个。</td></tr>
 <tr><td><code>mode_</code></td><td><code>SearchMode</code></td><td><code>KNN_SEARCH</code></td><td>KNN 还是范围搜索。</td></tr>
 <tr><td><code>topk_</code></td><td><code>int64_t</code></td><td><code>10</code></td><td>要返回的邻居数（KNN 模式）。必须为正。</td></tr>
 <tr><td><code>radius_</code></td><td><code>float</code></td><td><code>0.5</code></td><td>距离阈值（范围模式）。非负。</td></tr>

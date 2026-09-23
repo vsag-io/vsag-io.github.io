@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,10 +305,10 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h1>
-<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/indexes/pyramid-overview.svg" alt="Pyramid：以路径字符串为键的“每节点一个邻近子图“的树形结构；搜索沿查询路径前缀下行到叶子子图后再执行 ef_search"><span class="img-wrapper"><img src="../figures/indexes/pyramid-overview.svg" alt="Pyramid：以路径字符串为键的“每节点一个邻近子图“的树形结构；搜索沿查询路径前缀下行到叶子子图后再执行 ef_search"></span></label></p>
-<p>Pyramid 是 VSAG 的 <strong>层级路径分区</strong> 图索引。每条向量都附带一个路径字符串（例如
-<code>"a/d/f"</code>），Pyramid 会按路径树为每个节点构建一个子图；查询时提供一个路径前缀，
-检索即被限定在相应的子树内。</p>
+<p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/indexes/pyramid-overview.svg" alt="Pyramid：以路径字符串为键的“每节点一个邻近子图”树形结构；向量可以属于多条路径，搜索沿指定路径前缀执行"><span class="img-wrapper"><img src="../figures/indexes/pyramid-overview.svg" alt="Pyramid：以路径字符串为键的“每节点一个邻近子图”树形结构；向量可以属于多条路径，搜索沿指定路径前缀执行"></span></label></p>
+<p>Pyramid 是 VSAG 的 <strong>层级路径分区</strong> 图索引。每条向量可以附带零个、一个或多个路径字符串
+（例如 <code>"a/d/f"</code>），Pyramid 会按这些路径树为每个节点构建一个子图；查询时提供一个或
+多个路径前缀，检索即被限定在相应的子树内。</p>
 <p>这种设计非常适合多租户部署、标签分区的物料库，或者任何“一个逻辑索引服务多个群体、
 群体之间不允许结果交叉”的场景。</p>
 <ul>
@@ -318,9 +318,9 @@
 </ul>
 <h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
 <ol>
-<li><strong>路径树。</strong> 每条向量在 ID 之外还携带一个 <code>path</code>，分隔符为 <code>/</code>
+<li><strong>路径树。</strong> 每条向量在 ID 之外还可以携带多条独立路径，分隔符为 <code>/</code>
 （例如 <code>"tenant_a/lang_en/topic_news"</code>）。Pyramid 会为构建期间出现过的每个路径前缀
-维护一个子索引。</li>
+维护一个子索引。即使向量属于多条路径，向量数据和 ID 也只保存一次。</li>
 <li><strong>按层构建子图。</strong> 默认情况下每一层都会独立构建一张近邻图。可以用 <code>no_build_levels</code>
 跳过那些太小或太粗、不适合构图的层级——这些层级仍作为透传容器存在，但检索会退化为
 线性扫描。</li>
@@ -383,16 +383,23 @@ auto result = index-&gt;KnnSearch(
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>底层量化类型（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code>）。各量化器细节见<a href="../quantization/README.html">量化章节</a>。</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>底层量化类型（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code>）。各量化器细节见<a href="../quantization/">量化章节</a>。</td></tr>
 <tr><td><code>tq_chain</code></td><td>string</td><td>—</td><td><code>base_quantization_type</code> 为 <code>tq</code> 时使用的变换链，例如 <code>"mrle, rabitq"</code>。</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>MRLE 保留的前缀维度；<code>0</code> 表示保持输入维度。</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>子图内节点的最大出度</td></tr>
-<tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code> 或 <code>odescent</code></td></tr>
+<tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td><code>nsw</code>、<code>odescent</code> 或 <code>pipnn</code>。PiPNN 批量构建每棵 hierarchy 中所有实际构建的图，包括 <code>multi_layer</code> 根节点的 routing 层。</td></tr>
 <tr><td><code>graph_storage_type</code></td><td>string</td><td><code>"flat"</code></td><td><code>multi_layer</code> 根节点的底图存储：<code>flat</code> 偏向构建和检索速度，<code>compressed</code> 减少图内存。压缩存储要求 <code>max_degree &lt;= 255</code>。单层根图、路由图和子图仍使用 Sparse。</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td><code>nsw</code> 构图时的候选集大小</td></tr>
-<tr><td><code>alpha</code></td><td>float</td><td><code>1.2</code></td><td>构图剪枝系数</td></tr>
+<tr><td><code>alpha</code></td><td>float</td><td><code>1.2</code></td><td>构图剪枝系数；PiPNN 要求有限且不小于 <code>1.0</code></td></tr>
 <tr><td><code>graph_iter_turn</code></td><td>int</td><td>—</td><td>ODescent 迭代轮数（<code>graph_type: "odescent"</code> 时生效）</td></tr>
 <tr><td><code>neighbor_sample_rate</code></td><td>float</td><td>—</td><td>ODescent 的邻居采样比率</td></tr>
+<tr><td><code>pipnn_max_leaf_size</code></td><td>int</td><td><code>1024</code></td><td>PiPNN 分区叶子的最大点数</td></tr>
+<tr><td><code>pipnn_min_leaf_size</code></td><td>int</td><td><code>64</code></td><td>PiPNN 合并过小叶子时的目标规模</td></tr>
+<tr><td><code>pipnn_leader_sample_rate</code></td><td>float</td><td><code>0.005</code></td><td>分区 leader 的采样比率；每个分区使用 <code>2</code> 到 <code>1000</code> 个 leader，且不超过分区点数</td></tr>
+<tr><td><code>pipnn_fanout</code></td><td>int[]</td><td><code>[10, 2]</code></td><td>PiPNN 连续分区层级中一个点加入的最近 leader 分区数</td></tr>
+<tr><td><code>pipnn_leaf_neighbor_count</code></td><td>int</td><td><code>5</code></td><td>每个点在每个叶子中贡献的最近候选数，是 PiPNN 主要的质量/构建工作量旋钮；过小叶子至少使用 <code>4</code></td></tr>
+<tr><td><code>pipnn_hash_plane_count</code></td><td>int</td><td><code>12</code></td><td>方向 hash 位数，范围 <code>[1, 15]</code>；<code>max_degree</code> 不能超过 <code>2</code> 的该次幂</td></tr>
+<tr><td><code>pipnn_reservoir_size</code></td><td>int</td><td><code>64</code></td><td>最终剪枝前每个点保留的候选槽数；实际容量至少为 <code>max_degree</code></td></tr>
 <tr><td><code>no_build_levels</code></td><td>int[]</td><td><code>[]</code></td><td>跳过构图的层级（从根节点开始的 0-based 下标）</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型。与 <code>rabitq_bits_per_dim_precise</code> 配合设为 <code>"rabitq"</code> 时，可启用从 base storage 重排的 RaBitQ x+y split。</td></tr>
@@ -405,13 +412,20 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>保留 FP32 原始向量，用于 <code>GetRawVectorByIds</code> 和精确的按 ID 距离计算</td></tr>
 <tr><td><code>store_paths</code></td><td>bool</td><td><code>false</code></td><td>顶层开关；保留传给 <code>Build</code> 和 <code>Add</code> 的原始路径，使 <code>GetDataByIdsWithFlag</code> 在选择 <code>DATA_FLAG_PATH</code> 时可以返回它们。该开关对所有已配置的 hierarchy 生效，不支持按 hierarchy 覆盖</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>子索引的最小规模；小于该值的分区会退化为线性扫描</td></tr>
-<tr><td><code>root_graph_type</code></td><td>string</td><td><code>"single_layer"</code></td><td>根图结构：<code>single_layer</code> 保留原有稀疏底图；<code>multi_layer</code> 使用预分配的 Flat 或 Compressed 底图、类似 HGraph 的稀疏路由层以及联合构图流程。<code>multi_layer</code> 要求 <code>graph_type: "nsw"</code>。<code>no_build_levels</code> 禁用第 0 层时不要显式指定此选项。</td></tr>
+<tr><td><code>root_graph_type</code></td><td>string</td><td><code>"single_layer"</code></td><td>根图结构：<code>single_layer</code> 保留原有稀疏底图；<code>multi_layer</code> 使用预分配的 Flat 或 Compressed 底图、类似 HGraph 的稀疏路由层以及联合构图流程。<code>multi_layer</code> 支持 <code>graph_type: "nsw"</code> 和 <code>"pipnn"</code>。<code>no_build_levels</code> 禁用第 0 层时不要显式指定此选项。</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否允许重复 ID</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>构建阶段并发线程数</td></tr>
 <tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>命名层级定义。每个元素可以是字符串（继承全部顶层参数）或对象（含 <code>name</code> 及可选覆盖参数：<code>max_degree</code>、<code>ef_construction</code>、<code>alpha</code>、<code>no_build_levels</code>、<code>index_min_size</code>、<code>root_graph_type</code>）。设置后激活多层级模式，每个层级维护独立的路径树。</td></tr>
 </tbody>
 </table>
 </div>
+<p>PiPNN 支持 <code>dtype: "float32"</code>，并支持 <code>metric_type: "l2"</code>、<code>"ip"</code> 或 <code>"cosine"</code> 的 Pyramid
+构建。它批量构建每棵 hierarchy 中所有实际构建的图；设置
+<code>root_graph_type: "multi_layer"</code> 时，也包括所有 root routing 层。搜索、增量 <code>Add</code>、删除、
+重复处理、精排和序列化保持标准 Pyramid 行为；<code>no_build_levels</code> 中列出的层级仍会跳过构图。
+<code>pipnn_*</code> 参数在整个 Pyramid 索引中共享；hierarchy 对象仍可分别覆盖
+<code>max_degree</code> 和 <code>alpha</code>，PiPNN 构建该 hierarchy 时会使用这些覆盖值。
+<code>ef_construction</code> 不调节 PiPNN。</p>
 <h3 id="rabitq-split-配置"><a class="header" href="#rabitq-split-配置">RaBitQ split 配置</a></h3>
 <p>需要同时设置以下五个参数，才能启用 RaBitQ x+y split 存储和精排：</p>
 <pre><code class="language-json">{
@@ -443,7 +457,7 @@ auto result = index-&gt;KnnSearch(
 向量；除非构建时启用 <code>store_raw_vector</code>，否则依赖可解码向量的 Analyzer 指标会被标记为
 不可用。如果 embedding 模型没有针对前缀维度训练，截断可能显著降低召回率。</p>
 <h2 id="构建缓存"><a class="header" href="#构建缓存">构建缓存</a></h2>
-<p><code>ExportCache</code> 会保存每个层级、每个节点的 NSW 图种子，<code>ImportCache</code> 可在后续 <code>Build</code> 中复用。缓存数据使用索引缓存 payload 格式，而非 streaming 索引序列化格式。需要复用缓存的索引通过 footer 序列化前应设置 <code>persist_source_id: true</code>，并且两次构建中的每个向量都必须提供唯一的 <code>Dataset::SourceID</code>。缓存预热仅适用于 <code>graph_type: "nsw"</code>；ODescent、重复 ID 模式、缺少 source ID 或 source ID 重复时会自动回退到普通冷构建。<code>ef_construction</code> 不作为缓存路径的准入条件。完整恢复的缓存图行会被保留，缓存未命中的节点则使用当前向量构建。</p>
+<p><code>ExportCache</code> 会保存每个层级、每个节点的 NSW 图种子，<code>ImportCache</code> 可在后续 <code>Build</code> 中复用。缓存数据使用索引缓存 payload 格式，而非 streaming 索引序列化格式。需要复用缓存的索引通过 footer 序列化前应设置 <code>persist_source_id: true</code>，并且两次构建中的每个向量都必须提供唯一的 <code>Dataset::SourceID</code>。缓存预热仅适用于 <code>graph_type: "nsw"</code>；ODescent、重复 ID 模式、缺少 source ID 或 source ID 重复时会自动回退到普通冷构建。<code>ef_construction</code> 不作为缓存路径的准入条件。输入数据中至少 80% 的 source ID 必须与导入缓存重合；低于该比例时会回退到普通冷构建。缓存未命中的节点仍按正常流程构建。single-layer root 的命中节点会执行低成本、分块并行的出边修复，较小的标签子图则保留恢复后的缓存行。由于 Build Cache 不保存 route graph，multi-layer 节点仍会重建 routing overlay。<code>GetStats()</code> 除向量命中/未命中数量外，还会报告图成员关系的命中/未命中数量和恢复的边数量。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>pyramid</code> 子对象下：</p>
 <div class="table-wrapper">
@@ -484,9 +498,9 @@ auto result = index-&gt;KnnSearch(
 <code>index_min_size</code>、<code>root_graph_type</code>。</p>
 <p><code>root_graph_type: "multi_layer"</code> 只改变所选层级的根节点。底图使用顶层
 <code>graph_storage_type</code>：默认使用 Flat，也可使用 Compressed，以构建和检索速度换取更低的图
-内存；路由图和子图仍使用 Sparse。稀疏路由图先选择更好的入口点，再进入底图检索。批量
-Build 与增量 Add 都使用类似 HGraph 的 route 与 bottom 联合插入流程。该结构要求
-<code>graph_type: "nsw"</code>；参数校验会拒绝 <code>multi_layer</code> 与 <code>odescent</code> 的组合。存在独立 precise
+内存；路由图和子图仍使用 Sparse。稀疏路由图先选择更好的入口点，再进入底图检索。NSW Build
+与增量 Add 使用类似 HGraph 的 route 与 bottom 联合插入流程；PiPNN Build 则批量构建这两类图。
+参数校验会拒绝 <code>multi_layer</code> 与 <code>odescent</code> 的组合。存在独立 precise
 storage 时，底图和路由图的边统一使用 precise codes 构建，否则使用 base codes；查询遍历
 继续使用 base codes，最终精排使用配置的 reorder source。</p>
 <pre><code class="language-json">{
@@ -512,7 +526,7 @@ storage 时，底图和路由图的边统一使用 precise codes 构建，否则
 </code></pre>
 <h3 id="命名层级的-dataset-api"><a class="header" href="#命名层级的-dataset-api">命名层级的 Dataset API</a></h3>
 <p>使用重载方法 <code>Paths(hierarchy_name, paths)</code> 为每个层级设置路径。所有层级共享同一份
-<code>Ids()</code> 和 <code>Float32Vectors()</code>：</p>
+<code>Ids()</code> 和 <code>Float32Vectors()</code>。指针重载保留原有的“每条向量一条路径”形式：</p>
 <pre><code class="language-cpp">auto base = vsag::Dataset::Make();
 base-&gt;NumElements(n)
     -&gt;Dim(128)
@@ -537,10 +551,37 @@ const std::string* category_paths = data-&gt;GetPaths("category");
 </code></pre>
 <p><code>GetDataByIds</code> 以及未选择 <code>DATA_FLAG_PATH</code> 的 <code>GetDataByIdsWithFlag</code> 都不会附带路径
 数组。<code>store_paths</code> 为 <code>false</code> 时选择 <code>DATA_FLAG_PATH</code> 会返回参数错误。开启路径存储
-后，只有当所有请求 ID 在某个 hierarchy 中都有已记录的路径，结果才会包含该
-hierarchy。只要其中一个 ID 在构建或追加时没有提供该 hierarchy 的路径，对应 getter
-就返回 <code>nullptr</code>；其他路径完整的 hierarchy 仍会正常返回。单 hierarchy 模式下，
-<code>GetPaths()</code> 遵循相同的完整性规则。</p>
+后，只有当所有请求 ID 在某个 hierarchy 中都恰好有一条已记录路径时，这些旧 getter
+才会返回该 hierarchy。只要其中一个 ID 没有已记录路径或有多条路径，对应 getter 就返回
+<code>nullptr</code>；其他路径完整的 hierarchy 仍会正常返回。单 hierarchy 模式下，
+<code>GetPaths()</code> 遵循相同规则。</p>
+<p>使用结构化重载可以统一取回旧表示或新表示中的全部路径：</p>
+<pre><code class="language-cpp">std::vector&lt;std::vector&lt;std::string&gt;&gt; tag_paths;
+if (data-&gt;GetPaths("tag", tag_paths)) {
+    // tag_paths[i] 包含 requested_ids[i] 的全部路径。
+}
+</code></pre>
+<p>若要让同一条向量在同一个层级中属于多条独立路径，请传入嵌套 vector。外层 vector
+与 dataset 元素一一对应，每个内层 vector 可以包含一条或多条路径：</p>
+<pre><code class="language-cpp">std::vector&lt;std::vector&lt;std::string&gt;&gt; tag_paths = {
+    {"technology", "military"}, // 向量 0 同时属于两条路径
+    {"sports"},                  // 向量 1 属于一条路径
+    {""},                        // 向量 2 属于层级根节点
+};
+
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(3)
+    -&gt;Dim(128)
+    -&gt;Ids(ids)
+    -&gt;Float32Vectors(data)
+    -&gt;Paths("tag", std::move(tag_paths))
+    -&gt;Paths("site", site_paths) // 可与旧指针形式共存
+    -&gt;Owner(false);
+index-&gt;Build(base);
+</code></pre>
+<p>空的内层 vector 非法；只包含 <code>""</code> 的内层 vector 表示挂到根节点。
+重复路径和共享前缀在同一个树节点内只插入一次。<code>Add()</code> 支持相同形式，序列化会保留
+最终形成的全部路径归属。</p>
 <h3 id="检索指定层级"><a class="header" href="#检索指定层级">检索指定层级</a></h3>
 <p>通过检索参数中的 <code>"hierarchies"</code> 指定要检索的层级。查询 Dataset 也需要在对应的
 层级名称上设置路径：</p>
@@ -555,8 +596,19 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10,
     R"({"pyramid": {"ef_search": 100, "hierarchies": ["site"]}})").value();
 </code></pre>
+<p>旧查询形式用 <code>|</code> 表示多条候选路径的并集，例如 <code>"technology|military"</code>；同一向量即使
+同时可由两条路径到达，在结果中也只出现一次。旧字符串形式中的 <code>|</code> 是保留分隔符，
+目前没有转义语法。结构化查询不依赖这个分隔约定，也允许路径段中包含字面量 <code>|</code>：</p>
+<pre><code class="language-cpp">auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)
+    -&gt;Dim(128)
+    -&gt;Float32Vectors(q)
+    -&gt;Paths("tag", std::vector&lt;std::vector&lt;std::string&gt;&gt;{{"technology", "military"}})
+    -&gt;Owner(false);
+</code></pre>
 <h3 id="增量插入-add"><a class="header" href="#增量插入-add">增量插入 (Add)</a></h3>
-<p><code>Add()</code> 的用法与 <code>Build()</code> 一致——提供命名路径，索引会自动插入到所有匹配的层级：</p>
+<p><code>Add()</code> 的用法与 <code>Build()</code> 一致——可以提供单路径或结构化命名路径，每条通过校验的向量
+都会插入到所有匹配路径：</p>
 <pre><code class="language-cpp">auto new_data = vsag::Dataset::Make();
 new_data-&gt;NumElements(count)
     -&gt;Dim(128)
@@ -598,15 +650,23 @@ new_index-&gt;Deserialize(binary_set);
 <code>bottom_graph_size</code>、<code>route_graph_count</code>、<code>route_node_counts</code> 和 <code>route_graph_size</code>。
 <code>AnalyzeIndexBySearch</code> 还会输出按路径限定的
 query 召回率、距离、耗时，以及开启 reorder 时的量化指标。query 数据集必须包含与
-<code>KnnSearch</code> 相同的默认或命名 hierarchy 路径；批量数据集在需要或提供路径时，应为每条 query
-提供一条路径。<code>analyze_index</code> 工具当前无法从 dense query 文件加载 hierarchy 路径，因此
-按路径执行动态分析时请使用 C++ 接口。</p>
+<code>KnnSearch</code> 相同的默认或命名 hierarchy 路径。对于批量数据集，外层路径集合的每一行对应
+一条 query：旧重载每行提供一个路径字符串（并用 <code>|</code> 表示并集），结构化重载则可为每行提供
+一条或多条原子路径，并允许路径中包含字面量 <code>|</code>。<code>analyze_index</code> 工具当前无法从
+dense query 文件加载 hierarchy 路径，因此按路径执行动态分析时请使用 C++ 接口。</p>
 <h2 id="标记删除"><a class="header" href="#标记删除">标记删除</a></h2>
 <p>Pyramid 支持 <code>RemoveMode::MARK_REMOVE</code>。调用 <code>Remove(ids)</code>（默认模式）会为给定的 id
 打上删除标记：它们会从后续检索结果中排除，<code>GetNumElements()</code> 相应减少，
 <code>GetNumberRemoved()</code> 返回累计删除数量。删除不存在或已删除的 id 不会有任何效果。
 <code>RemoveMode::FORCE_REMOVE</code> 不支持，调用会返回错误。</p>
 <p>被标记删除的向量在索引重建前仍占用内存，空间不会被物理回收。</p>
+<h2 id="标签查询与持久化"><a class="header" href="#标签查询与持久化">标签查询与持久化</a></h2>
+<p>标签 <code>0</code> 是合法标签。预留容量不会创建标签：没有向量使用该标签时，<code>CheckIdExist(0)</code>
+返回 false，单 ID 的 <code>CalcDistanceById</code> 对不存在或已标记删除的标签返回错误。</p>
+<p>Pyramid 仅写入已填充的标签槽位，继续使用现有的带长度前缀的向量格式。
+读取包含未使用槽位的旧数据时，根据已存储的向量数量移除未使用的尾部并重建标签映射。
+可寻址格式和流式格式均支持此恢复过程。旧版读取器仍能解析新写入的数据，
+但不会因此获得修复后的查询行为，因此读取端也需要升级。</p>
 <h2 id="相关文档"><a class="header" href="#相关文档">相关文档</a></h2>
 <ul>
 <li><a href="../guide/create_index.html">创建索引</a></li>

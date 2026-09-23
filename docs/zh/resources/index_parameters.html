@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -352,7 +352,8 @@
 <tbody>
 <tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
 <tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略 —— 支持的全部取值见<a href="../quantization/README.html">量化章节</a></td></tr>
+<tr><td><code>alpha</code></td><td><code>1.0</code></td><td>最终 robust pruning 的系数；PiPNN 要求有限且不小于 <code>1.0</code></td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略 —— 支持的全部取值见<a href="../quantization/">量化章节</a></td></tr>
 <tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>跟踪入边，实现 O(1) 反向邻居查找；边存储约翻倍，且压缩图存储不支持</td></tr>
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>label map 实现：默认 <code>pg</code>，或 <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>从 <code>precise</code> 存储或直接从 <code>base</code> 重排；RaBitQ x+y split（包括 <code>tq_chain="mrle, rabitq"</code>）会自动选择 <code>base</code></td></tr>
@@ -364,6 +365,27 @@
 </tbody>
 </table>
 </div>
+<h3 id="pipnn-构建参数"><a class="header" href="#pipnn-构建参数">PiPNN 构建参数</a></h3>
+<p>当 <code>graph_type</code> 为 <code>pipnn</code> 时，HGraph 和 Pyramid 还会从 <code>index_param</code> 接受以下构建参数，
+两者使用相同的默认值和校验规则：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>默认值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pipnn_max_leaf_size</code></td><td><code>1024</code></td><td>分区叶子的最大点数，范围 <code>[2, 2147483647]</code></td></tr>
+<tr><td><code>pipnn_min_leaf_size</code></td><td><code>64</code></td><td>合并过小叶子时的目标规模，必须为正数且不超过 <code>pipnn_max_leaf_size</code></td></tr>
+<tr><td><code>pipnn_leader_sample_rate</code></td><td><code>0.005</code></td><td>leader 采样比率，范围 <code>(0, 1]</code>；每个分区使用 <code>2</code> 到 <code>1000</code> 个 leader，且不超过分区点数</td></tr>
+<tr><td><code>pipnn_fanout</code></td><td><code>[10, 2]</code></td><td>连续分区层级的正数最近 leader fanout；更深层使用 <code>1</code></td></tr>
+<tr><td><code>pipnn_leaf_neighbor_count</code></td><td><code>5</code></td><td>每个点在每个叶子中贡献的最近候选数，必须为正数；过小叶子至少使用 <code>4</code></td></tr>
+<tr><td><code>pipnn_hash_plane_count</code></td><td><code>12</code></td><td>方向 hash 位数，范围 <code>[1, 15]</code>，且 <code>max_degree &lt;= 2^pipnn_hash_plane_count</code></td></tr>
+<tr><td><code>pipnn_reservoir_size</code></td><td><code>64</code></td><td>最终剪枝前每个点的候选容量，必须为正数；实际容量为 <code>max(value, max_degree)</code> 且不能超过 <code>65535</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>现有的 <code>alpha</code> 字段控制 PiPNN 的最终 robust pruning。<code>ef_construction</code> 只调节 NSW，
+对 PiPNN 不生效。</p>
 <p>搜索时：</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
@@ -444,6 +466,7 @@
     }
 }
 </code></pre>
+<p><code>graph_type: "pipnn"</code> 可调节的项见上文 <a href="#pipnn-构建参数">PiPNN 构建参数</a>。</p>
 <p><code>store_paths</code> 是 Pyramid 顶层构建参数，默认值为 <code>false</code>。需要通过
 <code>GetDataByIdsWithFlag</code> 和 <code>DATA_FLAG_PATH</code> 返回默认或命名 hierarchy 的原始路径时应启用它；路径完整性与持久化语义见
 <a href="../indexes/pyramid.html#构建参数">Pyramid 参数表</a>。</p>

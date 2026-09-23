@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -342,7 +342,7 @@ MCI 会直接基于已存储向量构建专用 KNN 图。若内部配置了外�
 <tbody>
 <tr><td><code>use_mci</code></td><td>设为 <code>true</code> 时使用默认构建参数启用 MCI。</td></tr>
 <tr><td><code>mci_mcs</code></td><td>构建团时使用的候选邻居数量。</td></tr>
-<tr><td><code>mci_clique_max</code></td><td>全量构建时的最大团大小。</td></tr>
+<tr><td><code>mci_clique_max</code></td><td>全量构建时保留的极大团的最小大小。团始终完整保存，因此这是下限而非上限。</td></tr>
 <tr><td><code>mci_knng_source</code></td><td>KNN 图来源：<code>hgraph</code>（默认）或 <code>odescent</code>。</td></tr>
 <tr><td><code>mci_alpha</code></td><td>团构建扩展系数。</td></tr>
 <tr><td><code>mci_incremental_join_ratio_threshold</code></td><td>Add 时加入已有团的阈值。</td></tr>

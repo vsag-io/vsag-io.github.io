@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -350,6 +350,62 @@ storage-layout hybrid).</p>
 </div>
 <p>When <code>use_attribute_filter</code> is enabled, BruteForce currently rejects <code>Remove</code> calls
 (re-add the index to delete entries).</p>
+<h2 id="reusing-parsed-expressions"><a class="header" href="#reusing-parsed-expressions">Reusing parsed expressions</a></h2>
+<p>For repeated requests with the same predicate, parse it with the index schema and pass the
+result in <code>SearchRequest::expression_</code>:</p>
+<pre><code class="language-cpp">auto expression = vsag::AstParse("age &gt;= 18", index-&gt;GetAttrTypeSchema());
+vsag::SearchRequest request;
+request.enable_attribute_filter_ = true;
+request.expression_ = expression;
+// Set query_, topk_, and index-specific search parameters as usual.
+</code></pre>
+<p>A non-null <code>expression_</code> takes precedence over <code>attribute_filter_str_</code> in IVF, HGraph,
+and BruteForce. Attribute filtering must still be enabled. Treat a shared expression as
+immutable while requests use it. The schema pointer is borrowed from the index; do not
+retain it past the index lifetime or mutate the schema through it. Precompiled C++ clients
+must rebuild because the request and index interfaces have changed.</p>
+<h2 id="region-filter"><a class="header" href="#region-filter">Region filter</a></h2>
+<p>The <code>ads</code> branch’s specialized predicate is available for FastBitset-backed attribute
+indexes:</p>
+<pre><code class="language-text">region_filter(region_type, region_list, residence_tag_list, "10|20", "30", "40")
+</code></pre>
+<p>The first three arguments select the type, region, and residence fields. The final three
+arguments are integer lists for region, residence, and trigger matching. Trigger values
+are looked up in the <strong>residence field</strong>, not a fourth field. Unlike the old <code>ads</code>
+implementation, execution honors the supplied field names instead of hard-coding them.</p>
+<p>Let R, H, and T be region, residence, and trigger matches respectively. The predicate
+accepts a vector according to its type value:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Type</th><th>Condition</th></tr>
+</thead>
+<tbody>
+<tr><td>-1</td><td>Always accepted</td></tr>
+<tr><td>0</td><td>T OR (R AND H)</td></tr>
+<tr><td>1</td><td>H</td></tr>
+<tr><td>2</td><td>R</td></tr>
+<tr><td>3</td><td>R OR H</td></tr>
+<tr><td>4</td><td>R AND H</td></tr>
+<tr><td>5</td><td>R AND NOT H</td></tr>
+</tbody>
+</table>
+</div>
+<p>Missing values yield empty matches; other type values have no accepting branch. Missing
+fields or incompatible types are errors. Non-FastBitset attribute storage is not supported
+by this specialized executor. It can be combined with ordinary AND/OR/NOT predicates.</p>
+<p>The type field must be signed and represent -1. Region and residence fields may use signed
+or unsigned integer types; query values must fit their field type and signed 64-bit input
+range. Out-of-range values are rejected rather than truncated.</p>
+<p><code>FUNCTION(name,"arg1|arg2","type1|type2")</code> is retained for parser/AST compatibility with
+<code>ads</code> only. It does <strong>not</strong> register callbacks or provide search-time function execution;
+passing such an expression to the executor is unsupported.</p>
+<h3 id="introducing-fields-during-updates"><a class="header" href="#introducing-fields-during-updates">Introducing fields during updates</a></h3>
+<p>For IVF’s bucket attribute index, the update overload that receives both new and original
+attributes can introduce previously unseen fields. It creates their value maps and records
+their types; these are retained by serialization. Existing field types must match: mismatched
+incoming or original types are rejected before any postings are erased, and existing schema
+entries are not overwritten. This does not change other attribute-update overloads.</p>
 <h2 id="attribute-data-model"><a class="header" href="#attribute-data-model">Attribute Data Model</a></h2>
 <p>Attributes are defined per vector and grouped into an <code>AttributeSet</code>
 (<code>include/vsag/attribute.h</code>). Each attribute has:</p>
@@ -564,7 +620,7 @@ membership in a single pass.</li>
 <h2 id="tests-as-reference"><a class="header" href="#tests-as-reference">Tests as Reference</a></h2>
 <p>The most complete usage sample lives in the test suite:</p>
 <ul>
-<li><code>tests/test_index.cpp</code> — <code>TestIndex::TestWithAttr</code> (build attributes, search via
+<li><code>tests/test_index/test_index_misc.cpp</code> — <code>TestIndex::TestWithAttr</code> (build attributes, search via
 <code>SearchRequest</code>, then <code>UpdateAttribute</code> and re-search).</li>
 <li><code>tests/fixtures/data/vector_generator.cpp</code> — <code>generate_attributes</code> shows how to construct
 <code>AttributeSet*</code> arrays of mixed types programmatically.</li>

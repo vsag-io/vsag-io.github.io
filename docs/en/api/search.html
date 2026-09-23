@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -334,7 +334,7 @@ auto result = index-&gt;SearchWithRequest(request);
 <tr><th>Field</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
 </thead>
 <tbody>
-<tr><td><code>query_</code></td><td><code>DatasetPtr</code></td><td><code>nullptr</code></td><td>The query. IVF KNN requests support multiple query vectors; other requests allow one.</td></tr>
+<tr><td><code>query_</code></td><td><code>DatasetPtr</code></td><td><code>nullptr</code></td><td>The query. HGraph and IVF KNN requests support multiple query vectors; other requests allow one.</td></tr>
 <tr><td><code>mode_</code></td><td><code>SearchMode</code></td><td><code>KNN_SEARCH</code></td><td>KNN vs. range search.</td></tr>
 <tr><td><code>topk_</code></td><td><code>int64_t</code></td><td><code>10</code></td><td>Neighbors to return (KNN mode). Must be positive.</td></tr>
 <tr><td><code>radius_</code></td><td><code>float</code></td><td><code>0.5</code></td><td>Distance threshold (range mode). Non-negative.</td></tr>

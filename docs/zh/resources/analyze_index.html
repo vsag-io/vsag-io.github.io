@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -326,13 +326,15 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 对于基于图的索引，度分布、入口点质量、子索引召回率以及低召回热点节点等图健康度信息，
 通过 <code>GetStats()</code> 而非 <code>AnalyzeIndexBySearch</code> 输出。</p>
 <p>Pyramid 的查询分析遵循与 <code>KnnSearch</code> 相同的路径限定语义。对于默认 hierarchy，
-使用 <code>Dataset::Paths</code> 为每条 query 设置路径；对于命名 hierarchy，使用
+使用 <code>Dataset::Paths</code> 设置路径；对于命名 hierarchy，使用
 <code>Dataset::Paths(hierarchy_name, paths)</code> 设置路径，并在 Pyramid 搜索参数中选择该
-hierarchy。当选中 hierarchy 的根节点为 <code>NO_INDEX</code> 时必须提供路径。批量 query
-数据集在需要或提供路径时，必须为每条 query 提供对应路径。Pyramid 只在每条 query 的
-hierarchy 和路径所允许的向量中计算真值集，并排除已标记删除的向量。Pyramid 查询分析
-目前只支持 KNN 请求，并使用 <code>SearchRequest</code> 中的 <code>query_</code>、<code>topk_</code> 和 <code>params_str_</code>；不支持
-带过滤条件或 iterator 的请求。分析期间应保持索引稳定，不要并发执行 add 或 remove。</p>
+hierarchy。当选中 hierarchy 的根节点为 <code>NO_INDEX</code> 时必须提供路径。批量 query 数据集的
+外层路径集合每行对应一条 query：旧重载每行保存一个路径字符串，并将 <code>|</code> 解释为并集；
+结构化重载每行可保存一条或多条原子路径，并将 <code>|</code> 当作普通路径字符。Pyramid 只在
+每条 query 的 hierarchy 和路径并集所允许的向量中计算真值集，并排除已标记删除的向量。
+Pyramid 查询分析目前只支持 KNN 请求，并使用 <code>SearchRequest</code> 中的 <code>query_</code>、<code>topk_</code> 和
+<code>params_str_</code>；不支持带过滤条件或 iterator 的请求。分析期间应保持索引稳定，不要并发执行
+add 或 remove。</p>
 <h3 id="getstats-输出的静态指标"><a class="header" href="#getstats-输出的静态指标"><code>GetStats()</code> 输出的静态指标</a></h3>
 <h4 id="hgraph-指标"><a class="header" href="#hgraph-指标">HGraph 指标</a></h4>
 <div class="table-wrapper">

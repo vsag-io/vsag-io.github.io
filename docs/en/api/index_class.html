@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -394,7 +394,7 @@ bytes (at the given source pointer) at logical <code>OffsetType</code> in the ou
 <tr><td><code>Build</code></td><td><code>tl::expected&lt;std::vector&lt;int64_t&gt;, Error&gt; Build(const DatasetPtr&amp; base)</code></td><td><em>(pure virtual)</em> Builds the index from all vectors. Returns the ids that failed to insert.</td></tr>
 <tr><td><code>Train</code></td><td><code>tl::expected&lt;void, Error&gt; Train(const DatasetPtr&amp; data)</code></td><td>Trains an index (e.g. IVF centroids, quantizer) without inserting.</td></tr>
 <tr><td><code>Tune</code></td><td><code>tl::expected&lt;bool, Error&gt; Tune(const std::string&amp; parameters, bool disable_future_tuning = false)</code></td><td>Applies runtime tuning. See <a href="../advanced/optimizer.html">Optimizer (Tune)</a>.</td></tr>
-<tr><td><code>ContinueBuild</code></td><td><code>tl::expected&lt;Checkpoint, Error&gt; ContinueBuild(const DatasetPtr&amp; base, const BinarySet&amp; binary_set)</code></td><td>Adds dynamism to indexes that cannot insert incrementally; drive it with the returned <a href="#checkpoint"><code>Checkpoint</code></a>.</td></tr>
+<tr><td><a id="continuebuild"></a><code>ContinueBuild</code></td><td><code>tl::expected&lt;Checkpoint, Error&gt; ContinueBuild(const DatasetPtr&amp; base, const BinarySet&amp; binary_set)</code></td><td>Adds dynamism to indexes that cannot insert incrementally; drive it with the returned <a href="#checkpoint"><code>Checkpoint</code></a>.</td></tr>
 <tr><td><code>Add</code></td><td><code>tl::expected&lt;std::vector&lt;int64_t&gt;, Error&gt; Add(const DatasetPtr&amp; base)</code></td><td>Inserts new vectors into an already-built index. Returns ids that failed to insert.</td></tr>
 </tbody>
 </table>
@@ -407,7 +407,7 @@ bytes (at the given source pointer) at logical <code>OffsetType</code> in the ou
 <tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Remove</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Remove(const std::vector&lt;int64_t&gt;&amp; ids, RemoveMode mode = RemoveMode::MARK_REMOVE)</code></td><td>Removes many ids; returns the count removed.</td></tr>
+<tr><td><a id="remove"></a><code>Remove</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Remove(const std::vector&lt;int64_t&gt;&amp; ids, RemoveMode mode = RemoveMode::MARK_REMOVE)</code></td><td>Removes many ids; returns the count removed.</td></tr>
 <tr><td><code>Remove</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Remove(int64_t id, RemoveMode mode = RemoveMode::MARK_REMOVE)</code></td><td>Single-id convenience overload.</td></tr>
 <tr><td><code>UpdateId</code></td><td><code>tl::expected&lt;bool, Error&gt; UpdateId(int64_t old_id, int64_t new_id)</code></td><td>Relabels a base point.</td></tr>
 <tr><td><code>UpdateVector</code></td><td><code>tl::expected&lt;bool, Error&gt; UpdateVector(int64_t id, const DatasetPtr&amp; new_base, bool force_update = false)</code></td><td>Replaces the vector for <code>id</code>. <code>force_update = false</code> performs a connectivity check.</td></tr>
@@ -422,9 +422,10 @@ bytes (at the given source pointer) at logical <code>OffsetType</code> in the ou
 <p>The recommended entry point is <a href="#searchwithrequest"><code>SearchWithRequest</code></a>, which takes a single
 <a href="search.html#searchrequest"><code>SearchRequest</code></a> carrying the query, mode, top-k / radius, and any filters.
 The older per-argument <code>KnnSearch</code> / <code>RangeSearch</code> overloads remain for compatibility.</p>
-<p>Every search returns a <code>DatasetPtr</code>: for KNN, <code>num_elements == 1</code> and <code>ids</code> / <code>distances</code> have
-length <code>k</code>; for range search, the result length is the number of matches. See <a href="dataset.html">Dataset</a>
-for how to read results.</p>
+<p>Every search returns a <code>DatasetPtr</code>: single-query KNN has <code>num_elements == 1</code>; HGraph and IVF also
+support batched KNN with a row-major <code>num_elements x dim</code> result. HGraph pads missing neighbors with
+<code>id == -1</code> and infinite distance. For range search, the result length is the number of matches. See
+<a href="dataset.html">Dataset</a> for how to read results.</p>
 <h3 id="searchwithrequest"><a class="header" href="#searchwithrequest"><code>SearchWithRequest</code></a></h3>
 <pre><code class="language-cpp">[[nodiscard]] tl::expected&lt;DatasetPtr, Error&gt;
 SearchWithRequest(const SearchRequest&amp; request) const;
@@ -489,7 +490,7 @@ tl::expected&lt;DatasetPtr, Error&gt;
 RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; parameters,
             const FilterPtr&amp; filter, int64_t limited_size = -1) const;
 </code></pre>
-<p><code>radius</code> bounds the distance; <code>limited_size</code> caps the result count (<code>&lt;= 0</code> means no limit, <code>0</code> is an
+<p><code>radius</code> bounds the distance; <code>limited_size</code> caps the result count (<code>&lt; 0</code> means no limit, <code>0</code> is an
 error). See <a href="../advanced/range_search.html">Range Search</a> and <code>examples/cpp/302_feature_range_search.cpp</code>.</p>
 <h2 id="distance-by-id"><a class="header" href="#distance-by-id">Distance by id</a></h2>
 <div class="table-wrapper">
@@ -499,10 +500,10 @@ error). See <a href="../advanced/range_search.html">Range Search</a> and <code>e
 </thead>
 <tbody>
 <tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const float* vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>Distance from a dense query to the stored vector <code>id</code>.</td></tr>
-<tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const DatasetPtr&amp; vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>Same, accepting a <code>DatasetPtr</code> (works for sparse indexes such as SINDI).</td></tr>
-<tr><td><code>CalcDistancesById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalcDistancesById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>Canonical batch variant; <code>topk &gt; 0</code> returns sorted smallest distances with IDs, and invalid <code>-1</code> distances are ordered last.</td></tr>
+<tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const DatasetPtr&amp; vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>Same, accepting one native query: dense Float32Vectors, sparse SparseVectors, or WARP/SIMQ MultiVectors with MultiVectorDim.</td></tr>
+<tr><td><code>CalcDistancesById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalcDistancesById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>Canonical batch variant; <code>topk &gt; 0</code> returns sorted smallest distances with IDs, and missing IDs are ordered last (valid distances may also be negative).</td></tr>
 <tr><td><code>CalcDistancesById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalcDistancesById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>Canonical DatasetPtr batch variant. For <code>query-&gt;GetNumElements() &gt; 1</code>, indexes must advertise <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>; <code>ids</code> contains <code>NumElements * count</code> row-major entries. With <code>topk &gt; 0</code>, each query returns <code>min(topk, count)</code> sorted distances with matching IDs.</td></tr>
-<tr><td><code>CalDistanceById</code></td><td>Same signatures as <code>CalcDistancesById</code></td><td>Deprecated compatibility alias; use <code>CalcDistancesById</code> for new code.</td></tr>
+<tr><td><code>CalDistanceById</code></td><td>Same signatures as <code>CalcDistancesById</code></td><td>Deprecated public forwarding alias to the canonical virtual <code>CalcDistancesById</code>; new implementations override the canonical name. See <a href="../advanced/calc_distance_by_id.html#c-implementation-migration">C++ implementation migration</a>.</td></tr>
 </tbody>
 </table>
 </div>
@@ -533,7 +534,7 @@ quantized codes. See <a href="../advanced/calc_distance_by_id.html">Calculate Di
 <tr><td><code>GetExtraInfoByIds</code></td><td><code>tl::expected&lt;void, Error&gt; GetExtraInfoByIds(const int64_t* ids, int64_t count, char* extra_infos) const</code></td><td>Copies extra-info blobs for <code>ids</code> into a caller-provided buffer.</td></tr>
 <tr><td><code>GetRawVectorByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetRawVectorByIds(const int64_t* ids, int64_t count, Allocator* specified_allocator = nullptr) const</code></td><td>Returns stored vectors. Values are <em>close to</em> the originals but not guaranteed bit-identical (quantization/precision).</td></tr>
 <tr><td><code>GetDataByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIds(const int64_t* ids, int64_t count) const</code></td><td>Returns the implementation’s default stored fields for <code>ids</code>; optional fields may require explicit selection.</td></tr>
-<tr><td><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>Selects supported fields via <a href="#data-selection-flags"><code>DATA_FLAG_*</code></a>. Pyramid paths require <code>store_paths: true</code> and <code>DATA_FLAG_PATH</code>.</td></tr>
+<tr><td><a id="getdatabyidswithflag"></a><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>Selects supported fields via <a href="#data-selection-flags"><code>DATA_FLAG_*</code></a>. Pyramid paths require <code>store_paths: true</code> and <code>DATA_FLAG_PATH</code>.</td></tr>
 <tr><td><code>GetIndexDetailInfos</code></td><td><code>tl::expected&lt;std::vector&lt;IndexDetailInfo&gt;, Error&gt; GetIndexDetailInfos() const</code></td><td>Lists the introspectable detail fields. See <a href="types.html#index-detail-info"><code>IndexDetailInfo</code></a>.</td></tr>
 <tr><td><code>GetDetailDataByName</code></td><td><code>tl::expected&lt;DetailDataPtr, Error&gt; GetDetailDataByName(const std::string&amp; name, IndexDetailInfo&amp; info) const</code></td><td>Fetches one detail-data payload by name.</td></tr>
 </tbody>
@@ -548,8 +549,8 @@ quantized codes. See <a href="../advanced/calc_distance_by_id.html">Calculate Di
 <tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
 </thead>
 <tbody>
-<tr><td><code>CheckFeature</code></td><td><code>bool CheckFeature(IndexFeature feature) const</code></td><td>Probes whether an optional capability is supported. See <a href="types.html#indexfeature"><code>IndexFeature</code></a>.</td></tr>
-<tr><td><code>Merge</code></td><td><code>tl::expected&lt;void, Error&gt; Merge(const std::vector&lt;MergeUnit&gt;&amp; merge_units)</code></td><td>Merges same-type sub-indexes with id remapping. See <a href="#mergeunit-and-idmapfunction"><code>MergeUnit</code></a>.</td></tr>
+<tr><td><a id="checkfeature"></a><code>CheckFeature</code></td><td><code>bool CheckFeature(IndexFeature feature) const</code></td><td>Probes whether an optional capability is supported. See <a href="types.html#indexfeature"><code>IndexFeature</code></a>.</td></tr>
+<tr><td><a id="merge"></a><code>Merge</code></td><td><code>tl::expected&lt;void, Error&gt; Merge(const std::vector&lt;MergeUnit&gt;&amp; merge_units)</code></td><td>Merges same-type sub-indexes with id remapping. See <a href="#mergeunit-and-idmapfunction"><code>MergeUnit</code></a>.</td></tr>
 <tr><td><code>Clone</code></td><td><code>tl::expected&lt;IndexPtr, Error&gt; Clone(const std::shared_ptr&lt;Allocator&gt;&amp; allocator = nullptr) const</code></td><td>Deep-copies the index.</td></tr>
 <tr><td><code>ExportModel</code></td><td><code>tl::expected&lt;IndexPtr, Error&gt; ExportModel() const</code></td><td>Returns an empty index carrying only the trained model.</td></tr>
 <tr><td><code>ExportIDs</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; ExportIDs() const</code></td><td>Returns all ids as a dataset.</td></tr>
@@ -566,7 +567,7 @@ quantized codes. See <a href="../advanced/calc_distance_by_id.html">Calculate Di
 <tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Serialize</code></td><td><code>tl::expected&lt;BinarySet, Error&gt; Serialize() const</code></td><td><em>(pure virtual)</em> Serializes to an in-memory <a href="serialization.html#binaryset"><code>BinarySet</code></a>.</td></tr>
+<tr><td><a id="serialize"></a><code>Serialize</code></td><td><code>tl::expected&lt;BinarySet, Error&gt; Serialize() const</code></td><td><em>(pure virtual)</em> Serializes to an in-memory <a href="serialization.html#binaryset"><code>BinarySet</code></a>.</td></tr>
 <tr><td><code>Serialize</code></td><td><code>tl::expected&lt;void, Error&gt; Serialize(WriteFuncType write_func) const</code></td><td>Streams the serialized index through a <a href="#writefunctype"><code>WriteFuncType</code></a> sink.</td></tr>
 <tr><td><code>Serialize</code></td><td><code>tl::expected&lt;void, Error&gt; Serialize(std::ostream&amp; out_stream)</code></td><td>Serializes to an open output stream.</td></tr>
 <tr><td><code>Deserialize</code></td><td><code>tl::expected&lt;void, Error&gt; Deserialize(const BinarySet&amp; binary_set)</code></td><td><em>(pure virtual)</em> Restores from a <code>BinarySet</code>. Fails if the index is not empty.</td></tr>
@@ -601,7 +602,7 @@ and <code>examples/cpp/401_persistent_kv.cpp</code> / <code>402_persistent_strea
 <tr><th>Method</th><th>Signature</th><th>Notes</th></tr>
 </thead>
 <tbody>
-<tr><td><code>GetIndexType</code></td><td><code>IndexType GetIndexType() const</code></td><td><strong>Throws</strong> if unsupported.</td></tr>
+<tr><td><a id="getindextype"></a><code>GetIndexType</code></td><td><code>IndexType GetIndexType() const</code></td><td><strong>Throws</strong> if unsupported.</td></tr>
 <tr><td><code>GetNumElements</code></td><td><code>int64_t GetNumElements() const</code></td><td><em>(pure virtual)</em> Live element count.</td></tr>
 <tr><td><code>GetNumberRemoved</code></td><td><code>int64_t GetNumberRemoved() const</code></td><td><strong>Throws</strong> if unsupported. Count of removed elements.</td></tr>
 <tr><td><code>GetMemoryUsage</code></td><td><code>int64_t GetMemoryUsage() const</code></td><td><em>(pure virtual)</em> Bytes occupied by the index.</td></tr>

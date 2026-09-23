@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -311,7 +311,8 @@
 </code></pre>
 <h2 id="builder-模式"><a class="header" href="#builder-模式">Builder 模式</a></h2>
 <p><code>Dataset</code> 采用流式 builder：<code>Make()</code> 创建实例，每个 setter 都返回同一个 <code>DatasetPtr</code>，因此调用可以链式
-书写。setter 只存储指针/值 —— 它们<strong>不会</strong>拷贝你的缓冲区。</p>
+书写。指针 setter 只保存传入的缓冲区，不会复制；按值传入的 setter（例如 Pyramid 的结构化路径重载）
+会在 Dataset 内保存自己的值。</p>
 <pre><code class="language-cpp">auto base = vsag::Dataset::Make()
                 -&gt;Dim(128)
                 -&gt;NumElements(10000)
@@ -401,10 +402,18 @@ DatasetPtr DeepCopy(Allocator* allocator = nullptr) const;  // 独立副本
 <tr><td><code>ExtraInfoSize(int64_t)</code></td><td><code>GetExtraInfoSize()</code></td><td><code>int64_t</code></td><td>每个 extra-info 数据块的字节数。</td></tr>
 <tr><td><code>Paths(const std::string*)</code></td><td><code>GetPaths()</code></td><td><code>const std::string*</code></td><td>层级路径（Pyramid）。默认层级。</td></tr>
 <tr><td><code>Paths(const std::string&amp; hierarchy, const std::string*)</code></td><td><code>GetPaths(const std::string&amp; hierarchy)</code></td><td><code>const std::string*</code></td><td>命名层级的路径。</td></tr>
+<tr><td><code>Paths(const std::string&amp; hierarchy, std::vector&lt;std::vector&lt;std::string&gt;&gt;)</code></td><td><code>GetPaths(const std::string&amp; hierarchy, std::vector&lt;std::vector&lt;std::string&gt;&gt;&amp; paths)</code></td><td>结构化路径</td><td>每个元素在 Pyramid 层级中的一条或多条路径。</td></tr>
 <tr><td><code>SourceID(const std::string*)</code></td><td><code>GetSourceID()</code></td><td><code>const std::string*</code></td><td>每个元素可选的稳定来源标识；HGraph 用它跨快照匹配构建缓存条目。</td></tr>
 </tbody>
 </table>
 </div>
+<p>结构化 <code>Paths</code> 重载的外层 vector 必须正好包含 <code>NumElements()</code> 个条目，每个内层 vector
+必须列出至少一条对应元素的独立路径。空的内层 vector 非法；只包含一个空字符串（<code>{""}</code>）
+的内层 vector 表示将元素挂到层级根节点。重复路径或共享前缀不会让同一向量在节点或搜索
+结果中重复出现。</p>
+<p>结构化容器会被复制或移动到 <code>Dataset</code> 内，因此其生命周期不受 <code>Owner()</code> 控制。结构化
+<code>GetPaths</code> 重载会将旧表示或新表示复制到输出容器；hierarchy 不存在时会清空输出并返回
+<code>false</code>。</p>
 <p>见 <a href="../advanced/attribute_filter.html">属性过滤（混合搜索）</a>、
 <a href="../advanced/extra_info.html">Extra Info（附加信息）</a>与
 <a href="../advanced/build_cache.html">HGraph 构建缓存</a>。</p>
@@ -431,8 +440,12 @@ if (result.has_value()) {
     }
 }
 </code></pre>
-<p>对 KNN，<code>GetNumElements()</code> 为 <code>1</code>，ids/distances 数组长度为 <code>k</code>。对范围搜索，命中数通过结果的维度报告。
-见 <a href="../guide/knn_search.html">k-近邻搜索</a>。</p>
+<p>单查询 KNN 的 <code>GetNumElements()</code> 为 <code>1</code>，<code>GetDim()</code> 表示实际结果数。HGraph 和 IVF 的批量 KNN
+结果为按行主序排列的 <code>GetNumElements() x GetDim()</code> 矩阵；HGraph 的不足项以 <code>id == -1</code> 和无穷距离
+填充。对范围搜索，命中数通过结果的维度报告。见 <a href="../guide/knn_search.html">k-近邻搜索</a>。</p>
+<p>HGraph 批量 KNN 在空索引（包括所有元素均已删除）上返回 <code>NumElements = 查询数</code>、
+<code>Dim = 请求的 k</code>，所有槽位均填充 <code>-1</code> 和 <code>+infinity</code>。非空索引的结果宽度为
+<code>min(请求的 k, 有效元素数)</code>；过滤造成的不足仍在该宽度内填充。单查询空结果保持 <code>Dim = 0</code>。</p>
 <h2 id="sparsevector"><a class="header" href="#sparsevector"><code>SparseVector</code></a></h2>
 <pre><code class="language-cpp">struct SparseVector {
     uint32_t len_ = 0;         // 非零项的数量
@@ -453,6 +466,14 @@ if (result.has_value()) {
 </code></pre>
 <p>当设置了 <code>Owner(true)</code> 时，每个元素的 <code>vectors_</code> 必须各自独立分配，因为析构函数会分别释放每个
 <code>vectors_</code>。</p>
+<h2 id="命名-metadata"><a class="header" href="#命名-metadata">命名 metadata</a></h2>
+<p><code>UInt32Metadata(name, values)</code> 为每个 dataset 元素附加一个无符号整数，
+<code>GetUInt32Metadata</code> 返回对应命名数组，不存在时返回 <code>nullptr</code>。<code>StringMetadata(name, values)</code>
+和 <code>GetStringMetadata(name)</code> 提供对应的通用命名字符串数组。SINDI 和 SINDI_V2 使用名为
+<code>host</code> 的字符串 metadata 实现 host 过滤。日期过滤复用现有命名字符串 path API，通过
+<code>Paths("date", values)</code> 和 <code>GetPaths("date")</code> 传递日期 bucket。单元素查询 Dataset 的日期范围
+使用独立的 <code>date_begin</code> 和 <code>date_end</code> 命名 path；两者各指向一个规范的 <code>YYYY</code>、<code>YYYY/MM</code> 或
+<code>YYYY/MM/DD</code> 字符串。这些数组遵循 Dataset 通用的 ownership、深拷贝和 Append 规则。</p>
 <h2 id="参见"><a class="header" href="#参见">参见</a></h2>
 <ul>
 <li><a href="index_class.html">Index</a> —— 消费并返回 dataset 的方法。</li>
@@ -467,7 +488,10 @@ if (result.has_value()) {
 <code>fp16</code>、<code>bf16</code>、<code>int8</code>、<code>sq8</code>、<code>sq4</code>、<code>pq</code>、<code>pq_fastscan</code>、<code>rabitq</code>、<code>binary</code>
 和稀疏表示族，不包含 ISA 或批量变体。</p>
 <p><code>distance_evaluations</code> 等于阶段之和；已知 backend 之和等于总数。未知工作记入 <code>unknown</code> 并使
-<code>complete</code> 为 <code>false</code>。数值是无符号 64 位 JSON 整数，加法饱和。旧的 <code>dist_cmp</code> 与
+<code>complete</code> 为 <code>false</code>。数值是无符号 64 位 JSON 整数，加法饱和。
+<code>SINDI</code> 和 <code>SINDI_V2</code> 为避免在搜索热路径中逐 posting ID 跟踪，不统计 approximate 阶段的
+evaluation；其他已测量阶段仍会返回，但发生 approximate evaluation 时 <code>complete</code> 为 <code>false</code>。
+旧的 <code>dist_cmp</code> 与
 <code>reorder_distance_count</code> 保持兼容且含义不变。Python 保留 <code>(ids, distances)</code> 解包方式；可通过
 <code>knn_search_with_statistics</code> 显式获取统计信息：稠密重载返回一个统计 JSON 字符串，稀疏 CSR
 重载为每个查询返回一个字符串。<code>range_search_with_statistics</code> 返回范围搜索数组及一个统计

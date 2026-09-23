@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -408,6 +408,19 @@ target filesystem supports direct IO and benchmark both modes for the workload.<
 warning and uses <code>buffer_io</code>. This fallback is functional, but it does not provide io_uring
 submission/completion batching. See <code>examples/cpp/325_feature_uring_io.cpp</code> for an end-to-end load
 example.</p>
+<h3 id="optional-page-cache-prefetch-hints"><a class="header" href="#optional-page-cache-prefetch-hints">Optional page-cache prefetch hints</a></h3>
+<p>File-backed IO parameters accept <code>enable_prefetch_hint</code> (default: <code>false</code>). When enabled, existing
+search-time <code>Prefetch</code> calls issue best-effort operating-system hints: <code>buffer_io</code> and buffered
+<code>uring_io</code> use file read-ahead advice, <code>mmap_io</code> uses mapped-page advice, and <code>reader_io</code>
+forwards to the optional <code>ReaderPrefetcher::Prefetch</code> hook. A <code>reader_io</code> Reader that does not
+implement <code>ReaderPrefetcher</code> remains fully compatible: enabled hints are simply ignored. A remote
+Reader can opt in by inheriting from both <code>Reader</code> and <code>ReaderPrefetcher</code>; its <code>Prefetch</code> method
+should return promptly, treat failures as non-fatal, and must not change subsequent read results.
+The option is hint-only and does not affect correctness. Direct-IO paths ignore it because they
+bypass the page cache. In public HGraph/IVF build or <code>Index::Load</code> parameters, use the component
+form <code>precise_enable_prefetch_hint: true</code> for precise-code <code>reader_io</code>; the runnable
+<code>examples/cpp/408_feature_reader_prefetch.cpp</code> demonstrates this setup. Enable it only
+after benchmarking the target workload, since frequent hint calls can add overhead.</p>
 <h2 id="recommended-configuration-base-in-memory-precise-on-disk"><a class="header" href="#recommended-configuration-base-in-memory-precise-on-disk">Recommended configuration: base in memory, precise on disk</a></h2>
 <p>The workhorse layout keeps a very compact 3-bit RaBitQ base in memory for traversal and pushes
 a higher-precision <code>sq8</code> copy to disk for reorder, with <code>use_reorder</code> turned on so the
@@ -506,7 +519,7 @@ settle search-time parameters automatically.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="../indexes/hgraph.html">HGraph</a> — the flagship index and its full parameter table</li>
-<li><a href="../quantization/README.html">Quantization Overview</a> — choosing a base/precise quantizer</li>
+<li><a href="../quantization/">Quantization Overview</a> — choosing a base/precise quantizer</li>
 <li><a href="best_practices.html">Best Practices</a> — general production guidance</li>
 <li><a href="../advanced/serialization.html">Serialization</a> — persisting and loading indexes</li>
 <li><a href="eval.html">Evaluation Tool</a> and <a href="../advanced/optimizer.html">Optimizer (Tune)</a> — measuring and

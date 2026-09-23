@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -322,7 +322,7 @@ VSAG 中<strong>唯一完全无损</strong>的选项，作为所有其他量化�
 <li><strong>小规模数据集</strong>，内存不是瓶颈时。</li>
 <li><strong>BruteForce 原始向量取回。</strong> 仅当 <code>base_quantization_type</code> 为 <code>fp32</code>
 且度量允许时，<code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code> 才会被广播
-（<code>src/index/brute_force.cpp</code>）。</li>
+（<code>src/algorithm/bruteforce/bruteforce.cpp</code>）。</li>
 </ul>
 <h2 id="内存代价"><a class="header" href="#内存代价">内存代价</a></h2>
 <p>仅码本身的开销为每向量 <code>4 × dim</code> 字节。当 <code>fp32</code> 作为某个基础量化器之上的
@@ -346,7 +346,7 @@ VSAG 中<strong>唯一完全无损</strong>的选项，作为所有其他量化�
 <p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持，无特殊处理。</p>
 <h2 id="相关页面"><a class="header" href="#相关页面">相关页面</a></h2>
 <ul>
-<li><a href="README.html">量化总览</a></li>
+<li><a href="./">量化总览</a></li>
 <li><a href="../indexes/hgraph.html">HGraph 索引</a> —— 见 <code>precise_quantization_type</code></li>
 <li><a href="../advanced/memory.html">内存管理</a></li>
 </ul>

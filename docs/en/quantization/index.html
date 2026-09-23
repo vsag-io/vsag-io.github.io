@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -422,7 +422,7 @@ or <code>pqfs</code> when the platform supports the SIMD path.</li>
 </ol>
 <p>For every lossy quantizer above, enabling <code>use_reorder: true</code> with
 <code>precise_quantization_type: "fp32"</code> is the standard way to recover recall at
-the cost of extra memory; see the <a href="../indexes/hgraph.html#parameters">HGraph parameter table</a>
+the cost of extra memory; see the <a href="../indexes/hgraph.html#build-parameters">HGraph build-parameter table</a>
 for the exact behavior.</p>
 <h2 id="where-quantization-is-exposed"><a class="header" href="#where-quantization-is-exposed">Where quantization is exposed</a></h2>
 <p>Not every index exposes every parameter as an external key. As of today:</p>
@@ -432,7 +432,7 @@ for the exact behavior.</p>
 <code>rabitq_pca_dim</code>, <code>rabitq_bits_per_dim_query</code>,
 <code>rabitq_bits_per_dim_base</code>, <code>rabitq_bits_per_dim_precise</code>,
 <code>rabitq_error_rate</code>, <code>rabitq_use_fht</code>, <code>sq4_uniform_trunc_rate</code>, <code>tq_chain</code>
-(see <code>src/algorithm/hgraph.cpp</code>).</li>
+(see <code>src/algorithm/hgraph/hgraph.cpp</code>).</li>
 <li><strong>IVF</strong> exposes <code>base_quantization_type</code>, <code>base_pq_dim</code>, the common reorder
 keys, and the RabitQ tuning keys <code>rabitq_pca_dim</code>,
 <code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>, <code>rabitq_version</code>,

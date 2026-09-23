@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -322,6 +322,10 @@ available as a deprecated alias through the 1.1 migration window; new code shoul
 <code>CalcDistancesById</code>. The two names have identical semantics. See
 <a href="https://github.com/antgroup/vsag/issues/2068">issue #2068</a>.</p>
 </blockquote>
+<p>HGraph also supports configured sparse and non-FP32 data types. In those configurations, use a Dataset containing the native query field (<code>SparseVectors</code>, <code>Int8Vectors</code>, or <code>Float16Vectors</code> for FP16/BF16); a raw <code>float*</code> distance query is only valid for a float32 index. The Dataset representation must match the index configuration, not merely its vector dimension.</p>
+<h3 id="c-implementation-migration"><a class="header" href="#c-implementation-migration">C++ implementation migration</a></h3>
+<p><code>CalcDistancesById</code> is the canonical virtual batch interface, including its <code>topk</code> parameter. Public wrappers and internal index implementations dispatch through this name directly. The deprecated public <code>CalDistanceById</code> aliases forward to the canonical interface, never the reverse.</p>
+<p>Custom index implementations must override the appropriate <code>CalcDistancesById</code> overloads instead of relying on an override of the historical spelling. Existing ordinary calls to the deprecated alias remain source-compatible, but overriding only that alias is not sufficient to implement the canonical interface. The virtual interface layout changes: binary compatibility with previously compiled <code>Index</code> subclasses is not preserved. Recompile custom subclasses and dependent C++ components against the matching headers and library.</p>
 <h2 id="api-overview"><a class="header" href="#api-overview">API Overview</a></h2>
 <pre><code class="language-cpp">// Single, dense float pointer.
 tl::expected&lt;float, Error&gt;
@@ -360,12 +364,28 @@ and the result also contains the corresponding IDs.</p>
 <a href="https://github.com/antgroup/vsag/blob/main/include/vsag/index.h"><code>include/vsag/index.h</code></a>.</p>
 <h3 id="calculate_precise_distance"><a class="header" href="#calculate_precise_distance"><code>calculate_precise_distance</code></a></h3>
 <ul>
-<li><code>true</code> (default): the implementation tries to use the <strong>high-precision</strong> representation
-of the stored vector (e.g. full-precision float32). When the index only retains quantized
-codes, obtaining the precise value can be more expensive.</li>
-<li><code>false</code>: the implementation may use the <strong>quantized / approximate</strong> representation that
-the index already keeps in memory. Faster, but the returned distance is approximate.</li>
+<li><code>true</code> (default) prefers an available higher-precision/reorder representation. It does <strong>not</strong> reconstruct discarded original vectors. When no separate precise representation exists, it uses the stored representation, which can still be quantized or pruned.</li>
+<li><code>false</code> uses the base representation. Both modes compute the configured distance; they do not run approximate candidate retrieval. A disk-backed representation can incur I/O in either mode.</li>
+<li>BruteForce/WARP and SIMQ use their stored distance backend for both modes. HGraph/Pyramid prefer raw vectors when retained, otherwise reorder codes; IVF uses its configured reorder codes/buckets. SINDI/SINDI_V2 use rerank vectors when configured.</li>
 </ul>
+<h3 id="native-query-representations"><a class="header" href="#native-query-representations">Native query representations</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index</th><th>Single-ID query</th><th>Multi-query batch query</th></tr>
+</thead>
+<tbody>
+<tr><td>BruteForce, HGraph, IVF, Pyramid, LazyHGraph</td><td><code>float*</code> or one-row <code>DatasetPtr</code> with <code>Float32Vectors</code></td><td><code>DatasetPtr</code> with <code>Float32Vectors</code></td></tr>
+<tr><td>SINDI, SINDI_V2</td><td>one-row <code>DatasetPtr</code> with <code>SparseVectors</code></td><td><code>DatasetPtr</code> with <code>SparseVectors</code></td></tr>
+<tr><td>WARP, SIMQ</td><td>one-row <code>DatasetPtr</code> with <code>MultiVectors</code> and <code>MultiVectorDim</code></td><td><code>DatasetPtr</code> with <code>MultiVectors</code> and <code>MultiVectorDim</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>SINDI immutable storage supports single-ID and batch distances, including after deserialization. WARP/SIMQ calculate the same multi-vector aggregation as their search distance backend, without coarse candidate selection. Raw float pointers cannot represent these native sparse/multi-vector queries.</p>
+<p>For N query rows and <code>count</code> candidates per row, provide N × count candidate IDs in row-major order (<code>ids[q * count + j]</code>); a single candidate list is <strong>not</strong> implicitly broadcast. <code>CalcDistancesById</code> is the preferred batch name; <code>CalDistanceById</code> remains the compatibility alias.</p>
+<p>Missing labels produce <code>-1</code>, but a valid inner-product distance can also be negative (including <code>-1</code>). Top-k uses label validity, not the sign or value of the distance, to place missing labels last.</p>
+<p>IVF PQFS supports point and batch distances using the same packed-code lookup as bucket scanning. A point lookup reads its 32-vector package and selects one lane; this may perform more work than a scalar quantizer lookup, particularly for disk-backed storage.</p>
+<p>PQFS is supported as IVF base bucket encoding, not as flat reorder encoding: flat reorder storage does not maintain PQFS packages. Invalid PQFS reorder configurations are rejected at index creation; choose a supported precise quantizer such as FP32 instead.</p>
 <h3 id="return-semantics"><a class="header" href="#return-semantics">Return Semantics</a></h3>
 <ul>
 <li>The single-ID overload returns the distance as a <code>float</code>.</li>
@@ -373,8 +393,8 @@ the index already keeps in memory. Faster, but the returned distance is approxim
 <code>DatasetPtr</code> overload returns <code>NumElements()</code> rows with <code>count</code> distances each. Both preserve
 input order and do not return IDs.</li>
 <li>With <code>topk &gt; 0</code>, the batch overload returns the smallest <code>min(topk, count)</code> distances per
-query, sorted ascending, and <code>GetIds()</code> contains the corresponding IDs. Invalid IDs (<code>-1</code>
-distances) are ordered after valid distances and only appear if there are not enough valid IDs.</li>
+query, sorted ascending, and <code>GetIds()</code> contains the corresponding IDs. Missing IDs (represented by <code>-1</code>
+distances) are ordered after valid distances regardless of their sign and only appear if there are not enough valid IDs.</li>
 <li>The distance metric (IP / L2 / cosine) follows the <code>metric_type</code> chosen at index
 construction; see <a href="../resources/metric_semantics.html">Metric Semantics</a>.</li>
 </ul>
@@ -422,7 +442,7 @@ std::vector&lt;int64_t&gt; candidate_ids = {
 };
 
 if (index-&gt;CheckFeature(vsag::SUPPORT_BATCH_CALC_DISTANCE_BY_ID)) {
-    auto result = index-&gt;CalDistanceById(queries, candidate_ids.data(), 3, true, /*topk=*/2);
+    auto result = index-&gt;CalcDistancesById(queries, candidate_ids.data(), 3, true, /*topk=*/2);
     if (result.has_value()) {
         auto batch = result.value();
         // batch has NumElements() == 2 and Dim() == 2.

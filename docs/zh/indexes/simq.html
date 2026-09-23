@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,10 +305,10 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="simq"><a class="header" href="#simq">SIMQ</a></h1>
-<p>SIMQ 是 VSAG 面向 <strong>多向量（multi-vector）</strong> 检索的索引——适用于每篇文档
-由一组 token 级向量（而非单个 embedding）表示的数据场景。这种模式常见于
-ColBERT 等 late-interaction 模型，其中文档由每个 token 对应一个向量表示，
-相关性通过 <strong>MaxSim</strong>（各查询 token 的最大相似度之和）计算。</p>
+<p>SIMQ（Single Index for Multi-vector Query）是 VSAG 面向 <strong>多向量（multi-vector）</strong>
+检索的索引——适用于每篇文档由一组 token 级向量（而非单个 embedding）表示的
+数据场景。这种模式常见于 ColBERT 等 late-interaction 模型，其中文档由每个 token
+对应一个向量表示，相关性通过 <strong>MaxSim</strong>（各查询 token 的最大相似度之和）计算。</p>
 <ul>
 <li>源码：<code>src/algorithm/simq/</code></li>
 </ul>

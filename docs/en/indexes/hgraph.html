@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -321,8 +321,8 @@ default.</p>
 <li><strong>Graph construction.</strong> Vectors are organised in a layered proximity graph; upper
 layers act as navigation aids, the bottom layer connects every data point to its
 nearest neighbours within a <code>max_degree</code> budget. The construction algorithm can be
-either NSW-style insertion (<code>graph_type: "nsw"</code>, the default) or ODescent
-(<code>graph_type: "odescent"</code>).</li>
+NSW-style insertion (<code>graph_type: "nsw"</code>, the default), ODescent
+(<code>graph_type: "odescent"</code>), or PiPNN (<code>graph_type: "pipnn"</code>).</li>
 <li><strong>Quantization.</strong> The base storage is compressed with a configurable quantizer
 (<code>base_quantization_type</code> — <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>,
 <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code>). Optionally, a second high-precision copy is kept
@@ -367,10 +367,18 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>— (required)</td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code> — see the <a href="../quantization/README.html">Quantization chapter</a> for per-quantizer details</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>— (required)</td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code> — see the <a href="../quantization/">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per graph node</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size during build (higher = better recall, slower build)</td></tr>
-<tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td>Graph algorithm: <code>nsw</code> or <code>odescent</code></td></tr>
+<tr><td><code>alpha</code></td><td>float</td><td><code>1.0</code></td><td>Final robust-pruning factor; PiPNN requires a finite value at least <code>1.0</code>.</td></tr>
+<tr><td><code>graph_type</code></td><td>string</td><td><code>"nsw"</code></td><td>Graph algorithm: <code>nsw</code>, <code>odescent</code>, or <code>pipnn</code></td></tr>
+<tr><td><code>pipnn_max_leaf_size</code></td><td>int</td><td><code>1024</code></td><td>Maximum partition leaf size. Larger leaves increase candidate coverage and leaf distance work.</td></tr>
+<tr><td><code>pipnn_min_leaf_size</code></td><td>int</td><td><code>64</code></td><td>Target used when merging undersized leaves.</td></tr>
+<tr><td><code>pipnn_leader_sample_rate</code></td><td>float</td><td><code>0.005</code></td><td>Fraction sampled as partition leaders; each partition uses at least <code>2</code> and at most <code>1000</code> leaders, bounded by its point count.</td></tr>
+<tr><td><code>pipnn_fanout</code></td><td>int[]</td><td><code>[10, 2]</code></td><td>Number of nearest leader partitions joined at each listed partition level; deeper levels use <code>1</code>.</td></tr>
+<tr><td><code>pipnn_leaf_neighbor_count</code></td><td>int</td><td><code>5</code></td><td>Nearest candidates contributed per point in each leaf. This is the primary PiPNN quality/build-work knob; leaves smaller than <code>pipnn_min_leaf_size</code> use at least <code>4</code>.</td></tr>
+<tr><td><code>pipnn_hash_plane_count</code></td><td>int</td><td><code>12</code></td><td>Direction-hash bits, in <code>[1, 15]</code>; <code>max_degree &lt;= 2^pipnn_hash_plane_count</code>.</td></tr>
+<tr><td><code>pipnn_reservoir_size</code></td><td>int</td><td><code>64</code></td><td>Candidate slots retained per point before final pruning; effective capacity is at least <code>max_degree</code>.</td></tr>
 <tr><td><code>use_reverse_edges</code></td><td>bool</td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup. Roughly doubles edge storage and is unsupported with <code>graph_storage_type: "compressed"</code>.</td></tr>
 <tr><td><code>label_remap_type</code></td><td>string</td><td><code>"pg"</code></td><td>Label-to-inner-ID map implementation: <code>"pg"</code> or <code>"robin"</code>. Keep the same value when restoring or combining compatible indexes.</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse search</td></tr>
@@ -380,6 +388,8 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Output dimension for an MRLE transform in <code>tq_chain</code>; allowed range <code>[0, dim]</code>, where <code>0</code> means the input dimension.</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use the fast multi-bit RaBitQ encoder; set to <code>false</code> for the previous exact encoder.</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Fast RaBitQ coordinate-refinement rounds, in <code>[1, 32]</code>.</td></tr>
+<tr><td><code>rabitq_fused_datacell</code></td><td>bool</td><td><code>false</code></td><td>Fuse the bottom HGraph node and RaBitQ split codes into one in-memory record. Requires L2/IP, flat in-memory graph storage, RaBitQ x+y split codes with x in <code>[1, 4]</code>, and the other constraints described in <a href="../quantization/rabitq_split.html">RaBitQ x+y split</a>.</td></tr>
+<tr><td><code>train_sample_count</code></td><td>int</td><td><code>65536</code></td><td>Maximum number of vectors sampled for quantizer training; must be at least <code>512</code> when set explicitly.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>Threads used to parallelise build</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Enable duplicate-ID detection on insert</td></tr>
 <tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>Share vector storage between duplicates; requires <code>support_duplicate: true</code></td></tr>
@@ -404,11 +414,24 @@ the reverse adjacency approximately doubles edge storage.</p>
 <p><code>label_remap_type</code> changes the internal label map, not user-visible IDs. <code>"pg"</code> is the default;
 <code>"robin"</code> selects the alternate robin-map implementation. Benchmark the target ID distribution
 before changing it.</p>
+<h3 id="pipnn-build-boundary"><a class="header" href="#pipnn-build-boundary">PiPNN build boundary</a></h3>
+<p>Set <code>graph_type: "pipnn"</code> to use <a href="https://arxiv.org/abs/2602.21247">PiPNN</a> for the initial,
+full <code>Build</code>. The PiPNN builder accepts dense <code>float32</code> input with <code>metric_type</code> set to <code>"l2"</code>,
+<code>"ip"</code>, or <code>"cosine"</code>. It builds the bottom graph from the original build vectors, then reuses
+HGraph’s route layers, storage, search, filtering, reordering, incremental <code>Add</code>, removal, and
+serialization paths. The persistent base storage may use a supported quantizer such as <code>sq8</code>,
+including RaBitQ with SQ8 reorder. Cache-assisted build and deduplicated vector storage are not
+supported with PiPNN. The <code>pipnn_*</code> parameters in the table above tune this builder;
+<code>ef_construction</code> does not. The existing <code>alpha</code> parameter controls PiPNN’s final robust pruning.</p>
+<p><code>build_thread_count</code> parallelizes vector preparation, partitioning, candidate generation, and
+final pruning. Keep <code>OPENBLAS_NUM_THREADS=1</code> when benchmarking so BLAS threads do not obscure
+builder scaling. The reproducible <code>tools/eval/pipnn_parallel.yaml</code> workload compares NSW,
+ODescent, and PiPNN at a matched Recall@10 target on SIFT1M and query-validates every graph.</p>
 <h3 id="deduplicating-vector-storage"><a class="header" href="#deduplicating-vector-storage">Deduplicating vector storage</a></h3>
 <p>Set both <code>support_duplicate: true</code> and <code>deduplicate_storage: true</code> to let duplicate
 vectors share one physical code slot while retaining their individual labels. This option
 currently supports only dense-vector HGraph indexes using <code>graph_type: "nsw"</code>; it is not
-available for <code>graph_type: "odescent"</code>.</p>
+available for <code>graph_type: "odescent"</code> or <code>graph_type: "pipnn"</code>.</p>
 <p>The following operations and configurations are not supported while storage deduplication
 is enabled:</p>
 <ul>

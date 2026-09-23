@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -343,7 +343,7 @@ external KNN graph path takes precedence over this selector.</p>
 <tr><td><code>use_mci</code></td><td>Enables MCI with default build parameters when set to <code>true</code>.</td></tr>
 <tr><td><code>mci_mcs</code></td><td>Candidate neighbor count used when constructing cliques.</td></tr>
 <tr><td><code>mci_knng_source</code></td><td>KNN graph source: <code>hgraph</code> (default) or <code>odescent</code>.</td></tr>
-<tr><td><code>mci_clique_max</code></td><td>Maximum clique size during full build.</td></tr>
+<tr><td><code>mci_clique_max</code></td><td>Minimum size of a maximal clique the full build must keep. Cliques are stored in full, so this is a lower bound, not a cap.</td></tr>
 <tr><td><code>mci_alpha</code></td><td>Clique construction expansion factor.</td></tr>
 <tr><td><code>mci_incremental_join_ratio_threshold</code></td><td>Add-time threshold for joining existing cliques.</td></tr>
 <tr><td><code>mci_incremental_added_mct</code></td><td>Maximum existing cliques a newly added node may join.</td></tr>

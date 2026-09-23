@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -312,7 +312,8 @@ vectors). You always hold it through <code>DatasetPtr</code>:</p>
 </code></pre>
 <h2 id="builder-pattern"><a class="header" href="#builder-pattern">Builder pattern</a></h2>
 <p><code>Dataset</code> uses a fluent builder: <code>Make()</code> creates an instance, and every setter returns the same
-<code>DatasetPtr</code> so calls chain. Setters only store pointers/values — they do <strong>not</strong> copy your buffers.</p>
+<code>DatasetPtr</code> so calls chain. Pointer setters store the supplied buffers without copying them. Value
+setters, such as the structured Pyramid paths overload, keep their own value.</p>
 <pre><code class="language-cpp">auto base = vsag::Dataset::Make()
                 -&gt;Dim(128)
                 -&gt;NumElements(10000)
@@ -402,10 +403,18 @@ payload described below.</p>
 <tr><td><code>ExtraInfoSize(int64_t)</code></td><td><code>GetExtraInfoSize()</code></td><td><code>int64_t</code></td><td>Bytes per extra-info blob.</td></tr>
 <tr><td><code>Paths(const std::string*)</code></td><td><code>GetPaths()</code></td><td><code>const std::string*</code></td><td>Hierarchy paths (Pyramid). Default hierarchy.</td></tr>
 <tr><td><code>Paths(const std::string&amp; hierarchy, const std::string*)</code></td><td><code>GetPaths(const std::string&amp; hierarchy)</code></td><td><code>const std::string*</code></td><td>Paths for a named hierarchy.</td></tr>
+<tr><td><code>Paths(const std::string&amp; hierarchy, std::vector&lt;std::vector&lt;std::string&gt;&gt;)</code></td><td><code>GetPaths(const std::string&amp; hierarchy, std::vector&lt;std::vector&lt;std::string&gt;&gt;&amp; paths)</code></td><td>structured paths</td><td>One or multiple Pyramid paths per element.</td></tr>
 <tr><td><code>SourceID(const std::string*)</code></td><td><code>GetSourceID()</code></td><td><code>const std::string*</code></td><td>Optional stable source identifier per element; HGraph uses it to match build-cache entries across snapshots.</td></tr>
 </tbody>
 </table>
 </div>
+<p>For the structured <code>Paths</code> overload, the outer vector must have exactly <code>NumElements()</code> entries and
+each inner vector must list at least one independent path for that element. An empty inner vector is
+invalid; an inner vector containing one empty string (<code>{""}</code>) assigns the element to the hierarchy
+root. Repeated or shared-prefix paths do not duplicate the vector in a node or in search results.</p>
+<p>The structured container is copied or moved into <code>Dataset</code>, so its lifetime is independent of
+<code>Owner()</code>. The structured <code>GetPaths</code> overload copies either representation into the output container
+and returns <code>false</code> after clearing the output when the hierarchy is absent.</p>
 <p>See <a href="../advanced/attribute_filter.html">Attribute Filter (Hybrid Search)</a>,
 <a href="../advanced/extra_info.html">Extra Info</a>, and
 <a href="../advanced/build_cache.html">HGraph Build Cache</a>.</p>
@@ -432,9 +441,15 @@ if (result.has_value()) {
     }
 }
 </code></pre>
-<p>For KNN, <code>GetNumElements()</code> is <code>1</code> and the ids/distances arrays have length <code>k</code>. For range search,
-the number of matches is reported through the result’s dimension. See
+<p>For single-query KNN, <code>GetNumElements()</code> is <code>1</code> and <code>GetDim()</code> is the actual result count. HGraph
+and IVF batched KNN results are row-major <code>GetNumElements() x GetDim()</code> matrices. HGraph pads short
+rows with <code>id == -1</code> and infinite distance. For range search, the number of matches is reported
+through the result’s dimension. See
 <a href="../guide/knn_search.html">k-Nearest Neighbor Search</a>.</p>
+<p>For HGraph batched KNN, an empty index (including one with all elements removed) returns
+<code>NumElements = query_count</code> and <code>Dim = requested k</code>, with every slot padded by <code>-1</code> and
+<code>+infinity</code>. For a non-empty index, <code>Dim = min(requested k, live element count)</code>; filtering
+can leave padded slots within that width. Single-query empty results retain <code>Dim = 0</code>.</p>
 <h2 id="sparsevector"><a class="header" href="#sparsevector"><code>SparseVector</code></a></h2>
 <pre><code class="language-cpp">struct SparseVector {
     uint32_t len_ = 0;         // number of non-zero entries
@@ -456,6 +471,15 @@ used by indexes that consume raw token order.</p>
 </code></pre>
 <p>When <code>Owner(true)</code> is set, each element’s <code>vectors_</code> must be independently allocated, because the
 destructor frees each <code>vectors_</code> separately.</p>
+<h2 id="named-metadata"><a class="header" href="#named-metadata">Named metadata</a></h2>
+<p><code>UInt32Metadata(name, values)</code> attaches one unsigned integer per dataset element, and
+<code>GetUInt32Metadata</code> returns the named array or <code>nullptr</code>. <code>StringMetadata(name, values)</code> and
+<code>GetStringMetadata(name)</code> provide the equivalent generic named string arrays. SINDI and SINDI_V2
+use string metadata named <code>host</code> for host filtering. Date filtering uses the existing named string-path API with
+<code>Paths("date", values)</code> and <code>GetPaths("date")</code>. A date range on a one-element query dataset uses
+the separate named paths <code>date_begin</code> and <code>date_end</code>; each points to one canonical <code>YYYY</code>,
+<code>YYYY/MM</code>, or <code>YYYY/MM/DD</code> string. These arrays follow the normal Dataset ownership, deep-copy, and
+append rules.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="index_class.html">Index</a> — the methods that consume and return datasets.</li>
@@ -478,6 +502,9 @@ families such as <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>
 <code>binary</code>, and sparse families, never ISA or batch variants.</p>
 <p>The total equals the phase sum. Known backend values equal the total; unknown work is in <code>unknown</code>
 and sets <code>complete</code> to <code>false</code>. Values are unsigned 64-bit JSON integers with saturating addition.
+SINDI and SINDI_V2 omit approximate-phase evaluations to avoid per-posting-ID tracking in their
+search hot paths. Their measured phases remain available, but <code>complete</code> is <code>false</code> when
+approximate evaluations occur.
 Legacy <code>dist_cmp</code> and <code>reorder_distance_count</code> remain available unchanged for compatibility.
 Python preserves <code>(ids, distances)</code> tuple unpacking. Opt in with
 <code>knn_search_with_statistics</code>: the dense overload returns one statistics JSON string, while the

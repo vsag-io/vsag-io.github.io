@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -419,6 +419,28 @@ readers.Set("vectors", vsag::Factory::CreateLocalFileReader("index.vectors", 0, 
 auto fresh = vsag::Factory::CreateIndex("hgraph", params).value();
 fresh-&gt;Deserialize(readers);
 </code></pre>
+<h3 id="optional-prefetch-hints-for-custom-readers"><a class="header" href="#optional-prefetch-hints-for-custom-readers">Optional prefetch hints for custom readers</a></h3>
+<p>A custom reader can additionally inherit from <code>ReaderPrefetcher</code>. This keeps the existing <code>Reader</code>
+ABI unchanged while allowing <code>reader_io</code> to forward best-effort search-time hints:</p>
+<pre><code class="language-cpp">class RemoteReader : public vsag::Reader, public vsag::ReaderPrefetcher {
+public:
+    void Read(uint64_t offset, uint64_t len, void* dest) override;
+    void AsyncRead(uint64_t offset, uint64_t len, void* dest, vsag::CallBack callback) override;
+    uint64_t Size() const override;
+
+    void Prefetch(uint64_t offset, uint64_t len) override {
+        // Optionally enqueue a non-blocking range fetch. Do not let failures escape.
+        remote_cache.TryPrefetch(offset, len);
+    }
+};
+
+vsag::LoadParameters load_parameters;
+load_parameters.Set("precise_io_type", "reader_io")
+    .Set("precise_enable_prefetch_hint", true)
+    .SetReader("precise_reader", std::make_shared&lt;RemoteReader&gt;());
+</code></pre>
+<p>Readers that only implement <code>Reader</code> remain compatible; the enabled hint is then a safe no-op.
+See the runnable <code>examples/cpp/408_feature_reader_prefetch.cpp</code> example.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="index_class.html#serialization">Index</a> — the <code>Serialize</code> / <code>Deserialize</code> method family.</li>

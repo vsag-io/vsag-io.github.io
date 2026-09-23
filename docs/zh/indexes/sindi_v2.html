@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -393,11 +393,21 @@ auto result = index-&gt;KnnSearch(
 <p><code>rerank_layout &gt; 0</code> 要求 <code>use_reorder: true</code>。<code>rerank_type: "dmq8"</code> 要求
 <code>rerank_layout: 0</code>，并使用默认的 <code>block_memory_io</code> 重排后端。</p>
 <h3 id="host-过滤"><a class="header" href="#host-过滤">Host 过滤</a></h3>
-<p>SINDI_V2 支持与 <a href="sindi.html#host-过滤">SINDI</a> 相同的 <code>uint32_t</code> <code>host_id</code> 构建数据和 KNN 查询
+<p>SINDI_V2 支持与 <a href="sindi.html#host-过滤">SINDI</a> 相同的字符串 <code>host</code> 构建数据和 KNN 查询
 metadata 约定。mutable 与 immutable 索引均支持该功能。两者共用 host 分组与路由组件，同时
 SINDI_V2 保持自己的 term-first posting 存储。host 成员检查统一在 posting-window 检索中执行，
-并支持 mutable <code>Add()</code> 产生的多个区间。缺失 host ID <code>0</code>、mutable <code>Add()</code> metadata、streaming
-序列化及仅支持 KNN 的规则均与 SINDI 相同。</p>
+并支持 mutable <code>Add()</code> 产生的多个区间。空字符串缺失 host、持久化内部字典、mutable <code>Add()</code>
+metadata、streaming 序列化及仅支持 KNN 的规则均与 SINDI 相同。</p>
+<h3 id="日期-bucket-过滤"><a class="header" href="#日期-bucket-过滤">日期 bucket 过滤</a></h3>
+<p>SINDI_V2 同样支持 <a href="sindi.html#日期-bucket-过滤">SINDI 的日期 bucket、闭区间输入与层级匹配约定</a>。
+两个索引共用一个 metadata 过滤组件，统一处理仅日期、仅 host 以及日期与 host 组合的 KNN 路由；
+SINDI_V2 仍保留 term-first posting 布局和自己的旧版序列化格式。日期过滤支持 mutable 和
+immutable 索引以及 <code>use_reorder</code> 的任意设置，并由旧版与 streaming 序列化共同保存；范围搜索仍不
+参与过滤。mutable 日期 SINDI_V2 同样是 build-once：只允许通过初次 <code>Build()</code> 或空索引上的第一次
+<code>Add()</code> 写入日期数据，之后拒绝 <code>Add()</code>。base 日期空字符串沿用 SINDI 的缺失日期语义：无日期条件
+和仅 host 查询会包含它们，日期 bucket 和范围查询会排除它们。为了执行精确 bucket 过滤，每个选中
+window 都会关闭 term 级 posting 剪枝，因此日期查询可能比仅 host 查询扫描更多 posting。在启用
+日期的索引上，仅 host 查询也遵循 SINDI 所述的边界 window 行为。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>{"sindi_v2": {...}}</code> 下。</p>
 <div class="table-wrapper">

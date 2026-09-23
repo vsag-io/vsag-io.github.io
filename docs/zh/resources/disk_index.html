@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -399,6 +399,18 @@ direct IO，并针对实际负载对比两种模式。</p>
 <p>如果 VSAG 构建时没有找到 liburing，相同配置仍可加载，但会打印一次性告警并回退到
 <code>buffer_io</code>。回退后功能保持可用，但不具备 io_uring 的提交/完成批处理能力。完整加载示例见
 <code>examples/cpp/325_feature_uring_io.cpp</code>。</p>
+<h3 id="可选的页缓存预取提示"><a class="header" href="#可选的页缓存预取提示">可选的页缓存预取提示</a></h3>
+<p>文件型 IO 参数支持 <code>enable_prefetch_hint</code>（默认 <code>false</code>）。开启后，已有的搜索期 <code>Prefetch</code>
+调用会向操作系统发出尽力而为的提示：<code>buffer_io</code> 与带缓冲的 <code>uring_io</code> 使用文件预读提示，
+<code>mmap_io</code> 使用映射页提示，<code>reader_io</code> 转发到可选的 <code>ReaderPrefetcher::Prefetch</code> hook。
+如果 Reader 没有实现 <code>ReaderPrefetcher</code>，即使开启该参数也只会安全地忽略预取提示，原有读取
+行为保持兼容。远程 Reader 可同时继承 <code>Reader</code> 与 <code>ReaderPrefetcher</code> 来启用此能力；其
+<code>Prefetch</code> 实现应快速返回、将失败视为非致命，并且不得改变后续正式读取结果。该选项仅是
+性能提示，不影响正确性；direct IO 会绕过页缓存，因此忽略此提示。在公开的 HGraph/IVF 构建参数
+或 <code>Index::Load</code> 参数中，精确码使用 <code>reader_io</code> 时通过组件形式
+<code>precise_enable_prefetch_hint: true</code> 开启；可运行示例
+<code>examples/cpp/408_feature_reader_prefetch.cpp</code> 展示了完整配置。频繁提示可能增加调用开销，
+请在真实负载上完成基准测试后再开启。</p>
 <h2 id="推荐配置base-留内存precise-落磁盘"><a class="header" href="#推荐配置base-留内存precise-落磁盘">推荐配置：base 留内存，precise 落磁盘</a></h2>
 <p>最常用的分层方案：内存里保留极为紧凑的 3 位 RaBitQ base 用于遍历，把精度更高的 <code>sq8</code> 副本下沉磁盘，
 并开启 <code>use_reorder</code>，让入围候选用它重排：</p>
@@ -487,7 +499,7 @@ Makefile 也会自动传入 <code>VSAG_ENABLE_LIBAIO=ON</code>；只有当此前
 <h2 id="参见"><a class="header" href="#参见">参见</a></h2>
 <ul>
 <li><a href="../indexes/hgraph.html">HGraph</a>——旗舰索引及其完整参数表</li>
-<li><a href="../quantization/README.html">量化总览</a>——如何选择 base/precise 量化器</li>
+<li><a href="../quantization/">量化总览</a>——如何选择 base/precise 量化器</li>
 <li><a href="best_practices.html">最佳实践</a>——通用生产建议</li>
 <li><a href="../advanced/serialization.html">序列化格式</a>——索引的持久化与加载</li>
 <li><a href="eval.html">性能评估工具</a> 与 <a href="../advanced/optimizer.html">优化器</a>——度量与调优</li>

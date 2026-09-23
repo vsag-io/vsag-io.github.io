@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -392,7 +392,7 @@ using WriteFuncType = std::function&lt;void(OffsetType, SizeType, const void*)&g
 <tr><td><code>Build</code></td><td><code>tl::expected&lt;std::vector&lt;int64_t&gt;, Error&gt; Build(const DatasetPtr&amp; base)</code></td><td><em>（纯虚函数）</em> 从全部向量构建索引。返回插入失败的 id。</td></tr>
 <tr><td><code>Train</code></td><td><code>tl::expected&lt;void, Error&gt; Train(const DatasetPtr&amp; data)</code></td><td>训练索引（如 IVF 聚类中心、量化器）而不插入数据。</td></tr>
 <tr><td><code>Tune</code></td><td><code>tl::expected&lt;bool, Error&gt; Tune(const std::string&amp; parameters, bool disable_future_tuning = false)</code></td><td>应用运行期调优。见 <a href="../advanced/optimizer.html">优化器</a>。</td></tr>
-<tr><td><code>ContinueBuild</code></td><td><code>tl::expected&lt;Checkpoint, Error&gt; ContinueBuild(const DatasetPtr&amp; base, const BinarySet&amp; binary_set)</code></td><td>为无法增量插入的索引提供动态性；用返回的 <a href="#checkpoint"><code>Checkpoint</code></a> 驱动。</td></tr>
+<tr><td><a id="continuebuild"></a><code>ContinueBuild</code></td><td><code>tl::expected&lt;Checkpoint, Error&gt; ContinueBuild(const DatasetPtr&amp; base, const BinarySet&amp; binary_set)</code></td><td>为无法增量插入的索引提供动态性；用返回的 <a href="#checkpoint"><code>Checkpoint</code></a> 驱动。</td></tr>
 <tr><td><code>Add</code></td><td><code>tl::expected&lt;std::vector&lt;int64_t&gt;, Error&gt; Add(const DatasetPtr&amp; base)</code></td><td>向已构建的索引插入新向量。返回插入失败的 id。</td></tr>
 </tbody>
 </table>
@@ -405,7 +405,7 @@ using WriteFuncType = std::function&lt;void(OffsetType, SizeType, const void*)&g
 <tr><th>方法</th><th>签名</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Remove</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Remove(const std::vector&lt;int64_t&gt;&amp; ids, RemoveMode mode = RemoveMode::MARK_REMOVE)</code></td><td>删除多个 id；返回被删除的数量。</td></tr>
+<tr><td><a id="remove"></a><code>Remove</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Remove(const std::vector&lt;int64_t&gt;&amp; ids, RemoveMode mode = RemoveMode::MARK_REMOVE)</code></td><td>删除多个 id；返回被删除的数量。</td></tr>
 <tr><td><code>Remove</code></td><td><code>tl::expected&lt;uint32_t, Error&gt; Remove(int64_t id, RemoveMode mode = RemoveMode::MARK_REMOVE)</code></td><td>单 id 便捷重载。</td></tr>
 <tr><td><code>UpdateId</code></td><td><code>tl::expected&lt;bool, Error&gt; UpdateId(int64_t old_id, int64_t new_id)</code></td><td>为一个基础点重新打标签。</td></tr>
 <tr><td><code>UpdateVector</code></td><td><code>tl::expected&lt;bool, Error&gt; UpdateVector(int64_t id, const DatasetPtr&amp; new_base, bool force_update = false)</code></td><td>替换 <code>id</code> 对应的向量。<code>force_update = false</code> 会执行连通性检查。</td></tr>
@@ -420,7 +420,8 @@ using WriteFuncType = std::function&lt;void(OffsetType, SizeType, const void*)&g
 <p>推荐的入口是 <a href="#searchwithrequest"><code>SearchWithRequest</code></a>，它接收单个
 <a href="search.html#searchrequest"><code>SearchRequest</code></a>，其中携带查询、模式、top-k / 半径以及各类过滤器。较旧的
 逐参数 <code>KnnSearch</code> / <code>RangeSearch</code> 重载为兼容性保留。</p>
-<p>每次搜索都返回一个 <code>DatasetPtr</code>：对 KNN，<code>num_elements == 1</code>，<code>ids</code> / <code>distances</code> 长度为 <code>k</code>；对范围
+<p>每次搜索都返回一个 <code>DatasetPtr</code>：单查询 KNN 的 <code>num_elements == 1</code>；HGraph 和 IVF 还支持批量 KNN，
+返回按行主序排列的 <code>num_elements x dim</code> 矩阵。HGraph 的不足项以 <code>id == -1</code> 和无穷距离填充。对范围
 搜索，结果长度即命中数。如何读取结果见 <a href="dataset.html">Dataset</a>。</p>
 <h3 id="searchwithrequest"><a class="header" href="#searchwithrequest"><code>SearchWithRequest</code></a></h3>
 <pre><code class="language-cpp">[[nodiscard]] tl::expected&lt;DatasetPtr, Error&gt;
@@ -484,7 +485,7 @@ tl::expected&lt;DatasetPtr, Error&gt;
 RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; parameters,
             const FilterPtr&amp; filter, int64_t limited_size = -1) const;
 </code></pre>
-<p><code>radius</code> 限定距离上界；<code>limited_size</code> 限制结果数量（<code>&lt;= 0</code> 表示不限，<code>0</code> 为错误）。见
+<p><code>radius</code> 限定距离上界；<code>limited_size</code> 限制结果数量（<code>&lt; 0</code> 表示不限，<code>0</code> 为错误）。见
 <a href="../advanced/range_search.html">范围搜索</a> 与 <code>examples/cpp/302_feature_range_search.cpp</code>。</p>
 <h2 id="按-id-计算距离"><a class="header" href="#按-id-计算距离">按 id 计算距离</a></h2>
 <div class="table-wrapper">
@@ -495,9 +496,9 @@ RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; pa
 <tbody>
 <tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const float* vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>稠密查询到已存向量 <code>id</code> 的距离。</td></tr>
 <tr><td><code>CalcDistanceById</code></td><td><code>tl::expected&lt;float, Error&gt; CalcDistanceById(const DatasetPtr&amp; vector, int64_t id, bool calculate_precise_distance = true) const</code></td><td>同上，接收 <code>DatasetPtr</code>（适用于 SINDI 等稀疏索引）。</td></tr>
-<tr><td><code>CalcDistancesById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalcDistancesById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>规范的批量版本；<code>topk &gt; 0</code> 时返回按距离升序排列的最小距离及对应 ID，无效 <code>-1</code> 距离排在最后。</td></tr>
+<tr><td><code>CalcDistancesById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalcDistancesById(const float* query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>规范的批量版本；<code>topk &gt; 0</code> 时返回按距离升序排列的最小距离及对应 ID，缺失 ID 排在最后（有效距离也可能是负数）。</td></tr>
 <tr><td><code>CalcDistancesById</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; CalcDistancesById(const DatasetPtr&amp; query, const int64_t* ids, int64_t count, bool calculate_precise_distance = true, int64_t topk = -1) const</code></td><td>规范的 <code>DatasetPtr</code> 查询批量版本。<code>query-&gt;GetNumElements() &gt; 1</code> 时索引需声明 <code>SUPPORT_BATCH_CALC_DISTANCE_BY_ID</code>；<code>ids</code> 包含 <code>NumElements * count</code> 个 row-major 条目。<code>topk &gt; 0</code> 时每个 query 返回 <code>min(topk, count)</code> 个排序距离及对应 ID。</td></tr>
-<tr><td><code>CalDistanceById</code></td><td>与 <code>CalcDistancesById</code> 相同的签名</td><td>已弃用的兼容别名；新代码请使用 <code>CalcDistancesById</code>。</td></tr>
+<tr><td><code>CalDistanceById</code></td><td>与 <code>CalcDistancesById</code> 相同的签名</td><td>已弃用的公共转发别名，调用正式虚函数 <code>CalcDistancesById</code>；新实现应覆盖正式名称。参见<a href="../advanced/calc_distance_by_id.html">实现迁移说明</a>。</td></tr>
 </tbody>
 </table>
 </div>
@@ -528,7 +529,7 @@ RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; pa
 <tr><td><code>GetExtraInfoByIds</code></td><td><code>tl::expected&lt;void, Error&gt; GetExtraInfoByIds(const int64_t* ids, int64_t count, char* extra_infos) const</code></td><td>把 <code>ids</code> 的 extra-info 数据块拷贝到调用方提供的缓冲区。</td></tr>
 <tr><td><code>GetRawVectorByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetRawVectorByIds(const int64_t* ids, int64_t count, Allocator* specified_allocator = nullptr) const</code></td><td>返回已存向量。其值<em>接近</em>原始值，但不保证逐位一致（量化/精度）。</td></tr>
 <tr><td><code>GetDataByIds</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIds(const int64_t* ids, int64_t count) const</code></td><td>返回实现默认提供的已存字段；可选字段可能需要显式选择。</td></tr>
-<tr><td><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>通过 <a href="#数据选择标志"><code>DATA_FLAG_*</code></a> 选择支持的字段。Pyramid 路径需要同时设置 <code>store_paths: true</code> 和 <code>DATA_FLAG_PATH</code>。</td></tr>
+<tr><td><a id="getdatabyidswithflag"></a><code>GetDataByIdsWithFlag</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; GetDataByIdsWithFlag(const int64_t* ids, int64_t count, uint64_t selected_data_flag) const</code></td><td>通过 <a href="#数据选择标志"><code>DATA_FLAG_*</code></a> 选择支持的字段。Pyramid 路径需要同时设置 <code>store_paths: true</code> 和 <code>DATA_FLAG_PATH</code>。</td></tr>
 <tr><td><code>GetIndexDetailInfos</code></td><td><code>tl::expected&lt;std::vector&lt;IndexDetailInfo&gt;, Error&gt; GetIndexDetailInfos() const</code></td><td>列出可自省的细节字段。见 <a href="types.html#索引细节信息"><code>IndexDetailInfo</code></a>。</td></tr>
 <tr><td><code>GetDetailDataByName</code></td><td><code>tl::expected&lt;DetailDataPtr, Error&gt; GetDetailDataByName(const std::string&amp; name, IndexDetailInfo&amp; info) const</code></td><td>按名称获取一份细节数据负载。</td></tr>
 </tbody>
@@ -542,8 +543,8 @@ RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; pa
 <tr><th>方法</th><th>签名</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>CheckFeature</code></td><td><code>bool CheckFeature(IndexFeature feature) const</code></td><td>探测某个可选能力是否受支持。见 <a href="types.html#indexfeature"><code>IndexFeature</code></a>。</td></tr>
-<tr><td><code>Merge</code></td><td><code>tl::expected&lt;void, Error&gt; Merge(const std::vector&lt;MergeUnit&gt;&amp; merge_units)</code></td><td>合并同类型子索引并进行 id 重映射。见 <a href="#mergeunit-与-idmapfunction"><code>MergeUnit</code></a>。</td></tr>
+<tr><td><a id="checkfeature"></a><code>CheckFeature</code></td><td><code>bool CheckFeature(IndexFeature feature) const</code></td><td>探测某个可选能力是否受支持。见 <a href="types.html#indexfeature"><code>IndexFeature</code></a>。</td></tr>
+<tr><td><a id="merge"></a><code>Merge</code></td><td><code>tl::expected&lt;void, Error&gt; Merge(const std::vector&lt;MergeUnit&gt;&amp; merge_units)</code></td><td>合并同类型子索引并进行 id 重映射。见 <a href="#mergeunit-与-idmapfunction"><code>MergeUnit</code></a>。</td></tr>
 <tr><td><code>Clone</code></td><td><code>tl::expected&lt;IndexPtr, Error&gt; Clone(const std::shared_ptr&lt;Allocator&gt;&amp; allocator = nullptr) const</code></td><td>深拷贝索引。</td></tr>
 <tr><td><code>ExportModel</code></td><td><code>tl::expected&lt;IndexPtr, Error&gt; ExportModel() const</code></td><td>返回一个只携带已训练模型的空索引。</td></tr>
 <tr><td><code>ExportIDs</code></td><td><code>tl::expected&lt;DatasetPtr, Error&gt; ExportIDs() const</code></td><td>以 dataset 形式返回全部 id。</td></tr>
@@ -560,7 +561,7 @@ RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; pa
 <tr><th>方法</th><th>签名</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>Serialize</code></td><td><code>tl::expected&lt;BinarySet, Error&gt; Serialize() const</code></td><td><em>（纯虚函数）</em> 序列化为内存中的 <a href="serialization.html#binaryset"><code>BinarySet</code></a>。</td></tr>
+<tr><td><a id="serialize"></a><code>Serialize</code></td><td><code>tl::expected&lt;BinarySet, Error&gt; Serialize() const</code></td><td><em>（纯虚函数）</em> 序列化为内存中的 <a href="serialization.html#binaryset"><code>BinarySet</code></a>。</td></tr>
 <tr><td><code>Serialize</code></td><td><code>tl::expected&lt;void, Error&gt; Serialize(WriteFuncType write_func) const</code></td><td>通过 <a href="#writefunctype"><code>WriteFuncType</code></a> 落盘回调流式输出序列化结果。</td></tr>
 <tr><td><code>Serialize</code></td><td><code>tl::expected&lt;void, Error&gt; Serialize(std::ostream&amp; out_stream)</code></td><td>序列化到一个已打开的输出流。</td></tr>
 <tr><td><code>Deserialize</code></td><td><code>tl::expected&lt;void, Error&gt; Deserialize(const BinarySet&amp; binary_set)</code></td><td><em>（纯虚函数）</em> 从 <code>BinarySet</code> 恢复。索引非空时失败。</td></tr>
@@ -594,7 +595,7 @@ RangeSearch(const DatasetPtr&amp; query, float radius, const std::string&amp; pa
 <tr><th>方法</th><th>签名</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>GetIndexType</code></td><td><code>IndexType GetIndexType() const</code></td><td>不支持时<strong>抛出</strong>。</td></tr>
+<tr><td><a id="getindextype"></a><code>GetIndexType</code></td><td><code>IndexType GetIndexType() const</code></td><td>不支持时<strong>抛出</strong>。</td></tr>
 <tr><td><code>GetNumElements</code></td><td><code>int64_t GetNumElements() const</code></td><td><em>（纯虚函数）</em> 存活元素数。</td></tr>
 <tr><td><code>GetNumberRemoved</code></td><td><code>int64_t GetNumberRemoved() const</code></td><td>不支持时<strong>抛出</strong>。已删除元素数。</td></tr>
 <tr><td><code>GetMemoryUsage</code></td><td><code>int64_t GetMemoryUsage() const</code></td><td><em>（纯虚函数）</em> 索引占用的字节数。</td></tr>

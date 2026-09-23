@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -328,14 +328,16 @@ index without needing query data. For graph-based indexes, additional graph-heal
 as degree distribution, entry-point quality, sub-index recall and low-recall hot-spots are
 exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBySearch</code>.</p>
 <p>Pyramid query analysis follows the same path-scoping rules as <code>KnnSearch</code>. For the default
-hierarchy, attach one path per query with <code>Dataset::Paths</code>. For a named hierarchy, attach paths
-with <code>Dataset::Paths(hierarchy_name, paths)</code> and select that hierarchy in the Pyramid search
-parameters. A path is required when the selected hierarchy’s root is <code>NO_INDEX</code>. Batched query
-datasets must provide a corresponding path for every query when paths are required or supplied.
-Pyramid calculates ground truth only from vectors eligible for each query’s hierarchy and path,
-excluding mark-removed vectors. Pyramid query analysis currently supports KNN requests only and
-uses <code>query_</code>, <code>topk_</code>, and <code>params_str_</code> from <code>SearchRequest</code>; filtered and iterator requests are
-not supported. Run analysis against a stable index without concurrent add or remove operations.</p>
+hierarchy, attach paths with <code>Dataset::Paths</code>. For a named hierarchy, use
+<code>Dataset::Paths(hierarchy_name, paths)</code> and select that hierarchy in the Pyramid search parameters.
+A path is required when the selected hierarchy’s root is <code>NO_INDEX</code>. In a batched query dataset,
+the outer path collection has one row per query. The legacy overload stores one path string per
+row and interprets <code>|</code> as a union; the structured overload stores one or many atomic paths
+per row and treats <code>|</code> as an ordinary path character. Pyramid calculates ground truth only from
+vectors eligible for each query’s hierarchy and path union, excluding mark-removed vectors.
+Pyramid query analysis currently supports KNN requests only and uses <code>query_</code>, <code>topk_</code>, and
+<code>params_str_</code> from <code>SearchRequest</code>; filtered and iterator requests are not supported. Run analysis
+against a stable index without concurrent add or remove operations.</p>
 <h3 id="static-metrics-from-getstats"><a class="header" href="#static-metrics-from-getstats">Static metrics from <code>GetStats()</code></a></h3>
 <h4 id="hgraph-metrics"><a class="header" href="#hgraph-metrics">HGraph metrics</a></h4>
 <div class="table-wrapper">

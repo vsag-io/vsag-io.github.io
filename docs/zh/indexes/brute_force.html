@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -322,7 +322,7 @@ top-k —— 没有图遍历、没有倒排表、不做近似。它的主要用�
 <li><strong>Search。</strong> 针对每条查询，按照配置的 <code>metric_type</code>（<code>l2</code>、<code>ip</code> 或 <code>cosine</code>）逐条计算
 距离，再用 top-k 小顶堆得到最近邻 id。距离计算使用 SIMD 内核，并支持<strong>单查询内并行</strong>：
 通过 <code>parallelism</code> 搜索参数可以把同一条查询的扫描拆分到多个线程上（实现见
-<code>BruteForce::SearchWithRequest</code>，<code>src/algorithm/brute_force.cpp</code>）。</li>
+<code>BruteForce::SearchWithRequest</code>，<code>src/algorithm/bruteforce/bruteforce.cpp</code>）。</li>
 </ol>
 <p>由于索引保留了每一条向量（除非选择了有损量化器），当 <code>base_quantization_type = fp32</code> 时
 结果是<strong>完全精确的</strong>，因此 <code>eval_performance</code> 工具默认用 BruteForce 作为生成 ground truth 的
@@ -363,7 +363,7 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> —— 各量化器细节见<a href="../quantization/README.html">量化章节</a></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> —— 各量化器细节见<a href="../quantization/">量化章节</a></td></tr>
 <tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>启用属性过滤（参见 <a href="../advanced/attribute_filter.html">属性过滤</a>）</td></tr>
 <tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td>扩容批次 slot 数的 <code>log2</code>，取值范围为 <code>1</code> 到 <code>31</code>。<code>1</code> 表示每次按 2 个 slot 对齐，<code>10</code> 表示按 1024 个 slot 对齐。较小取值减少预分配，但可能增加重分配次数。</td></tr>
 </tbody>
@@ -436,7 +436,7 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id3, id4}, vsag::RemoveMode::FORCE_R
 操作系统，也不保证 RSS 立即下降。</p>
 <h2 id="索引能力"><a class="header" href="#索引能力">索引能力</a></h2>
 <p>BruteForce 声明的能力标志如下（参见 <code>BruteForce::InitFeatures</code>，
-<code>src/algorithm/brute_force.cpp</code>）：</p>
+<code>src/algorithm/bruteforce/bruteforce.cpp</code>）：</p>
 <div class="table-wrapper">
 <table>
 <thead>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -346,6 +346,47 @@
 </table>
 </div>
 <p>启用 <code>use_attribute_filter</code> 后，BruteForce 暂不支持 <code>Remove</code>（如需删除请重建索引）。</p>
+<h2 id="复用已解析表达式"><a class="header" href="#复用已解析表达式">复用已解析表达式</a></h2>
+<p>相同条件的重复请求可以先使用索引 schema 解析，再通过 <code>SearchRequest::expression_</code> 传入：</p>
+<pre><code class="language-cpp">auto expression = vsag::AstParse("age &gt;= 18", index-&gt;GetAttrTypeSchema());
+vsag::SearchRequest request;
+request.enable_attribute_filter_ = true;
+request.expression_ = expression;
+// 按原有方式设置 query_、topk_ 和索引搜索参数。
+</code></pre>
+<p>在 IVF、HGraph 和 BruteForce 中，非空 <code>expression_</code> 优先于 <code>attribute_filter_str_</code>；仍需启用属性过滤。
+共享表达式在请求使用期间应视为不可变对象。schema 指针由索引持有，不得在索引销毁后继续使用，也不要通过该指针修改 schema。
+请求和索引接口发生变化，预编译的 C++ 客户端必须重新编译。</p>
+<h2 id="region-filter"><a class="header" href="#region-filter">Region filter</a></h2>
+<p>迁移自 <code>ads</code> 分支的专用谓词用于 FastBitset 属性索引：</p>
+<pre><code class="language-text">region_filter(region_type, region_list, residence_tag_list, "10|20", "30", "40")
+</code></pre>
+<p>前三个参数分别指定类型、地域、常住地字段，后三个参数分别是地域、常住地和触发值的整数列表。
+触发值查询的是<strong>常住地字段</strong>，不是第四个字段。与旧 <code>ads</code> 实现不同，执行时使用传入的字段名，不再硬编码字段名称。</p>
+<p>令 R、H、T 分别表示地域、常住地和触发值匹配，按类型值决定是否接受：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>类型</th><th>条件</th></tr>
+</thead>
+<tbody>
+<tr><td>-1</td><td>直接接受</td></tr>
+<tr><td>0</td><td>T OR (R AND H)</td></tr>
+<tr><td>1</td><td>H</td></tr>
+<tr><td>2</td><td>R</td></tr>
+<tr><td>3</td><td>R OR H</td></tr>
+<tr><td>4</td><td>R AND H</td></tr>
+<tr><td>5</td><td>R AND NOT H</td></tr>
+</tbody>
+</table>
+</div>
+<p>未出现的值对应空匹配；其他类型值没有接受分支。字段不存在或类型不兼容会报错。
+该专用 executor 不支持非 FastBitset 属性存储，可以与普通 AND/OR/NOT 条件组合。</p>
+<p>类型字段必须是能表示 -1 的有符号整数。地域和常住地字段可使用有符号或无符号整数；查询值必须同时满足字段类型和有符号 64 位输入范围，越界时报错而不是截断。</p>
+<p><code>FUNCTION(name,"arg1|arg2","type1|type2")</code> 仅为兼容 <code>ads</code> 保留语法和 AST，<strong>不提供</strong>回调注册或搜索时函数执行能力；将此类表达式传给 executor 不受支持。</p>
+<h3 id="更新时引入字段"><a class="header" href="#更新时引入字段">更新时引入字段</a></h3>
+<p>对于 IVF 的 bucket 属性索引，同时接收新旧属性的更新重载可引入之前不存在的字段：创建值映射并记录字段类型，序列化会保留这些内容。
+已有字段类型必须一致：新属性或原属性类型不匹配时，会在删除任何 posting 前拒绝更新，也不会覆盖已有 schema 类型。这不改变其他属性更新重载的行为。</p>
 <h2 id="属性数据模型"><a class="header" href="#属性数据模型">属性数据模型</a></h2>
 <p>属性按向量定义，组织成 <code>AttributeSet</code>（<code>include/vsag/attribute.h</code>）。每个属性包含：</p>
 <ul>
@@ -541,7 +582,7 @@ auto status = index-&gt;UpdateAttribute(/*id=*/123, new_attrs);
 <h2 id="测试用例参考"><a class="header" href="#测试用例参考">测试用例参考</a></h2>
 <p>最完整的使用示例在测试套件中：</p>
 <ul>
-<li><code>tests/test_index.cpp</code> 中的 <code>TestIndex::TestWithAttr</code>：构建属性、用 <code>SearchRequest</code> 查询，
+<li><code>tests/test_index/test_index_misc.cpp</code> 中的 <code>TestIndex::TestWithAttr</code>：构建属性、用 <code>SearchRequest</code> 查询，
 以及 <code>UpdateAttribute</code> 后再次查询。</li>
 <li><code>tests/fixtures/data/vector_generator.cpp</code> 中的 <code>generate_attributes</code>：演示如何按程序化方式
 构造混合类型的 <code>AttributeSet*</code> 数组。</li>

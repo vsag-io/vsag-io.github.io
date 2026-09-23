@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -377,10 +377,10 @@ the PCA, base/query bit, and FHT keys for its base quantizer. The
 <code>use_fht</code> key and is rewritten by the index layer.
 <code>fast_encode_rabitq</code> and <code>fast_encode_rabitq_rounds</code> are available on HGraph,
 IVF, and Pyramid and are propagated to both base and precise RaBitQ quantizers.</p>
-<p>For a normal first HGraph build with split RaBitQ and <code>fast_encode_rabitq=true</code>,
-HGraph first encodes all vectors into one unsigned-byte scalar code per dimension, together
+<p>For a normal first HGraph or Pyramid build with split RaBitQ and <code>fast_encode_rabitq=true</code>,
+the index first encodes all vectors into one unsigned-byte scalar code per dimension, together
 with the standard RaBitQ metadata and a separate 8-byte code sum per vector. It waits for
-that parallel encoding phase before starting graph tasks. Those tasks use scalar SIMD kernels
+the encoding phase before starting graph tasks. Those tasks use scalar SIMD kernels
 for code-code distances; the raw inner-product kernels are independent of the configured
 <code>x+y</code> bit count, while the quantizer still applies the matching quantization range and
 center. After construction, the scalar codes are packed
@@ -389,6 +389,7 @@ rerunning PCA, ROM/FHT, or RaBitQ quantization. The temporary scalar records and
 are released before <code>Build</code> returns. For an 8-bit total code the scalar and packed
 payloads have the same size; lower total bit counts trade extra build memory for faster
 graph-distance evaluation.</p>
+<p>Pyramid also uses the scalar SIMD build path described above for ordinary initial <code>Build</code> calls (NSW and ODescent), including <code>3+5</code> split configurations. Construction uses symmetric distances from the full <code>x+y</code>-bit codes, then packs filter/supplement records once and releases temporary storage. Setting <code>fast_encode_rabitq=false</code> selects the existing build path. Builds that use an imported Build Cache and subsequent <code>Add</code> calls do not enable this temporary build mode. Pyramid encodes in parallel when storage is preallocated and the IO supports it, and sequentially otherwise; both cases use scalar SIMD graph distances. Pyramid does not require the HGraph-only <code>rabitq_fused_datacell</code> option.</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -443,7 +444,7 @@ significantly higher recall than pure 1-bit when using more total bits.</li>
 <li><a href="../advanced/quantization_transform.html">Transform Quantizer</a></li>
 <li><a href="../indexes/hgraph.html">HGraph index</a></li>
 <li><a href="rabitq_split.html">RaBitQ x+y Split</a></li>
-<li><a href="README.html">Quantization overview</a></li>
+<li><a href="./">Quantization overview</a></li>
 </ul>
 
                     </main>

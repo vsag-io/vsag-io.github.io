@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -306,11 +306,30 @@
                     <main>
                         <h1 id="building"><a class="header" href="#building">Building</a></h1>
 <p>This page documents how to build VSAG from source.</p>
+<h2 id="build-phase-and-cache-reporting"><a class="header" href="#build-phase-and-cache-reporting">Build phase and cache reporting</a></h2>
+<p>The collector preserves Ninja history for clean, warm-cache, and unchanged no-op phases.
+A no-op is verified only when available Ninja telemetry records zero build edges and the
+command succeeds; missing telemetry is explicitly unverified. Every observed category,
+including nested production modules such as datacell, tools, examples, and unclassified
+work, appears in JSON and Markdown. Multi-output edges count once. Cumulative edge time
+sums overlapping parallel durations and is not wall time; nested ExternalProject work
+is included in its parent edge rather than individually timed.</p>
+<p>Cacheable-request hit rate is <code>hits / (hits + misses)</code>. Available uncacheable reasons,
+including <code>could_not_use_precompiled_header</code>, are reported separately; missing counters
+and zero denominators are <code>null</code> in JSON and <code>n/a</code> in Markdown. Overall cache coverage is
+unavailable because compiler invocations bypassing ccache are not measured. Raw counters
+remain in JSON. This reporting does not change PCH or cache correctness settings.</p>
+<p>Dependency preparation timers cover source preparation and archive restoration before
+configure, not all dependency work: further downloads, configuration, compilation and
+installation occur in configure/build phases. Peak RSS from <code>/usr/bin/time -v</code> is the
+maximum resident set size reported for the timed command and waited-for children, not
+the sum of simultaneously resident build processes.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
 <li><strong>OS</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 14+ on Apple Silicon</li>
 <li><strong>Compiler</strong>: GCC 9.4.0+, Clang 13.0.0+, or Apple Clang from Xcode Command Line Tools</li>
 <li><strong>CMake</strong>: 3.18.0+</li>
+<li><strong>Ninja</strong>: preferred when available; Unix Makefiles are used as the fallback</li>
 <li><strong>clang-format / clang-tidy</strong>: exactly version 15 (enforced)</li>
 <li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for the <code>async_io</code> data-cell backend),
 liburing (for <code>uring_io</code> on Linux), Intel MKL.</li>
@@ -337,6 +356,43 @@ dist-cxx11-abi      Build redistributable tarball (C++11 ABI)
 dist-libcxx         Build redistributable tarball (libc++)
 clean       Remove build trees
 </code></pre>
+<p>These targets prefer Ninja when a usable <code>ninja</code> executable is available. Otherwise they fall back
+to Unix Makefiles. An explicit generator always wins; for example, use
+<code>make debug CMAKE_GENERATOR='Unix Makefiles'</code> to request the fallback directly. Because CMake build
+trees are generator-specific, run the matching clean target before changing the generator for an
+existing build directory.</p>
+<p>For configure/build targets, pass <code>DEBUG_BUILD_DIR</code> as a plain path, for example
+<code>make asan DEBUG_BUILD_DIR="custom build"</code>. The shell removes these command-line quotes;
+the recipes quote the path when invoking CMake. Do not embed literal quote characters in the variable.</p>
+<h2 id="dependency-size-metrics"><a class="header" href="#dependency-size-metrics">Dependency size metrics</a></h2>
+<p>The build metrics JSON uses schema version 3. Each dependency’s <code>local_bytes</code> (the Markdown
+report’s <strong>Local size</strong>) is an aggregate of file sizes, not allocated disk space. It replaces
+<code>source_bytes</code> and <code>build_bytes</code>: HDF5 and OpenBLAS build in their source trees, and ANTLR4’s
+binary directory is nested under its source tree, so those categories cannot be separated reliably.</p>
+<p>For ExternalProject dependencies, the aggregate counts the entire dependency prefix once,
+including source, build, install, and any metadata inside that prefix. Shared <code>BUILD_INFO_DIR</code>
+files (by default <code>.vsag-build-info</code>: temporary files, stamps, logs, and metadata) are excluded
+from both <code>local_bytes</code> and the preparation table’s <code>external_build_bytes</code>; neither measures all
+ExternalProject storage. For FetchContent dependencies, it
+sums the sibling <code>&lt;name&gt;-src</code> and <code>&lt;name&gt;-build</code> trees. Symlink entries are excluded. Separately
+cached ExternalProject archives are reported in the preparation table, not added to <code>local_bytes</code>.
+System dependencies show zero because host installations are not measured; unclassified or missing
+trees also contribute zero. This is a snapshot of the measured local trees, not a source-only size
+or a measurement of generated build artifacts alone.</p>
+<h2 id="pr-asan-builds-and-standalone-build-benchmarks"><a class="header" href="#pr-asan-builds-and-standalone-build-benchmarks">PR ASan builds and standalone build benchmarks</a></h2>
+<blockquote>
+<p><strong>Legacy no-op measurements are not trustworthy until <a href="https://github.com/antgroup/vsag/pull/2899">#2899</a>.</strong> The standalone workflow deliberately fails its preflight on collectors without the supported schema 3 <code>true_noop</code> reporting. Separating PR builds does not itself fix the collector. While the prerequisite is unmerged, scheduled runs fail clearly instead of publishing misleading legacy baselines.</p>
+</blockquote>
+<p>PR CI’s <strong>ASan Build X86</strong> runs one <code>make asan COMPILE_JOBS=3</code>, with Ninja, compile commands, system OpenBLAS, examples and tools enabled. The Makefile still enables tests, Sanitize and ASan/UBSan; changed-source lint, downstream tests, compatibility checks and build artifacts retain their existing contracts. <code>ccache --zero-stats</code> resets counters, <strong>not cached objects</strong>. The build step logs elapsed time, and an always-run step prints verbose/fallback cache diagnostics without hiding a build failure. ccache stays enabled in its default directory on the disposable GitHub-hosted VM; no compiler cache is restored or saved between jobs. PR X86 dependency archives intentionally change from restore-and-save to <strong>restore-only</strong> (<code>actions/cache/restore@v4</code>), preventing PR contexts from writing archives back to the shared cache; this policy is not limited to the standalone benchmark.</p>
+<p>The separate <strong>Build Performance Benchmark</strong> workflow (<code>.github/workflows/build_performance.yml</code>) runs weekly on Mondays at 03:23 UTC on upstream <code>main</code>, or manually from Actions. It is not a PR required check and uses separate concurrency, an Ubuntu 22.04 hosted runner, a 180-minute timeout and 14-day report retention. Once the workflow is on the default branch, for example:</p>
+<pre><code class="language-bash">gh workflow run build_performance.yml --ref main -f ref=main
+# Or use a full 40-character commit SHA reachable from this repository's main:
+gh workflow run build_performance.yml --ref main -f ref=&lt;full-main-history-sha&gt;
+</code></pre>
+<p>The workflow must itself be dispatched from <code>main</code> (other workflow branches are skipped). It explicitly checks out <code>antgroup/vsag</code> upstream <code>main</code>, accepts only <code>main</code> or a full SHA in that fetched upstream history, and records the actual checked-out SHA (not the dispatch event SHA) and the main baseline in <code>target.txt</code>. PR refs, arbitrary branches and unmerged feature commits are intentionally rejected. Therefore a draft migration branch cannot benchmark itself through this entry point; hosted dispatch and end-to-end validation remain pending until the workflow and supported collector are available on main. Scheduled execution is disabled on forks.</p>
+<p>Security is deliberately conservative: read-only contents permission, no business secrets, no persisted checkout credentials, quoted environment input with SHA/ancestry validation, and a fixed workflow-owned Ubuntu package list instead of privileged installation scripts from the selected ref. Packages match the PR’s OpenBLAS-only host setup; keep these lists synchronized. Dependencies are checked out at pinned revisions by the existing composite action; download archives are restored <strong>without saving</strong>. There is no compiler-cache restore/save. The fresh benchmark job owns <code>build/</code> and <code>.benchmark-ccache</code>; <code>--clear-ccache</code> never touches the normal PR cache. Default <code>build/</code> retains compatibility with the existing collector/Makefile API.</p>
+<p>“Cold” means a clean build with an empty <strong>compiler cache</strong>, not a cold network or dependency-source download. The collector’s existing CLI measures configure → cold build → clean → warm ccache rebuild → no-op without another clean between warm and no-op. Reports include JSON, Markdown, phase logs, peak RSS, Ninja statistics and ccache details; <code>toolchain.txt</code> records tool versions and actual workflow environment values, while <code>collector-command.txt</code> records the shell-escaped collector invocation executed by the workflow. The collector’s phase logs remain authoritative for the underlying build commands/options; dependency preparation time/cache metadata remain in its report. The compiler-cache key is descriptive metadata, not evidence of restored cache. Parallel cumulative edge time is not wall time, and cache hit rates do not cover bypassed/PCH/link work; missing telemetry must not be read as zero.</p>
+<p>The preflight checks the known schema 3 capability without executing the collector; it is not a proof of measurement correctness. After collection, the workflow additionally requires success, available Ninja telemetry, <code>true_noop: true</code> and zero build edges. #2899 can report a false no-op without failing collection, so this workflow fails such runs and preserves their raw reports for diagnosis. Residual generated/check edges require inspecting the logs and the collector’s build-edge classification. Unknown future schemas fail closed until reviewed. This trades temporary red/absent baselines for avoiding confidently mislabeled measurements; do not bypass the gate to restore legacy reports. Recheck #2899’s final API and tests after merge, including missing logs, rewritten history, multi-output edges and source/header rebuilds. This migration does not modify the collector, PCH, compiler flags or persistent caching.</p>
 <h2 id="step-by-step"><a class="header" href="#step-by-step">Step-by-Step</a></h2>
 <pre><code class="language-bash">git clone https://github.com/antgroup/vsag.git
 cd vsag
@@ -366,6 +422,7 @@ cache options (<code>ENABLE_*</code>). Defaults below reflect a plain <code>make
 <tr><td><code>VSAG_ENABLE_TOOLS</code></td><td><code>ENABLE_TOOLS</code></td><td><code>OFF</code></td><td>Build utilities under <code>tools/</code></td></tr>
 <tr><td><code>VSAG_ENABLE_EXAMPLES</code></td><td><code>ENABLE_EXAMPLES</code></td><td><code>OFF</code></td><td>Build sample programs under <code>examples/cpp/</code></td></tr>
 <tr><td>n/a</td><td><code>ENABLE_LIBURING</code></td><td><code>OFF</code></td><td>Enable the Linux <code>uring_io</code> backend when liburing is installed</td></tr>
+<tr><td>n/a</td><td><code>ENABLE_CUDA</code></td><td><code>OFF</code></td><td>Build the optional CUDA backend; requires an NVIDIA toolkit</td></tr>
 <tr><td>n/a</td><td><code>CMAKE_BUILD_TYPE</code></td><td>driven by Makefile target</td><td>Debug / Release</td></tr>
 </tbody>
 </table>

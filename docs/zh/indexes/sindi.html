@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -423,39 +423,84 @@ auto result = index-&gt;KnnSearch(
 提交时的 Sparse4M FP16 实测中，构建峰值内存从 27.03 GB 降到 6.08 GB（降低 77.51%），
 构建时间则从约 330 秒增加到 599 秒。这些数字是特定负载的实测证据，不是容量保证。</p>
 <p>不可变运行态支持 KNN、范围搜索以及旧版 <code>Serialize</code>/<code>Deserialize</code>。它不支持增量
-<code>Add</code>、<code>GetSparseVectorByInnerId</code>、<code>CalcDistanceById</code> 与 <code>CalDistanceById</code>。
+<code>Add</code> 与 <code>GetSparseVectorByInnerId</code>。支持单 ID <code>CalcDistanceById</code> 和批量
+<code>CalcDistancesById</code>（包括旧名 <code>CalDistanceById</code>），详见<a href="../advanced/calc_distance_by_id.html">按 ID 计算距离</a>。
 mutable 和 immutable 运行态均支持 <code>SerializeStreaming</code>、<code>DeserializeStreaming</code> 与
 <code>Index::Load</code>。
 反序列化时，新建 SINDI 的 <code>immutable</code> 设置必须与存储格式一致。
 新索引会记录有序倒排链格式版本，加载时可跳过归一化排序；缺少该标记的旧索引仍保持兼容，
 并在加载时完成排序归一化。</p>
 <h3 id="host-过滤"><a class="header" href="#host-过滤">Host 过滤</a></h3>
-<p>mutable 和 immutable SINDI 及 <a href="sindi_v2.html">SINDI_V2</a> 索引都可以按单值数值 host 对文档
+<p>mutable 和 immutable SINDI 及 <a href="sindi_v2.html">SINDI_V2</a> 索引都可以按来源 host 对文档
 分组，避免返回其他 host 的文档。host-aware <code>Build()</code> 或 mutable <code>Add()</code> 批次需要提供完整的
-<code>uint32_t</code> <code>host_id</code> 数组；没有 host 的文档使用 <code>0</code>：</p>
+字符串 <code>host</code> 数组；没有 host 的文档使用空字符串：</p>
 <pre><code class="language-cpp">base-&gt;NumElements(n)
     -&gt;SparseVectors(sparse_vectors)
     -&gt;Ids(ids)
-    -&gt;UInt32Metadata("host_id", base_host_ids)
+    -&gt;StringMetadata("host", base_hosts)
     -&gt;Owner(false);
 index-&gt;Build(base);
 
-uint32_t query_host_id = 42;
+std::string query_host = "example.com";
 query-&gt;NumElements(1)
     -&gt;SparseVectors(&amp;query_vec)
-    -&gt;UInt32Metadata("host_id", &amp;query_host_id)
+    -&gt;StringMetadata("host", &amp;query_host)
     -&gt;Owner(false);
 </code></pre>
 <p>每个 <code>Build()</code> 或 mutable <code>Add()</code> 批次都会按 host 对 inner ID 分组，同时保持 external label
 不变。host 查询统一扫描相关 posting window，并在该 host 的一个或多个 inner-ID 区间上执行
 精确成员检查。多次 mutable <code>Add()</code> 可以为同一 host 追加互不连续的区间；删除标记和额外的
 用户 <code>Filter</code> 会与 host 成员检查共同生效。</p>
-<p>host ID <code>0</code> 是缺失 host 分组，<code>1</code> 到 <code>UINT32_MAX</code> 表示普通 host；不同 host 的数量不能超过
-成功写入索引的文档数。mutable 索引一旦包含 host metadata，后续每次 <code>Add()</code> 都必须提供
-完整的 <code>host_id</code> 数组；已有 host-unaware 文档后不能再引入 host metadata。查询
-<code>host_id: 0</code> 时只检索缺失 host 的文档，不提供 <code>host_id</code> 时保留全索引 KNN 行为；查询没有
-已索引文档的 host 返回空结果。构建时没有 base host metadata 的索引会忽略查询 host
-metadata，行为保持不变。host 过滤当前仅适用于 KNN；范围搜索仍使用原有全索引路径。</p>
+<p>host 字符串按字节精确匹配，不做大小写折叠或 URL 归一化。VSAG 在内部为字符串分配紧凑 ID，
+并将字符串到 ID 的字典随索引落盘；调用方不需要接触这些 ID。空字符串是缺失 host 分组。
+mutable 索引一旦包含 host metadata，后续每次 <code>Add()</code> 都必须提供完整的 <code>host</code> 数组；已有
+host-unaware 文档后不能再引入 host metadata。空字符串查询只检索缺失 host 的文档，不提供
+<code>host</code> 时保留全索引 KNN 行为；未知 host 返回空结果。构建时没有 base host metadata 的索引会
+忽略查询 host metadata，行为保持不变。旧的数值 <code>host_id</code> 输入会被拒绝。host 过滤当前仅适用于
+KNN；范围搜索仍使用原有全索引路径。</p>
+<h3 id="日期-bucket-过滤"><a class="header" href="#日期-bucket-过滤">日期 bucket 过滤</a></h3>
+<p>mutable 和 immutable SINDI 无论是否开启 rerank，都可以按日历层级 bucket 过滤 KNN 查询。
+构建时为每篇文档附加一个规范字符串 bucket：</p>
+<pre><code class="language-cpp">std::string base_dates[] = {"", "2026/05", "2026/05/01"};
+base-&gt;Paths("date", base_dates);
+
+std::string query_date = "2026/05";
+query-&gt;Paths("date", &amp;query_date)-&gt;Owner(false);
+
+std::string date_begin = "2025/11/20";
+std::string date_end = "2026/02";
+query-&gt;Paths("date_begin", &amp;date_begin)
+    -&gt;Paths("date_end", &amp;date_end)
+    -&gt;Owner(false);
+</code></pre>
+<p>接受 <code>YYYY</code>、<code>YYYY/MM</code> 和 <code>YYYY/MM/DD</code> 三种格式；月份和日期必须补齐两位并符合实际日历。
+匹配只向下进行：<code>2026</code> 匹配 2026 年的年、月、日 base bucket；<code>2026/05</code> 匹配
+<code>2026/05</code> 及其下所有日；<code>2026/05/01</code> 只匹配该日。更精确的查询不会匹配更粗粒度的 base bucket。</p>
+<p>base 空字符串表示该文档没有日期。查询不提供任何日期 selector 时仍会检索缺失日期文档，
+仅按 host 查询时同样包含其中 host 匹配的缺失日期文档；<code>date</code> 或日期范围查询永远不会命中它们。
+每篇 base 文档仍须在数组中占一项，因此应传入空字符串，而不是省略对应行。query 日期不接受
+空字符串；需要关闭日期过滤时应省略该 selector。</p>
+<p>闭区间查询必须同时提供 <code>date_begin</code> 和 <code>date_end</code>。开始端的年或月扩展到该周期第一天，结束端
+的年或月扩展到该周期最后一天。例如 <code>2025/11/20</code> 到 <code>2026/02</code> 表示包含首尾的
+<code>2025/11/20</code> 至 <code>2026/02/28</code>。只有完整日历周期都落在查询范围内的 base bucket 才会命中；
+因此结束于 <code>2026/08/01</code> 的范围可以命中 8 月 1 日的日 bucket，但不能命中较粗的
+<code>2026/08</code> bucket。两个端点缺一不可，扩展后必须保持正序，并且不能与单值 <code>date</code> 同时使用。</p>
+<p>日期构建把缺失日期放入独立分区，并将其余文档按自然季度排序；同时提供 <code>host</code> 时，再在每个分区内
+按 host 排序。mutable 索引只能在索引为空时通过 <code>Build()</code> 或第一次 <code>Add()</code> 提供日期 metadata。
+索引已有文档后不能再引入日期 metadata，已经包含日期 metadata 的 mutable 索引会拒绝之后的所有
+<code>Add()</code>，从而避免增量维护季度
+分区。仅使用 host 的 mutable 索引仍保留原有的增量 <code>Add()</code> 能力。</p>
+<p>仅包含年份的 base bucket 锚定到该年第一季度并且只存储一次。原有固定大小 window 布局保持不变。
+日期查询先选择相关季度分区，再在候选进入 heap 前执行精确层级 bucket 或范围判断。查询字符串只在
+路由阶段解析一次，候选判断仅比较压缩后的整数 bucket。日期、host、删除标记和用户 <code>Filter</code> 使用
+AND 语义。</p>
+<p>不提供 <code>date</code>、<code>date_begin</code> 或 <code>date_end</code> 时搜索全部季度；仅提供 host 时会从每个季度选择该 host。
+所有选中 window 共用一个候选堆，并在开启 <code>use_reorder</code> 时共用一次 rerank。日期过滤支持 mutable
+和 immutable 索引以及 <code>use_reorder</code> 的任意设置，仅作用于 KNN，并由旧版与 streaming 序列化共同
+保存。反序列化恢复的 mutable 日期索引仍保持 build-once，并拒绝 <code>Add()</code>。为了执行精确 bucket 或
+范围过滤，每个选中 window 都会关闭 term 级 posting 剪枝，因此日期查询可能比仅 host 查询扫描更多
+posting，较宽的范围也会选择更多 window。在启用日期的索引上，仅 host 查询遇到跨季度或 host 边界
+的 window 时也可能需要完整扫描。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>sindi</code> 子对象下：</p>
 <div class="table-wrapper">

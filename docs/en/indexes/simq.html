@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,11 +305,11 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="simq"><a class="header" href="#simq">SIMQ</a></h1>
-<p>SIMQ is VSAG’s index for <strong>multi-vector</strong> retrieval — the kind of data where each
-document is a <em>set</em> of token-level vectors rather than a single embedding. This
-pattern arises in late-interaction models such as ColBERT, where a document is
-represented by one vector per token and relevance is computed via <strong>MaxSim</strong>
-(sum of maximum per-query-token similarities).</p>
+<p>SIMQ (Single Index for Multi-vector Query) is VSAG’s index for <strong>multi-vector</strong>
+retrieval — the kind of data where each document is a <em>set</em> of token-level vectors
+rather than a single embedding. This pattern arises in late-interaction models such
+as ColBERT, where a document is represented by one vector per token and relevance
+is computed via <strong>MaxSim</strong> (sum of maximum per-query-token similarities).</p>
 <ul>
 <li>Source: <code>src/algorithm/simq/</code></li>
 </ul>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -355,7 +355,8 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <tbody>
 <tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
 <tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage — see the <a href="../quantization/README.html">Quantization chapter</a> for all supported values</td></tr>
+<tr><td><code>alpha</code></td><td><code>1.0</code></td><td>Final robust-pruning factor; PiPNN requires a finite value at least <code>1.0</code></td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage — see the <a href="../quantization/">Quantization chapter</a> for all supported values</td></tr>
 <tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup; roughly doubles edge storage and is unsupported with compressed graph storage</td></tr>
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>Label-map implementation: <code>pg</code> (default) or <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>Reorder from the <code>precise</code> store or directly from <code>base</code>; RaBitQ x+y split, including <code>tq_chain="mrle, rabitq"</code>, selects <code>base</code> automatically</td></tr>
@@ -367,6 +368,27 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 </tbody>
 </table>
 </div>
+<h3 id="pipnn-build-parameters"><a class="header" href="#pipnn-build-parameters">PiPNN build parameters</a></h3>
+<p>When <code>graph_type</code> is <code>pipnn</code>, HGraph and Pyramid also accept the following build parameters under
+<code>index_param</code>. They share these defaults and validation rules:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pipnn_max_leaf_size</code></td><td><code>1024</code></td><td>Maximum partition leaf size, in <code>[2, 2147483647]</code>.</td></tr>
+<tr><td><code>pipnn_min_leaf_size</code></td><td><code>64</code></td><td>Target for merging undersized leaves; must be positive and no larger than <code>pipnn_max_leaf_size</code>.</td></tr>
+<tr><td><code>pipnn_leader_sample_rate</code></td><td><code>0.005</code></td><td>Fraction sampled as leaders, in <code>(0, 1]</code>; each partition uses <code>2</code> to <code>1000</code>, bounded by its point count.</td></tr>
+<tr><td><code>pipnn_fanout</code></td><td><code>[10, 2]</code></td><td>Positive nearest-leader fanout at successive partition levels; deeper levels use <code>1</code>.</td></tr>
+<tr><td><code>pipnn_leaf_neighbor_count</code></td><td><code>5</code></td><td>Positive nearest-candidate count per point and leaf; undersized leaves use at least <code>4</code>.</td></tr>
+<tr><td><code>pipnn_hash_plane_count</code></td><td><code>12</code></td><td>Direction-hash bits in <code>[1, 15]</code>; <code>max_degree &lt;= 2^pipnn_hash_plane_count</code>.</td></tr>
+<tr><td><code>pipnn_reservoir_size</code></td><td><code>64</code></td><td>Positive per-point candidate capacity before final pruning; effective capacity is <code>max(value, max_degree)</code> and must not exceed <code>65535</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The existing <code>alpha</code> field controls PiPNN’s final robust pruning. <code>ef_construction</code> only tunes NSW
+and has no effect on PiPNN.</p>
 <p>At search time:</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
@@ -451,6 +473,8 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
     }
 }
 </code></pre>
+<p>For <code>graph_type: "pipnn"</code>, see the shared
+<a href="#pipnn-build-parameters">PiPNN build parameters</a> above.</p>
 <p><code>store_paths</code> is a top-level Pyramid build parameter and defaults to <code>false</code>. Enable it when
 <code>GetDataByIdsWithFlag</code> must return the original default or named-hierarchy paths with
 <code>DATA_FLAG_PATH</code>; see the

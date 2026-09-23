@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -333,7 +333,7 @@ datasets.</p>
 <li>Compare <code>ivf</code> when throughput and memory matter more than single-query latency.</li>
 <li>Consider <code>pyramid</code> when your data has clear partition, tenant, or path structure.</li>
 </ul>
-<p>Related pages: <a href="../indexes/README.html">Index Overview</a>, <a href="best_practices.html">Best Practices</a>.</p>
+<p>Related pages: <a href="../indexes/">Index Overview</a>, <a href="best_practices.html">Best Practices</a>.</p>
 <h2 id="why-does-the-same-parameter-set-perform-very-differently-on-different-datasets"><a class="header" href="#why-does-the-same-parameter-set-perform-very-differently-on-different-datasets">Why does the same parameter set perform very differently on different datasets?</a></h2>
 <p>This is common in vector search. Even if the vector count, dimensionality, and
 index parameters are identical, different datasets can have very different
@@ -545,7 +545,7 @@ precise_quantization_type = format used to recompute candidate distances
 internal storage / computation format. They are not the same. For example, input
 can be <code>dtype: "float32"</code> while the index stores vectors with
 <code>base_quantization_type: "sq8_uniform"</code>.</p>
-<p>Related pages: <a href="../quantization/README.html">Quantization Overview</a>,
+<p>Related pages: <a href="../quantization/">Quantization Overview</a>,
 <a href="../indexes/hgraph.html">HGraph</a>, <a href="../indexes/ivf.html">IVF</a>.</p>
 <h2 id="should-i-use-bitset-lambda-filter-attribute-filtering-or-extra_info"><a class="header" href="#should-i-use-bitset-lambda-filter-attribute-filtering-or-extra_info">Should I use Bitset, lambda, <code>Filter</code>, attribute filtering, or <code>extra_info</code>?</a></h2>
 <p>VSAG provides multiple filtering APIs for different workloads.</p>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -395,12 +395,25 @@ derives it as <code>&lt;term_io.file_path&gt;.rerank</code>.</p>
 <p><code>rerank_layout &gt; 0</code> requires <code>use_reorder: true</code>. <code>rerank_type: "dmq8"</code>
 requires <code>rerank_layout: 0</code> and the default <code>block_memory_io</code> rerank backend.</p>
 <h3 id="host-filtering"><a class="header" href="#host-filtering">Host filtering</a></h3>
-<p>SINDI_V2 supports the same <code>uint32_t</code> <code>host_id</code> build and KNN-query metadata contract as
+<p>SINDI_V2 supports the same string <code>host</code> build and KNN-query metadata contract as
 <a href="sindi.html#host-filtering">SINDI</a>. Both mutable and immutable indexes are supported. It uses the
 shared host grouping and routing component while retaining its own term-first posting storage.
 Host membership is enforced during posting-window search, including multiple ranges created by
-mutable <code>Add()</code>. Missing host ID <code>0</code>, mutable <code>Add()</code> metadata rules, streaming serialization, and
-the KNN-only scope are the same as SINDI.</p>
+mutable <code>Add()</code>. The empty-string missing-host value, persisted internal dictionary, mutable <code>Add()</code>
+metadata rules, streaming serialization, and the KNN-only scope are the same as SINDI.</p>
+<h3 id="date-bucket-filtering"><a class="header" href="#date-bucket-filtering">Date-bucket filtering</a></h3>
+<p>SINDI_V2 also supports the <a href="sindi.html#date-bucket-filtering">SINDI date-bucket, inclusive range, and hierarchical matching
+contract</a>. The two indexes share one metadata filtering
+component for date-only, host-only, and combined date-and-host KNN routing. SINDI_V2 retains its
+term-first posting layout and legacy serialization format. Date filtering supports mutable and
+immutable indexes with either <code>use_reorder</code> setting and is preserved by both legacy and streaming
+serialization; range search remains unfiltered. A mutable date-aware SINDI_V2 is build-once and
+follows the same initial <code>Build()</code> or first-<code>Add()</code> and later-<code>Add()</code> rejection rules as SINDI.
+Empty base date strings use the same missing-date semantics as SINDI: unfiltered and host-only
+queries include them, while date bucket and range queries exclude them.
+Exact bucket filtering disables term-level posting pruning in each selected window, so date queries
+may scan more postings than host-only queries. Host-only queries on date-enabled indexes share the
+boundary-window behavior documented for SINDI.</p>
 <h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
 <p>Search parameters live under <code>{"sindi_v2": {...}}</code>.</p>
 <div class="table-wrapper">

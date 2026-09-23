@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-87b5aa0f.js";
+            window.path_to_searchindex_js = "../searchindex-950a745e.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-88150941.js"></script>
+        <script src="../toc-e38b3d01.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -331,7 +331,7 @@
 <li>超大规模、吞吐优先、可接受分桶召回折中时，对比 <code>ivf</code>。</li>
 <li>有明显分区、租户或路径结构时考虑 <code>pyramid</code>。</li>
 </ul>
-<p>相关页面：<a href="../indexes/README.html">索引总览</a>、<a href="best_practices.html">最佳实践</a>。</p>
+<p>相关页面：<a href="../indexes/">索引总览</a>、<a href="best_practices.html">最佳实践</a>。</p>
 <h2 id="为什么同一套参数在不同数据集上的性能差很多"><a class="header" href="#为什么同一套参数在不同数据集上的性能差很多">为什么同一套参数在不同数据集上的性能差很多？</a></h2>
 <p>这是向量检索里很常见的问题。
 即使数据量、维度、索引参数完全相同，
@@ -539,7 +539,7 @@ precise_quantization_type = 用什么格式重新计算候选距离
 两者不是一回事。
 例如输入可以是 <code>dtype: "float32"</code>，
 但内部用 <code>base_quantization_type: "sq8_uniform"</code> 存储。</p>
-<p>相关页面：<a href="../quantization/README.html">量化总览</a>、<a href="../indexes/hgraph.html">HGraph</a>、
+<p>相关页面：<a href="../quantization/">量化总览</a>、<a href="../indexes/hgraph.html">HGraph</a>、
 <a href="../indexes/ivf.html">IVF</a>。</p>
 <h2 id="过滤搜索应该用-bitsetlambdafilter属性过滤还是-extra_info"><a class="header" href="#过滤搜索应该用-bitsetlambdafilter属性过滤还是-extra_info">过滤搜索应该用 Bitset、lambda、<code>Filter</code>、属性过滤还是 <code>extra_info</code>？</a></h2>
 <p>VSAG 提供多种过滤方式，适合不同使用场景。</p>

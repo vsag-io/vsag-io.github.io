@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -373,7 +373,7 @@ save, and load:</p>
 <tr><td><code>get_min_max_id()</code></td><td><code>(min_id, max_id)</code></td><td>Returns <code>(-1, -1)</code> if the operation fails.</td></tr>
 <tr><td><code>add(vectors, ids, num_elements, dim)</code></td><td><code>None</code></td><td>Adds a contiguous dense vector matrix; dtype must match the index.</td></tr>
 <tr><td><code>remove(ids)</code></td><td><code>int</code></td><td>Removes a one-dimensional <code>int64</code> ID array. Returns <code>0</code> both when no ID is removed and when the underlying operation fails.</td></tr>
-<tr><td><code>cal_distance_by_id(query, ids)</code></td><td><code>numpy.ndarray</code></td><td>Returns one float32 distance per ID. Invalid IDs produce <code>-1</code>; an underlying operation failure leaves the entire result at <code>-1</code>.</td></tr>
+<tr><td><code>calc_distances_by_id(query, ids)</code> / <code>cal_distance_by_id(query, ids)</code> (legacy alias)</td><td><code>numpy.ndarray</code></td><td>Returns one float32 distance per ID in a 1D array. Missing IDs produce <code>-1</code>; underlying invalid/unsupported operations raise <code>RuntimeError</code> with the C++ error message.</td></tr>
 </tbody>
 </table>
 </div>
@@ -396,9 +396,12 @@ removed = index.remove(candidate_ids)
 <p><code>add</code> accepts a flat contiguous array or a row-major two-dimensional matrix. For
 <code>dtype: "float16"</code>, pass <code>numpy.float16</code>; for <code>dtype: "bfloat16"</code>, pass a <code>numpy.uint16</code>
 array containing BF16 bit patterns. Operation support remains index-dependent. Input validation
-and operations such as <code>add</code> raise Python exceptions, but <code>remove</code>, <code>cal_distance_by_id</code>, <code>save</code>,
+and operations such as <code>add</code> and <code>calc_distances_by_id</code> raise Python exceptions, but <code>remove</code>, <code>save</code>,
 and <code>load</code> use the sentinel or unchecked behaviors described above instead of consistently
 propagating underlying operation failures.</p>
+<h3 id="distance-binding-input-safety"><a class="header" href="#distance-binding-input-safety">Distance binding input safety</a></h3>
+<p><code>calc_distances_by_id</code> and its legacy alias accept one 1D dense query whose length must equal the index dimension, plus a 1D ID array. Short, long, and empty queries are rejected by the C++ Dataset validation, not treated as missing IDs. NumPy inputs are converted to contiguous float32 / int64 arrays as needed, so positive- and negative-stride query and ID views retain their logical order. This does not add sparse, multi-vector, or multi-query support to the binding.</p>
+<p>The Node.js equivalents <code>calcDistancesById(query, ids)</code> and legacy <code>calDistanceById(query, ids)</code> retain their 1D <code>Float32Array</code> result. They require exactly <code>Float32Array</code> queries and <code>BigInt64Array</code> IDs (other array kinds throw <code>TypeError</code>), validate the actual query length through the C++ Dataset API, and throw <code>Error</code> with the C++ message on operation failure. Missing IDs still produce <code>-1</code>; they are not operation failures.</p>
 <h2 id="relationship-with-the-c-library"><a class="header" href="#relationship-with-the-c-library">Relationship with the C++ Library</a></h2>
 <p><code>pyvsag</code> wraps the same <code>vsag::Index</code> API as C++ and shares the underlying index binaries. You can
 build an index in Python and load it in C++ (and vice versa) as long as parameters match.</p>

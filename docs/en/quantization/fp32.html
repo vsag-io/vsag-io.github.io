@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-dfb9cbdd.js";
+            window.path_to_searchindex_js = "../searchindex-f4557856.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e1c0f3be.js"></script>
+        <script src="../toc-ac482e7b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -326,7 +326,7 @@ quantizers (<code>docs/docs/en/src/resources/eval.md</code>).</li>
 <li><strong>Small datasets</strong> where memory is not the bottleneck.</li>
 <li><strong>BruteForce with raw-vector retrieval.</strong> <code>SUPPORT_GET_RAW_VECTOR_BY_IDS</code>
 is only advertised when <code>base_quantization_type</code> is <code>fp32</code> and the metric
-allows it (<code>src/index/brute_force.cpp</code>).</li>
+allows it (<code>src/algorithm/bruteforce/bruteforce.cpp</code>).</li>
 </ul>
 <h2 id="memory-cost"><a class="header" href="#memory-cost">Memory cost</a></h2>
 <p><code>4 × dim</code> bytes per vector for the codes alone. When <code>fp32</code> is used as a
@@ -351,7 +351,7 @@ precise store on top of a base quantizer, the per-vector cost is
 <p><code>l2</code>, <code>ip</code>, <code>cosine</code> — all supported with no special handling.</p>
 <h2 id="related-pages"><a class="header" href="#related-pages">Related pages</a></h2>
 <ul>
-<li><a href="README.html">Quantization overview</a></li>
+<li><a href="./">Quantization overview</a></li>
 <li><a href="../indexes/hgraph.html">HGraph index</a> — see <code>precise_quantization_type</code></li>
 <li><a href="../advanced/memory.html">Memory Management</a></li>
 </ul>
