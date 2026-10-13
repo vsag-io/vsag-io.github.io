@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f4557856.js";
+            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ac482e7b.js"></script>
+        <script src="../toc-8a615816.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -356,7 +356,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
 <tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
 <tr><td><code>alpha</code></td><td><code>1.0</code></td><td>Final robust-pruning factor; PiPNN requires a finite value at least <code>1.0</code></td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage — see the <a href="../quantization/">Quantization chapter</a> for all supported values</td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq8_local</code> / <code>sq4_local</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage — see the <a href="../quantization/">Quantization chapter</a> for all supported values</td></tr>
 <tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup; roughly doubles edge storage and is unsupported with compressed graph storage</td></tr>
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>Label-map implementation: <code>pg</code> (default) or <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>Reorder from the <code>precise</code> store or directly from <code>base</code>; RaBitQ x+y split, including <code>tq_chain="mrle, rabitq"</code>, selects <code>base</code> automatically</td></tr>
@@ -368,6 +368,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 </tbody>
 </table>
 </div>
+<p>For HGraph float32 L2/IP/cosine, <code>sq8_local</code> and <code>sq4_local</code> can select either <code>base_quantization_type</code> or <code>precise_quantization_type</code> (the latter requires <code>use_reorder: true</code>). See <a href="../quantization/sq.html#local-sq4--sq8-float32-l2-ip-and-cosine">local SQ4/SQ8</a> for memory, persistence and limitations.</p>
 <h3 id="pipnn-build-parameters"><a class="header" href="#pipnn-build-parameters">PiPNN build parameters</a></h3>
 <p>When <code>graph_type</code> is <code>pipnn</code>, HGraph and Pyramid also accept the following build parameters under
 <code>index_param</code>. They share these defaults and validation rules:</p>
@@ -519,7 +520,8 @@ parameters such as <code>n_candidate</code>.</p>
     }
 }
 </code></pre>
-<p>See the <a href="../indexes/sindi_v2.html">SINDI_V2 page</a> for details.</p>
+<p>See the <a href="../indexes/sindi_v2.html">SINDI_V2 page</a> for build parameters and search parameters such as
+<code>n_candidate</code> and <code>filter_callback_limit</code>.</p>
 <h2 id="runtime-parameters"><a class="header" href="#runtime-parameters">Runtime Parameters</a></h2>
 <p>Beyond build-time parameters, <code>Index::Tune</code> and <code>SearchParam</code> tweak runtime settings such as
 <code>ef_search</code> and <code>nprobe</code>. See <a href="../advanced/optimizer.html">Optimizer</a> and the

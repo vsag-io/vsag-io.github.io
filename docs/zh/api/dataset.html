@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-950a745e.js";
+            window.path_to_searchindex_js = "../searchindex-30c491ac.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e38b3d01.js"></script>
+        <script src="../toc-653235e0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -468,12 +468,14 @@ if (result.has_value()) {
 <code>vectors_</code>。</p>
 <h2 id="命名-metadata"><a class="header" href="#命名-metadata">命名 metadata</a></h2>
 <p><code>UInt32Metadata(name, values)</code> 为每个 dataset 元素附加一个无符号整数，
-<code>GetUInt32Metadata</code> 返回对应命名数组，不存在时返回 <code>nullptr</code>。<code>StringMetadata(name, values)</code>
-和 <code>GetStringMetadata(name)</code> 提供对应的通用命名字符串数组。SINDI 和 SINDI_V2 使用名为
-<code>host</code> 的字符串 metadata 实现 host 过滤。日期过滤复用现有命名字符串 path API，通过
-<code>Paths("date", values)</code> 和 <code>GetPaths("date")</code> 传递日期 bucket。单元素查询 Dataset 的日期范围
-使用独立的 <code>date_begin</code> 和 <code>date_end</code> 命名 path；两者各指向一个规范的 <code>YYYY</code>、<code>YYYY/MM</code> 或
-<code>YYYY/MM/DD</code> 字符串。这些数组遵循 Dataset 通用的 ownership、深拷贝和 Append 规则。</p>
+<code>GetUInt32Metadata</code> 返回对应命名数组，不存在时返回 <code>nullptr</code>。<code>Int64Metadata(name, values)</code> 与
+<code>GetInt64Metadata(name)</code> 提供命名的有符号 64 位整数数组；<code>StringMetadata(name, values)</code> 与
+<code>GetStringMetadata(name)</code> 提供命名字符串数组。SINDI 和 SINDI_V2 使用名为 <code>host</code> 的字符串
+metadata 进行 host 过滤，使用名为 <code>publish_time_stamp</code> 的 int64 metadata 进行 UTC 日粒度时间
+过滤。单元素查询 Dataset 的时间范围使用 <code>publish_time_stamp_begin</code> 与
+<code>publish_time_stamp_end</code>。对于 SINDI 和 SINDI_V2 的 base dataset，<code>publish_time_stamp == 0</code>
+保留为缺失时间戳，且永远不会匹配时间 selector。这些数组均须为每个 dataset 元素提供一个值，
+并遵循 Dataset 通用的 ownership、深拷贝和 Append 规则。</p>
 <h2 id="参见"><a class="header" href="#参见">参见</a></h2>
 <ul>
 <li><a href="index_class.html">Index</a> —— 消费并返回 dataset 的方法。</li>

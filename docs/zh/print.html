@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-950a745e.js";
+            window.path_to_searchindex_js = "searchindex-30c491ac.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-e38b3d01.js"></script>
+        <script src="toc-653235e0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1036,7 +1036,7 @@ removed = index.remove(candidate_ids)
 <tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
 <tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
 <tr><td><code>alpha</code></td><td><code>1.0</code></td><td>最终 robust pruning 的系数；PiPNN 要求有限且不小于 <code>1.0</code></td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略 —— 支持的全部取值见<a href="quantization">量化章节</a></td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq8_local</code> / <code>sq4_local</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略 —— 支持的全部取值见<a href="quantization">量化章节</a></td></tr>
 <tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>跟踪入边，实现 O(1) 反向邻居查找；边存储约翻倍，且压缩图存储不支持</td></tr>
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>label map 实现：默认 <code>pg</code>，或 <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>从 <code>precise</code> 存储或直接从 <code>base</code> 重排；RaBitQ x+y split（包括 <code>tq_chain="mrle, rabitq"</code>）会自动选择 <code>base</code></td></tr>
@@ -1048,6 +1048,7 @@ removed = index.remove(candidate_ids)
 </tbody>
 </table>
 </div>
+<p>HGraph float32 L2/IP/cosine 的 <code>base_quantization_type</code> 和 <code>precise_quantization_type</code> 均可选择 <code>sq8_local</code> 或 <code>sq4_local</code>（后者需要 <code>use_reorder: true</code>）。内存、持久化及限制见<a href="#标量量化sq4--sq8">local SQ4/SQ8</a>。</p>
 <h3 id="pipnn-构建参数"><a class="header" href="#pipnn-构建参数">PiPNN 构建参数</a></h3>
 <p>当 <code>graph_type</code> 为 <code>pipnn</code> 时，HGraph 和 Pyramid 还会从 <code>index_param</code> 接受以下构建参数，
 两者使用相同的默认值和校验规则：</p>
@@ -1191,7 +1192,8 @@ removed = index.remove(candidate_ids)
     }
 }
 </code></pre>
-<p>详情见 <a href="#sindi_v2">SINDI_V2 页面</a>。</p>
+<p>构建参数及 <code>n_candidate</code>、<code>filter_callback_limit</code> 等检索参数详见
+<a href="#sindi_v2">SINDI_V2 页面</a>。</p>
 <h2 id="运行期参数"><a class="header" href="#运行期参数">运行期参数</a></h2>
 <p>除构建参数外，<code>Index::Tune</code> 与 <code>SearchParam</code> 可在运行时调整 <code>ef_search</code>、<code>nprobe</code> 等参数。参考
 <a href="#优化器tune">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>
@@ -1212,7 +1214,7 @@ HGraph 都是推荐的默认索引。</p>
 <code>max_degree</code> 预算内的最近邻。构图算法可以是 NSW 风格插入（<code>graph_type: "nsw"</code>，默认）、
 ODescent（<code>graph_type: "odescent"</code>）或 PiPNN（<code>graph_type: "pipnn"</code>）。</li>
 <li><strong>量化。</strong> 底层存储使用可配置的量化器进行压缩（<code>base_quantization_type</code> —
-<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code>）。
+<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_local</code>、<code>sq4_local</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code>）。
 可选地再保留一份高精度副本（<code>use_reorder: true</code> 搭配 <code>precise_quantization_type</code>），
 用于对粗排结果进行重打分。</li>
 <li><strong>搜索。</strong> 自顶向下在图上做贪心 beam search，扩展候选集到 <code>ef_search</code> 个节点；如启用精排，
@@ -1253,7 +1255,7 @@ auto result = index-&gt;KnnSearch(
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—（必填）</td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code> —— 各量化器细节见<a href="quantization">量化章节</a></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—（必填）</td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_local</code>、<code>sq4_local</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code> —— 各量化器细节见<a href="quantization">量化章节</a></td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>图节点最大出度</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>构建阶段的候选集大小（越大召回越高，构建越慢）</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.0</code></td><td>最终 robust pruning 的系数；PiPNN 要求有限且不小于 <code>1.0</code></td></tr>
@@ -1294,6 +1296,7 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
+<p><code>sq8_local</code> 和 <code>sq4_local</code> 支持 float32 L2/IP/cosine 的基础与精排存储（包括 RaBitQ + local SQ4/SQ8 精排）。布局、数值限制和 Tune 兼容性见<a href="#标量量化sq4--sq8">local SQ4/SQ8</a>。</p>
 <p><code>use_reverse_edges</code> 面向需要快速检查入邻居、图分析或图维护算法的负载。维护反向邻接表会让边
 存储约翻倍，因此默认关闭。</p>
 <p><code>label_remap_type</code> 只改变内部 label map，不改变用户 ID。默认值为 <code>"pg"</code>；
@@ -1706,22 +1709,31 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第一级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
 <tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第二级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
 <tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>中心训练方式：<code>kmeans</code> 或 <code>random</code></td></tr>
+<tr><td><code>kmeans_iter_count</code></td><td>int</td><td><code>25</code>（<code>ivf</code>）、<code>30</code>（<code>gno_imi</code>）</td><td>KMeans 质心训练的迭代次数（<code>ivf_train_type: "kmeans"</code> 时生效）。越大桶划分质量越好，构建越慢。</td></tr>
 <tr><td><code>route_max_degree</code></td><td>int</td><td><code>64</code></td><td>路由 HGraph 的最大度数（<code>ivf</code> 策略下生效）</td></tr>
 <tr><td><code>route_ef_construction</code></td><td>int</td><td><code>300</code></td><td>路由 HGraph 的构建搜索宽度（<code>ivf</code> 策略下生效）</td></tr>
+<tr><td><code>enable_gpu_build</code></td><td>bool</td><td><code>false</code></td><td>构建时使用 CUDA 后端（<code>ivf</code> 策略下生效），参见 <a href="#gpu-加速构建">GPU 加速构建</a></td></tr>
+<tr><td><code>gpu_device_id</code></td><td>int</td><td><code>0</code></td><td>CUDA 设备序号（<code>ivf</code> 策略下生效）；机器上不存在该序号时构建留在 CPU</td></tr>
+<tr><td><code>gpu_memory_budget</code></td><td>int</td><td><code>0</code></td><td>设备工作集的字节上限（<code>ivf</code> 策略下生效）；<code>0</code> 表示按设备空闲显存推导</td></tr>
+<tr><td><code>gpu_min_work_threshold</code></td><td>int</td><td><code>0</code></td><td>值得下放的最小 <code>count * buckets_count * dim</code>（<code>ivf</code> 策略下生效）；<code>0</code> 表示使用标定的默认值</td></tr>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> —— 各量化器细节见<a href="quantization">量化章节</a></td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
 <tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td><code>base_quantization_type: "rabitq"</code> 时可选的 PCA 预处理维度</td></tr>
 <tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td><code>rabitq</code> 查询每维位数；允许值为 <code>4</code> 或 <code>32</code></td></tr>
 <tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td><code>rabitq</code> 底库存储码每维位数；允许范围为 <code>[1, 8]</code></td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>未设置</td><td>启用 RaBitQ split storage 并设置补充码（<code>y</code>）位数；<code>rabitq_bits_per_dim_base</code> 表示过滤码（<code>x</code>）位数，且 <code>x + y &lt;= 8</code></td></tr>
 <tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td><code>rabitq</code> 布局：<code>"standard"</code> 或 <code>"split_1bit_7bit"</code></td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td><code>rabitq</code> 编码的正数误差预算参数</td></tr>
 <tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td><code>rabitq</code> 二值化前是否启用 FHT 旋转</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>多 bit <code>rabitq</code> 是否使用 CAQ 快速构建；设为 <code>false</code> 时使用精确编码</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>CAQ 微调轮数，允许范围 <code>[1, 32]</code></td></tr>
+<tr><td><code>use_residual</code></td><td>bool</td><td><code>false</code></td><td>是否相对所属 IVF bucket centroid 编码残差 <code>x-c</code>。</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排量化类型（<code>use_reorder: true</code> 时使用）</td></tr>
 <tr><td><code>precise_codes_layout</code></td><td>string</td><td><code>"flat"</code></td><td>精排 codes 的存储布局：<code>"flat"</code> 保持旧的一向量一码布局；<code>"bucket"</code> 在 basic posting 的相同 bucket 和 offset 保存高精度 code</td></tr>
 <tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>粗排向量的存储后端；以 liburing 构建时支持 <code>uring_io</code></td></tr>
+<tr><td><code>base_supplement_io_type</code></td><td>string</td><td>未设置</td><td>RaBitQ split 补充码可选的 IO 后端</td></tr>
+<tr><td><code>base_supplement_file_path</code></td><td>string</td><td>自动派生</td><td>磁盘型 RaBitQ 补充码可选的文件路径</td></tr>
 <tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>精排向量的存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>mmap_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>reader_io</code>）</td></tr>
 <tr><td><code>precise_file_path</code></td><td>string</td><td><code>""</code></td><td>当精排 IO 为磁盘后端时的文件路径</td></tr>
 </tbody>
@@ -1746,6 +1758,108 @@ auto loaded = vsag::Index::Load(stream, load_parameters).value();
 <p><code>reader_io</code> 是加载与查询阶段的只读放置策略。构建时应使用可写的 precise IO，序列化后
 再在查询服务加载索引时绑定外部 reader。</p>
 <p><code>buckets_count</code> 的经验值一般为 <code>sqrt(N)</code> ~ <code>4 * sqrt(N)</code>，其中 <code>N</code> 是语料规模。</p>
+<h3 id="gpu-加速构建"><a class="header" href="#gpu-加速构建">GPU 加速构建</a></h3>
+<p>构建 IVF 索引的开销主要在两处：把训练样本聚类成中心点，以及随后把每条底库
+向量分配到桶。聚类量随 <code>buckets_count</code> 增长，因为样本量也随之增长
+（<code>train_sample_count</code> 默认为 <code>max(65536, 64 * buckets_count)</code>），而
+<code>ivf_train_type: "kmeans"</code> 下仅播种一步就是
+<code>O(buckets_count * train_sample_count * dim)</code> 且为单线程。</p>
+<p>当 VSAG 以 <code>ENABLE_CUDA=ON</code> 构建时，这两处都可以交给 CUDA 设备。设置
+<code>enable_gpu_build</code> 即可开启：</p>
+<pre><code class="language-json">{
+    "buckets_count": 4096,
+    "base_quantization_type": "fp32",
+    "partition_strategy_type": "ivf",
+    "ivf_train_type": "kmeans",
+    "enable_gpu_build": true,
+    "gpu_device_id": 0
+}
+</code></pre>
+<p>有四个环节在设备上执行：聚类内部的 k-means++ 播种、最近中心赋值、中心累加，
+以及之后把底库向量分配到桶。<code>ivf_train_type: "random"</code> 不做聚类，因此只有
+最后一项对它生效。</p>
+<p>这四个设置只作用于 <code>ivf</code> 分区策略。在 <code>partition_strategy_type: "gno_imi"</code> 下
+它们会被接受但忽略，与表中其他按策略生效的参数一致，该构建全程留在主机。</p>
+<p><strong>范围。</strong> 只有构建过程改变。检索不受影响：查询仍走图路由，那正是单条查询合适的
+形状。四个设置会像其他构建参数一样记入索引 footer，因此两次在其他方面相同的构建
+并非逐字节相同；但加载时的兼容性检查会忽略它们：开启后端构建出的索引可以载入任何
+其他配置的读取端，包括没有 GPU 的机器，之后按该读取端自己的配置运行。质心与主机
+构建的结果可能有细微差异：两条路径的随机选择都来自调用方的随机源，但设备用原子加
+对每个簇求和，顺序不固定。</p>
+<p><strong>回退。</strong> 某一环节放弃时由主机接手，过程静默，结果与关闭后端的构建一致。以下情况
+会发生回退：VSAG 未启用 CUDA 编译、机器上没有设备、<code>gpu_device_id</code> 指定了不存在的
+序号、问题规模低于 <code>gpu_min_work_threshold</code>、预算放不下某一环节所需，或任何 CUDA
+调用失败。构建不会因为这个后端而失败。</p>
+<p>有两种情况按设计留在主机。内积度量按点积本身排序，这与设备这一遍所最小化的
+量不同，因此它保持图路由。要求可复现归约的构建也会把中心累加留在主机，因为
+设备用原子加求和，其顺序不固定。</p>
+<p><strong>显存。</strong> 向量按块流式传输，因此语料不必装入显存，只有中心点和一个数据块需要。
+工作集受 <code>gpu_memory_budget</code> 限制，默认按设备报告的空闲显存推导，因此同一份
+构建在小卡上能跑、在大卡上也用得上。播种只是形态不同：它每选一个中心就扫一遍
+整个训练样本，因此样本必须常驻而非分块；预算装不下样本时，播种回到主机，其余
+环节仍在设备上。未指定预算时，分块环节取一个默认上限，因为数据块大到足以喂满
+设备之后再增大只是更费；播种取设备空闲显存，因为在这里设默认上限只会把大样本
+推回主机。</p>
+<p>在 SIFT1M 上实测（100 万条底库向量、128 维），以 48 线程的主机构建为基准：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>buckets_count</code></th><th>CPU 构建</th><th>GPU 构建</th><th>加速比</th><th>Recall@10 变化</th></tr>
+</thead>
+<tbody>
+<tr><td>1000</td><td>59.45 s</td><td>6.30 s</td><td>9.43x</td><td>+0.058 pt</td></tr>
+<tr><td>4096</td><td>167.66 s</td><td>8.02 s</td><td>20.90x</td><td>+0.075 pt</td></tr>
+<tr><td>16384</td><td>729.04 s</td><td>27.21 s</td><td>26.79x</td><td>+0.079 pt</td></tr>
+</tbody>
+</table>
+</div>
+<p>加速比随 <code>buckets_count</code> 增大，因为聚类在构建中的占比上升。具体倍数取决于机器上
+CPU 与 GPU 的相对性能，<code>gpu_min_work_threshold</code> 也正是为此而设。</p>
+<p>召回率变化的原因是：设备会与每个中心点比较，而主机在两处不是这样。</p>
+<p>一处是把底库向量分配到桶。在默认的 <code>use_route_graph: true</code> 布局下，这一步走
+路由图检索，是近似的。在 20000 条 64 维随机向量上，两条路径在 <code>buckets_count</code>
+为 16 时结果完全一致；为 256 和 1000 时，分别约有 10% 和 12% 的向量落入不同的
+桶，且这些情形中设备每一次给出的都是更近的中心点，到所属中心点的平均距离分别
+改善不到 1% 和约 2%。这些数字在不同次运行间会小幅浮动，因为训练没有固定随机种
+子、每次聚类结果不同；在单位化与未单位化的随机数据上都成立。扫描布局两条路径
+都是精确的，不会变化。</p>
+<p>另一处是聚类，在中心点超过 10000 时，主机为控制训练开销改用在中心点上做图检索。</p>
+<p>所以开启后端不只是更快，赋值质量也略好。但支撑这一点的是上面的距离比较，不是
+召回率那一列：表中每种配置只跑了一次，而两个分别训练的索引之间，召回率的浮动
+大于表里给出的差值。在 50000 条 128 维随机向量上，四次相同设置的构建，召回率
+跨度达到整整一个百分点，而表里的差值只有百分点的百分之几。那一列应读作“没有
+退化“，而不是“测到了增益“。在上述规模以下，两者只在某点到两个中心点的距离于
+浮点舍入意义上相等时才不同。</p>
+<h2 id="rabitq-split-storage"><a class="header" href="#rabitq-split-storage">RaBitQ split storage</a></h2>
+<p>将粗排和精排量化器都设为 <code>rabitq</code>，并把存储精度拆成过滤码
+（<code>x</code>）和补充码（<code>y</code>）：</p>
+<pre><code class="language-json">{
+    "base_quantization_type": "rabitq",
+    "precise_quantization_type": "rabitq",
+    "rabitq_bits_per_dim_query": 32,
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5,
+    "use_reorder": true
+}
+</code></pre>
+<p>IVF 将 <code>x</code> bit filter planes 保存为 bucket-local 32-vector packed blocks，并单独
+保存 <code>y</code> bit supplement。默认 <code>candidate_reorder</code> 只扫描 packed x bits，保留
+<code>factor * topk</code> 个候选，同时携带 byte-LUT 量化得到的 x-bit 内积以及候选的
+source bucket、offset 和 version。正常重排直接把保存的 x-bit 内积与 y-bit
+supplement contribution 合并，不重新读取或 unpack x-bit planes，也不从距离 hint
+反推内积。</p>
+<p>对 residual L2 candidate 检索，所有已路由 bucket 共享一份由原始变换 query
+构建的 LUT。每个 lane 的 factors 用于恢复原始 filter-code contribution，并在
+原始 query 下与 supplement 合并；正常重排不再构建 <code>q-c</code> computer。只有保存值
+或 factors 非法、source provenance 过期，或 FastScan lane 未产生有效结果时，
+正确性 fallback 才会 unpack x bits。</p>
+<p>split 配置要求 <code>x &gt;= 1</code>、<code>y &gt;= 1</code>、<code>x + y &lt;= 8</code>、
+<code>rabitq_bits_per_dim_query: 32</code>、<code>use_reorder: true</code> 和
+<code>buckets_per_data: 1</code>。split storage 暂不支持桶内图
+（<code>graph_build_threshold &gt; 0</code>）。同构 IO 支持 <code>memory_io</code>、
+<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>mmap_io</code> 和
+<code>reader_io</code>；混合 IO 支持过滤码使用 <code>block_memory_io</code>、补充码使用
+<code>async_io</code>。</p>
 <h2 id="检索参数-1"><a class="header" href="#检索参数-1">检索参数</a></h2>
 <p>检索参数放在 <code>ivf</code> 子对象下：</p>
 <div class="table-wrapper">
@@ -1805,8 +1919,9 @@ auto loaded = vsag::Index::Load(stream, load_parameters).value();
 <code>use_quantization: true</code> 使用 SQ8，<code>use_quantization: "fp16"</code> 使用半精度值。</li>
 <li><strong>打分。</strong> 检索时，SINDI 遍历查询向量的非零项，按窗口访问对应的倒排表，使用大小为
 <code>n_candidate</code> 的大顶堆聚合得分，最后取 top-k。启用 <code>use_reorder</code> 时，候选会在正排
-存储上重打分。默认正排存储保留 fp32 值；设置 <code>rerank_type: "dmq8"</code> 时使用压缩的
-DMQ 正排以降低重排内存。</li>
+存储上重打分。默认正排存储保留 FP32 值；设置 <code>rerank_type: "fp16"</code> 时以半精度
+保存 value、打分时转为 FP32；设置 <code>rerank_type: "dmq8"</code> 时使用压缩的 DMQ 正排，
+进一步降低重排内存。</li>
 </ol>
 <p>返回的距离为 <code>1 - inner_product</code>，使结果与稠密索引一样按升序排序。</p>
 <p>需要同时支持内存与磁盘 I/O 时，请选择 <a href="#sindi_v2">SINDI_V2</a>。</p>
@@ -1858,7 +1973,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建阶段按文档丢弃权重最低词项的比例，取值范围为 <code>[0.0, 1.0)</code></td></tr>
 <tr><td><code>use_quantization</code></td><td>bool 或 string</td><td><code>false</code></td><td><code>false</code> 存 FP32，<code>true</code> 存 SQ8，<code>"fp16"</code> 存 FP16</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留一份正排存储，在 SINDI 粗排后对候选做精排</td></tr>
-<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>use_reorder</code> 开启时使用的正排存储类型。<code>fp32</code> 保留精确值；<code>dmq8</code> 使用压缩的 8-bit DMQ 编码</td></tr>
+<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>use_reorder</code> 开启时使用的正排存储类型。<code>fp32</code> 保留精确值；<code>fp16</code> 以半精度保存、以 FP32 打分；<code>dmq8</code> 使用压缩的 8-bit DMQ 编码</td></tr>
 <tr><td><code>dmq_shared_codebook_threshold</code></td><td>int</td><td><code>1024</code></td><td><code>rerank_type: "dmq8"</code> 时，出现次数不超过该值的 term 共用一个 codebook；更高频的 term 保持独立 codebook。设为 <code>0</code> 可关闭共享</td></tr>
 <tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>是否在建索引前重映射词项 ID，适用于词项 ID 很稀疏或存在大量空洞的词表</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>仅用于内存估算</td></tr>
@@ -1887,6 +2002,13 @@ auto result = index-&gt;KnnSearch(
 </div>
 <p>使用 <code>false</code> 或 <code>true</code> 构建的索引仍保留旧版序列化表示。旧版本 VSAG 无法解析使用新
 <code>"fp16"</code> 格式的 SINDI 索引；部署 FP16 产物前应先升级读取端。</p>
+<h3 id="重排值格式"><a class="header" href="#重排值格式">重排值格式</a></h3>
+<p><code>rerank_type</code> 控制 <code>use_reorder: true</code> 创建的独立正排存储，与倒排表的
+<code>use_quantization</code> 无关。<code>fp16</code> 保持查询 value 和累加为 FP32，只把文档 value 存成
+FP16。由于 term ID 仍为 32-bit，在不计记录与块开销时，每个正排非零项的核心存储从
+8 字节降到 6 字节。FP16 转换会增加计算指令，因此受内存带宽限制时延迟可能下降，短向量
+或已在缓存中的数据也可能变慢，应使用代表性数据实测。</p>
+<p><code>fp16</code> 和 <code>dmq8</code> 都要求设置 <code>use_reorder: true</code>。旧版本 VSAG 无法读取 FP16 重排 payload。</p>
 <h3 id="不可变低内存构建"><a class="header" href="#不可变低内存构建">不可变低内存构建</a></h3>
 <p>完成后的 SINDI 只读时，可以设置 <code>immutable: true</code>：</p>
 <pre><code class="language-json">{
@@ -1941,49 +2063,40 @@ host-unaware 文档后不能再引入 host metadata。空字符串查询只检�
 <code>host</code> 时保留全索引 KNN 行为；未知 host 返回空结果。构建时没有 base host metadata 的索引会
 忽略查询 host metadata，行为保持不变。旧的数值 <code>host_id</code> 输入会被拒绝。host 过滤当前仅适用于
 KNN；范围搜索仍使用原有全索引路径。</p>
-<h3 id="日期-bucket-过滤"><a class="header" href="#日期-bucket-过滤">日期 bucket 过滤</a></h3>
-<p>mutable 和 immutable SINDI 无论是否开启 rerank，都可以按日历层级 bucket 过滤 KNN 查询。
-构建时为每篇文档附加一个规范字符串 bucket：</p>
-<pre><code class="language-cpp">std::string base_dates[] = {"", "2026/05", "2026/05/01"};
-base-&gt;Paths("date", base_dates);
+<h3 id="发布时间过滤"><a class="header" href="#发布时间过滤">发布时间过滤</a></h3>
+<p>mutable 和 immutable SINDI 无论是否开启 rerank，都可以按文档发布时间过滤 KNN 查询。构建时通过
+int64 metadata 为每篇文档附加一个 Unix 秒时间戳；<code>0</code> 表示该文档没有发布时间：</p>
+<pre><code class="language-cpp">int64_t base_times[] = {0, 1777593600, 1777680000};
+base-&gt;Int64Metadata("publish_time_stamp", base_times);
 
-std::string query_date = "2026/05";
-query-&gt;Paths("date", &amp;query_date)-&gt;Owner(false);
+int64_t query_time = 1777593600;
+query-&gt;Int64Metadata("publish_time_stamp", &amp;query_time)-&gt;Owner(false);
 
-std::string date_begin = "2025/11/20";
-std::string date_end = "2026/02";
-query-&gt;Paths("date_begin", &amp;date_begin)
-    -&gt;Paths("date_end", &amp;date_end)
+int64_t time_begin = 1777593600;
+int64_t time_end = 1777766399;
+query-&gt;Int64Metadata("publish_time_stamp_begin", &amp;time_begin)
+    -&gt;Int64Metadata("publish_time_stamp_end", &amp;time_end)
     -&gt;Owner(false);
 </code></pre>
-<p>接受 <code>YYYY</code>、<code>YYYY/MM</code> 和 <code>YYYY/MM/DD</code> 三种格式；月份和日期必须补齐两位并符合实际日历。
-匹配只向下进行：<code>2026</code> 匹配 2026 年的年、月、日 base bucket；<code>2026/05</code> 匹配
-<code>2026/05</code> 及其下所有日；<code>2026/05/01</code> 只匹配该日。更精确的查询不会匹配更粗粒度的 base bucket。</p>
-<p>base 空字符串表示该文档没有日期。查询不提供任何日期 selector 时仍会检索缺失日期文档，
-仅按 host 查询时同样包含其中 host 匹配的缺失日期文档；<code>date</code> 或日期范围查询永远不会命中它们。
-每篇 base 文档仍须在数组中占一项，因此应传入空字符串，而不是省略对应行。query 日期不接受
-空字符串；需要关闭日期过滤时应省略该 selector。</p>
-<p>闭区间查询必须同时提供 <code>date_begin</code> 和 <code>date_end</code>。开始端的年或月扩展到该周期第一天，结束端
-的年或月扩展到该周期最后一天。例如 <code>2025/11/20</code> 到 <code>2026/02</code> 表示包含首尾的
-<code>2025/11/20</code> 至 <code>2026/02/28</code>。只有完整日历周期都落在查询范围内的 base bucket 才会命中；
-因此结束于 <code>2026/08/01</code> 的范围可以命中 8 月 1 日的日 bucket，但不能命中较粗的
-<code>2026/08</code> bucket。两个端点缺一不可，扩展后必须保持正序，并且不能与单值 <code>date</code> 同时使用。</p>
-<p>日期构建把缺失日期放入独立分区，并将其余文档按自然季度排序；同时提供 <code>host</code> 时，再在每个分区内
-按 host 排序。mutable 索引只能在索引为空时通过 <code>Build()</code> 或第一次 <code>Add()</code> 提供日期 metadata。
-索引已有文档后不能再引入日期 metadata，已经包含日期 metadata 的 mutable 索引会拒绝之后的所有
-<code>Add()</code>，从而避免增量维护季度
-分区。仅使用 host 的 mutable 索引仍保留原有的增量 <code>Add()</code> 能力。</p>
-<p>仅包含年份的 base bucket 锚定到该年第一季度并且只存储一次。原有固定大小 window 布局保持不变。
-日期查询先选择相关季度分区，再在候选进入 heap 前执行精确层级 bucket 或范围判断。查询字符串只在
-路由阶段解析一次，候选判断仅比较压缩后的整数 bucket。日期、host、删除标记和用户 <code>Filter</code> 使用
-AND 语义。</p>
-<p>不提供 <code>date</code>、<code>date_begin</code> 或 <code>date_end</code> 时搜索全部季度；仅提供 host 时会从每个季度选择该 host。
-所有选中 window 共用一个候选堆，并在开启 <code>use_reorder</code> 时共用一次 rerank。日期过滤支持 mutable
-和 immutable 索引以及 <code>use_reorder</code> 的任意设置，仅作用于 KNN，并由旧版与 streaming 序列化共同
-保存。反序列化恢复的 mutable 日期索引仍保持 build-once，并拒绝 <code>Add()</code>。为了执行精确 bucket 或
-范围过滤，每个选中 window 都会关闭 term 级 posting 剪枝，因此日期查询可能比仅 host 查询扫描更多
-posting，较宽的范围也会选择更多 window。在启用日期的索引上，仅 host 查询遇到跨季度或 host 边界
-的 window 时也可能需要完整扫描。</p>
+<p>SINDI 使用 <code>timestamp / 86400</code> 把每个正时间戳归一化为 UTC epoch day。单值查询匹配同一 UTC 日的
+所有文档；范围查询把两个端点归一化后按闭区间匹配。两个范围端点必须同时提供、满足
+<code>begin &lt;= end</code>，并且不能与单值 selector 同时使用。query 值必须大于 <code>0</code>；base 值必须非负，
+负数会被拒绝。换算后的 epoch day 超过 <code>INT32_MAX</code> 时同样报错。</p>
+<p>base 值为 <code>0</code> 的文档在不提供时间 selector 时仍可检索，仅按 host 查询时也会包含 host 匹配的
+无时间文档；任何时间查询都不会命中这些文档。每篇 base 文档仍须在数组中占一项。没有使用
+<code>publish_time_stamp</code> 构建的索引收到任一时间 selector 时会报错。</p>
+<p>时间构建先按发布时间排序，再按 <code>window_size</code> 个文档切分逻辑分区，并在每个分区内按 host 分组；
+无时间文档合并为末尾的单独分区。查询先选择 UTC day 范围相交的分区，再在候选进入 heap 前执行
+精确的逐文档 day 与可选 host 检查。时间、host、删除标记和用户 <code>Filter</code> 使用 AND 语义。插入失败
+或跳过的文档可能让相邻逻辑分区共享同一个物理 window，精确 day 检查会保证边界结果正确。</p>
+<p>带时间的索引为 build-once。mutable 索引可以通过 <code>Build()</code> 或空索引上的第一次 <code>Add()</code> 提供
+<code>publish_time_stamp</code>，但之后的每次 <code>Add()</code> 都会被拒绝。仅使用 host 的 mutable 索引仍保留原有
+增量 <code>Add()</code> 能力。发布时间过滤支持 mutable、immutable 以及 <code>use_reorder</code> 的任意设置，仅作用于
+KNN，并由普通与 streaming 序列化共同保存；恢复后的 mutable 时间索引仍保持 build-once。</p>
+<p>不提供时间 selector 时会扫描全部时间分区与无时间分区；仅提供 host 时会从每个分区选择该 host。
+精确时间过滤会关闭所选 window 的 term 级 posting 剪枝，因此时间查询可能比仅 host 查询扫描更多
+posting，较宽的范围也会选择更多 window。在启用时间的索引上，仅 host 查询遇到跨分区或 host
+边界的 window 时也可能需要完整扫描。</p>
 <h2 id="检索参数-2"><a class="header" href="#检索参数-2">检索参数</a></h2>
 <p>检索参数放在 <code>sindi</code> 子对象下：</p>
 <div class="table-wrapper">
@@ -2017,8 +2130,9 @@ SINDI 会根据构建阶段的 <code>doc_prune_ratio</code> 与检索阶段的 <
 <li>使用 BM25、SPLADE、uniCOIL 等学习稀疏编码器的稀疏检索场景。</li>
 <li>稠密 + 稀疏的混合检索管线：SINDI 负责稀疏一路，HGraph / IVF 负责稠密 embedding。</li>
 <li>稀疏语料的内存受限部署：<code>use_quantization: true</code> 选择 SQ8，<code>"fp16"</code> 把 FP32
-权重字节数减半；
-<code>use_reorder: true</code> 以正排内存换召回，<code>rerank_type: "dmq8"</code> 可降低这部分正排开销。</li>
+倒排 value 字节数减半；<code>use_reorder: true</code> 以正排内存换召回，
+<code>rerank_type: "fp16"</code> 以较小精度损失降低正排 value 开销，<code>rerank_type: "dmq8"</code>
+可进一步压缩这部分存储。</li>
 <li>需要降低构建峰值内存的只读快照：使用 <code>immutable: true</code>，接受更慢的构建和不能增量写入。</li>
 </ul>
 <p>SINDI <strong>不支持</strong> 稠密向量，只支持内积相似度。范围检索与基于 ID 的过滤均已支持，
@@ -2044,8 +2158,9 @@ SPLADE。</li>
 <li>剪枝高精索引。构建时剪掉大部分低权重词项（<code>doc_prune_ratio: 0.4</code>），保留正排索引
 用于重排（<code>use_reorder: true</code>），并开启量化减少倒排索引内存
 （<code>use_quantization: true</code>）。这是常见的精度与内存折中配置。</li>
-<li>压缩正排重排索引。在上一种配置基础上，设置 <code>rerank_type: "dmq8"</code>，与
-<code>use_reorder: true</code> 一起使用，以降低正排重排内存。</li>
+<li>压缩正排重排索引。在上一种配置基础上，将 <code>rerank_type: "fp16"</code> 与
+<code>use_reorder: true</code> 一起使用，在侧重精度的前提下降低正排内存；需要更高压缩率时
+可选择 <code>dmq8</code>。</li>
 <li>超大稀疏词表支持。对于词项 ID 在 <code>uint32</code> 范围内非常稀疏的场景，例如基于哈希的
 分词器、外部词表 ID，或存在大量空白区间的词表，建议设置 <code>remap_term_ids: true</code>。
 这样可以避免管理大量空倒排列表带来的内存浪费，也能降低触达 <code>term_id_limit</code>
@@ -2120,6 +2235,7 @@ auto result = index-&gt;KnnSearch(
     query, 10,
     R"({"sindi_v2": {
         "n_candidate": 100,
+        "filter_callback_limit": 10000,
         "query_prune_ratio": 0.1,
         "term_prune_ratio": 0.2,
         "term_retain_threshold": 10000
@@ -2139,7 +2255,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建时丢弃最低权重文档 term 的比例，范围为 <code>[0.0, 1.0)</code>。</td></tr>
 <tr><td><code>use_quantization</code></td><td>bool 或 string</td><td><code>false</code></td><td><code>false</code> 存 FP32，<code>true</code> 存 SQ8，<code>"fp16"</code> 存 FP16。</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>保存高精度向量并对粗排候选重排。</td></tr>
-<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>重排存储类型：<code>fp32</code> 或 <code>dmq8</code>。</td></tr>
+<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>重排存储类型：<code>fp32</code>、<code>fp16</code> 或 <code>dmq8</code>。FP16 以半精度保存文档 value，并以 FP32 打分。</td></tr>
 <tr><td><code>dmq_shared_codebook_threshold</code></td><td>int</td><td><code>1024</code></td><td>低频 term 使用共享 DMQ codebook 的阈值。</td></tr>
 <tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>压缩稀疏或间隔很大的外部 term ID。</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>仅用于内存估算。</td></tr>
@@ -2153,7 +2269,8 @@ auto result = index-&gt;KnnSearch(
 <p>文件型 <code>term_io</code> 支持 <code>mmap_io</code>、<code>buffer_io</code> 和 <code>async_io</code>，并要求设置
 <code>file_path</code>。文件型 <code>rerank_io</code> 未设置 <code>file_path</code> 时，VSAG 使用
 <code>&lt;term_io.file_path&gt;.rerank</code>。</p>
-<p><code>rerank_layout &gt; 0</code> 要求 <code>use_reorder: true</code>。<code>rerank_type: "dmq8"</code> 要求
+<p><code>rerank_type: "fp16"</code> 要求 <code>use_reorder: true</code>，并支持与 <code>fp32</code> 相同的重排 I/O 和布局
+选项。<code>rerank_layout &gt; 0</code> 要求 <code>use_reorder: true</code>。<code>rerank_type: "dmq8"</code> 要求
 <code>rerank_layout: 0</code>，并使用默认的 <code>block_memory_io</code> 重排后端。</p>
 <h3 id="host-过滤-1"><a class="header" href="#host-过滤-1">Host 过滤</a></h3>
 <p>SINDI_V2 支持与 <a href="#host-过滤">SINDI</a> 相同的字符串 <code>host</code> 构建数据和 KNN 查询
@@ -2161,16 +2278,16 @@ metadata 约定。mutable 与 immutable 索引均支持该功能。两者共用 
 SINDI_V2 保持自己的 term-first posting 存储。host 成员检查统一在 posting-window 检索中执行，
 并支持 mutable <code>Add()</code> 产生的多个区间。空字符串缺失 host、持久化内部字典、mutable <code>Add()</code>
 metadata、streaming 序列化及仅支持 KNN 的规则均与 SINDI 相同。</p>
-<h3 id="日期-bucket-过滤-1"><a class="header" href="#日期-bucket-过滤-1">日期 bucket 过滤</a></h3>
-<p>SINDI_V2 同样支持 <a href="#日期-bucket-过滤">SINDI 的日期 bucket、闭区间输入与层级匹配约定</a>。
-两个索引共用一个 metadata 过滤组件，统一处理仅日期、仅 host 以及日期与 host 组合的 KNN 路由；
-SINDI_V2 仍保留 term-first posting 布局和自己的旧版序列化格式。日期过滤支持 mutable 和
-immutable 索引以及 <code>use_reorder</code> 的任意设置，并由旧版与 streaming 序列化共同保存；范围搜索仍不
-参与过滤。mutable 日期 SINDI_V2 同样是 build-once：只允许通过初次 <code>Build()</code> 或空索引上的第一次
-<code>Add()</code> 写入日期数据，之后拒绝 <code>Add()</code>。base 日期空字符串沿用 SINDI 的缺失日期语义：无日期条件
-和仅 host 查询会包含它们，日期 bucket 和范围查询会排除它们。为了执行精确 bucket 过滤，每个选中
-window 都会关闭 term 级 posting 剪枝，因此日期查询可能比仅 host 查询扫描更多 posting。在启用
-日期的索引上，仅 host 查询也遵循 SINDI 所述的边界 window 行为。</p>
+<h3 id="发布时间过滤-1"><a class="header" href="#发布时间过滤-1">发布时间过滤</a></h3>
+<p>SINDI_V2 同样支持 <a href="#发布时间过滤">SINDI 的 Unix 秒输入、UTC 日匹配与闭区间时间范围约定</a>。
+两个索引共用一个 metadata 过滤组件，统一处理仅时间、仅 host 以及时间与 host 组合的 KNN 路由；
+SINDI_V2 仍保留 term-first posting 布局。发布时间过滤支持 mutable、immutable 以及
+<code>use_reorder</code> 的任意设置，并由普通与 streaming 序列化共同保存；范围搜索仍不参与过滤。mutable
+时间 SINDI_V2 同样是 build-once：只允许通过初次 <code>Build()</code> 或空索引上的第一次 <code>Add()</code> 写入
+<code>publish_time_stamp</code>，之后拒绝 <code>Add()</code>。base 时间戳 <code>0</code> 沿用 SINDI 的无时间语义：无时间条件和
+仅 host 查询会包含这些文档，时间查询会排除它们。为了执行精确 day 过滤，每个选中 window 都会
+关闭 term 级 posting 剪枝，因此时间查询可能比仅 host 查询扫描更多 posting。在启用时间的索引上，
+仅 host 查询也遵循 SINDI 所述的边界 window 行为。</p>
 <h2 id="检索参数-3"><a class="header" href="#检索参数-3">检索参数</a></h2>
 <p>检索参数放在 <code>{"sindi_v2": {...}}</code> 下。</p>
 <div class="table-wrapper">
@@ -2180,6 +2297,7 @@ window 都会关闭 term 级 posting 剪枝，因此日期查询可能比仅 hos
 </thead>
 <tbody>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>粗排候选数量；<code>0</code> 使用根据 <code>topk</code> 推导的索引默认值。</td></tr>
+<tr><td><code>filter_callback_limit</code></td><td>uint64</td><td><code>0</code></td><td>单次带过滤检索最多调用用户 <code>Filter::CheckValid</code> 回调的次数；<code>0</code> 表示不限制。达到正数上限时，在正常处理最后一次回调结果后停止候选及后续 window 扫描，并返回此前已经通过过滤的候选，因此结果可能不完整。该限制适用于常规 KNN 和范围检索 API。</td></tr>
 <tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>跳过最低权重查询 term 的比例，范围为 <code>[0.0, 1.0)</code>。</td></tr>
 <tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>每条 term list 中跳过最低存储权重的比例，范围为 <code>[0.0, 1.0)</code>。</td></tr>
 <tr><td><code>term_retain_threshold</code></td><td>uint64</td><td><code>0</code></td><td>单个 term 在所有 window 中最多扫描的 posting 总数；<code>0</code> 表示关闭，正数使每个非空 window posting list 最多扫描 <code>max(1, floor(threshold / window_count))</code> 条。</td></tr>
@@ -2519,7 +2637,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>store_paths</code></td><td>bool</td><td><code>false</code></td><td>顶层开关；保留传给 <code>Build</code> 和 <code>Add</code> 的原始路径，使 <code>GetDataByIdsWithFlag</code> 在选择 <code>DATA_FLAG_PATH</code> 时可以返回它们。该开关对所有已配置的 hierarchy 生效，不支持按 hierarchy 覆盖</td></tr>
 <tr><td><code>index_min_size</code></td><td>int</td><td><code>0</code></td><td>子索引的最小规模；小于该值的分区会退化为线性扫描</td></tr>
 <tr><td><code>root_graph_type</code></td><td>string</td><td><code>"single_layer"</code></td><td>根图结构：<code>single_layer</code> 保留原有稀疏底图；<code>multi_layer</code> 使用预分配的 Flat 或 Compressed 底图、类似 HGraph 的稀疏路由层以及联合构图流程。<code>multi_layer</code> 支持 <code>graph_type: "nsw"</code> 和 <code>"pipnn"</code>。<code>no_build_levels</code> 禁用第 0 层时不要显式指定此选项。</td></tr>
-<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否允许重复 ID</td></tr>
+<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>根据构建编码的 <code>CompareVectors</code> 语义对编码等价、外部标签不同的向量分组；外部标签仍须唯一。</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>构建阶段并发线程数</td></tr>
 <tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>命名层级定义。每个元素可以是字符串（继承全部顶层参数）或对象（含 <code>name</code> 及可选覆盖参数：<code>max_degree</code>、<code>ef_construction</code>、<code>alpha</code>、<code>no_build_levels</code>、<code>index_min_size</code>、<code>root_graph_type</code>）。设置后激活多层级模式，每个层级维护独立的路径树。</td></tr>
 </tbody>
@@ -2563,7 +2681,10 @@ auto result = index-&gt;KnnSearch(
 向量；除非构建时启用 <code>store_raw_vector</code>，否则依赖可解码向量的 Analyzer 指标会被标记为
 不可用。如果 embedding 模型没有针对前缀维度训练，截断可能显著降低召回率。</p>
 <h2 id="构建缓存"><a class="header" href="#构建缓存">构建缓存</a></h2>
-<p><code>ExportCache</code> 会保存每个层级、每个节点的 NSW 图种子，<code>ImportCache</code> 可在后续 <code>Build</code> 中复用。缓存数据使用索引缓存 payload 格式，而非 streaming 索引序列化格式。需要复用缓存的索引通过 footer 序列化前应设置 <code>persist_source_id: true</code>，并且两次构建中的每个向量都必须提供唯一的 <code>Dataset::SourceID</code>。缓存预热仅适用于 <code>graph_type: "nsw"</code>；ODescent、重复 ID 模式、缺少 source ID 或 source ID 重复时会自动回退到普通冷构建。<code>ef_construction</code> 不作为缓存路径的准入条件。输入数据中至少 80% 的 source ID 必须与导入缓存重合；低于该比例时会回退到普通冷构建。缓存未命中的节点仍按正常流程构建。single-layer root 的命中节点会执行低成本、分块并行的出边修复，较小的标签子图则保留恢复后的缓存行。由于 Build Cache 不保存 route graph，multi-layer 节点仍会重建 routing overlay。<code>GetStats()</code> 除向量命中/未命中数量外，还会报告图成员关系的命中/未命中数量和恢复的边数量。</p>
+<p><code>ExportCache</code> 保存每个层级、每个节点的 NSW 图种子，<code>ImportCache</code> 可在后续 <code>Build</code> 中复用。缓存使用索引缓存 payload 格式，而非 streaming 索引序列化格式。需要复用缓存的索引通过 footer 序列化前应设置 <code>persist_source_id: true</code>，两次构建中的每个向量都须提供唯一的 <code>Dataset::SourceID</code> 和外部标签。缓存预热仅适用于 <code>graph_type: "nsw"</code>；ODescent、缺少 source ID、source ID 或标签重复时回退到普通冷构建（保留普通构建拒绝重复标签的行为）。<code>ef_construction</code> 不作为准入条件。输入 source ID 至少 80% 须与缓存重合。未命中成员按正常流程构建；single-layer root 命中成员执行出边修复，multi-layer 节点重建未缓存的 routing overlay。</p>
+<p>启用 <code>support_duplicate: true</code> 时，Pyramid 显式保存每个图的组成员及实际邻接行代表，而不是最小标签或内部 ID。预热构建重映射 SourceID，并验证当前图成员关系和构建编码等价性。代表缺失或迁移、组等价性变化、组缓存行不可用时，仅将受影响的组转为 miss，其他合法组仍可复用。仅删除别名不会使其组失效。编码新合并的组保守重建。按哈希组织的有序索引通过比较完整构建编码字节处理冲突，不将哈希相同视为向量相等。每图至少 80% 的成员关系须保持可复用；缺少组元数据（含旧缓存）或复用比例不足时，整个图回退冷构建。缺少有效缓存邻接的全相同向量图仍冷构建。先恢复代表邻接再关联别名，过滤指向失效组的边；别名只计入成员关系，不增加恢复边或路由条目。</p>
+<p>并发插入使用临时的图级精确编码代表登记表，仅在相应的准入分片锁内完成代表发布。登记表引用已有构建编码，不复制完整向量；加载索引后在需要时重建。启用 duplicate 的 NSW <code>Build</code> 在冷构建和预热修整结束后，既检查从每个底层图入口出发的正向可达性，也检查各代表返回该入口的可达性。必要时补充有界、按几何距离选择的连接，同时保护正向遍历树边并保持最大度数。这两项检查共同确保图内物理代表之间的强连通性，也适用于路由下降为不同查询选择的底层入口。返回路径检查采用 CSR 反向邻接结构，对于 R 个代表和 E 条边需要 O(R + E) 临时内存，逐图处理并释放。这是 Build 阶段的不变量，不保证任意后续 <code>Add</code> 操作后的连通性。有限搜索预算的近似查询仍可能漏召回整个向量组，不承诺通用的召回率或构建加速。 反序列化后，稀疏图的显式空邻接行仍保留物理代表身份。旧版稠密或压缩存储可能丢失孤立空重复组的历史代表身份；准入初始化优先保留可由邻接行、入边或路由观察到的代表，然后为仍不可观察的已持久化重复组规范化一个成员作为代表，而不改变组内标签。这不等于恢复历史代表身份，也不保证任意增量图的连通性。此一次性旧索引准入扫描需要 O(H + A + E) 遍历工作和 O(H) 访问标记内存，其中 H 为已存储 ID 的高水位，A 为访问的重复成员数，E 为遍历的边数；精确编码有序索引操作另计通常的比较开销。</p>
+<p>带重复组的缓存使用 Pyramid 专用版本化格式；新读取器兼容旧普通缓存，旧读取器不能读取新重复组 payload。不含组元数据的普通缓存保留旧格式。HGraph 缓存及索引序列化格式不变。<code>GetStats()</code> 区分向量、图成员关系的命中/未命中计数和恢复边数；图回退计为未命中，不计为已恢复组。</p>
 <h2 id="检索参数-5"><a class="header" href="#检索参数-5">检索参数</a></h2>
 <p>检索参数放在 <code>pyramid</code> 子对象下：</p>
 <div class="table-wrapper">
@@ -3075,7 +3196,8 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id3, id4}, vsag::RemoveMode::FORCE_R
 （见 <code>src/algorithm/hgraph/hgraph.cpp</code>）。</li>
 <li><strong>IVF</strong> 暴露 <code>base_quantization_type</code>、<code>base_pq_dim</code>、通用重排相关 key，
 以及 <code>rabitq_pca_dim</code>、<code>rabitq_bits_per_dim_query</code>、
-<code>rabitq_bits_per_dim_base</code>、<code>rabitq_version</code>、<code>rabitq_error_rate</code>、
+<code>rabitq_bits_per_dim_base</code>、<code>rabitq_bits_per_dim_precise</code>、<code>rabitq_version</code>、
+<code>rabitq_error_rate</code>、
 <code>rabitq_use_fht</code> 这些 RabitQ 调参 key。</li>
 <li><strong>Pyramid</strong> 暴露 <code>base_quantization_type</code>、<code>base_pq_dim</code>、通用重排相关 key，
 以及 RabitQ 的 PCA、底库/查询位数和 FHT 相关 key。</li>
@@ -3271,7 +3393,7 @@ Glove、句向量）上召回损失通常低于 1%。</li>
 请在 <code>Add</code> 之前调用。详见
 <a href="#索引构建与训练">索引构建与训练</a>。</p>
 <h2 id="度量兼容性-3"><a class="header" href="#度量兼容性-3">度量兼容性</a></h2>
-<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持。距离通过把整数码解码回逐维缩放浮点后
+<p><code>sq8</code> 和 <code>sq4</code> 支持 <code>l2</code>、<code>ip</code>、<code>cosine</code>。距离通过把整数码解码回逐维缩放浮点后
 计算。</p>
 <h2 id="sq8-与-sq4-如何选"><a class="header" href="#sq8-与-sq4-如何选"><code>sq8</code> 与 <code>sq4</code> 如何选</a></h2>
 <ul>
@@ -3291,6 +3413,52 @@ Glove、句向量）上召回损失通常低于 1%。</li>
 <li><a href="#量化变换quantization-transform">量化变换</a></li>
 <li><a href="quantization">量化总览</a></li>
 </ul>
+<h2 id="local-sq4--sq8float32-l2ip-和-cosine"><a class="header" href="#local-sq4--sq8float32-l2ip-和-cosine">Local SQ4 / SQ8（float32 L2、IP 和 cosine）</a></h2>
+<p>HGraph 的 <code>base_quantization_type</code> 可设为 <code>sq4_local</code> 或 <code>sq8_local</code>；启用 <code>use_reorder: true</code> 时，<code>precise_quantization_type</code> 也支持两者。两种量化器均支持稠密 float32 的 L2、IP 和 cosine。例如，使用 RaBitQ 遍历并用 local SQ4 精排：</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "cosine",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "rabitq",
+        "use_reorder": true,
+        "precise_quantization_type": "sq4_local",
+        "max_degree": 32,
+        "ef_construction": 300
+    }
+}
+</code></pre>
+<p>将 <code>sq4_local</code> 替换为 <code>sq8_local</code> 可使用八位精度。直接检索可设置 <code>base_quantization_type: "sq8_local"</code> 和 <code>use_reorder: false</code>。原有可选 FP32 精排保持不变；local 精排不会隐式增加 FP32 存储或第三阶段精排。<code>precise_quantization_type</code> 不保证精确距离：两者均有损，SQ4 较粗的量化等级可能明显降低召回率，应使用自己的数据选择精度和搜索参数。</p>
+<h3 id="设计与布局"><a class="header" href="#设计与布局">设计与布局</a></h3>
+<p>每个向量保存独立的 FP32 最小值 <code>m</code> 和 FP32 步长 <code>s = (max - min) / (2^bits - 1)</code>。偏移 0–3 为 <code>m</code>，4–7 为 <code>s</code>，从偏移 8 开始存储编码，无填充及记录对齐要求。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>类型</th><th>等级数</th><th>编码负载</th><th>每向量字节数</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sq8_local</code></td><td>256</td><td>每分量一个无符号字节</td><td><code>dim + 8</code></td></tr>
+<tr><td><code>sq4_local</code></td><td>16</td><td>偶数分量位于低四位，奇数分量位于高四位</td><td><code>ceil(dim / 2) + 8</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>SQ4 奇数维的末字节高四位清零。N 个向量的编码占用 <code>N * 每向量字节数</code>，不含图、ID、分配容量及可选其他存储。每个查询计算器需要 <code>4 * dim</code> 字节；cosine 编码额外使用临时 <code>4 * dim</code> 字节归一化缓冲区。</p>
+<p>编码对 <code>(x - m) / s</code> 四舍五入（半步向上）并截断到 [0, 255] 或 [0, 15]。常量向量使用零步长及零编码。解码采用融合舍入计算 <code>m + s * code</code>，并限制在有限 FP32 端点内。与按坐标训练范围的 <code>sq8</code> / <code>sq4</code> 不同，范围逐向量计算；与 uniform SQ 不同，查询保持 FP32。</p>
+<h3 id="距离定义与归一化"><a class="header" href="#距离定义与归一化">距离定义与归一化</a></h3>
+<ul>
+<li><strong>L2：</strong> FP32 查询与重建数据库向量之间的平方欧氏距离；编码间距离分别重建两侧。</li>
+<li><strong>IP：</strong> 保留原始幅度，计算 <code>1 - dot(query, decoded_vector)</code>；编码间计算 <code>1 - dot(decoded_a, decoded_b)</code>。内积包含两侧最小值偏移的贡献。</li>
+<li><strong>Cosine：</strong> 量化器采用现有 <code>ScalarQuantizer</code> 的 <code>Normalize</code>，编码前归一化原始数据库向量，ADC 前归一化 FP32 查询，然后计算 <code>1 - dot</code>。不重新归一化解码向量；量化可能改变其范数，因此距离不一定严格位于 [0, 2]。零向量保持为零，其与任意向量的 cosine 距离为 1。</li>
+</ul>
+<p>HGraph 向这些存储传入原始向量，由量化器负责 cosine 归一化。极端值沿用既有 FP32 归一化语义：范数溢出可能使归一化分量变为零，下溢或非正规数处理可能保留极小分量。本功能不重新定义已有策略。</p>
+<h3 id="数值与训练约定"><a class="header" href="#数值与训练约定">数值与训练约定</a></h3>
+<p>拒绝其他输入类型及包裹 local SQ 的变换链。支持负数及常量向量，编码和查询处理拒绝 NaN 与无穷。范围使用 double 中间值；极端有限值记录使用 double 中间值距离回退，重建值限制在有限 FP32 端点内。超出 FP32 范围的距离可能为无穷。极小范围的步长可能舍入为零，也受平台非正规数处理影响。SIMD 结果在浮点容差内一致，不保证逐位相同。</p>
+<p>支持 1 至 <code>INT_MAX</code> 的维度、奇数维及非对齐记录。共享内核支持标量、SSE、AVX、AVX2、AVX512 和 NEON；SVE 回退到标量。SSE/AVX 在 SIMD 累加前逐分量采用融合舍入重建，使 ADC 与公开解码结果一致。本次本地验证无法执行原生 ARM 路径。</p>
+<p>无共享训练边界及额外参数。<code>Train</code> / <code>ReTrain</code> 无需读取样本即可完成；编码时逐向量计算元数据。任一本地类型用作基础存储时，HGraph 的 <code>NEED_TRAIN</code> 为 false。仍遵循 HGraph 正常 Build/Train 生命周期。</p>
+<h3 id="持久化与-tune"><a class="header" href="#持久化与-tune">持久化与 Tune</a></h3>
+<p>现有 <code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、默认值及格式不变。</p>
+<p>新类型需要支持它们的读取版本。记录及元数据沿用原生二进制序列化约定，不引入跨字节序格式。加载校验维度、度量和记录长度。HGraph 序列化保留基础及精排存储，包括 RaBitQ 加任一 local 量化器。Tune 可从保留的原始数据或 FP32 编码生成这些存储；仅有有损 local 编码时不能执行后续改变精度的 Tune。原有 <code>ignore_reorder</code>、<code>reorder_source</code> 及 Tune 限制保持不变。</p>
+<p>本次变更未开展大规模召回率或吞吐基准测试。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform"><a class="header" href="#标量量化-uniformscalar-quantization-uniformsq4--sq8-uniform">标量量化 Uniform（Scalar Quantization Uniform：SQ4 / SQ8 Uniform）</a></h1>
 <p><code>sq8_uniform</code> 与 <code>sq4_uniform</code> 与 <a href="#标量量化sq4--sq8"><code>sq8</code> / <code>sq4</code></a> 类似，是标量量化
@@ -3552,9 +3720,10 @@ scale 与 offset</strong>。这在热路径上带来三点收益：</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="rabitq"><a class="header" href="#rabitq">RaBitQ</a></h1>
 <p><code>rabitq</code> 是 VSAG 的二值 / 低比特量化器。默认模式下每个坐标用 <strong>1 比特</strong>
-编码，给出所有内建量化器中最高的压缩率。在 HGraph 和 Pyramid 上，<code>x+y</code> split 模式把
-底库码拆成 <code>x</code> 个过滤 bit 和 <code>y</code> 个 supplement bit：图遍历只使用 filter code，
-重排 / full-distance 阶段只额外读取 supplement bits。</p>
+编码，给出所有内建量化器中最高的压缩率。在 HGraph、IVF 和 Pyramid 上，
+<code>x+y</code> split 模式把底库码拆成 <code>x</code> 个过滤 bit 和 <code>y</code> 个 supplement bit：
+图遍历或 IVF 桶扫描只使用 filter code，重排 / full-distance 阶段只额外读取
+supplement bits。</p>
 <p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ：按坐标相对随机超平面的符号进行编码"><span class="img-wrapper"><img src="figures/quantization/rabitq-hyperplane.svg" alt="RaBitQ：按坐标相对随机超平面的符号进行编码"></span></label></p>
 <blockquote>
 <p>实现：<code>src/quantization/rabitq_quantization/rabitq_quantizer.cpp</code>，
@@ -3576,7 +3745,7 @@ split 的完整存储布局、lower bound 公式和 IO 模式见
 <ul>
 <li><code>rabitq_bits_per_dim_base = 1</code>：每向量 <code>ceil(dim / 8)</code> 字节。<code>dim = 768</code>
 时为 96 字节（对比 fp32 的 3072 → 小 32×）。</li>
-<li>HGraph 或 Pyramid 上 <code>rabitq_bits_per_dim_base = x</code> 且
+<li>HGraph、IVF 或 Pyramid 上 <code>rabitq_bits_per_dim_base = x</code> 且
 <code>rabitq_bits_per_dim_precise = y</code>：split 模式约存储
 <code>(x + y) * dim / 8</code> 字节的 RaBitQ code。例如 <code>3+5</code> 约为每向量 <code>dim</code>
 字节。</li>
@@ -3590,9 +3759,9 @@ split 的完整存储布局、lower bound 公式和 IO 模式见
 <tbody>
 <tr><td><code>pca_dim</code></td><td>int</td><td><code>0</code>（= 输入维度）</td><td>RaBitQ 内部可选的 PCA 预处理维度。<code>0</code> 表示不做 PCA 降维（<code>rabitq_quantizer_parameter.cpp:30-32</code>）。</td></tr>
 <tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>搜索时<strong>查询</strong>的每维位数。允许值：<code>4</code> 或 <code>32</code>（<code>rabitq_quantizer_parameter.cpp:38-43</code>）。</td></tr>
-<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>standard RaBitQ 下表示底库码每维位数；HGraph/Pyramid <code>x+y</code> split 下，这个外部 key 表示 <code>x</code>，即图遍历过滤阶段使用的 filter bits。范围 <code>[1, 8]</code>。</td></tr>
-<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>未设置</td><td>HGraph/Pyramid split 模式 key。和 <code>base_quantization_type: "rabitq"</code>、<code>precise_quantization_type: "rabitq"</code> 一起出现时表示 <code>y</code>，即重排 / full-distance 阶段读取的 supplement bits。要求 <code>x + y &lt;= 8</code>。</td></tr>
-<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>HGraph/Pyramid split 搜索的默认 lower-bound 误差倍率；必须为有限正数，也可以在 <code>hgraph</code> 或 <code>pyramid</code> 搜索参数中按次覆盖。</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>standard RaBitQ 下表示底库码每维位数；HGraph/IVF/Pyramid <code>x+y</code> split 下，这个外部 key 表示 <code>x</code>，即过滤阶段使用的 filter bits。范围 <code>[1, 8]</code>。</td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>未设置</td><td>HGraph/IVF/Pyramid split 模式 key。和 <code>base_quantization_type: "rabitq"</code>、<code>precise_quantization_type: "rabitq"</code> 一起出现时表示 <code>y</code>，即重排 / full-distance 阶段读取的 supplement bits。要求 <code>x + y &lt;= 8</code>。</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>HGraph/IVF/Pyramid split 搜索的默认 lower-bound 误差倍率；必须为有限正数，也可以在 <code>hgraph</code> 或 <code>pyramid</code> 搜索参数中按次覆盖。</td></tr>
 <tr><td><code>use_fht</code></td><td>bool</td><td><code>false</code></td><td><code>true</code> 时在二值化前应用快速 Hadamard 变换旋转。以 O(dim log dim) 的廉价代价提升各向异性数据上的精度（<code>rabitq_quantizer_parameter.cpp:76-78</code>）。</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>对大于 1 bit 的底库码启用基于 CAQ 的快速编码；设为 <code>false</code> 时使用原有精确编码。1 bit 编码会忽略此参数。</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>CAQ 坐标微调轮数，范围 <code>[1, 32]</code>；每个坐标在每轮最多移动一级。</td></tr>
@@ -3610,7 +3779,8 @@ split 的完整存储布局、lower bound 公式和 IO 模式见
 <code>rabitq_pca_dim</code>、<code>rabitq_bits_per_dim_query</code>、<code>rabitq_bits_per_dim_base</code>、
 <code>rabitq_bits_per_dim_precise</code>、<code>rabitq_error_rate</code>、<code>rabitq_use_fht</code>；IVF
 暴露 <code>rabitq_pca_dim</code>、<code>rabitq_bits_per_dim_query</code>、
-<code>rabitq_bits_per_dim_base</code>、<code>rabitq_version</code>、<code>rabitq_error_rate</code>、
+<code>rabitq_bits_per_dim_base</code>、<code>rabitq_bits_per_dim_precise</code>、<code>rabitq_version</code>、
+<code>rabitq_error_rate</code>、
 <code>rabitq_use_fht</code>；Pyramid 为底层量化器暴露 PCA、底库/查询位数、split precise 位数、误差倍率和 FHT
 相关 key。其中 <code>rabitq_use_fht</code> 是索引层对量化器内部 <code>use_fht</code> key
 的别名，会由索引层重写。</p>
@@ -3645,8 +3815,9 @@ PCA、ROM/FHT 或 RaBitQ 量化。scalar record 与 code-sum 数组都会在
 }
 </code></pre>
 <p>切换到高精度的 <code>x+y</code> split 模式：把 base 和 precise 量化都设置为 RaBitQ，
-并提供 <code>rabitq_bits_per_dim_precise</code>。HGraph 和 Pyramid 会自动选择 split datacell。
-下面例子中，图遍历使用 <code>x = 3</code> 个 filter bits，重排只读取 <code>y = 5</code> 个
+并提供 <code>rabitq_bits_per_dim_precise</code>。HGraph、IVF 和 Pyramid 会自动选择
+split datacell。
+下面例子中，过滤阶段使用 <code>x = 3</code> 个 filter bits，重排只读取 <code>y = 5</code> 个
 supplement bits：</p>
 <pre><code class="language-json">{
     "base_quantization_type": "rabitq",
@@ -3671,8 +3842,8 @@ FHT 旋转是固定的（无需学习），因此不增加训练代价；PCA 预
 <code>use_reorder: true</code> + <code>precise_quantization_type: "fp32"</code> 是稳妥默认。</li>
 <li><strong>先旋转。</strong> 对未归一化数据，设 <code>rabitq_use_fht: true</code>，或在 <code>tq</code> 链路
 中包含 <code>rom</code> / <code>fht</code>。</li>
-<li><strong>精度优先时用 split 模式。</strong> HGraph/Pyramid <code>x+y</code> split 保留 <code>x</code> bit 快速
-过滤路径，再添加 <code>y</code> 个 supplement bits 用于重排；相对纯 1 比特，使用
+<li><strong>精度优先时用 split 模式。</strong> HGraph/IVF/Pyramid <code>x+y</code> split 保留 <code>x</code> bit
+快速过滤路径，再添加 <code>y</code> 个 supplement bits 用于重排；相对纯 1 比特，使用
 更多总 bit 时召回明显更高。</li>
 </ul>
 <h2 id="相关页面-6"><a class="header" href="#相关页面-6">相关页面</a></h2>
@@ -3684,10 +3855,11 @@ FHT 旋转是固定的（无需学习），因此不增加训练代价；PCA 预
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="rabitq-xy-split"><a class="header" href="#rabitq-xy-split">RaBitQ x+y Split</a></h1>
-<p>RaBitQ x+y split 是 HGraph 和 Pyramid 面向低比特底库码的存储与搜索模式。每条向量拆成
+<p>RaBitQ x+y split 是 HGraph、IVF 和 Pyramid 面向低比特底库码的存储与搜索模式。
+每条向量拆成
 两条记录：</p>
 <ul>
-<li>图遍历和 lower-bound 过滤只读取 <code>x</code> 个 filter bits。</li>
+<li>图遍历或 IVF 桶扫描只读取 <code>x</code> 个 filter bits。</li>
 <li>只有进入重排的候选才读取 <code>y</code> 个 supplement bits。</li>
 <li>最终重排距离使用完整的 <code>x+y</code> bits。</li>
 </ul>
@@ -3695,7 +3867,7 @@ FHT 旋转是固定的（无需学习），因此不增加训练代价；PCA 预
 它也支持把 filter record 留在内存中，把访问频率更低的 supplement record 放到磁盘。</p>
 <h2 id="启用-split-模式"><a class="header" href="#启用-split-模式">启用 split 模式</a></h2>
 <p>当 base 和 precise 的量化类型都为 <code>rabitq</code>，并且配置了
-<code>rabitq_bits_per_dim_precise</code> 时，HGraph 和 Pyramid 自动选择 split 模式：</p>
+<code>rabitq_bits_per_dim_precise</code> 时，HGraph、IVF 和 Pyramid 自动选择 split 模式：</p>
 <pre><code class="language-json">{
     "dtype": "float32",
     "metric_type": "l2",
@@ -3737,7 +3909,8 @@ FHT 旋转是固定的（无需学习），因此不增加训练代价；PCA 预
 1 &lt;= y &lt;= 8
 x + y &lt;= 8
 </code></pre>
-<p>如果不配置 <code>rabitq_bits_per_dim_precise</code>，HGraph 和 Pyramid 使用 standard RaBitQ 路径，
+<p>如果不配置 <code>rabitq_bits_per_dim_precise</code>，HGraph、IVF 和 Pyramid 使用
+standard RaBitQ 路径，
 不会创建 split storage。</p>
 <h3 id="hgraph-融合内存布局"><a class="header" href="#hgraph-融合内存布局">HGraph 融合内存布局</a></h3>
 <p>仅对 HGraph，将 <code>rabitq_fused_datacell</code> 设为 <code>true</code> 后，底层节点的邻居、
@@ -3802,20 +3975,21 @@ remove flags 的开发期旧格式，不提供迁移分支。</li>
 单次搜索覆盖默认值，且不需要重建索引。原生 HGraph fused record 保存
 乘倍率前的几何误差尺度；HNSW-compatible fused <code>1+7</code> record 保留按规范
 默认值缩放的 metadata，并在查询时按相对该默认值的倍率应用 override。</p>
+<p>IVF 桶扫描会自动使用配置的 <code>x</code> 个 filter bits，不需要
+<code>rabitq_one_bit_search</code> 开关。<code>ivf.factor</code> 控制进入 supplement 重排的
+过滤阶段候选数（<code>factor * topk</code>）。</p>
 <h2 id="搜索流程"><a class="header" href="#搜索流程">搜索流程</a></h2>
 <p>split 搜索分为四个阶段：</p>
 <ol>
-<li>query 只做一次变换和归一化；对支持的 filter bit 数，还会为每个 query
-构建一次 byte lookup table。</li>
-<li>图遍历只读取 filter record，为每个访问到的向量计算 x-bit 距离估计和
-保守的 lower bound。</li>
-<li>重排先丢弃 lower bound 不可能进入结果集的候选，只为剩余候选读取 y-bit
-supplement record。</li>
-<li>最终距离把 filter contribution 与 supplement contribution 合成为
-<code>x+y</code>-bit RaBitQ 估计。</li>
+<li>query 只做一次变换和归一化。residual IVF 使用原始变换 query 构建一份
+共享的 HighAcc lookup table。</li>
+<li>IVF 桶扫描只读取 packed x-bit filter record，并输出距离估计及可复用的
+量化 filter 内积。</li>
+<li>IVF 按 filter distance 保留 <code>factor * topk</code> 个候选；candidate heap 同时携带
+source bucket、offset 和 version，用于在并发更新时校验保存的内积。</li>
+<li>正常重排只读取 y-bit supplement，并与保存的 filter contribution 合并。只有
+候选无效或过期时的正确性 fallback 才重新读取 packed x bits。</li>
 </ol>
-<p>因此，图搜索不会为每个访问到的向量都计算 <code>x+y</code> 距离并放入搜索堆。图遍历由
-低成本的 x-bit 距离驱动，更精确的距离只在候选重排阶段计算。</p>
 <h2 id="编码和-bit-plane"><a class="header" href="#编码和-bit-plane">编码和 bit-plane</a></h2>
 <p>定义：</p>
 <pre><code class="language-text">d       = 变换后的维度
@@ -3898,6 +4072,85 @@ LB = D_x
 换算误差项。</p>
 <p>lower bound 只用于安全地排除候选。<code>D_x</code> 是图遍历距离，最终排序使用完整的
 <code>x+y</code> 距离。</p>
+<h2 id="ivf-1-bit2-bit-和-3-bit-的-32-vector-fastscan-布局"><a class="header" href="#ivf-1-bit2-bit-和-3-bit-的-32-vector-fastscan-布局">IVF 1-bit、2-bit 和 3-bit 的 32-vector FastScan 布局</a></h2>
+<p>IVF split storage 使用 <code>x = 1..3</code> 时，<code>RaBitQSplitBucketDataCell</code> 会把每个桶
+按 32 个候选一组打包。桶内 packed blocks 是 filter code 唯一的持久化布局，
+其中保存面向 SIMD 的 filter planes 和紧凑元数据。只有正确性 fallback 或按 ID
+读取完整 code 时，才从 block 临时 unpack 单 lane x bits；正常 supplement 重排
+只读取独立的 y-bit record。</p>
+<p>设 <code>G = ceil(d / 8) * 2</code>，即单个 bitplane 的四维分组数。每组为每个候选保存
+一个四位 mask，32 个 mask 转置为 16 bytes。低 nibble 表示候选 <code>0..15</code>，
+高 nibble 表示候选 <code>16..31</code>；两部分均采用 lane 顺序
+<code>0, 8, 1, 9, ..., 7, 15</code>。多个 bitplane 保持分离，并按 plane-major 顺序连续
+存放。</p>
+<p>对于 <code>x = 1</code>，每组构建一个 16 项子集和表：</p>
+<pre><code class="language-text">LUT_g[m] = sum(q_(4g+j) for j in [0, 3] when bit_j(m) is set)
+</code></pre>
+<p>对于 <code>x = 2</code> 或 <code>x = 3</code>，设 bitplane 0 为最高位，中心化 LUT 为：</p>
+<pre><code class="language-text">weight(x, p) = 2^(x - p - 2)
+LUT_(p,g)[m] = weight(x, p) * sum((2 * bit_j(m) - 1) * q_(4g+j))
+</code></pre>
+<p>2-bit 的 plane 权重是 <code>{1, 0.5}</code>，3-bit 是 <code>{2, 1, 0.5}</code>。超出 <code>d</code> 的坐标
+按零处理。</p>
+<p>1-bit 和 2-bit 扫描使用一个 query 级统一 uint8 quantizer。3-bit 扫描对每个
+plane 独立量化，避免低权重 plane 因最高 plane 的值域大四倍而损失有效精度：</p>
+<pre><code class="language-text">delta[p] = (v_max[p] - v_min[p]) / 255
+plane_sum[p] ~= G * v_min[p] + delta[p] * sum LUT_u8[p][code]
+centered_ip ~= plane_sum[0] + plane_sum[1] + plane_sum[2]
+</code></pre>
+<p>3-bit scanner 对三个连续 plane 分别调用一次 <code>PQFastScanLookUp32</code>。总 shuffle
+分组数和 packed-code 大小仍是 <code>3 * G</code>，与单次合并扫描相同，但可以使用独立
+反量化 scale。</p>
+<p>对于 1-bit，使用 <code>sum(q)</code> 和 <code>sqrt(d)</code> 把 lookup sum 转换为归一化二值内积。
+对于 2-bit 和 3-bit，lookup sum 已是中心化内积，再除以保存的 filter-code
+norm。随后所有路径都使用 RaBitQ norm 和 error 元数据恢复过滤阶段距离。</p>
+<p>packed filter planes 后紧跟 32 个候选的元数据。桶尾不足 32 条的 block 用零码
+补齐，扫描器只返回有效候选。运行时会分派到 generic、SSE、AVX2 或 AVX-512
+实现。byte-LUT 反量化结果会保存为 <code>S_x</code> 并在最终 <code>x+y</code> 估计中复用，因此过滤与
+重排共享同一个 LUT 量化误差。更宽的 filter 继续使用
+bit-plane batch 路径。</p>
+<p>配置示例：</p>
+<pre><code class="language-json">{
+    "rabitq_bits_per_dim_base": 1,
+    "rabitq_bits_per_dim_precise": 7,
+    "rabitq_bits_per_dim_query": 32
+}
+</code></pre>
+<pre><code class="language-json">{
+    "rabitq_bits_per_dim_base": 2,
+    "rabitq_bits_per_dim_precise": 6,
+    "rabitq_bits_per_dim_query": 32
+}
+</code></pre>
+<pre><code class="language-json">{
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5,
+    "rabitq_bits_per_dim_query": 32
+}
+</code></pre>
+<h3 id="gist1m-对比实验"><a class="header" href="#gist1m-对比实验">GIST1M 对比实验</a></h3>
+<p>下表对比传统 8-bit IVF RaBitQ 与 split 布局在
+<code>gist-960-euclidean.hdf5</code> 上的结果。数据集包含 1,000,000 条 960 维 L2
+base 向量；索引使用 1,024 个桶、100,000 条训练样本、16 个构建线程，并设置
+<code>rabitq_bits_per_dim_query = 32</code>。搜索使用单线程、扫描 32 个桶、<code>factor = 10</code>、
+top-10，共计时 5,000 次查询。split 搜索结果启用了上述 32-vector FastScan 布局。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>布局</th><th style="text-align: right">构建时间（秒）</th><th style="text-align: right">构建 TPS</th><th style="text-align: right">索引内存（bytes）</th><th style="text-align: right">搜索 QPS</th><th style="text-align: right">平均延迟（ms）</th><th style="text-align: right">Recall@10</th></tr>
+</thead>
+<tbody>
+<tr><td>传统 RaBitQ 8-bit</td><td style="text-align: right">150.742</td><td style="text-align: right">6,633.840</td><td style="text-align: right">1,284,595,208</td><td style="text-align: right">17.767</td><td style="text-align: right">56.280</td><td style="text-align: right">0.9197</td></tr>
+<tr><td>Split RaBitQ 1+7</td><td style="text-align: right">551.701</td><td style="text-align: right">1,812.576</td><td style="text-align: right">1,450,355,304</td><td style="text-align: right">118.333</td><td style="text-align: right">8.447</td><td style="text-align: right">0.9019</td></tr>
+<tr><td>Split RaBitQ 2+6</td><td style="text-align: right">509.431</td><td style="text-align: right">1,962.974</td><td style="text-align: right">1,582,237,512</td><td style="text-align: right">74.786</td><td style="text-align: right">13.368</td><td style="text-align: right">0.9128</td></tr>
+<tr><td>Split RaBitQ 3+5</td><td style="text-align: right">496.873</td><td style="text-align: right">2,012.589</td><td style="text-align: right">1,702,580,248</td><td style="text-align: right">67.892</td><td style="text-align: right">14.726</td><td style="text-align: right">0.9094</td></tr>
+</tbody>
+</table>
+</div>
+<p>这些数据用于单机方案对比，并非通用的性能承诺。split storage 需要构建两路编码，
+并在内存中保存一份桶级 FastScan 副本；作为交换，filter 扫描不再为每个候选读取
+完整 8-bit code。在该负载中，2+6 的召回最接近传统 8-bit RaBitQ，同时搜索吞吐
+约提升 4.2 倍；1+7 的吞吐最高，但召回损失也更明显。</p>
 <h2 id="query-lookup-table-和-simd"><a class="header" href="#query-lookup-table-和-simd">Query lookup table 和 SIMD</a></h2>
 <p>当 <code>x = 2</code> 或 <code>x = 3</code> 时，query computer 会构建 FastScan 风格的 byte lookup
 table。每一行对应八个 query 坐标，并包含 256 个表项：</p>
@@ -3922,7 +4175,10 @@ scalar 实现作为可移植 fallback。关键入口为：</p>
 </code></pre>
 <p>当 <code>x &gt;= 2</code> 时，HGraph fused 专用 search/reorder 路径会把遍历阶段算出的精确
 x-bit filter inner product 直接传给 reorder，并直接从 node record 读取 code，
-因此 full rerank 只计算 y supplement planes 对应的第二项：</p>
+因此 full rerank 只计算 y supplement planes 对应的第二项。对使用 x-bit lookup
+filter 的 L2 搜索，HGraph、IVF 和 Pyramid 会把之前计算的 filter distance
+作为 hint 传给 reorder。<code>ComputeDistWithSplitCodeAndFilterDist</code> 从 hint 恢复第一项，
+只从 y 个 supplement planes 计算第二项：</p>
 <pre><code class="language-text">full contribution = shifted filter contribution + supplement contribution
 </code></pre>
 <p>因此 fused <code>2+y</code>、<code>3+y</code>、<code>4+y</code> 会复用精确的 x-bit filter inner product，每个
@@ -3991,7 +4247,7 @@ bottom-graph slab 中序列化一次。普通和 streaming 往返都会保留该
 <tr><td>plane 布局和 code 拆分</td><td><code>RaBitQuantizer::StoredPlaneIndex</code>、<code>SplitCode</code></td></tr>
 <tr><td>filter 距离和 lower bound</td><td><code>ComputeDistWithOneBitLowerBound</code></td></tr>
 <tr><td>直接计算 split distance</td><td><code>ComputeDistWithSplitCode</code></td></tr>
-<tr><td>使用 filter hint 的 reorder</td><td><code>ComputeDistWithSplitCodeAndFilterDist</code>、<code>ComputeDistWithSplitCodeAndFilterIP</code></td></tr>
+<tr><td>使用 filter distance hint 的 reorder</td><td><code>ComputeDistWithSplitCodeAndFilterDist</code>、<code>ComputeDistWithSplitCodeAndFilterIP</code></td></tr>
 <tr><td>SIMD dispatch</td><td><code>src/simd/rabitq_simd.cpp</code></td></tr>
 <tr><td>AVX2 / AVX512 lookup kernel</td><td><code>src/simd/avx2.cpp</code>、<code>src/simd/avx512.cpp</code></td></tr>
 <tr><td>内存/磁盘/混合 IO 示例</td><td><code>examples/cpp/323_index_hgraph_rabitq_split.cpp</code></td></tr>
@@ -4000,8 +4256,9 @@ bottom-graph slab 中序列化一次。普通和 streaming 往返都会保留该
 </div>
 <h2 id="使用注意"><a class="header" href="#使用注意">使用注意</a></h2>
 <ul>
-<li>split storage 当前可用于 HGraph 和 Pyramid，并且要求 fp32 query code。
-Pyramid 的 split 索引默认启用 one-bit split 搜索路径；如需强制使用普通搜索路径，
+<li>split storage 当前可用于 HGraph、IVF 和 Pyramid，并且要求 fp32 query code。
+Pyramid 的 split 索引默认启用 one-bit split 搜索路径；如需强制使用普通
+搜索路径，
 可以在 <code>pyramid</code> 搜索参数下传 <code>rabitq_one_bit_search: false</code>。</li>
 <li>支持 <code>l2</code>、<code>ip</code> 和 <code>cosine</code>。当 <code>x &gt;= 2</code> 时，canonical 普通 split 路径和
 HGraph fused 路径会为 L2 和内积直接复用精确 filter inner product；其他情况
@@ -4789,6 +5046,16 @@ gh workflow run build_performance.yml --ref main -f ref=&lt;full-main-history-sh
 <p>如果你想在本地手动执行同样的打包流程，可以运行：</p>
 <pre><code class="language-bash">COMPILE_JOBS=6 bash ./scripts/release/dist.sh
 </code></pre>
+<p>如需加速两个 ABI 容器中的依赖下载，可将 <code>VSAG_THIRDPARTY_ENV_FILE</code> 设置为宿主机上可读的普通文件路径（路径包含空格时需要引号）：</p>
+<pre><code class="language-bash">VSAG_THIRDPARTY_ENV_FILE="/path/to/dependency urls.env" bash ./scripts/release/dist.sh
+</code></pre>
+<p>文件使用 ASCII <code>VSAG_THIRDPARTY_&lt;NAME&gt;=URL</code> 行，变量名仅包含大写字母、数字和下划线，支持<a href="#离线--内网环境构建-1">带版本后缀的变量名</a>。
+URL 必须以 <code>https://</code> 等协议开头且不含空白；不要使用 <code>export</code>、引号或行尾注释。
+允许空行和整行 <code>#</code> 注释，支持 LF、CRLF 和末行无换行符。
+值按字面传递，保留 <code>=</code>、<code>&amp;</code>、<code>#</code> 和 <code>$</code>，不执行 shell 展开。重复键、无效条目及超过 65,534 字节的行（不含行尾符）会在构建镜像前报错。
+文件值覆盖镜像默认值；不会转发或修改宿主机的依赖环境变量。
+CMake 优先使用带版本后缀的变量，再使用旧变量，并保留默认 URL 作为下载回退。
+不设置该路径时保持原有行为；显式设置为空或不可读路径会报错。</p>
 <p>如果机器内存足够，可以适当调大 <code>COMPILE_JOBS</code>；默认值会比较保守，以避免 CI 里再次触发
 内存不足。</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -5149,6 +5416,155 @@ clang-format 15 和 clang-tidy 15 规则、命名约定、诊断抑制方式以�
 <p>VSAG 项目使用 Makefile 提供了方便运行所有测试的命令，请执行并确认所有测试通过：</p>
 <pre><code class="language-bash">make test
 </code></pre>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="搜索归因分析召回诊断"><a class="header" href="#搜索归因分析召回诊断">搜索归因分析（召回诊断）</a></h1>
+<p>搜索归因是一种逐查询的诊断机制，用于解释每个期望的标签是否被召回以及原因。通过填充
+<code>SearchRequest::expected_labels_</code> 并调用 <code>SearchWithRequest</code> 来启用；结果数据集会携带一
+份 JSON 报告，可通过 <code>Dataset::GetReasoning()</code> 获取。</p>
+<h2 id="快速开始-9"><a class="header" href="#快速开始-9">快速开始</a></h2>
+<p>以下示例假设已构建 SINDI_V2 索引，且 <code>query_dataset</code> 包含一个稀疏查询向量：</p>
+<pre><code class="language-cpp">// 填充关注的标签
+vsag::SearchRequest request;
+request.expected_labels_ = {100, 200, 300};
+request.query_ = query_dataset;
+request.topk_ = 10;
+request.params_str_ = R"({"sindi_v2": {"n_candidate": 100}})";
+
+auto results = index-&gt;SearchWithRequest(request);
+if (!results.has_value()) {
+    std::cerr &lt;&lt; "SearchWithRequest failed: " &lt;&lt; results.error().message &lt;&lt; std::endl;
+} else {
+    std::cout &lt;&lt; results.value()-&gt;GetReasoning() &lt;&lt; std::endl;
+}
+</code></pre>
+<h2 id="报告格式-v1"><a class="header" href="#报告格式-v1">报告格式 (v1)</a></h2>
+<p>完整报告是包含 <code>expected_analysis</code> 和 <code>meta</code> 两个顶级分组的 JSON 对象。
+<code>MakeStatusReport</code> 生成的仅状态报告只包含 <code>meta</code>，其中仅有 <code>schema_version</code>、<code>status</code>
+和 <code>index_type</code> 三个字段；不包含 <code>expected_analysis</code> 或其余元数据字段。使用方必须检查
+<code>meta.status</code>，并将这些附加字段视为可选，而不能要求所有报告都具备完整结构。</p>
+<p>例如，空 IVF 索引的仅状态报告为：</p>
+<pre><code class="language-json">{"meta":{"schema_version":1,"status":"empty_index","index_type":"IVF"}}
+</code></pre>
+<h3 id="expected_analysis"><a class="header" href="#expected_analysis"><code>expected_analysis</code></a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>描述</th></tr>
+</thead>
+<tbody>
+<tr><td><code>summary</code></td><td>string</td><td>“M/N expected labels found, P missed”</td></tr>
+<tr><td><code>missed_targets</code></td><td>array</td><td>每个缺失标签一个条目</td></tr>
+</tbody>
+</table>
+</div>
+<p>每个 <code>missed_targets</code> 条目：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>描述</th></tr>
+</thead>
+<tbody>
+<tr><td><code>label</code></td><td>int</td><td>原始标签</td></tr>
+<tr><td><code>inner_id</code></td><td>int</td><td>内部 ID</td></tr>
+<tr><td><code>diagnosis</code></td><td>string</td><td>下列诊断值之一</td></tr>
+<tr><td><code>true_distance</code></td><td>float</td><td>真实距离</td></tr>
+<tr><td><code>quantized_distance</code></td><td>float</td><td>搜索过程中观察到的近似距离</td></tr>
+<tr><td><code>was_visited</code></td><td>bool</td><td>该 ID 是否被访问过</td></tr>
+<tr><td><code>visited_at_hop</code></td><td>int</td><td>首次访问时的 hop 编号（-1 表示从未访问）</td></tr>
+<tr><td><code>was_evicted</code></td><td>bool</td><td>是否从候选集中被淘汰</td></tr>
+<tr><td><code>filter_rejected</code></td><td>bool</td><td>是否被过滤器拒绝</td></tr>
+<tr><td><code>reorder_evicted</code></td><td>bool</td><td>是否被重排序淘汰</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="meta"><a class="header" href="#meta"><code>meta</code></a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>描述</th></tr>
+</thead>
+<tbody>
+<tr><td><code>schema_version</code></td><td>int</td><td>始终为 1</td></tr>
+<tr><td><code>status</code></td><td>string</td><td>当前会输出：<code>ok</code>、<code>empty_index</code>。保留状态，当前不会输出：<code>skipped_range_search</code>、<code>unsupported_by_index</code>。</td></tr>
+<tr><td><code>index_type</code></td><td>string</td><td>HGraph, IVF, SINDI 等</td></tr>
+</tbody>
+</table>
+</div>
+<p>以下元数据字段属于完整报告，不会出现在 <code>MakeStatusReport</code> 输出中；使用方必须允许它们缺失：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>描述</th></tr>
+</thead>
+<tbody>
+<tr><td><code>search_mode</code></td><td>string</td><td>knn 或 range</td></tr>
+<tr><td><code>topk</code></td><td>int</td><td>请求的 top k</td></tr>
+<tr><td><code>use_reorder</code></td><td>bool</td><td>是否启用了重排序</td></tr>
+<tr><td><code>filter_active</code></td><td>bool</td><td>是否启用了过滤器</td></tr>
+<tr><td><code>termination_reason</code></td><td>string</td><td>none, lower_bound_reached, hops_limit_reached, timeout</td></tr>
+<tr><td><code>total_hops</code></td><td>int</td><td>总搜索跳数</td></tr>
+<tr><td><code>total_distance_computations</code></td><td>int</td><td>总距离计算次数</td></tr>
+<tr><td><code>available_diagnoses</code></td><td>[string]</td><td>引擎可产生的所有诊断类型</td></tr>
+<tr><td><code>available_events</code></td><td>[string]</td><td>本次搜索中索引支持的事件</td></tr>
+<tr><td><code>supports_range</code></td><td>bool</td><td>该索引是否支持范围搜索归因</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="诊断类型"><a class="header" href="#诊断类型">诊断类型</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>值</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>success</code></td><td>标签出现在结果集中</td></tr>
+<tr><td><code>not_reachable</code></td><td>期望的目标从未被访问</td></tr>
+<tr><td><code>filter_rejected</code></td><td>过滤器阻止了该条目</td></tr>
+<tr><td><code>quantization_error</code></td><td>近似距离与真实距离偏差过大</td></tr>
+<tr><td><code>ef_too_small</code></td><td>被访问但被淘汰（尝试增大 ef）</td></tr>
+<tr><td><code>reorder_evicted</code></td><td>重排序阶段被淘汰</td></tr>
+<tr><td><code>unknown</code></td><td>无法确定原因</td></tr>
+</tbody>
+</table>
+</div>
+<p>对于未命中的目标，诊断按首个匹配规则返回：未访问、过滤拒绝、量化误差、
+候选淘汰、重排淘汰，最后为 unknown。因此同时满足条件时，<code>quantization_error</code>
+优先于 <code>ef_too_small</code>。量化检查沿用 <code>近似距离 &gt; 1.5 * 真实距离</code> 的启发式，
+且仅在真实距离为正时适用；它不是与距离度量无关的误差界，也不能证明量化导致了
+未命中，尤其应谨慎解释可能为负的 IP 距离。</p>
+<p>完整报告中的 <code>supports_range</code> 是布尔值，表示已注册的范围搜索归因支持，不代表索引是否提供
+RangeSearch API；未注册的索引类型返回 false。仅状态报告缺少该字段并不表示 false。</p>
+<p>对于范围搜索请求，HGraph 不会使用 <code>expected_labels_</code> 进行归因，<code>GetReasoning()</code>
+仍为 <code>{}</code>。Pyramid 则会拒绝 <code>expected_labels_</code> 非空的范围搜索请求，并返回参数无效错误。
+这两种行为都不会生成 <code>skipped_range_search</code> 或 <code>unsupported_by_index</code> 状态报告；
+这两个状态为保留值，当前不会输出。</p>
+<h2 id="各索引事件支持"><a class="header" href="#各索引事件支持">各索引事件支持</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>索引</th><th>KNN</th><th>Range</th><th>Visit</th><th>Eviction</th><th>Filter Reject</th><th>Reorder</th><th>Reorder Eviction</th><th>Bucket Selection</th></tr>
+</thead>
+<tbody>
+<tr><td>HGraph</td><td>✓</td><td>—</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+<tr><td>IVF</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td>SINDI</td><td>✓</td><td>✓</td><td>✓</td><td>—</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td>SINDI_V2</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td>BruteForce</td><td>✓</td><td>✓</td><td>✓</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>WARP</td><td>✓</td><td>✓</td><td>✓</td><td>—</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><td>Pyramid</td><td>✓</td><td>—</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>✓</td><td>—</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="扩展指南"><a class="header" href="#扩展指南">扩展指南</a></h2>
+<ol>
+<li>新增诊断类型：在 <code>reasoning_types.h</code> 中添加 <code>ReasoningDiagnosis</code> 枚举值，在 <code>ToString</code>
+中映射，在 <code>reasoning_context.cpp</code> 中添加诊断规则，添加测试并更新文档。</li>
+<li>新增事件类型：在 <code>reasoning_types.h</code> 中添加 <code>ReasoningEvent</code> 枚举值，在
+<code>ReasoningContext</code> 中实现 <code>RecordXxx</code> 方法，用 <code>// [reasoning]</code> 标记埋点位置，
+更新能力矩阵并补充文档。</li>
+<li>新索引接入：在 <code>reasoning_capability.cpp</code> 中添加能力条目，实现 <code>SearchWithRequest</code>，
+插入归因记录钩子。</li>
+</ol>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="索引构建与训练"><a class="header" href="#索引构建与训练">索引构建与训练</a></h1>
 <p>VSAG 把索引构建拆成三个阶段：</p>
@@ -5976,6 +6392,55 @@ allocator 临时分配）。资源释放完全依赖 <code>delete</code>，与 <
 索引候选已耗尽）。</li>
 <li><strong>线程安全。</strong> 单个 <code>IteratorContext</code> 不能在多线程间并发使用；不同查询应各自持有独立上下文。</li>
 </ul>
+<h2 id="原生-hgraph-searchsession实验性"><a class="header" href="#原生-hgraph-searchsession实验性">原生 HGraph SearchSession（实验性）</a></h2>
+<p><code>OpenSearchSession(query, allocator = nullptr)</code> 仅固定查询、索引和资源，返回单消费者、有所有权的会话，
+通过 <code>SUPPORT_CONTINUE_SEARCH_SESSION</code> 检查支持情况。此 API 独立于 <code>IteratorContext</code>，旧迭代器实现保持不变。</p>
+<p>Open 深拷贝查询，不创建计算器或执行路由/距离计算。首次 <code>Next(SearchSessionNextOptions)</code>
+创建可复用计算器并执行上层路由，后续调用从保存的底层图 frontier 继续扩展，复用距离缓存、访问/扩展状态和计算器。
+每次至少扩展 <code>max(ef_search, max_candidates)</code> 个剩余顶点，或耗尽 frontier；
+过滤条件严格时可继续扩展以填满当前页。这不是预先计算大 KNN 结果后分页。
+页内按距离排序，不保证跨页全局顺序；耗尽指可达图耗尽，不保证枚举不连通顶点。
+过滤前 <code>HasMore()</code> 可保守返回 true。</p>
+<p><code>SearchSessionNextOptions</code> 默认使用 HGraph JSON，因为目前仅 HGraph 支持会话；未来后端必须说明其接受的参数。</p>
+<p><code>Next</code> 的 <code>max_candidates</code>、<code>filter</code>（nullptr 表示全部接受）和 <code>search_parameters</code> 仅对本次调用生效。
+可在调用之间更换过滤器或修改同一过滤器对象，但调用期间条件必须稳定。每次重新检查所有已发现、未交付的 ID，
+包括此前被过滤器或 threshold 拒绝的候选及普通重复向量别名。threshold 可收紧或放宽；精排可开关，
+每个 ID 的精确距离延迟计算一次并单独缓存。改变 ef、需求量或条件不会重新路由或重复计算已有距离，已交付 ID 不再返回。</p>
+<p><code>HasMore()</code> 独立于当前过滤条件：尚未初始化、frontier 非空或存在已发现未交付 ID 时为 true。
+空批次不关闭会话；即使遍历已耗尽，之后放宽过滤器仍可得到结果。当前请求必须在空批次时停止，
+不能在无法满足的过滤条件下仅依赖 <code>while (HasMore())</code>，否则可能无限循环。
+统计 <code>session_traversal_exhausted</code>、<code>session_undelivered_nodes</code> 区分遍历耗尽与保留的拒绝候选。
+永久无法返回的 NaN ID 在不存在可挽救它的其他输出 cell 时不再计入 <code>HasMore</code>：没有独立精排 cell，或两份已缓存距离均为 NaN；仍保留为遍历桥梁。尚未计算的其他精排 cell 会保守保留该 ID。
+上层非有限距离路由恢复每层最多访问 65536 个顶点；超过安全上限会返回执行错误并关闭会话，而不是静默截断路由。
+参数是完整替换，不是 JSON 增量补丁。此 POC 每次扫描 O(N) 稠密 ID 域并对合格候选排序，持有 O(N) 距离和状态数组。
+非终态调用中，非法参数或超出 <code>[1, INT64_MAX]</code> 的需求量可重试，不破坏会话。
+需求量是返回数量上限，不是分配大小；仅为实际结果分配缓冲区。实际结果大小溢出、分配失败或其他遍历异常会关闭会话。
+Open 前已标记删除的 ID 永久不参与交付，但仍作为遍历桥梁；用户过滤器拒绝的候选仍可在后续调用重新参与。</p>
+<pre><code class="language-cpp">auto opened = index-&gt;OpenSearchSession(query);
+vsag::SearchSessionNextOptions options{10, R"({"hgraph":{"ef_search":64}})", nullptr};
+if (opened.has_value()) {
+    auto session = std::move(opened.value());
+    while (session-&gt;HasMore()) {
+        auto page = session-&gt;Next(options);
+        if (!page.has_value() || page.value()-&gt;GetDim() == 0) break;
+        // 消费本批次；下次调用前可修改 options。
+    }
+}
+</code></pre>
+<p>旧的 <code>OpenSearchSession(query, k_per_call, parameters, filter, allocator)</code> 和 <code>Next(max)</code> 仍作为便捷接口，
+使用 Open 指定的默认条件，最小扩展量为 <code>max(k_per_call, ef_search)</code>。
+显式 <code>Next(options)</code> 仅覆盖本次条件，不修改后续旧接口调用的默认值。</p>
+<p>会话打开期间不能修改索引、查询或距离度量，也不能并发调用会话方法。Open 后调用方可以销毁查询和
+公开索引对象，会话会保留后端资源。自定义 allocator 以及索引 Resource 借用的外部 allocator/thread pool
+必须活得比会话久。返回结果独立拥有缓冲区，
+在 Close、会话析构和索引析构后仍有效。Close 可重复调用；耗尽或关闭后的 Next 返回空结果，保留累计工作统计，本轮工作量为零，且不校验请求数量。
+Close 释放遍历状态存储。</p>
+<p>支持普通标签/extra-info 过滤、返回 extra info、输出距离 threshold 和普通精排。被过滤顶点仍作为
+图遍历桥梁。不支持并明确拒绝：共享重复向量存储、强制删除、启用的 MCI/共轭图搜索、特殊 RaBitQ 搜索、
+并行/超时/factor/暴力回退/跳数限制及显式跳过策略。frontier 和分数缓存使用标准库分配，
+可选 allocator 用于查询拷贝和邻居临时存储，并不覆盖所有会话分配。
+累计统计 <code>session_routing_runs</code>、<code>session_computers</code>、<code>session_scored</code>、<code>session_reordered</code>、
+<code>session_expanded</code> 可用于检查真实遍历工作量。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="属性过滤混合搜索"><a class="header" href="#属性过滤混合搜索">属性过滤（混合搜索）</a></h1>
 <p>属性过滤（Attribute Filter），又称<strong>混合搜索</strong>（Hybrid Search）或<strong>带结构化谓词的近邻搜索</strong>，
@@ -6482,16 +6947,16 @@ reader 的 payload checksum，然后将 reorder codes 绑定到该 reader。</p>
 <tr><td><code>sindi_rerank_index</code></td><td>rerank 开启时的可选 rerank flat index</td><td>条件必需</td></tr>
 <tr><td><code>sindi_term_id_mapper</code></td><td>可选 term-id remap 表</td><td>条件必需</td></tr>
 <tr><td><code>sindi_host_metadata</code></td><td>可选 host 字典及每个 host 的一个或多个 inner-ID 区间</td><td>条件必需</td></tr>
-<tr><td><code>sindi_date_metadata</code></td><td>可选编码日期 bucket 以及季度/host 区间目录</td><td>条件必需</td></tr>
+<tr><td><code>sindi_time_metadata</code></td><td>可选逐文档 UTC day 以及时间分区/host 目录</td><td>条件必需</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>DeserializeStreaming</code> 会恢复完整的内存 SINDI 索引。<code>Index::Load</code> 可以直接从 streaming metadata
 创建 SINDI 索引对象，当前会把写出的 SINDI blocks 都加载到内存中。mutable 与 immutable SINDI
-运行态均支持该 streaming 路径。旧版序列化会保存 mutable 与 immutable 索引的独立 host metadata
-（包含持久化的字符串到 ID 字典）或日期路由 metadata。这两种顶层 payload 互斥；日期与 host
-组合路由会把 host 字典和目录保存在日期
-payload 内。恢复后的 mutable 日期索引会拒绝增量 <code>Add()</code>。</p>
+运行态均支持该 streaming 路径。普通序列化会保存 mutable 与 immutable 索引的独立 host metadata
+（包含持久化的字符串到 ID 字典）或发布时间路由 metadata。这两种顶层 payload 互斥；时间与 host
+组合路由会把 host 字典和目录保存在时间 payload 内。恢复后的 mutable 时间索引会拒绝增量
+<code>Add()</code>。</p>
 <h2 id="sindi_v2-blocks"><a class="header" href="#sindi_v2-blocks">SINDI_V2 Blocks</a></h2>
 <p>SINDI_V2 按顺序写入以下 streaming blocks：</p>
 <div class="table-wrapper">
@@ -6506,15 +6971,14 @@ payload 内。恢复后的 mutable 日期索引会拒绝增量 <code>Add()</code
 <tr><td><code>extra_info</code></td><td>可选逐文档 extra information</td><td>条件必需</td></tr>
 <tr><td><code>sindi_term_id_mapper</code></td><td>可选 term-id remap 表</td><td>条件必需</td></tr>
 <tr><td><code>sindi_host_metadata</code></td><td>可选 host 字典及每个 host 的一个或多个 inner-ID 区间</td><td>条件必需</td></tr>
-<tr><td><code>sindi_date_metadata</code></td><td>可选编码日期 bucket 以及季度/host 区间目录</td><td>条件必需</td></tr>
+<tr><td><code>sindi_time_metadata</code></td><td>可选逐文档 UTC day 以及时间分区/host 目录</td><td>条件必需</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>DeserializeStreaming</code> 与 <code>Index::Load</code> 可以从这些 blocks 恢复 mutable 或 immutable SINDI_V2。
-旧版序列化会保存 mutable 与 immutable 索引的独立 host metadata（包含持久化的字符串到 ID 字典）
-或日期路由 metadata。这两种顶层 payload 互斥；日期与 host 组合路由会把 host 字典和目录保存在日期
-payload 内。恢复后的 mutable 日期索引
-会拒绝增量 <code>Add()</code>。</p>
+普通序列化会保存 mutable 与 immutable 索引的独立 host metadata（包含持久化的字符串到 ID 字典）
+或发布时间路由 metadata。这两种顶层 payload 互斥；时间与 host 组合路由会把 host 字典和目录保存在
+时间 payload 内。恢复后的 mutable 时间索引会拒绝增量 <code>Add()</code>。</p>
 <h2 id="pyramid-blocks"><a class="header" href="#pyramid-blocks">Pyramid Blocks</a></h2>
 <p>Pyramid 按顺序写入以下 streaming blocks：</p>
 <div class="table-wrapper">
@@ -6879,11 +7343,9 @@ auto result = index-&gt;SearchWithRequest(req).value();
 <p><code>SearchRequest</code>（<code>include/vsag/search_request.h</code>）是当前未废弃、推荐用来驱动单次搜索的入口。
 <code>search_allocator_</code> 字段是可选的，留空时索引会回退到它所属 <code>Resource</code> 上的 allocator。</p>
 <blockquote>
-<p><strong>可用性。</strong> <code>Index::SearchWithRequest</code> 默认实现会返回 <em>不支持</em> 错误。目前只有 HGraph、
-IVF、BruteForce、WARP、SINDI 和 Pyramid 实现了它。Pyramid 支持 KNN 请求搜索，并可通过
-<code>expected_labels_</code> 生成 reasoning 报告；携带 expected labels 的 Range 请求暂不支持。对于
-尚未 override 的索引（SINDI_V2），请使用下文的旧版
-<code>SearchParam</code> 路径。</p>
+<p><strong>可用性。</strong> <code>Index::SearchWithRequest</code> 默认实现会返回 <em>不支持</em> 错误。目前 HGraph、
+IVF、BruteForce、WARP、SINDI、SINDI_V2 和 Pyramid 已实现它。Pyramid 支持 KNN 请求搜索，
+并可通过 <code>expected_labels_</code> 生成 reasoning 报告；携带 expected labels 的 Range 请求暂不支持。</p>
 </blockquote>
 <h2 id="旧版-api--searchparamallocator已弃用"><a class="header" href="#旧版-api--searchparamallocator已弃用">旧版 API —— <code>SearchParam::allocator</code>（已弃用）</a></h2>
 <pre><code class="language-cpp">#include "vsag/search_param.h"
@@ -6953,6 +7415,8 @@ arena.reset();              // 一次性回收本批所有 per-query 缓冲
 </tbody>
 </table>
 </div>
+<p>SINDI 和 IVF 的归因容器也使用选中的搜索 allocator：<code>search_allocator_</code> 非空时使用它，
+否则使用索引 allocator。这不代表所有标准库分配（例如 JSON 或字符串存储）都使用该 allocator。</p>
 <p>设置 per-search Allocator 不会影响索引的永久数据结构。它只是收窄了某一次搜索调用所触碰内存的
 生命周期 —— 且仅限于索引/入口实际消费它的那部分（详见各行说明）。</p>
 <h2 id="约束"><a class="header" href="#约束">约束</a></h2>
@@ -7633,6 +8097,9 @@ for (int64_t i = 0; i &lt; num_vectors; ++i) {
 <p><code>mci_knng_source</code> 默认为 <code>hgraph</code>，保持现有行为不变。设为 <code>odescent</code> 时，
 MCI 会直接基于已存储向量构建专用 KNN 图。若内部配置了外部 KNN 图文件路径，
 外部文件的优先级高于此选项。</p>
+<p>浮点快速路径和通用全量构建路径共用最终补覆盖流程。极大团枚举结束后，仍未被覆盖的点
+会与图邻居组成兜底团；没有可用邻居时使用单点团。此流程放宽团内距离约束，按团大小上限
+截断时保留当前点，并且只统计实际保存的成员关系。</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -7644,12 +8111,56 @@ MCI 会直接基于已存储向量构建专用 KNN 图。若内部配置了外�
 <tr><td><code>mci_clique_max</code></td><td>全量构建时保留的极大团的最小大小。团始终完整保存，因此这是下限而非上限。</td></tr>
 <tr><td><code>mci_knng_source</code></td><td>KNN 图来源：<code>hgraph</code>（默认）或 <code>odescent</code>。</td></tr>
 <tr><td><code>mci_alpha</code></td><td>团构建扩展系数。</td></tr>
-<tr><td><code>mci_incremental_join_ratio_threshold</code></td><td>Add 时加入已有团的阈值。</td></tr>
-<tr><td><code>mci_incremental_added_mct</code></td><td>新节点最多加入的已有团数量。</td></tr>
-<tr><td><code>mci_incremental_clique_max</code></td><td>增量创建新团时的最大团大小。</td></tr>
 </tbody>
 </table>
 </div>
+<h3 id="增量维护参数"><a class="header" href="#增量维护参数">增量维护参数</a></h3>
+<p>以下参数仍放在 <code>index_param</code> 下，控制 ADD 以及删除后存活点的修复。
+删除修复复用 ADD 的加入已有团和新建团逻辑，不会将已有向量重新插入 HGraph。</p>
+<p>这里的度数是覆盖当前点的所有有效团中，其他存活成员的去重并集大小，
+不等于 HGraph 出度，也不等于当前点所属的团数。度数停止目标为：</p>
+<pre><code class="language-cpp">target = N &lt;= 1 ? 0 :
+    min(N - 1,
+        max(mci_incremental_degree_min,
+            min(N / mci_incremental_degree_n_divisor,
+                mcs / mci_incremental_degree_mcs_divisor)));
+</code></pre>
+<p><code>N</code> 为当前存活向量数，包含已完成图插入的 ADD 批次，不包含已标记删除的点；
+<code>mcs</code> 对应 <code>mci_mcs</code>，除法向下取整。这是停止目标，而非保证达到的最低度数或硬性上限：
+加入一个完整团可能超过目标；候选耗尽或构团无进展时，也可能在目标以下停止。</p>
+<p>迁移提示：不再支持 <code>mci_incremental_added_mct</code>。请从 <code>index_param</code> 中删除这一旧的
+团数量配置，改用 <code>mci_incremental_degree_min</code>、<code>mci_incremental_degree_n_divisor</code>
+和 <code>mci_incremental_degree_mcs_divisor</code>。旧键会被忽略，不会自动转换；若保留旧键且未
+显式设置度数参数，将使用新默认值。由于团之间存在重叠，不同团贡献的去重邻居数量不同，
+不存在一一对应的转换公式。迁移后应重新评估 recall 和增删成本，并以新配置重建旧快照，
+不能认为删除参数就能保证快照兼容。</p>
+<p>MCS 除数默认 <code>2</code>，是为了在应用度数下限之前，将自适应项限制在 KNN 候选预算的一半，
+并不是将最终目标限制为团大小的一半。MCS 默认 <code>200</code>，与 <code>mci_clique_max</code> 不同。
+若 <code>mcs=32</code> 且下限为 <code>50</code>，对任意 N，目标都是 <code>min(N-1, 50)</code>，并非
+<code>max(50, N/10000)</code>。这是一项调参启发式，不保证一半候选会成为邻居；下限可以主导目标，
+加入完整团也可能超过目标。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>默认值与取值范围</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mci_incremental_join_ratio_threshold</code></td><td>默认 <code>0.6</code>；范围 <code>[0, 1]</code>。</td><td>加入已有团的重叠比例阈值，比例为当前点的 KNN 候选与团有效成员的交集数量，除以该团有效成员数量。例如团有 10 个有效成员，其中 6 个在 KNN 候选中，比例为 <code>0.6</code>：阈值 <code>0.6</code> 时满足条件，<code>0.7</code> 时不满足。还需满足团未满、加入后能增加新邻居等条件；该比例不是与每个成员逐一验证距离约束。降低阈值会放宽加入条件，提高阈值则更严格，可能使更多度数缺口依赖新建团补足。可比较 <code>0.5 / 0.6 / 0.7</code>，同时观察 recall、ADD 耗时和成员关系总量。</td></tr>
+<tr><td><code>mci_incremental_degree_min</code></td><td>默认 <code>50</code>；正整数。</td><td>度数目标公式中的下限，最终仍受 <code>N-1</code> 限制。例如 <code>N=10000、mcs=200</code> 时，默认目标为 <code>50</code>；将本参数改为 <code>70</code>，目标变为 <code>70</code>。但 <code>N≈3m、mcs=200</code> 时，下限为 <code>50</code> 或 <code>70</code>，目标都是 <code>100</code>。低度数点较多时可尝试提高下限，验证 recall 是否改善；降低下限可减少达到目标所需的维护工作，但可能减少搜索连接。调参前应先确认本参数是否实际决定目标。</td></tr>
+<tr><td><code>mci_incremental_degree_n_divisor</code></td><td>默认 <code>10000</code>；正整数。</td><td>控制规模项 <code>N / divisor</code>。例如 <code>N=800000、mcs=200、degree_min=50</code> 时，默认目标为 <code>80</code>；将除数改为 <code>20000</code>，规模项变为 <code>40</code>，最终目标受下限约束，为 <code>50</code>。减小除数会提高规模项，增大除数会降低规模项，适合调整目标随数据规模增长的速度；效果仍受度数下限和 MCS 项限制，被其他项限制时可能没有变化。</td></tr>
+<tr><td><code>mci_incremental_degree_mcs_divisor</code></td><td>默认 <code>2</code>；正整数。</td><td>控制候选规模项 <code>mcs / divisor</code>，与规模项取较小值后，再应用度数下限。例如 <code>N≈3m、mcs=200、degree_min=50</code> 时，除数为 <code>2</code>，目标为 <code>100</code>；改为 <code>4</code>，目标为 <code>50</code>。减小除数可以提高目标，增大除数可以降低目标，但仍受规模项和下限限制。本参数不改变 KNN 候选数量；要改变候选规模，应调整 <code>mci_mcs</code>。</td></tr>
+<tr><td><code>mci_incremental_clique_max</code></td><td>默认 <code>50</code>；整数且不小于 <code>2</code>。</td><td>同时限制增量新建团的大小和向已有团追加成员后的大小。例如设为 <code>50</code> 时，49 人团可以追加到 50 人；已有 50 人团不会再接受新点。因此，全量构建得到的满 50 人团在默认设置下不能直接追加。实际新建团可能小于上限。提高上限可让部分原本已满的团继续追加，并允许更大的新团；降低上限可能需要更多团补足度数。应结合 <code>mci_clique_max</code>、成员关系总量和查询开销一起评估。</td></tr>
+<tr><td><code>mci_delete_clique_size_threshold</code></td><td>默认 <code>30</code>；正整数。</td><td>对本批删除影响到的团，统计整批删除后剩余的有效成员数，严格小于阈值才废弃整个团：默认剩 29 个成员时废弃，剩 30 个时保留。废弃的是团及其成员关系，不是剩余存活向量；也不会扫描废弃无关的小团。这不是构建团大小上限。提高阈值会扩大废弃范围，可能增加修复成本和结构变化；降低阈值会保留更多小团。可围绕 <code>30</code> 按 <code>10</code> 小步增减，对比废弃团数、修复点数、删除耗时和 recall，不假定越大越好。若构建团大小上限低于此阈值，删除触及的这类团都会被废弃，应配套评估。</td></tr>
+<tr><td><code>mci_delete_node_mct_threshold</code></td><td>默认 <code>3</code>；正整数。</td><td>从被废弃团的存活成员中，筛选预计有效覆盖团数严格小于阈值的点作为修复候选。统计时扣除本批即将废弃的团，并对候选点去重。例如默认剩余覆盖团数为 0、1、2 时进入候选，为 3 时不进入；这里统计的是团数，不是邻居度数。提高阈值会扩大候选范围，降低阈值会缩小范围；设为 <code>1</code> 时只选择预计失去全部团覆盖的候选点。可按 <code>3 → 4 → 5 → 6</code> 比较修复成本和查询质量。实际修复前会再次检查覆盖情况，进入候选不代表一定新建团。</td></tr>
+</tbody>
+</table>
+</div>
+<p>以上调参方向来自代码机制，不是已验证的最优参数。建议固定数据阶段、增删 ID、
+ground truth 和其他配置，每次只调整一项，同时比较查询质量、吞吐、增删耗时及内存。
+例如 <code>N≈3m、mcs=100、degree_min=50</code> 时，默认目标为 <code>50</code>；仅修改存活点数除数，
+只要规模项仍不低于 50，目标就不会改变。
+显式配置仍优先于默认值，加载已有索引需要匹配其序列化参数；历史实验中的阈值 3
+不代表当前删除团大小阈值 30 的性能结果。</p>
 <h2 id="搜索配置"><a class="header" href="#搜索配置">搜索配置</a></h2>
 <p>搜索参数放在 <code>hgraph</code> 搜索对象下：</p>
 <pre><code class="language-json">{
@@ -7667,21 +8178,301 @@ MCI 会直接基于已存储向量构建专用 KNN 图。若内部配置了外�
 <p>seed 数量按 <code>ceil(sqrt(当前向量总数) * mci_seed_ratio)</code> 计算，并且至少为 1。
 <code>mci_seed_ratio</code> 默认值为 <code>0.1</code>，必须是有限的非负数。最终 seed 数量不会超过
 满足过滤条件的点数。</p>
+<p>当该目标不超过 <code>mci_seed_max_count</code>、也不超过向量总数时，<code>mci_seed_coverage</code> 会把
+seed 数量提高到 <code>ceil(mci_seed_coverage * 合法点数)</code>；否则覆盖项整体丢弃，而不是
+截断。<code>mci_seed_coverage</code> 默认 <code>1.0</code>，<code>mci_seed_max_count</code> 默认 <code>32768</code>（<code>0</code> 表示
+不限）。seed 数量不会低于 1，所以播种无法被完全关闭——把两项都设为 <code>0</code> 只会留下
+一个 seed。</p>
+<p>正因为覆盖项是整体丢弃而不是钳制，当合法集超过 <code>mci_seed_max_count</code> 时
+<code>mci_seed_coverage</code> 就不起作用了：这类宽过滤查询的 seed 数量会静默退回到
+<code>ceil(sqrt(N) * mci_seed_ratio)</code> 这个下限。想扩大“精确播种”的适用范围就要调大
+上限，代价是更长的播种阶段。默认值 <code>32768</code> 让枚举本身在绝对量级上仍然便宜——
+32768 个 inner id 是 128 KiB，可以留在 cache 里——所以饱和跳过依然划算，而不会把
+宽谓词变成接近全扫描规模的播种阶段。</p>
 <p>MCI 挂件依赖过滤器提供合理的 <code>ValidRatio()</code>。bitset 和函数过滤器也可以
 使用，但自定义 <code>Filter</code> 能给搜索规划提供更准确的选择率信息。</p>
-<h2 id="add序列化和统计"><a class="header" href="#add序列化和统计">Add、序列化和统计</a></h2>
-<p>通过扁平构建参数启用 MCI 后，<code>HGraph::Add()</code> 会在每个新点插入 HGraph 后更新
-MCI 挂件。它会先尝试加入合适的已有团；如果没有好的候选团，则为新点创建
-一个小的增量团。</p>
-<p>注意：MCI 索引不应通过在空索引上不断调用 <code>Add()</code> 从 0 开始构建。增量添加路径适用于
-已有初始索引后，再追加少量向量的场景。</p>
-<p>团数据会作为 HGraph 索引的一部分序列化。加载 HGraph 索引时，MCI 挂件会自动恢复。</p>
+<h2 id="动态邻居遍历"><a class="header" href="#动态邻居遍历">动态邻居遍历</a></h2>
+<p><code>use_hybrid_traversal</code>（默认 <code>false</code>）把上面的“二选一”路由换成一次遍历：对每个
+被展开的向量，在同一趟里同时处理它的两个邻居来源——</p>
+<ul>
+<li>先按距离优先处理 HGraph 稀疏邻居，并把它们压入候选堆，这样无论选择率多低，
+搜索子图都保持连通；</li>
+<li>再按谓词优先处理同一向量的团成员，这部分由一个虚拟开销预算提前截断。</li>
+</ul>
+<p>当 <code>considered * (hybrid_filter_cost_ratio + local_selectivity)</code> 达到 <code>hybrid_vob</code>
+时，团部分停止。其中 <code>hybrid_filter_cost_ratio</code> 是 <code>O_filter / O_dist</code>（一次谓词
+过滤相对于一次距离计算的代价），<code>local_selectivity</code> 是当前邻居遍历中谓词的实时
+命中率。<code>hybrid_vob</code> 非正时关闭提前停止。这两个参数默认值分别是 <code>0.0</code> 和 <code>1.0</code>，
+<code>hybrid_vob</code> 的单位是 <code>O_dist</code>。</p>
+<pre><code class="language-json">{
+    "hgraph": {
+      "ef_search": 600,
+      "use_hybrid_traversal": true,
+      "hybrid_vob": 32.0,
+      "mci_seed_ratio": 1.0,
+      "mci_seed_coverage": 1.0
+    }
+}
+</code></pre>
+<p>遍历的 seed 来自谓词的合法集，与 MCI 路由使用完全相同的预算公式和采样器，因此两条
+路线的对比不会被 seed 策略干扰。当该预算最终覆盖了全部合法点时，所有合法距离都已
+算出，遍历直接由 seed 给出答案；此时跳过展开是因为它可证明是多余的，而不是近似。
+<code>GetStatistics()</code> 通过 <code>mci_hybrid_route</code>（遍历实际运行时为 <code>"hybrid"</code>）、
+<code>hybrid_seed_budget</code>、<code>hybrid_seeded_entries</code>、<code>hybrid_expansion_skipped</code>、
+<code>hybrid_expanded_nodes</code>、<code>hybrid_mci_members_considered</code>、
+<code>hybrid_dist_computations</code> 和 <code>hybrid_mci_stopped_early</code> 报告这些行为。</p>
+<h2 id="代码入口与维护"><a class="header" href="#代码入口与维护">代码入口与维护</a></h2>
+<p>下表中的文件路径均相对于仓库根目录。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>文件</th><th>重点入口 / 职责</th></tr>
+</thead>
+<tbody>
+<tr><td><code>include/vsag/index.h</code>、<code>src/index/index_impl.h</code></td><td>公共 Build/Add/Remove/Search 接口及错误包装</td></tr>
+<tr><td><code>src/algorithm/hgraph/hgraph_build.cpp</code></td><td><code>Add</code> → <code>add_impl</code>：先插入 HGraph，再维护成功插入点的 MCI</td></tr>
+<tr><td><code>src/algorithm/hgraph/hgraph_mci.cpp</code></td><td>全量构团；<code>search_mci_knn</code>、<code>incremental_update_mci_clique</code>、<code>repair_mci_clique</code>、<code>force_remove_with_mci</code>、<code>maybe_compact_mci</code></td></tr>
+<tr><td><code>src/algorithm/hgraph/hgraph_modify.cpp</code></td><td>Remove 模式分流、图边修补、尾部 ID 搬移、存储缩容</td></tr>
+<tr><td><code>src/datacell/clique_datacell.{h,cpp}</code></td><td>两向 CSR、三种 delta、删除快照、团废弃、节点重映射和 Flush</td></tr>
+<tr><td><code>src/impl/searcher/mci_searcher.cpp</code></td><td><code>search_clique_view</code>：统一遍历 base CSR + delta + 删除标记</td></tr>
+<tr><td><code>src/impl/label_table/label_table.{h,cpp}</code></td><td>外部标签映射、删除集合、一次查询固定删除集合的读视图</td></tr>
+<tr><td><code>src/algorithm/hgraph/hgraph_parameter.{h,cpp}</code>、<code>hgraph_param_mapping.cpp</code></td><td>参数默认值、校验和外部 JSON 映射</td></tr>
+<tr><td><code>src/algorithm/hgraph/hgraph_serialize.cpp</code></td><td>MCI 格式版本及序列化恢复</td></tr>
+<tr><td><code>src/analyzer/hgraph_analyzer.cpp</code></td><td>团覆盖、大小、成员数及内存统计</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="11-数据布局"><a class="header" href="#11-数据布局">1.1 数据布局</a></h3>
+<p>基础层包含两向 CSR：<code>clique → nodes</code> 和 <code>node → cliques</code>。增量层与 ADD/删除修复共享：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>保存内容</th></tr>
+</thead>
+<tbody>
+<tr><td><code>delta_cliques_</code></td><td>新建团的完整成员</td></tr>
+<tr><td><code>delta_clique_extra_</code></td><td>追加到基础团的成员</td></tr>
+<tr><td><code>delta_node_to_cids_</code></td><td>增量产生的 node → clique 关系</td></tr>
+</tbody>
+</table>
+</div>
+<p>节点删除标记、团废弃标记独立维护。Flush 清空 delta 并重建两向 CSR；它不会改变向量 inner ID，
+但可能重新编号团。FORCE_REMOVE 会移动向量 inner ID，因此还必须同步重映射 MCI。</p>
+<h3 id="12-add-与删除修复的共用流程"><a class="header" href="#12-add-与删除修复的共用流程">1.2 ADD 与删除修复的共用流程</a></h3>
+<ol>
+<li>ADD 先完成 HGraph 插入，再维护成功插入点的 MCI：块内并行规划，再按 inner ID
+升序单线程合并（每行仍按下面 2–3 步的规则处理）。候选来自 <code>search_mci_knn</code>，内部调用
+HGraph <code>KnnSearch</code>，显式设置 <code>use_mci=false</code>；不是通过 MCI 搜候选。</li>
+<li>目标邻居数为 <code>min(mci_mcs, visible_total - 1)</code>。内部检索 ef 为 <code>max(query_k, 100)</code>；
+剔除自身、删除点及可见范围外点，不足时可扩大请求数量。这里不使用性能测试的 ef=320。</li>
+<li>优先加入满足 <code>|KNN ∩ C| / |C| &gt;= join_ratio</code> 且未达到增量大小上限的已有团，
+以去重邻居度数而非团数作为停止条件。度数不足时，使用尚未相邻的 KNN 候选，调用与全量 Build 共用的
+<code>MCILocalCliqueBuilder::Build</code>（<code>src/algorithm/mci/mci_local_builder.h</code>），使用增量团大小上限，
+把当前点视为需要覆盖的点，重复直到目标达到、候选耗尽或度数无进展。
+不再以团大小达到 2 作为 alpha 扩张的停止条件。没有候选时创建单点团。</li>
+<li>删除只废弃受影响且删除后大小 <strong>小于</strong> <code>delete_size</code> 的团；从这些团中收集预计有效覆盖团数
+<strong>小于</strong> <code>delete_mct</code> 的存活点。修复前再次检查覆盖数，避免已经恢复覆盖的点重复修复。</li>
+<li>纯 FP32 修复从存储中取得或解码该点向量，然后进入第 1–3 步的共用维护流程。
+不再次调用公共 ADD 插入已有向量，也不产生新的向量标签。ADD 的候选可见范围是插入前缀；
+修复已有点时可见范围是当前整张 HGraph。</li>
+</ol>
+<p>ADD 的团数限制参数已移除；<code>delete_mct=3</code> 仍是修复候选触发阈值。
+度数目标为 <code>max(mci_incremental_degree_min, min(N/10000, mcs/2))</code>，N≤1 时为 0，否则不超过 N-1；
+N 是当前存活点数，包含图插入完成的批次，整数除法向下取整。下限默认 50，10k、mcs=200 时目标是 50。
+加入完整团可以超过目标；无法继续增加邻居时允许低于目标停止。
+非 FP32 修复仍保留成对距离候选路径，本指南不把 FP32 的结论推广到 RaBitQ。</p>
+<h3 id="13-三种维护操作"><a class="header" href="#13-三种维护操作">1.3 三种维护操作</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>操作</th><th>向量槽位</th><th>MCI 维护</th><th>是否落盘</th></tr>
+</thead>
+<tbody>
+<tr><td>MARK_REMOVE（默认）</td><td>保留，仅逻辑删除</td><td>小团筛选、低覆盖点修复，结果进入 delta</td><td>否</td></tr>
+<tr><td>FORCE_REMOVE</td><td>尾点搬移填洞，减少物理槽位并尝试缩容</td><td>批量快照、ID 重映射、修复、自动 Flush</td><td>否</td></tr>
+<tr><td>内部自动压缩</td><td>不删除或移动向量</td><td>合并 delta、移除废弃成员、压紧团编号、重建两向 CSR</td><td>否</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="基准配置与-c-接入"><a class="header" href="#基准配置与-c-接入">基准配置与 C++ 接入</a></h2>
+<h3 id="codefilter-fp32-构建配置"><a class="header" href="#codefilter-fp32-构建配置">Codefilter FP32 构建配置</a></h3>
+<p>将下面 JSON 字符串传给 <code>Factory::CreateIndex("hgraph", config_json)</code>。
+所有 MCI 构建参数直接放在 <code>index_param</code> 下，不使用嵌套 <code>mci</code> 对象。</p>
+<pre><code class="language-json">{
+  "dtype": "float32",
+  "metric_type": "cosine",
+  "dim": 384,
+  "index_param": {
+    "base_quantization_type": "fp32",
+    "base_io_type": "memory_io",
+    "graph_type": "nsw",
+    "max_degree": 32,
+    "ef_construction": 200,
+    "build_thread_count": 16,
+    "support_force_remove": true,
+    "use_mci": true,
+    "mci_knng_source": "hgraph",
+    "mci_mcs": 200,
+    "mci_clique_max": 50,
+    "mci_alpha": 1.2,
+    "mci_incremental_join_ratio_threshold": 0.6,
+    "mci_incremental_degree_min": 50,
+    "mci_incremental_degree_n_divisor": 10000,
+    "mci_incremental_degree_mcs_divisor": 2,
+    "mci_incremental_clique_max": 50,
+    "mci_delete_clique_size_threshold": 30,
+    "mci_delete_node_mct_threshold": 3
+  }
+}
+</code></pre>
+<p>这是测试配置，不是所有库参数的默认值。<code>support_force_remove</code> 必须在创建时启用；
+MCI FORCE_REMOVE 要求 flat 图存储，会自动启用反向边，并拒绝不兼容的去重、重复分组或属性存储配置。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th style="text-align: right">库默认值</th><th>基准程序 CLI / 说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mci_mcs</code></td><td style="text-align: right">200</td><td><code>--mci-mcs</code>；基准默认 50，限制候选邻居数</td></tr>
+<tr><td><code>mci_clique_max</code></td><td style="text-align: right">50</td><td><code>--mci-clique-max</code>；全量团大小上限</td></tr>
+<tr><td><code>mci_alpha</code></td><td style="text-align: right">1.2</td><td><code>--mci-alpha</code>；构团扩展系数</td></tr>
+<tr><td><code>mci_incremental_join_ratio_threshold</code></td><td style="text-align: right">0.6</td><td><code>--mci-incremental-join-ratio-threshold</code>；范围 [0,1]</td></tr>
+<tr><td><code>mci_incremental_degree_min</code></td><td style="text-align: right">50</td><td>度数目标下限，正整数，随索引参数序列化</td></tr>
+<tr><td><code>mci_incremental_degree_n_divisor</code></td><td style="text-align: right">10000</td><td>度数目标中的存活点数除数，正整数</td></tr>
+<tr><td><code>mci_incremental_degree_mcs_divisor</code></td><td style="text-align: right">2</td><td>度数目标中的 MCS 除数，正整数</td></tr>
+<tr><td><code>mci_incremental_clique_max</code></td><td style="text-align: right">50</td><td><code>--mci-incremental-clique-max</code>；至少 2；基准不指定时跟随全量上限</td></tr>
+<tr><td><code>mci_delete_clique_size_threshold</code></td><td style="text-align: right">30</td><td>正整数；默认废弃剩余有效成员数小于 30 的受影响团，恰好为 30 时保留</td></tr>
+<tr><td><code>mci_delete_node_mct_threshold</code></td><td style="text-align: right">3</td><td><code>--mci-delete-node-mct-threshold</code>；正整数，严格小于才修复</td></tr>
+</tbody>
+</table>
+</div>
+<p>例如 <code>delete_size=4</code> 会考虑删除后只剩 0–3 个成员的受影响团，并不废弃所有包含被删点的团。
+没有小团被废弃时，单独提高 <code>delete_mct</code> 可能完全不触发额外修复。</p>
+<h3 id="搜索配置-1"><a class="header" href="#搜索配置-1">搜索配置</a></h3>
+<pre><code class="language-json">{
+  "hgraph": {
+    "ef_search": 320,
+    "use_mci": true,
+    "mci_seed_ratio": 0.1,
+    "hgraph_valid_ratio_threshold": 1.0
+  }
+}
+</code></pre>
+<p>构建用 <code>index_param</code>，搜索用 <code>hgraph</code>。库的路由阈值默认是 <strong>0.05</strong>；上面和基准程序使用 <strong>1.0</strong>，
+使选择率低于 1 的过滤查询优先尝试 MCI，仍不能保证每次一定走 MCI。
+必须提供实际过滤器及合理的 <code>ValidRatio()</code>；不要伪报选择率来强制路由。
+<code>use_mci=false</code> 可在同一个索引上对照普通 HGraph 搜索。</p>
+<h3 id="c-调用片段"><a class="header" href="#c-调用片段">C++ 调用片段</a></h3>
+<p>以下是接入片段，不是完整数据加载程序。<code>config_json</code>、<code>search_json</code> 为前面的 JSON 字符串；
+<code>base</code>、<code>added</code>、<code>query</code> 是调用方准备好的 Dataset，<code>filter</code> 是过滤器，<code>removed_labels</code> 是外部标签数组。
+使用 <code>Owner(false)</code> 时，调用方应保持向量及标签缓冲区在调用期间有效。</p>
+<pre><code class="language-cpp">auto created = vsag::Factory::CreateIndex("hgraph", config_json);
+if (!created.has_value()) {
+    throw std::runtime_error(created.error().message);
+}
+auto index = created.value();
+auto check = [](const auto&amp; result) {
+    if (!result.has_value()) {
+        throw std::runtime_error(result.error().message);
+    }
+};
+
+auto built = index-&gt;Build(base);
+check(built);
+// Build/Add 返回未成功插入的标签；也要检查列表，而不只检查 expected。
+if (!built.value().empty()) {
+    throw std::runtime_error("some initial vectors were not inserted");
+}
+auto removed = index-&gt;Remove(removed_labels, vsag::RemoveMode::FORCE_REMOVE);
+check(removed);
+// 改为 MARK_REMOVE 即保留物理槽位；removed.value() 是实际删除数量。
+auto appended = index-&gt;Add(added);
+check(appended);
+if (!appended.value().empty()) {
+    throw std::runtime_error("some added vectors were not inserted");
+}
+// MCI 自动压缩，不需要也不再提供公共 Flush 调用。
+auto result = index-&gt;KnnSearch(query, 10, search_json, filter);
+check(result);
+</code></pre>
+<p>Remove 使用外部标签，不接受把内部槽位当成标签；物理删除后不要缓存 inner ID 或团 ID。
+完整的 Dataset 与 Filter 示例见 <code>examples/cpp/324_feature_hgraph_mci_companion.cpp</code>。</p>
+<h2 id="add删除序列化和统计"><a class="header" href="#add删除序列化和统计">Add、删除、序列化和统计</a></h2>
+<p>通过扁平构建参数启用 MCI 后，<code>HGraph::Add()</code> 先完成 HGraph 插入批次，
+再更新成功插入点的 MCI。它会先尝试加入合适的已有团；
+如果去重邻居度数仍不足，则继续为新点创建增量团。</p>
+<p>这一批次的 MCI 更新按块处理：块内先在冻结的只读视图上并行规划每一行的候选 KNN、
+入团提案和局部构团，再由单线程按 inner ID 升序合并并写回。逐行的覆盖度和度数目标
+不受规划顺序影响；但候选 KNN 来自并发图检索，因此与全量并行构建一样，最终团的
+具体结构可能与线程数、线程调度有关。</p>
+<p>建议先用 <code>Build()</code> 构建初始索引，再通过增量添加路径追加向量。
+空索引上的 <code>Add()</code> 可以触发构建，但不建议用大量小批 Add 替代全量 Build。</p>
+<p>ADD 需要新建团时，与全量 <code>BuildMCICliques</code> 共用局部图构建、极大团枚举和选择核心。
+增量团大小上限参与决定构团门槛，不再以两个成员作为 alpha 扩张的停止标准。
+JOIN 与构团使用上述增量维护参数计算去重邻居度数停止目标；达到目标、候选耗尽或
+构团无进展时停止。高 alpha 回退仍可能生成较小的团。</p>
+<p><code>MARK_REMOVE</code> 会同步更新 MCI 挂件。删除一个点后，若受影响团剩余的有效成员数
+不小于 <code>mci_delete_clique_size_threshold</code>，该团会被保留；只有更小的团才会被废弃。
+MCI 仅收集这些废弃团中预计有效团数低于 <code>mci_delete_node_mct_threshold</code> 的有效点，
+并通过与 <code>Add()</code> 相同的增量加团/构团流程修复它们，因此新增关系和团仍然复用
+Add 的 delta 存储。这样无需重建完整的一跳邻居集合。
+<code>MARK_REMOVE</code> 仍是默认模式：只做逻辑删除，不回收向量槽位。</p>
+<p>启用 <code>index_param.support_force_remove: true</code> 后，可调用
+<code>index-&gt;Remove(ids, vsag::RemoveMode::FORCE_REMOVE)</code> 物理删除指定向量。
+MCI 模式下会自动启用图的反向边，要求使用 flat 图存储；物理删除与
+<code>deduplicate_storage</code>、重复向量分组及属性倒排存储仍不兼容。
+已有未启用该选项的索引需要重新构建。</p>
+<p>物理删除先修补 HGraph 边，再用尾部向量填入删除位置，同时更新标签和图引用。
+MCI 根据同一 ID 映射重建两向 CSR，保留未被指定删除的软删除标记，并通过 Add
+共用的增量构团流程修复小团中覆盖不足的点，最后自动 flush 并缩小向量/图存储。
+同批重复 ID 只计一次，不存在的 ID 不计数；已软删除的 ID 也可以显式物理删除。
+成功后，物理槽位数减少，后续 Add 从新的尾部追加，不再积累本次删除的旧槽位。</p>
+<p>FORCE_REMOVE 与 Add、MARK_REMOVE、Flush 串行。ID 搬移及最终缩容阶段阻塞查询；
+修复阶段释放 force-remove 锁，MCI 仍未发布，查询可能回退到 HGraph。
+该操作不承诺事务回滚：出错前已经完成的物理删除可能保留，未完成的 MCI 不会发布给
+快速搜索。CSR 替换本身在分配成功后才提交，但操作期间新旧缓冲区会同时占用内存。
+实际 RSS 还受分配器和 IO 分块大小影响，不能保证与索引统计内存同比例下降。</p>
+<p>MCI 按成功增删的向量数量自动压缩，ADD 与 MARK_REMOVE 共用计数，累计到 100 个触发。
+ADD 每处理一个成功新增点检查一次，大批 ADD 内也会分段压缩；MARK_REMOVE 先投影并修复
+完整删除批次，再检查阈值，因此大批删除在批末压缩一次，不拆分删除语义。
+重复或不存在的删除 ID、失败的新增不计数，修复点不视为新增向量。
+FORCE_REMOVE 保留每批末尾的必要压缩并清零计数。压缩成功、全量重建或加载后计数清零，
+该计数仅存在于运行时。未达到阈值时，查询和序列化仍包含 delta。
+不提供公共 Flush 接口，也不为压缩扩展 Index 的虚函数接口。</p>
+<p>内部 flush 合并新建 delta 团和
+基础团追加成员，移除废弃团及已删除成员，压紧团 ID 并重建 node → clique 关系。
+flush 会清空 delta，但保留向量 inner ID 和删除标记；重复执行不改变有效成员关系。
+它不重建 HGraph，也不写入磁盘，持久化仍需调用 <code>Serialize()</code>。</p>
+<p>flush 与 Add/Remove 串行执行，构建和发布新 CSR 期间持有团存储独占锁，查询可能等待。
+所有替换缓冲区分配成功后才发布，分配失败不会破坏原有团数据。
+自动维护遇到分配失败会保留 delta，不让已完成的 ADD/MARK_REMOVE 因压缩失败而报错，
+下次成功增删时重试。这不改变 FORCE_REMOVE 原有的错误语义。
+临时内存需要同时容纳新旧 CSR；不要跨 flush 保存并复用团 ID。
+加载已验证的紧凑 CSR 时，若没有 delta 成员、空团行或删除/废弃标记，会保留干净状态，
+首次 flush 不再重建 CSR；其他快照仍保守地在 flush 时进行压缩。</p>
+<p>MCI 查询只获取一次共享锁来固定 CSR、delta 和删除标记，直接遍历成员而不复制列表。
+连续 FP32 向量在 Add/Remove 后、flush 前后均可直接计算距离；统计字段
+<code>mci_raw_float_csr</code> 也包含直接遍历 delta 的快速查询。其他向量布局复用相同的遍历和
+候选队列，通过其原有距离接口计算。删除集合在一次 MCI 查询期间固定，先检查用户
+过滤条件，再检查删除集合，避免每访问一个点都获取删除集合锁。</p>
+<p>Add/MARK_REMOVE 期间 MCI 可能暂时不可用，并发查询仍按已有语义回退到 HGraph，
+不保证修改期间的完整召回；图入口点已删除时，回退结果可能为空。
+自动压缩属于增删内部步骤，查询在必要时等待团存储锁。
+回退查询在结果打包前，会根据同一删除集合视图重新检查候选 ID，丢弃遍历过程中
+被删除的旧候选，包括同一 label 已在新槽位重新添加的旧槽位。
+这并不意味着整个并发查询具有事务快照语义。
+若候选在遍历期间被删除，即使索引仍有足够的存活向量，KNN 回退结果也可能不足 <code>k</code> 条。
+并发修改期间结果为尽力返回，不执行第二轮补齐搜索，因为补搜同样可能遇到新的修改。</p>
+<p>团数据会作为 HGraph 索引的一部分序列化。加载 HGraph 索引时，
+MCI 挂件会自动恢复。</p>
 <p><code>GetStats()</code> 会包含以下 MCI 质量字段：</p>
 <ul>
 <li><code>mci_has_index</code></li>
 <li><code>mci_total_nodes</code></li>
 <li><code>mci_covered_nodes</code></li>
 <li><code>mci_total_clique_count</code></li>
+<li><code>mci_retired_clique_count</code></li>
+<li><code>mci_inactive_node_count</code></li>
 <li><code>mci_total_membership_count</code></li>
 <li><code>mci_avg_membership_per_node</code></li>
 <li><code>mci_avg_clique_size</code></li>
@@ -7691,6 +8482,38 @@ MCI 挂件。它会先尝试加入合适的已有团；如果没有好的候选�
 <h2 id="示例-5"><a class="header" href="#示例-5">示例</a></h2>
 <p>最小构建和过滤搜索流程见
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/324_feature_hgraph_mci_companion.cpp"><code>examples/cpp/324_feature_hgraph_mci_companion.cpp</code></a>。</p>
+<h2 id="评测说明"><a class="header" href="#评测说明">评测说明</a></h2>
+<p>开发阶段使用的 benchmark、脚本及原始结果不属于本 PR；下表字段说明历史测试程序产出的 CSV 格式。</p>
+<h3 id="如何读结果"><a class="header" href="#如何读结果">如何读结果</a></h3>
+<p>五阶段保护评测查询的 top-k 真值点，五次使用同一真值；随机增删不保护真值点，
+每个检查点从精确全库排序中取当前存活 top-k。两种实验不能混用 recall 结论。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>CSV 字段</th><th>解释</th></tr>
+</thead>
+<tbody>
+<tr><td><code>stage</code>、<code>active_vectors</code>、<code>index_elements</code></td><td>阶段、存活数量、索引对外元素计数；后者不能代替物理存储统计</td></tr>
+<tr><td><code>ef_search</code>、<code>recall_at_k</code>、<code>qps</code></td><td>搜索宽度、recall、计时吞吐；固定 ef 不等于固定质量</td></tr>
+<tr><td><code>build_seconds</code>、<code>mutation_seconds</code>、<code>flush_seconds</code></td><td>历史构建、增删和显式压缩耗时；当前自动压缩计入增删耗时，不再提供阶段后公共 Flush</td></tr>
+<tr><td><code>index_memory_bytes</code>、<code>vector_memory_bytes</code>、<code>graph_memory_bytes</code>、<code>mci_memory_bytes</code></td><td>索引及分项统计，不是进程 RSS</td></tr>
+<tr><td><code>mci_route_ratio</code>、<code>mci_raw_float_ratio</code></td><td>MCI 路由与直接 FP32 路径命中比例；不能只看配置判断路由</td></tr>
+<tr><td><code>mci_total_cliques</code>、<code>mci_delta_cliques</code>、<code>mci_total_memberships</code></td><td>团数、增量团数、成员关系总数</td></tr>
+<tr><td><code>avg_dist_cmp</code>、<code>avg_hops</code>、<code>avg_seed_count</code></td><td>距离计算、遍历及 seed 开销，用来分析 QPS 变化</td></tr>
+</tbody>
+</table>
+</div>
+<p>MiB = bytes / 1,048,576。相同阶段不同 ef 行会重复阶段内存/耗时，不能相加。
+QPS 是多线程吞吐，<code>1000 / QPS</code> 不是单请求延迟；当前 CSV 不含延迟分位数或逐阶段 RSS。</p>
+<p>本 PR 不包含原始结果文件；这是适配新版 main 前的开发版本测量，不是当前 PR HEAD 的重新压测。</p>
+<h2 id="回归测试与边界"><a class="header" href="#回归测试与边界">回归测试与边界</a></h2>
+<pre><code class="language-bash">make debug VSAG_ENABLE_TESTS=ON COMPILE_JOBS=12
+build/tests/unittests '[mci],[LabelTable],RaBitQSplitDataCell serialize and methods'
+</code></pre>
+<p>文档编写前验证：C++ 定向测试 38 个用例、3,294 条断言通过；脚本测试 10+1+3 项通过，
+其中两个集成测试当时使用 Debug 基准程序作正确性验证。未完成全量 lint、全量测试和 90% 覆盖率验证。
+review 后另补充了反向边恢复及加载后 FORCE_REMOVE 回归。大数据集加载复测、ABI、序列化兼容
+及更全面的并发修改仍需独立验证；不能把定向测试当作生产就绪证明。</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="api-参考"><a class="header" href="#api-参考">API 参考</a></h1>
 <p>本章是 VSAG <strong>公有 C++ API</strong> 的参考手册，即安装在 <code>include/vsag/</code> 下的头文件。它按职责分组，记录应用
@@ -8392,12 +9215,14 @@ if (result.has_value()) {
 <code>vectors_</code>。</p>
 <h2 id="命名-metadata"><a class="header" href="#命名-metadata">命名 metadata</a></h2>
 <p><code>UInt32Metadata(name, values)</code> 为每个 dataset 元素附加一个无符号整数，
-<code>GetUInt32Metadata</code> 返回对应命名数组，不存在时返回 <code>nullptr</code>。<code>StringMetadata(name, values)</code>
-和 <code>GetStringMetadata(name)</code> 提供对应的通用命名字符串数组。SINDI 和 SINDI_V2 使用名为
-<code>host</code> 的字符串 metadata 实现 host 过滤。日期过滤复用现有命名字符串 path API，通过
-<code>Paths("date", values)</code> 和 <code>GetPaths("date")</code> 传递日期 bucket。单元素查询 Dataset 的日期范围
-使用独立的 <code>date_begin</code> 和 <code>date_end</code> 命名 path；两者各指向一个规范的 <code>YYYY</code>、<code>YYYY/MM</code> 或
-<code>YYYY/MM/DD</code> 字符串。这些数组遵循 Dataset 通用的 ownership、深拷贝和 Append 规则。</p>
+<code>GetUInt32Metadata</code> 返回对应命名数组，不存在时返回 <code>nullptr</code>。<code>Int64Metadata(name, values)</code> 与
+<code>GetInt64Metadata(name)</code> 提供命名的有符号 64 位整数数组；<code>StringMetadata(name, values)</code> 与
+<code>GetStringMetadata(name)</code> 提供命名字符串数组。SINDI 和 SINDI_V2 使用名为 <code>host</code> 的字符串
+metadata 进行 host 过滤，使用名为 <code>publish_time_stamp</code> 的 int64 metadata 进行 UTC 日粒度时间
+过滤。单元素查询 Dataset 的时间范围使用 <code>publish_time_stamp_begin</code> 与
+<code>publish_time_stamp_end</code>。对于 SINDI 和 SINDI_V2 的 base dataset，<code>publish_time_stamp == 0</code>
+保留为缺失时间戳，且永远不会匹配时间 selector。这些数组均须为每个 dataset 元素提供一个值，
+并遵循 Dataset 通用的 ownership、深拷贝和 Append 规则。</p>
 <h2 id="参见-3"><a class="header" href="#参见-3">参见</a></h2>
 <ul>
 <li><a href="#index">Index</a> —— 消费并返回 dataset 的方法。</li>
@@ -11310,7 +12135,8 @@ make release
 <p><code>v1.0.0</code> 官方 Release 收录了 <code>v0.18.0</code> 以来的 375 项变化：
 48 项新增功能、134 项改进、105 项缺陷修复和 88 项其他变化。
 <code>v0.11.0...v1.0.0</code> 主线对比包含 1,252 个提交。</p>
-<p>本文仅描述 <code>v1.0.0</code> 标签中可用的 API 与功能。</p>
+<p>下文的版本概览与主要能力描述了 <code>v1.0.0</code> 标签中可用的 API 与功能。
+后续更新见 <a href="#v10-补丁版本">v1.0 补丁版本</a>。</p>
 <h2 id="主要能力"><a class="header" href="#主要能力">主要能力</a></h2>
 <h3 id="索引体系"><a class="header" href="#索引体系">索引体系</a></h3>
 <p>下图按职责展示 VSAG 1.0 的索引体系：Pyramid 和 LazyHGraph 提供组合与自适应能力，
@@ -11479,12 +12305,22 @@ HGraph 强制删除由
 <p>完整提交历史参见
 <a href="https://github.com/antgroup/vsag/compare/v0.11.0...v1.0.0">v0.11.0…v1.0.0 对比</a>。</p>
 <h2 id="v10-补丁版本"><a class="header" href="#v10-补丁版本">v1.0 补丁版本</a></h2>
+<h3 id="v101--2026-年-9-月-22-日"><a class="header" href="#v101--2026-年-9-月-22-日">v1.0.1 — 2026 年 9 月 22 日</a></h3>
+<p><a href="https://github.com/antgroup/vsag/releases/tag/v1.0.1">v1.0.1</a> 是 1.0 LTS 系列的首个补丁版本，包含 17 项变更，主要涉及索引正确性、DiskANN 内存使用和构建稳定性。</p>
+<ul>
+<li><strong>HGraph：</strong> 移除 <code>ef_search</code> 与 <code>topk</code> 关联的上限限制（<a href="https://github.com/antgroup/vsag/pull/2525">#2525</a>），允许遍历距离为非有限值的桥接节点（<a href="https://github.com/antgroup/vsag/pull/2806">#2806</a>），修复强制删除尾部节点后入口点失效的问题（<a href="https://github.com/antgroup/vsag/pull/2906">#2906</a>）。</li>
+<li><strong>其他索引修复：</strong> 回收 BruteForce 强制删除后的存储空间（<a href="https://github.com/antgroup/vsag/pull/2538">#2538</a>），跳过 SINDI 范围检索中距离为零的候选（<a href="https://github.com/antgroup/vsag/pull/2715">#2715</a>），对齐 Pyramid 原始向量读取行为（<a href="https://github.com/antgroup/vsag/pull/2760">#2760</a>）。</li>
+<li><strong>DiskANN：</strong> 避免为检查大小而复制流内容（<a href="https://github.com/antgroup/vsag/pull/2630">#2630</a>），限制最近中心计算的分块内存使用（<a href="https://github.com/antgroup/vsag/pull/2646">#2646</a>）。</li>
+<li><strong>依赖配置：</strong> 新增带固定版本限定的第三方依赖覆盖配置（<a href="https://github.com/antgroup/vsag/pull/2686">#2686</a>）。</li>
+<li><strong>OpenBLAS 与打包：</strong> 升级内置 OpenBLAS 并稳定 x86 平台检测（<a href="https://github.com/antgroup/vsag/pull/2704">#2704</a>、<a href="https://github.com/antgroup/vsag/pull/2876">#2876</a>），进一步修复 manylinux 依赖构建（<a href="https://github.com/antgroup/vsag/pull/2971">#2971</a>）。</li>
+<li><strong>编译器兼容性：</strong> 修复 GCC 15 下的头文件编译问题（<a href="https://github.com/antgroup/vsag/pull/2976">#2976</a>），避免 GCC 14 下稀疏向量去重复制产生的警告（<a href="https://github.com/antgroup/vsag/pull/2992">#2992</a>）。</li>
+<li><strong>CI 与测试：</strong> 恢复 1.0 分支的 PR lint 检查（<a href="https://github.com/antgroup/vsag/pull/2488">#2488</a>），将 OpenBLAS 临时处理限定在常规 TSan 任务（<a href="https://github.com/antgroup/vsag/pull/2670">#2670</a>），并在测试中容忍 INT8 余弦计算的舍入误差（<a href="https://github.com/antgroup/vsag/pull/2968">#2968</a>）。</li>
+</ul>
+<p>完整变更参见 <a href="https://github.com/antgroup/vsag/compare/v1.0.0...v1.0.1">v1.0.0…v1.0.1 对比</a>；完整 PR 清单和贡献者名单参见<a href="https://github.com/antgroup/vsag/releases/tag/v1.0.1">官方 Release</a>。</p>
 <ul>
 <li><a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0"><strong>v1.0.0</strong></a>
 （2026 年 7 月 12 日）：首个长期支持大版本。</li>
 </ul>
-<p>后续 <code>v1.0.x</code> 补丁版本会追加到本节。
-完整 PR 清单和各版本贡献者名单继续维护在 GitHub Releases。</p>
 <h2 id="致谢"><a class="header" href="#致谢">致谢</a></h2>
 <p>VSAG 1.0 是蚂蚁集团 VSAG 团队与开源社区共同贡献的成果。
 感谢所有参与算法设计、功能实现、问题反馈、代码评审、

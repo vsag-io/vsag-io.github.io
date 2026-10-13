@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f4557856.js";
+            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ac482e7b.js"></script>
+        <script src="../toc-8a615816.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -496,17 +496,17 @@ by <code>precise_codes_layout</code>.</p>
 <tr><td><code>sindi_rerank_index</code></td><td>optional rerank flat index when rerank is enabled</td><td>conditional</td></tr>
 <tr><td><code>sindi_term_id_mapper</code></td><td>optional term-id remapping table</td><td>conditional</td></tr>
 <tr><td><code>sindi_host_metadata</code></td><td>optional host dictionary and one-or-more inner-ID ranges per host</td><td>conditional</td></tr>
-<tr><td><code>sindi_date_metadata</code></td><td>optional encoded date buckets and quarter/host interval directories</td><td>conditional</td></tr>
+<tr><td><code>sindi_time_metadata</code></td><td>optional per-document UTC days and time-partition/host directories</td><td>conditional</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>DeserializeStreaming</code> restores the full in-memory SINDI index. <code>Index::Load</code> can create the SINDI
 index directly from streaming metadata and currently loads all emitted SINDI blocks into memory.
 Mutable and immutable SINDI runtimes both support this streaming path. Legacy serialization stores
-standalone host metadata, including its persisted string-to-ID dictionary, or date-routing metadata
-for mutable and immutable indexes. These
-top-level payloads are mutually exclusive; combined date-and-host routing stores its host directory
-inside the date payload. A restored mutable date-aware index rejects incremental <code>Add()</code>.</p>
+standalone host metadata, including its persisted string-to-ID dictionary, or publish-time routing
+metadata for mutable and immutable indexes. These top-level payloads are mutually exclusive;
+combined time-and-host routing stores its host directory inside the time payload. A restored
+mutable time-aware index rejects incremental <code>Add()</code>.</p>
 <h2 id="sindi_v2-blocks"><a class="header" href="#sindi_v2-blocks">SINDI_V2 Blocks</a></h2>
 <p>SINDI_V2 writes these streaming blocks in order:</p>
 <div class="table-wrapper">
@@ -521,16 +521,15 @@ inside the date payload. A restored mutable date-aware index rejects incremental
 <tr><td><code>extra_info</code></td><td>optional per-document extra information</td><td>conditional</td></tr>
 <tr><td><code>sindi_term_id_mapper</code></td><td>optional term-id remapping table</td><td>conditional</td></tr>
 <tr><td><code>sindi_host_metadata</code></td><td>optional host dictionary and one-or-more inner-ID ranges per host</td><td>conditional</td></tr>
-<tr><td><code>sindi_date_metadata</code></td><td>optional encoded date buckets and quarter/host interval directories</td><td>conditional</td></tr>
+<tr><td><code>sindi_time_metadata</code></td><td>optional per-document UTC days and time-partition/host directories</td><td>conditional</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>DeserializeStreaming</code> and <code>Index::Load</code> restore mutable or immutable SINDI_V2 runtimes from these
 blocks. Legacy serialization stores standalone host metadata, including its persisted string-to-ID
-dictionary, or date-routing metadata for mutable and immutable indexes. These top-level payloads are
-mutually exclusive; combined date-and-host routing stores its host dictionary and directory inside
-the date payload. A restored mutable date-aware index
-rejects incremental <code>Add()</code>.</p>
+dictionary, or publish-time routing metadata for mutable and immutable indexes. These top-level
+payloads are mutually exclusive; combined time-and-host routing stores its host dictionary and
+directory inside the time payload. A restored mutable time-aware index rejects incremental <code>Add()</code>.</p>
 <h2 id="pyramid-blocks"><a class="header" href="#pyramid-blocks">Pyramid Blocks</a></h2>
 <p>Pyramid writes these streaming blocks in order:</p>
 <div class="table-wrapper">

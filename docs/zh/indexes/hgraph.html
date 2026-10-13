@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-950a745e.js";
+            window.path_to_searchindex_js = "../searchindex-30c491ac.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e38b3d01.js"></script>
+        <script src="../toc-653235e0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -320,7 +320,7 @@ HGraph 都是推荐的默认索引。</p>
 <code>max_degree</code> 预算内的最近邻。构图算法可以是 NSW 风格插入（<code>graph_type: "nsw"</code>，默认）、
 ODescent（<code>graph_type: "odescent"</code>）或 PiPNN（<code>graph_type: "pipnn"</code>）。</li>
 <li><strong>量化。</strong> 底层存储使用可配置的量化器进行压缩（<code>base_quantization_type</code> —
-<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code>）。
+<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_local</code>、<code>sq4_local</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code>）。
 可选地再保留一份高精度副本（<code>use_reorder: true</code> 搭配 <code>precise_quantization_type</code>），
 用于对粗排结果进行重打分。</li>
 <li><strong>搜索。</strong> 自顶向下在图上做贪心 beam search，扩展候选集到 <code>ef_search</code> 个节点；如启用精排，
@@ -361,7 +361,7 @@ auto result = index-&gt;KnnSearch(
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—（必填）</td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code> —— 各量化器细节见<a href="../quantization/">量化章节</a></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—（必填）</td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_local</code>、<code>sq4_local</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code> —— 各量化器细节见<a href="../quantization/">量化章节</a></td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>图节点最大出度</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>构建阶段的候选集大小（越大召回越高，构建越慢）</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.0</code></td><td>最终 robust pruning 的系数；PiPNN 要求有限且不小于 <code>1.0</code></td></tr>
@@ -402,6 +402,7 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
+<p><code>sq8_local</code> 和 <code>sq4_local</code> 支持 float32 L2/IP/cosine 的基础与精排存储（包括 RaBitQ + local SQ4/SQ8 精排）。布局、数值限制和 Tune 兼容性见<a href="../quantization/sq.html">local SQ4/SQ8</a>。</p>
 <p><code>use_reverse_edges</code> 面向需要快速检查入邻居、图分析或图维护算法的负载。维护反向邻接表会让边
 存储约翻倍，因此默认关闭。</p>
 <p><code>label_remap_type</code> 只改变内部 label map，不改变用户 ID。默认值为 <code>"pg"</code>；

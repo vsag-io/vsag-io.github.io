@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f4557856.js";
+            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ac482e7b.js"></script>
+        <script src="../toc-8a615816.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -465,6 +465,19 @@ Actions tab and run it manually with:</p>
 <p>For a local dry run of the same packaging script, run:</p>
 <pre><code class="language-bash">COMPILE_JOBS=6 bash ./scripts/release/dist.sh
 </code></pre>
+<p>For accelerated dependency downloads in both ABI containers, optionally set
+<code>VSAG_THIRDPARTY_ENV_FILE</code> to a readable regular file on the host (quote paths containing spaces):</p>
+<pre><code class="language-bash">VSAG_THIRDPARTY_ENV_FILE="/path/to/dependency urls.env" bash ./scripts/release/dist.sh
+</code></pre>
+<p>Use ASCII <code>VSAG_THIRDPARTY_&lt;NAME&gt;=URL</code> lines, with uppercase letters, digits and underscores
+in names, including <a href="offline_build.html">pin-qualified names</a>. URLs must start with a scheme
+such as <code>https://</code> and contain no whitespace; do not use <code>export</code>, quotes or inline comments.
+Blank lines and full-line <code>#</code> comments are allowed; LF, CRLF and a missing final newline work.
+Values are literal: <code>=</code>, <code>&amp;</code>, <code>#</code> and <code>$</code> are preserved without shell expansion. Duplicate keys,
+invalid entries and lines longer than 65,534 bytes (excluding line endings) fail before image builds.
+File values override image defaults; host dependency variables are not forwarded or modified.
+CMake prefers pinned names over legacy names and retains default URLs as download fallbacks.
+An unset path preserves existing behavior; an explicitly empty or unreadable path is an error.</p>
 <p>You can increase <code>COMPILE_JOBS</code> if your machine has enough memory, but the default is conservative
 to avoid out-of-memory failures in CI runners.</p>
 

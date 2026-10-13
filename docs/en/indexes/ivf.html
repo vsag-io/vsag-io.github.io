@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f4557856.js";
+            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ac482e7b.js"></script>
+        <script src="../toc-8a615816.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -379,22 +379,31 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>First-level count (effective for <code>gno_imi</code>)</td></tr>
 <tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>Second-level count (effective for <code>gno_imi</code>)</td></tr>
 <tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>Centroid training: <code>kmeans</code> or <code>random</code></td></tr>
+<tr><td><code>kmeans_iter_count</code></td><td>int</td><td><code>25</code> (<code>ivf</code>), <code>30</code> (<code>gno_imi</code>)</td><td>KMeans training iterations for centroid training (effective with <code>ivf_train_type: "kmeans"</code>). Higher → better bucket quality, longer build.</td></tr>
 <tr><td><code>route_max_degree</code></td><td>int</td><td><code>64</code></td><td>Routing HGraph maximum degree (effective for <code>ivf</code>)</td></tr>
 <tr><td><code>route_ef_construction</code></td><td>int</td><td><code>300</code></td><td>Routing HGraph construction search breadth (effective for <code>ivf</code>)</td></tr>
+<tr><td><code>enable_gpu_build</code></td><td>bool</td><td><code>false</code></td><td>Use the CUDA backend while building (effective for <code>ivf</code>); see <a href="#gpu-accelerated-build">GPU-accelerated build</a></td></tr>
+<tr><td><code>gpu_device_id</code></td><td>int</td><td><code>0</code></td><td>CUDA device ordinal (effective for <code>ivf</code>); an ordinal the machine does not have keeps the build on the CPU</td></tr>
+<tr><td><code>gpu_memory_budget</code></td><td>int</td><td><code>0</code></td><td>Ceiling in bytes on the device working set (effective for <code>ivf</code>); <code>0</code> derives it from what the device has free</td></tr>
+<tr><td><code>gpu_min_work_threshold</code></td><td>int</td><td><code>0</code></td><td>Smallest <code>count * buckets_count * dim</code> worth offloading (effective for <code>ivf</code>); <code>0</code> uses the calibrated default</td></tr>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="../quantization/">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ subspaces (required with <code>pq</code> / <code>pqfs</code>)</td></tr>
 <tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td>Optional PCA preprocessing dimension for <code>base_quantization_type: "rabitq"</code></td></tr>
 <tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>Query bits for <code>rabitq</code>; allowed values are <code>4</code> or <code>32</code></td></tr>
 <tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>Stored-code bits for <code>rabitq</code>; allowed range is <code>[1, 8]</code></td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>Enables RaBitQ split storage and sets the supplement (<code>y</code>) bits; <code>rabitq_bits_per_dim_base</code> is the filter (<code>x</code>) bits and <code>x + y &lt;= 8</code></td></tr>
 <tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td><code>rabitq</code> layout: <code>"standard"</code> or <code>"split_1bit_7bit"</code></td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Positive error-budget parameter for <code>rabitq</code> encoding</td></tr>
 <tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td>Enable FHT rotation before <code>rabitq</code> binarization</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use CAQ fast construction for multi-bit <code>rabitq</code>; set to <code>false</code> for exact encoding</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>CAQ adjustment rounds; allowed range is <code>[1, 32]</code></td></tr>
+<tr><td><code>use_residual</code></td><td>bool</td><td><code>false</code></td><td>Encode vectors relative to their IVF bucket centroid (<code>x-c</code>).</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse scan</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (with <code>use_reorder: true</code>)</td></tr>
 <tr><td><code>precise_codes_layout</code></td><td>string</td><td><code>"flat"</code></td><td>Storage layout for precise codes: <code>"flat"</code> keeps the legacy one-code-per-vector layout; <code>"bucket"</code> stores the precise code in the same bucket and offset as its basic posting</td></tr>
 <tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>Storage backend for coarse codes; supports <code>uring_io</code> when built with liburing</td></tr>
+<tr><td><code>base_supplement_io_type</code></td><td>string</td><td>unset</td><td>Optional IO backend for RaBitQ split supplement codes</td></tr>
+<tr><td><code>base_supplement_file_path</code></td><td>string</td><td>derived</td><td>Optional file path for disk-backed RaBitQ supplement codes</td></tr>
 <tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for precise codes (<code>memory_io</code>, <code>block_memory_io</code>, <code>mmap_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>reader_io</code>)</td></tr>
 <tr><td><code>precise_file_path</code></td><td>string</td><td><code>""</code></td><td>File path when the precise IO type is disk-backed</td></tr>
 </tbody>
@@ -421,6 +430,134 @@ auto loaded = vsag::Index::Load(stream, load_parameters).value();
 serialize it, and then use the external reader when loading it for search.</p>
 <p>A rule of thumb for <code>buckets_count</code> is <code>sqrt(N)</code> to <code>4 * sqrt(N)</code> where <code>N</code> is the
 corpus size.</p>
+<h3 id="gpu-accelerated-build"><a class="header" href="#gpu-accelerated-build">GPU-accelerated build</a></h3>
+<p>Building an IVF index is dominated by two things: clustering the training sample
+into centroids, and then assigning every base vector to its bucket. Clustering
+grows with <code>buckets_count</code>, because the sample does too (<code>train_sample_count</code>
+defaults to <code>max(65536, 64 * buckets_count)</code>), and with
+<code>ivf_train_type: "kmeans"</code> the seeding pass alone is
+<code>O(buckets_count * train_sample_count * dim)</code> and runs single-threaded.</p>
+<p>When VSAG is built with <code>ENABLE_CUDA=ON</code>, both move to a CUDA device. Set
+<code>enable_gpu_build</code> to turn it on:</p>
+<pre><code class="language-json">{
+    "buckets_count": 4096,
+    "base_quantization_type": "fp32",
+    "partition_strategy_type": "ivf",
+    "ivf_train_type": "kmeans",
+    "enable_gpu_build": true,
+    "gpu_device_id": 0
+}
+</code></pre>
+<p>Four passes run on the device: k-means++ seeding, nearest-centroid assignment
+and centroid accumulation inside clustering, and the bucket assignment of the
+base vectors afterwards. <code>ivf_train_type: "random"</code> does not cluster, so only
+the last one applies to it.</p>
+<p>The four settings reach the <code>ivf</code> partition strategy only. With
+<code>partition_strategy_type: "gno_imi"</code> they are accepted and ignored, as the other
+strategy-specific parameters in the table are, and that build stays on the host.</p>
+<p><strong>Scope.</strong> Only the build changes. Search is untouched: queries still route through the
+graph, which is the right shape for one query at a time. The four settings are
+recorded in the index footer as every other build parameter is, so two otherwise
+identical builds are not byte-identical, but the compatibility check on load
+ignores them: an index built with the backend on loads into a reader configured
+any other way, including one on a machine with no GPU, and then behaves as that
+reader is configured. The centroids can differ slightly from a host build’s: the
+random choices come from the caller’s generator either way, but the device sums
+each cluster with atomics in no fixed order.</p>
+<p><strong>Fallback.</strong> A pass that declines is taken by the host, silently, and returns
+what a build with the backend off would have returned. This happens when VSAG
+was built without CUDA, no device is present, <code>gpu_device_id</code> names an ordinal
+the machine does not have, the problem is below <code>gpu_min_work_threshold</code>, the
+budget cannot hold what a pass needs, or any CUDA call fails. A build never
+fails because of the backend.</p>
+<p>Two cases stay on the host by design. Inner-product metrics order buckets by the
+dot product alone, which is not what the device pass minimises, so they keep the
+graph routing. A build that asked for a reproducible reduction keeps centroid
+accumulation on the host as well, since the device sums with atomics whose
+order is not fixed.</p>
+<p><strong>Memory.</strong> Vectors are streamed in chunks, so the corpus does not have to fit
+in device memory; only the centroids and one chunk do. The working set is
+bounded by <code>gpu_memory_budget</code>, by default derived from what the device reports
+free, so the same build behaves on a small card and makes use of a large one.
+Seeding differs only in shape: it sweeps the whole training sample once per
+centroid, so the sample has to be resident rather than chunked, and a sample the
+budget cannot hold sends seeding back to the host while the other passes stay on
+it. When no budget is named the chunked passes take a default ceiling, since a
+chunk larger than what saturates the device only costs more; seeding takes what
+the device has free, because a ceiling there would only push large samples to
+the host.</p>
+<p>Measured on SIFT1M (1M base vectors, 128 dimensions), against a 48-thread host
+build as the baseline:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>buckets_count</code></th><th>CPU build</th><th>GPU build</th><th>Speedup</th><th>Recall@10 change</th></tr>
+</thead>
+<tbody>
+<tr><td>1000</td><td>59.45 s</td><td>6.30 s</td><td>9.43x</td><td>+0.058 pt</td></tr>
+<tr><td>4096</td><td>167.66 s</td><td>8.02 s</td><td>20.90x</td><td>+0.075 pt</td></tr>
+<tr><td>16384</td><td>729.04 s</td><td>27.21 s</td><td>26.79x</td><td>+0.079 pt</td></tr>
+</tbody>
+</table>
+</div>
+<p>The speedup grows with <code>buckets_count</code> because clustering takes a larger share
+of the build. How large it is depends on the balance between the host’s CPU and
+its GPU, which is also what <code>gpu_min_work_threshold</code> exists to retune.</p>
+<p>Recall moves because the device compares against every centroid where the host
+does not, in two places.</p>
+<p>Assigning base vectors to buckets, on the default <code>use_route_graph: true</code>
+layout, searches the routing graph, which is approximate. On 20000 random
+vectors of 64 dimensions the two paths agreed exactly at <code>buckets_count</code> 16; at
+256 and 1000 they placed roughly 10% and 12% of the vectors in different
+buckets, the device naming the nearer centroid in every one of those cases, and
+the mean distance to the assigned centroid improved by under 1% and by about 2%.
+The figures shift a little from run to run, because training is not seeded and
+each run clusters differently; they held across unit-norm and raw random data.
+The scan layout assigns exactly on either path and does not move.</p>
+<p>Clustering does the same above 10000 centroids, where the host switches to a
+graph search over the centroids to keep training affordable.</p>
+<p>So a build with the backend on assigns somewhat better, not only faster. The
+evidence for that is the distance comparison above, not the recall column: the
+table is one run per configuration, and recall between two separately trained
+indexes moves by more than the differences it shows. Four builds with identical
+settings on 50000 random vectors of 128 dimensions spanned a full point of
+recall, against the hundredths of a point in the table. Read that column as
+showing no regression, not as measuring the gain. Below those sizes the two agree
+except where two centroids are equidistant from a point to within floating-point
+rounding.</p>
+<h2 id="rabitq-split-storage"><a class="header" href="#rabitq-split-storage">RaBitQ split storage</a></h2>
+<p>Set both quantizers to <code>rabitq</code> and divide the stored precision into filter
+(<code>x</code>) and supplement (<code>y</code>) bits:</p>
+<pre><code class="language-json">{
+    "base_quantization_type": "rabitq",
+    "precise_quantization_type": "rabitq",
+    "rabitq_bits_per_dim_query": 32,
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5,
+    "use_reorder": true
+}
+</code></pre>
+<p>IVF stores the <code>x</code>-bit filter planes in bucket-local 32-vector packed blocks and
+stores the <code>y</code>-bit supplement separately. The default <code>candidate_reorder</code>
+strategy scans only the packed x bits, retains <code>factor * topk</code> candidates, and
+carries the byte-LUT-quantized x-bit inner product together with each
+candidate’s source bucket, offset, and version. Normal reranking combines this
+saved inner product with the y-bit supplement contribution. It does not reread
+or unpack x-bit planes and does not reconstruct the inner product from a
+distance hint.</p>
+<p>For residual L2 candidate search, all routed buckets share one LUT built from
+the original transformed query. Per-lane factors recover the raw filter-code
+contribution and combine it with the supplement under the original query, so
+normal reranking does not build a <code>q-c</code> computer. A correctness fallback may
+unpack x bits only when the saved value or factors are invalid, source
+provenance is stale, or a FastScan lane could not produce a valid result.</p>
+<p>The split configuration requires <code>x &gt;= 1</code>, <code>y &gt;= 1</code>, <code>x + y &lt;= 8</code>,
+<code>rabitq_bits_per_dim_query: 32</code>, <code>use_reorder: true</code>, and
+<code>buckets_per_data: 1</code>. Bucket-local graphs (<code>graph_build_threshold &gt; 0</code>) are
+not supported with split storage. Supported homogeneous IO backends are
+<code>memory_io</code>, <code>block_memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>mmap_io</code>,
+and <code>reader_io</code>; the supported hybrid layout is filter
+<code>block_memory_io</code> plus supplement <code>async_io</code>.</p>
 <h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>ivf</code> sub-object:</p>
 <div class="table-wrapper">

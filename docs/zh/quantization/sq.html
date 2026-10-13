@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-950a745e.js";
+            window.path_to_searchindex_js = "../searchindex-30c491ac.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e38b3d01.js"></script>
+        <script src="../toc-653235e0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -358,7 +358,7 @@
 请在 <code>Add</code> 之前调用。详见
 <a href="../advanced/build_and_train.html">索引构建与训练</a>。</p>
 <h2 id="度量兼容性"><a class="header" href="#度量兼容性">度量兼容性</a></h2>
-<p><code>l2</code>、<code>ip</code>、<code>cosine</code>——全部支持。距离通过把整数码解码回逐维缩放浮点后
+<p><code>sq8</code> 和 <code>sq4</code> 支持 <code>l2</code>、<code>ip</code>、<code>cosine</code>。距离通过把整数码解码回逐维缩放浮点后
 计算。</p>
 <h2 id="sq8-与-sq4-如何选"><a class="header" href="#sq8-与-sq4-如何选"><code>sq8</code> 与 <code>sq4</code> 如何选</a></h2>
 <ul>
@@ -378,6 +378,52 @@
 <li><a href="../advanced/quantization_transform.html">量化变换</a></li>
 <li><a href="./">量化总览</a></li>
 </ul>
+<h2 id="local-sq4--sq8float32-l2ip-和-cosine"><a class="header" href="#local-sq4--sq8float32-l2ip-和-cosine">Local SQ4 / SQ8（float32 L2、IP 和 cosine）</a></h2>
+<p>HGraph 的 <code>base_quantization_type</code> 可设为 <code>sq4_local</code> 或 <code>sq8_local</code>；启用 <code>use_reorder: true</code> 时，<code>precise_quantization_type</code> 也支持两者。两种量化器均支持稠密 float32 的 L2、IP 和 cosine。例如，使用 RaBitQ 遍历并用 local SQ4 精排：</p>
+<pre><code class="language-json">{
+    "dtype": "float32",
+    "metric_type": "cosine",
+    "dim": 128,
+    "index_param": {
+        "base_quantization_type": "rabitq",
+        "use_reorder": true,
+        "precise_quantization_type": "sq4_local",
+        "max_degree": 32,
+        "ef_construction": 300
+    }
+}
+</code></pre>
+<p>将 <code>sq4_local</code> 替换为 <code>sq8_local</code> 可使用八位精度。直接检索可设置 <code>base_quantization_type: "sq8_local"</code> 和 <code>use_reorder: false</code>。原有可选 FP32 精排保持不变；local 精排不会隐式增加 FP32 存储或第三阶段精排。<code>precise_quantization_type</code> 不保证精确距离：两者均有损，SQ4 较粗的量化等级可能明显降低召回率，应使用自己的数据选择精度和搜索参数。</p>
+<h3 id="设计与布局"><a class="header" href="#设计与布局">设计与布局</a></h3>
+<p>每个向量保存独立的 FP32 最小值 <code>m</code> 和 FP32 步长 <code>s = (max - min) / (2^bits - 1)</code>。偏移 0–3 为 <code>m</code>，4–7 为 <code>s</code>，从偏移 8 开始存储编码，无填充及记录对齐要求。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>类型</th><th>等级数</th><th>编码负载</th><th>每向量字节数</th></tr>
+</thead>
+<tbody>
+<tr><td><code>sq8_local</code></td><td>256</td><td>每分量一个无符号字节</td><td><code>dim + 8</code></td></tr>
+<tr><td><code>sq4_local</code></td><td>16</td><td>偶数分量位于低四位，奇数分量位于高四位</td><td><code>ceil(dim / 2) + 8</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>SQ4 奇数维的末字节高四位清零。N 个向量的编码占用 <code>N * 每向量字节数</code>，不含图、ID、分配容量及可选其他存储。每个查询计算器需要 <code>4 * dim</code> 字节；cosine 编码额外使用临时 <code>4 * dim</code> 字节归一化缓冲区。</p>
+<p>编码对 <code>(x - m) / s</code> 四舍五入（半步向上）并截断到 [0, 255] 或 [0, 15]。常量向量使用零步长及零编码。解码采用融合舍入计算 <code>m + s * code</code>，并限制在有限 FP32 端点内。与按坐标训练范围的 <code>sq8</code> / <code>sq4</code> 不同，范围逐向量计算；与 uniform SQ 不同，查询保持 FP32。</p>
+<h3 id="距离定义与归一化"><a class="header" href="#距离定义与归一化">距离定义与归一化</a></h3>
+<ul>
+<li><strong>L2：</strong> FP32 查询与重建数据库向量之间的平方欧氏距离；编码间距离分别重建两侧。</li>
+<li><strong>IP：</strong> 保留原始幅度，计算 <code>1 - dot(query, decoded_vector)</code>；编码间计算 <code>1 - dot(decoded_a, decoded_b)</code>。内积包含两侧最小值偏移的贡献。</li>
+<li><strong>Cosine：</strong> 量化器采用现有 <code>ScalarQuantizer</code> 的 <code>Normalize</code>，编码前归一化原始数据库向量，ADC 前归一化 FP32 查询，然后计算 <code>1 - dot</code>。不重新归一化解码向量；量化可能改变其范数，因此距离不一定严格位于 [0, 2]。零向量保持为零，其与任意向量的 cosine 距离为 1。</li>
+</ul>
+<p>HGraph 向这些存储传入原始向量，由量化器负责 cosine 归一化。极端值沿用既有 FP32 归一化语义：范数溢出可能使归一化分量变为零，下溢或非正规数处理可能保留极小分量。本功能不重新定义已有策略。</p>
+<h3 id="数值与训练约定"><a class="header" href="#数值与训练约定">数值与训练约定</a></h3>
+<p>拒绝其他输入类型及包裹 local SQ 的变换链。支持负数及常量向量，编码和查询处理拒绝 NaN 与无穷。范围使用 double 中间值；极端有限值记录使用 double 中间值距离回退，重建值限制在有限 FP32 端点内。超出 FP32 范围的距离可能为无穷。极小范围的步长可能舍入为零，也受平台非正规数处理影响。SIMD 结果在浮点容差内一致，不保证逐位相同。</p>
+<p>支持 1 至 <code>INT_MAX</code> 的维度、奇数维及非对齐记录。共享内核支持标量、SSE、AVX、AVX2、AVX512 和 NEON；SVE 回退到标量。SSE/AVX 在 SIMD 累加前逐分量采用融合舍入重建，使 ADC 与公开解码结果一致。本次本地验证无法执行原生 ARM 路径。</p>
+<p>无共享训练边界及额外参数。<code>Train</code> / <code>ReTrain</code> 无需读取样本即可完成；编码时逐向量计算元数据。任一本地类型用作基础存储时，HGraph 的 <code>NEED_TRAIN</code> 为 false。仍遵循 HGraph 正常 Build/Train 生命周期。</p>
+<h3 id="持久化与-tune"><a class="header" href="#持久化与-tune">持久化与 Tune</a></h3>
+<p>现有 <code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、默认值及格式不变。</p>
+<p>新类型需要支持它们的读取版本。记录及元数据沿用原生二进制序列化约定，不引入跨字节序格式。加载校验维度、度量和记录长度。HGraph 序列化保留基础及精排存储，包括 RaBitQ 加任一 local 量化器。Tune 可从保留的原始数据或 FP32 编码生成这些存储；仅有有损 local 编码时不能执行后续改变精度的 Tune。原有 <code>ignore_reorder</code>、<code>reorder_source</code> 及 Tune 限制保持不变。</p>
+<p>本次变更未开展大规模召回率或吞吐基准测试。</p>
 
                     </main>
 

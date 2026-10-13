@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f4557856.js";
+            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ac482e7b.js"></script>
+        <script src="../toc-8a615816.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -473,13 +473,14 @@ used by indexes that consume raw token order.</p>
 destructor frees each <code>vectors_</code> separately.</p>
 <h2 id="named-metadata"><a class="header" href="#named-metadata">Named metadata</a></h2>
 <p><code>UInt32Metadata(name, values)</code> attaches one unsigned integer per dataset element, and
-<code>GetUInt32Metadata</code> returns the named array or <code>nullptr</code>. <code>StringMetadata(name, values)</code> and
-<code>GetStringMetadata(name)</code> provide the equivalent generic named string arrays. SINDI and SINDI_V2
-use string metadata named <code>host</code> for host filtering. Date filtering uses the existing named string-path API with
-<code>Paths("date", values)</code> and <code>GetPaths("date")</code>. A date range on a one-element query dataset uses
-the separate named paths <code>date_begin</code> and <code>date_end</code>; each points to one canonical <code>YYYY</code>,
-<code>YYYY/MM</code>, or <code>YYYY/MM/DD</code> string. These arrays follow the normal Dataset ownership, deep-copy, and
-append rules.</p>
+<code>GetUInt32Metadata</code> returns the named array or <code>nullptr</code>. <code>Int64Metadata(name, values)</code> and
+<code>GetInt64Metadata(name)</code> provide named signed 64-bit integer arrays; <code>StringMetadata(name, values)</code>
+and <code>GetStringMetadata(name)</code> provide named string arrays. SINDI and SINDI_V2 use string metadata
+named <code>host</code> for host filtering and int64 metadata named <code>publish_time_stamp</code> for UTC-day time
+filtering. A time range on a one-element query dataset uses <code>publish_time_stamp_begin</code> and
+<code>publish_time_stamp_end</code>. For SINDI and SINDI_V2 base datasets, <code>publish_time_stamp == 0</code> is
+reserved for a missing timestamp and never matches a time selector. These arrays have one value
+per dataset element and follow the normal Dataset ownership, deep-copy, and append rules.</p>
 <h2 id="see-also"><a class="header" href="#see-also">See also</a></h2>
 <ul>
 <li><a href="index_class.html">Index</a> — the methods that consume and return datasets.</li>

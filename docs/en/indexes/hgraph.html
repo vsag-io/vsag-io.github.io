@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f4557856.js";
+            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ac482e7b.js"></script>
+        <script src="../toc-8a615816.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -324,7 +324,7 @@ nearest neighbours within a <code>max_degree</code> budget. The construction alg
 NSW-style insertion (<code>graph_type: "nsw"</code>, the default), ODescent
 (<code>graph_type: "odescent"</code>), or PiPNN (<code>graph_type: "pipnn"</code>).</li>
 <li><strong>Quantization.</strong> The base storage is compressed with a configurable quantizer
-(<code>base_quantization_type</code> — <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>,
+(<code>base_quantization_type</code> — <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>,
 <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code>). Optionally, a second high-precision copy is kept
 (<code>use_reorder: true</code> with <code>precise_quantization_type</code>) and used to re-rank the
 candidates returned by the coarse search.</li>
@@ -367,7 +367,7 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>— (required)</td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code> — see the <a href="../quantization/">Quantization chapter</a> for per-quantizer details</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>— (required)</td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code> — see the <a href="../quantization/">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per graph node</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size during build (higher = better recall, slower build)</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.0</code></td><td>Final robust-pruning factor; PiPNN requires a finite value at least <code>1.0</code>.</td></tr>
@@ -408,6 +408,7 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 </tbody>
 </table>
 </div>
+<p><code>sq8_local</code> and <code>sq4_local</code> support float32 L2/IP/cosine base and precise stores (including RaBitQ + local SQ4/SQ8 reranking). See <a href="../quantization/sq.html#local-sq4--sq8-float32-l2-ip-and-cosine">layout, numeric limits and Tune compatibility</a>.</p>
 <p><code>use_reverse_edges</code> is intended for workloads that need fast incoming-neighbor inspection, graph
 analysis, or future graph-maintenance algorithms. It is disabled by default because maintaining
 the reverse adjacency approximately doubles edge storage.</p>

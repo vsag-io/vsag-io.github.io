@@ -165,10 +165,10 @@
             const path_to_root = "../../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../../searchindex-950a745e.js";
+            window.path_to_searchindex_js = "../../searchindex-30c491ac.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../../toc-e38b3d01.js"></script>
+        <script src="../../toc-653235e0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -319,7 +319,8 @@
 <p><code>v1.0.0</code> 官方 Release 收录了 <code>v0.18.0</code> 以来的 375 项变化：
 48 项新增功能、134 项改进、105 项缺陷修复和 88 项其他变化。
 <code>v0.11.0...v1.0.0</code> 主线对比包含 1,252 个提交。</p>
-<p>本文仅描述 <code>v1.0.0</code> 标签中可用的 API 与功能。</p>
+<p>下文的版本概览与主要能力描述了 <code>v1.0.0</code> 标签中可用的 API 与功能。
+后续更新见 <a href="#v10-补丁版本">v1.0 补丁版本</a>。</p>
 <h2 id="主要能力"><a class="header" href="#主要能力">主要能力</a></h2>
 <h3 id="索引体系"><a class="header" href="#索引体系">索引体系</a></h3>
 <p>下图按职责展示 VSAG 1.0 的索引体系：Pyramid 和 LazyHGraph 提供组合与自适应能力，
@@ -488,12 +489,22 @@ HGraph 强制删除由
 <p>完整提交历史参见
 <a href="https://github.com/antgroup/vsag/compare/v0.11.0...v1.0.0">v0.11.0…v1.0.0 对比</a>。</p>
 <h2 id="v10-补丁版本"><a class="header" href="#v10-补丁版本">v1.0 补丁版本</a></h2>
+<h3 id="v101--2026-年-9-月-22-日"><a class="header" href="#v101--2026-年-9-月-22-日">v1.0.1 — 2026 年 9 月 22 日</a></h3>
+<p><a href="https://github.com/antgroup/vsag/releases/tag/v1.0.1">v1.0.1</a> 是 1.0 LTS 系列的首个补丁版本，包含 17 项变更，主要涉及索引正确性、DiskANN 内存使用和构建稳定性。</p>
+<ul>
+<li><strong>HGraph：</strong> 移除 <code>ef_search</code> 与 <code>topk</code> 关联的上限限制（<a href="https://github.com/antgroup/vsag/pull/2525">#2525</a>），允许遍历距离为非有限值的桥接节点（<a href="https://github.com/antgroup/vsag/pull/2806">#2806</a>），修复强制删除尾部节点后入口点失效的问题（<a href="https://github.com/antgroup/vsag/pull/2906">#2906</a>）。</li>
+<li><strong>其他索引修复：</strong> 回收 BruteForce 强制删除后的存储空间（<a href="https://github.com/antgroup/vsag/pull/2538">#2538</a>），跳过 SINDI 范围检索中距离为零的候选（<a href="https://github.com/antgroup/vsag/pull/2715">#2715</a>），对齐 Pyramid 原始向量读取行为（<a href="https://github.com/antgroup/vsag/pull/2760">#2760</a>）。</li>
+<li><strong>DiskANN：</strong> 避免为检查大小而复制流内容（<a href="https://github.com/antgroup/vsag/pull/2630">#2630</a>），限制最近中心计算的分块内存使用（<a href="https://github.com/antgroup/vsag/pull/2646">#2646</a>）。</li>
+<li><strong>依赖配置：</strong> 新增带固定版本限定的第三方依赖覆盖配置（<a href="https://github.com/antgroup/vsag/pull/2686">#2686</a>）。</li>
+<li><strong>OpenBLAS 与打包：</strong> 升级内置 OpenBLAS 并稳定 x86 平台检测（<a href="https://github.com/antgroup/vsag/pull/2704">#2704</a>、<a href="https://github.com/antgroup/vsag/pull/2876">#2876</a>），进一步修复 manylinux 依赖构建（<a href="https://github.com/antgroup/vsag/pull/2971">#2971</a>）。</li>
+<li><strong>编译器兼容性：</strong> 修复 GCC 15 下的头文件编译问题（<a href="https://github.com/antgroup/vsag/pull/2976">#2976</a>），避免 GCC 14 下稀疏向量去重复制产生的警告（<a href="https://github.com/antgroup/vsag/pull/2992">#2992</a>）。</li>
+<li><strong>CI 与测试：</strong> 恢复 1.0 分支的 PR lint 检查（<a href="https://github.com/antgroup/vsag/pull/2488">#2488</a>），将 OpenBLAS 临时处理限定在常规 TSan 任务（<a href="https://github.com/antgroup/vsag/pull/2670">#2670</a>），并在测试中容忍 INT8 余弦计算的舍入误差（<a href="https://github.com/antgroup/vsag/pull/2968">#2968</a>）。</li>
+</ul>
+<p>完整变更参见 <a href="https://github.com/antgroup/vsag/compare/v1.0.0...v1.0.1">v1.0.0…v1.0.1 对比</a>；完整 PR 清单和贡献者名单参见<a href="https://github.com/antgroup/vsag/releases/tag/v1.0.1">官方 Release</a>。</p>
 <ul>
 <li><a href="https://github.com/antgroup/vsag/releases/tag/v1.0.0"><strong>v1.0.0</strong></a>
 （2026 年 7 月 12 日）：首个长期支持大版本。</li>
 </ul>
-<p>后续 <code>v1.0.x</code> 补丁版本会追加到本节。
-完整 PR 清单和各版本贡献者名单继续维护在 GitHub Releases。</p>
 <h2 id="致谢"><a class="header" href="#致谢">致谢</a></h2>
 <p>VSAG 1.0 是蚂蚁集团 VSAG 团队与开源社区共同贡献的成果。
 感谢所有参与算法设计、功能实现、问题反馈、代码评审、

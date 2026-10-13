@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-950a745e.js";
+            window.path_to_searchindex_js = "../searchindex-30c491ac.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e38b3d01.js"></script>
+        <script src="../toc-653235e0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -373,22 +373,31 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第一级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
 <tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>第二级桶数（<code>gno_imi</code> 策略下生效）</td></tr>
 <tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>中心训练方式：<code>kmeans</code> 或 <code>random</code></td></tr>
+<tr><td><code>kmeans_iter_count</code></td><td>int</td><td><code>25</code>（<code>ivf</code>）、<code>30</code>（<code>gno_imi</code>）</td><td>KMeans 质心训练的迭代次数（<code>ivf_train_type: "kmeans"</code> 时生效）。越大桶划分质量越好，构建越慢。</td></tr>
 <tr><td><code>route_max_degree</code></td><td>int</td><td><code>64</code></td><td>路由 HGraph 的最大度数（<code>ivf</code> 策略下生效）</td></tr>
 <tr><td><code>route_ef_construction</code></td><td>int</td><td><code>300</code></td><td>路由 HGraph 的构建搜索宽度（<code>ivf</code> 策略下生效）</td></tr>
+<tr><td><code>enable_gpu_build</code></td><td>bool</td><td><code>false</code></td><td>构建时使用 CUDA 后端（<code>ivf</code> 策略下生效），参见 <a href="#gpu-加速构建">GPU 加速构建</a></td></tr>
+<tr><td><code>gpu_device_id</code></td><td>int</td><td><code>0</code></td><td>CUDA 设备序号（<code>ivf</code> 策略下生效）；机器上不存在该序号时构建留在 CPU</td></tr>
+<tr><td><code>gpu_memory_budget</code></td><td>int</td><td><code>0</code></td><td>设备工作集的字节上限（<code>ivf</code> 策略下生效）；<code>0</code> 表示按设备空闲显存推导</td></tr>
+<tr><td><code>gpu_min_work_threshold</code></td><td>int</td><td><code>0</code></td><td>值得下放的最小 <code>count * buckets_count * dim</code>（<code>ivf</code> 策略下生效）；<code>0</code> 表示使用标定的默认值</td></tr>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> —— 各量化器细节见<a href="../quantization/">量化章节</a></td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
 <tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td><code>base_quantization_type: "rabitq"</code> 时可选的 PCA 预处理维度</td></tr>
 <tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td><code>rabitq</code> 查询每维位数；允许值为 <code>4</code> 或 <code>32</code></td></tr>
 <tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td><code>rabitq</code> 底库存储码每维位数；允许范围为 <code>[1, 8]</code></td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>未设置</td><td>启用 RaBitQ split storage 并设置补充码（<code>y</code>）位数；<code>rabitq_bits_per_dim_base</code> 表示过滤码（<code>x</code>）位数，且 <code>x + y &lt;= 8</code></td></tr>
 <tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td><code>rabitq</code> 布局：<code>"standard"</code> 或 <code>"split_1bit_7bit"</code></td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td><code>rabitq</code> 编码的正数误差预算参数</td></tr>
 <tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td><code>rabitq</code> 二值化前是否启用 FHT 旋转</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>多 bit <code>rabitq</code> 是否使用 CAQ 快速构建；设为 <code>false</code> 时使用精确编码</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>CAQ 微调轮数，允许范围 <code>[1, 32]</code></td></tr>
+<tr><td><code>use_residual</code></td><td>bool</td><td><code>false</code></td><td>是否相对所属 IVF bucket centroid 编码残差 <code>x-c</code>。</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排量化类型（<code>use_reorder: true</code> 时使用）</td></tr>
 <tr><td><code>precise_codes_layout</code></td><td>string</td><td><code>"flat"</code></td><td>精排 codes 的存储布局：<code>"flat"</code> 保持旧的一向量一码布局；<code>"bucket"</code> 在 basic posting 的相同 bucket 和 offset 保存高精度 code</td></tr>
 <tr><td><code>base_io_type</code></td><td>string</td><td><code>"memory_io"</code></td><td>粗排向量的存储后端；以 liburing 构建时支持 <code>uring_io</code></td></tr>
+<tr><td><code>base_supplement_io_type</code></td><td>string</td><td>未设置</td><td>RaBitQ split 补充码可选的 IO 后端</td></tr>
+<tr><td><code>base_supplement_file_path</code></td><td>string</td><td>自动派生</td><td>磁盘型 RaBitQ 补充码可选的文件路径</td></tr>
 <tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>精排向量的存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>mmap_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>reader_io</code>）</td></tr>
 <tr><td><code>precise_file_path</code></td><td>string</td><td><code>""</code></td><td>当精排 IO 为磁盘后端时的文件路径</td></tr>
 </tbody>
@@ -413,6 +422,108 @@ auto loaded = vsag::Index::Load(stream, load_parameters).value();
 <p><code>reader_io</code> 是加载与查询阶段的只读放置策略。构建时应使用可写的 precise IO，序列化后
 再在查询服务加载索引时绑定外部 reader。</p>
 <p><code>buckets_count</code> 的经验值一般为 <code>sqrt(N)</code> ~ <code>4 * sqrt(N)</code>，其中 <code>N</code> 是语料规模。</p>
+<h3 id="gpu-加速构建"><a class="header" href="#gpu-加速构建">GPU 加速构建</a></h3>
+<p>构建 IVF 索引的开销主要在两处：把训练样本聚类成中心点，以及随后把每条底库
+向量分配到桶。聚类量随 <code>buckets_count</code> 增长，因为样本量也随之增长
+（<code>train_sample_count</code> 默认为 <code>max(65536, 64 * buckets_count)</code>），而
+<code>ivf_train_type: "kmeans"</code> 下仅播种一步就是
+<code>O(buckets_count * train_sample_count * dim)</code> 且为单线程。</p>
+<p>当 VSAG 以 <code>ENABLE_CUDA=ON</code> 构建时，这两处都可以交给 CUDA 设备。设置
+<code>enable_gpu_build</code> 即可开启：</p>
+<pre><code class="language-json">{
+    "buckets_count": 4096,
+    "base_quantization_type": "fp32",
+    "partition_strategy_type": "ivf",
+    "ivf_train_type": "kmeans",
+    "enable_gpu_build": true,
+    "gpu_device_id": 0
+}
+</code></pre>
+<p>有四个环节在设备上执行：聚类内部的 k-means++ 播种、最近中心赋值、中心累加，
+以及之后把底库向量分配到桶。<code>ivf_train_type: "random"</code> 不做聚类，因此只有
+最后一项对它生效。</p>
+<p>这四个设置只作用于 <code>ivf</code> 分区策略。在 <code>partition_strategy_type: "gno_imi"</code> 下
+它们会被接受但忽略，与表中其他按策略生效的参数一致，该构建全程留在主机。</p>
+<p><strong>范围。</strong> 只有构建过程改变。检索不受影响：查询仍走图路由，那正是单条查询合适的
+形状。四个设置会像其他构建参数一样记入索引 footer，因此两次在其他方面相同的构建
+并非逐字节相同；但加载时的兼容性检查会忽略它们：开启后端构建出的索引可以载入任何
+其他配置的读取端，包括没有 GPU 的机器，之后按该读取端自己的配置运行。质心与主机
+构建的结果可能有细微差异：两条路径的随机选择都来自调用方的随机源，但设备用原子加
+对每个簇求和，顺序不固定。</p>
+<p><strong>回退。</strong> 某一环节放弃时由主机接手，过程静默，结果与关闭后端的构建一致。以下情况
+会发生回退：VSAG 未启用 CUDA 编译、机器上没有设备、<code>gpu_device_id</code> 指定了不存在的
+序号、问题规模低于 <code>gpu_min_work_threshold</code>、预算放不下某一环节所需，或任何 CUDA
+调用失败。构建不会因为这个后端而失败。</p>
+<p>有两种情况按设计留在主机。内积度量按点积本身排序，这与设备这一遍所最小化的
+量不同，因此它保持图路由。要求可复现归约的构建也会把中心累加留在主机，因为
+设备用原子加求和，其顺序不固定。</p>
+<p><strong>显存。</strong> 向量按块流式传输，因此语料不必装入显存，只有中心点和一个数据块需要。
+工作集受 <code>gpu_memory_budget</code> 限制，默认按设备报告的空闲显存推导，因此同一份
+构建在小卡上能跑、在大卡上也用得上。播种只是形态不同：它每选一个中心就扫一遍
+整个训练样本，因此样本必须常驻而非分块；预算装不下样本时，播种回到主机，其余
+环节仍在设备上。未指定预算时，分块环节取一个默认上限，因为数据块大到足以喂满
+设备之后再增大只是更费；播种取设备空闲显存，因为在这里设默认上限只会把大样本
+推回主机。</p>
+<p>在 SIFT1M 上实测（100 万条底库向量、128 维），以 48 线程的主机构建为基准：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th><code>buckets_count</code></th><th>CPU 构建</th><th>GPU 构建</th><th>加速比</th><th>Recall@10 变化</th></tr>
+</thead>
+<tbody>
+<tr><td>1000</td><td>59.45 s</td><td>6.30 s</td><td>9.43x</td><td>+0.058 pt</td></tr>
+<tr><td>4096</td><td>167.66 s</td><td>8.02 s</td><td>20.90x</td><td>+0.075 pt</td></tr>
+<tr><td>16384</td><td>729.04 s</td><td>27.21 s</td><td>26.79x</td><td>+0.079 pt</td></tr>
+</tbody>
+</table>
+</div>
+<p>加速比随 <code>buckets_count</code> 增大，因为聚类在构建中的占比上升。具体倍数取决于机器上
+CPU 与 GPU 的相对性能，<code>gpu_min_work_threshold</code> 也正是为此而设。</p>
+<p>召回率变化的原因是：设备会与每个中心点比较，而主机在两处不是这样。</p>
+<p>一处是把底库向量分配到桶。在默认的 <code>use_route_graph: true</code> 布局下，这一步走
+路由图检索，是近似的。在 20000 条 64 维随机向量上，两条路径在 <code>buckets_count</code>
+为 16 时结果完全一致；为 256 和 1000 时，分别约有 10% 和 12% 的向量落入不同的
+桶，且这些情形中设备每一次给出的都是更近的中心点，到所属中心点的平均距离分别
+改善不到 1% 和约 2%。这些数字在不同次运行间会小幅浮动，因为训练没有固定随机种
+子、每次聚类结果不同；在单位化与未单位化的随机数据上都成立。扫描布局两条路径
+都是精确的，不会变化。</p>
+<p>另一处是聚类，在中心点超过 10000 时，主机为控制训练开销改用在中心点上做图检索。</p>
+<p>所以开启后端不只是更快，赋值质量也略好。但支撑这一点的是上面的距离比较，不是
+召回率那一列：表中每种配置只跑了一次，而两个分别训练的索引之间，召回率的浮动
+大于表里给出的差值。在 50000 条 128 维随机向量上，四次相同设置的构建，召回率
+跨度达到整整一个百分点，而表里的差值只有百分点的百分之几。那一列应读作“没有
+退化“，而不是“测到了增益“。在上述规模以下，两者只在某点到两个中心点的距离于
+浮点舍入意义上相等时才不同。</p>
+<h2 id="rabitq-split-storage"><a class="header" href="#rabitq-split-storage">RaBitQ split storage</a></h2>
+<p>将粗排和精排量化器都设为 <code>rabitq</code>，并把存储精度拆成过滤码
+（<code>x</code>）和补充码（<code>y</code>）：</p>
+<pre><code class="language-json">{
+    "base_quantization_type": "rabitq",
+    "precise_quantization_type": "rabitq",
+    "rabitq_bits_per_dim_query": 32,
+    "rabitq_bits_per_dim_base": 3,
+    "rabitq_bits_per_dim_precise": 5,
+    "use_reorder": true
+}
+</code></pre>
+<p>IVF 将 <code>x</code> bit filter planes 保存为 bucket-local 32-vector packed blocks，并单独
+保存 <code>y</code> bit supplement。默认 <code>candidate_reorder</code> 只扫描 packed x bits，保留
+<code>factor * topk</code> 个候选，同时携带 byte-LUT 量化得到的 x-bit 内积以及候选的
+source bucket、offset 和 version。正常重排直接把保存的 x-bit 内积与 y-bit
+supplement contribution 合并，不重新读取或 unpack x-bit planes，也不从距离 hint
+反推内积。</p>
+<p>对 residual L2 candidate 检索，所有已路由 bucket 共享一份由原始变换 query
+构建的 LUT。每个 lane 的 factors 用于恢复原始 filter-code contribution，并在
+原始 query 下与 supplement 合并；正常重排不再构建 <code>q-c</code> computer。只有保存值
+或 factors 非法、source provenance 过期，或 FastScan lane 未产生有效结果时，
+正确性 fallback 才会 unpack x bits。</p>
+<p>split 配置要求 <code>x &gt;= 1</code>、<code>y &gt;= 1</code>、<code>x + y &lt;= 8</code>、
+<code>rabitq_bits_per_dim_query: 32</code>、<code>use_reorder: true</code> 和
+<code>buckets_per_data: 1</code>。split storage 暂不支持桶内图
+（<code>graph_build_threshold &gt; 0</code>）。同构 IO 支持 <code>memory_io</code>、
+<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>mmap_io</code> 和
+<code>reader_io</code>；混合 IO 支持过滤码使用 <code>block_memory_io</code>、补充码使用
+<code>async_io</code>。</p>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
 <p>检索参数放在 <code>ivf</code> 子对象下：</p>
 <div class="table-wrapper">

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-950a745e.js";
+            window.path_to_searchindex_js = "../searchindex-30c491ac.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e38b3d01.js"></script>
+        <script src="../toc-653235e0.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -353,7 +353,7 @@
 <tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
 <tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
 <tr><td><code>alpha</code></td><td><code>1.0</code></td><td>最终 robust pruning 的系数；PiPNN 要求有限且不小于 <code>1.0</code></td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略 —— 支持的全部取值见<a href="../quantization/">量化章节</a></td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq8_local</code> / <code>sq4_local</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略 —— 支持的全部取值见<a href="../quantization/">量化章节</a></td></tr>
 <tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>跟踪入边，实现 O(1) 反向邻居查找；边存储约翻倍，且压缩图存储不支持</td></tr>
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>label map 实现：默认 <code>pg</code>，或 <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>从 <code>precise</code> 存储或直接从 <code>base</code> 重排；RaBitQ x+y split（包括 <code>tq_chain="mrle, rabitq"</code>）会自动选择 <code>base</code></td></tr>
@@ -365,6 +365,7 @@
 </tbody>
 </table>
 </div>
+<p>HGraph float32 L2/IP/cosine 的 <code>base_quantization_type</code> 和 <code>precise_quantization_type</code> 均可选择 <code>sq8_local</code> 或 <code>sq4_local</code>（后者需要 <code>use_reorder: true</code>）。内存、持久化及限制见<a href="../quantization/sq.html">local SQ4/SQ8</a>。</p>
 <h3 id="pipnn-构建参数"><a class="header" href="#pipnn-构建参数">PiPNN 构建参数</a></h3>
 <p>当 <code>graph_type</code> 为 <code>pipnn</code> 时，HGraph 和 Pyramid 还会从 <code>index_param</code> 接受以下构建参数，
 两者使用相同的默认值和校验规则：</p>
@@ -508,7 +509,8 @@
     }
 }
 </code></pre>
-<p>详情见 <a href="../indexes/sindi_v2.html">SINDI_V2 页面</a>。</p>
+<p>构建参数及 <code>n_candidate</code>、<code>filter_callback_limit</code> 等检索参数详见
+<a href="../indexes/sindi_v2.html">SINDI_V2 页面</a>。</p>
 <h2 id="运行期参数"><a class="header" href="#运行期参数">运行期参数</a></h2>
 <p>除构建参数外，<code>Index::Tune</code> 与 <code>SearchParam</code> 可在运行时调整 <code>ef_search</code>、<code>nprobe</code> 等参数。参考
 <a href="../advanced/optimizer.html">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>

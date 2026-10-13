@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-f4557856.js";
+            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ac482e7b.js"></script>
+        <script src="../toc-8a615816.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -359,6 +359,7 @@ auto result = index-&gt;KnnSearch(
     query, 10,
     R"({"sindi_v2": {
         "n_candidate": 100,
+        "filter_callback_limit": 10000,
         "query_prune_ratio": 0.1,
         "term_prune_ratio": 0.2,
         "term_retain_threshold": 10000
@@ -378,7 +379,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight document terms removed during build (<code>[0.0, 1.0)</code>).</td></tr>
 <tr><td><code>use_quantization</code></td><td>bool or string</td><td><code>false</code></td><td><code>false</code> stores FP32, <code>true</code> stores SQ8, and <code>"fp16"</code> stores FP16 values.</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Store high-precision vectors and rerank coarse candidates.</td></tr>
-<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Rerank storage type: <code>fp32</code> or <code>dmq8</code>.</td></tr>
+<tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Rerank storage type: <code>fp32</code>, <code>fp16</code>, or <code>dmq8</code>. FP16 stores document values in half precision and scores in FP32.</td></tr>
 <tr><td><code>dmq_shared_codebook_threshold</code></td><td>int</td><td><code>1024</code></td><td>Low-frequency term threshold for the shared DMQ codebook.</td></tr>
 <tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>Compact sparse or widely separated external term IDs.</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>Memory-estimation hint only.</td></tr>
@@ -392,7 +393,8 @@ auto result = index-&gt;KnnSearch(
 <p>File-backed <code>term_io</code> supports <code>mmap_io</code>, <code>buffer_io</code>, and <code>async_io</code>, and
 requires <code>file_path</code>. If a file-backed <code>rerank_io</code> omits <code>file_path</code>, VSAG
 derives it as <code>&lt;term_io.file_path&gt;.rerank</code>.</p>
-<p><code>rerank_layout &gt; 0</code> requires <code>use_reorder: true</code>. <code>rerank_type: "dmq8"</code>
+<p><code>rerank_type: "fp16"</code> requires <code>use_reorder: true</code> and supports the same rerank I/O and layout
+options as <code>fp32</code>. <code>rerank_layout &gt; 0</code> requires <code>use_reorder: true</code>. <code>rerank_type: "dmq8"</code>
 requires <code>rerank_layout: 0</code> and the default <code>block_memory_io</code> rerank backend.</p>
 <h3 id="host-filtering"><a class="header" href="#host-filtering">Host filtering</a></h3>
 <p>SINDI_V2 supports the same string <code>host</code> build and KNN-query metadata contract as
@@ -401,19 +403,18 @@ shared host grouping and routing component while retaining its own term-first po
 Host membership is enforced during posting-window search, including multiple ranges created by
 mutable <code>Add()</code>. The empty-string missing-host value, persisted internal dictionary, mutable <code>Add()</code>
 metadata rules, streaming serialization, and the KNN-only scope are the same as SINDI.</p>
-<h3 id="date-bucket-filtering"><a class="header" href="#date-bucket-filtering">Date-bucket filtering</a></h3>
-<p>SINDI_V2 also supports the <a href="sindi.html#date-bucket-filtering">SINDI date-bucket, inclusive range, and hierarchical matching
-contract</a>. The two indexes share one metadata filtering
-component for date-only, host-only, and combined date-and-host KNN routing. SINDI_V2 retains its
-term-first posting layout and legacy serialization format. Date filtering supports mutable and
-immutable indexes with either <code>use_reorder</code> setting and is preserved by both legacy and streaming
-serialization; range search remains unfiltered. A mutable date-aware SINDI_V2 is build-once and
-follows the same initial <code>Build()</code> or first-<code>Add()</code> and later-<code>Add()</code> rejection rules as SINDI.
-Empty base date strings use the same missing-date semantics as SINDI: unfiltered and host-only
-queries include them, while date bucket and range queries exclude them.
-Exact bucket filtering disables term-level posting pruning in each selected window, so date queries
-may scan more postings than host-only queries. Host-only queries on date-enabled indexes share the
-boundary-window behavior documented for SINDI.</p>
+<h3 id="publish-time-filtering"><a class="header" href="#publish-time-filtering">Publish-time filtering</a></h3>
+<p>SINDI_V2 supports the same <a href="sindi.html#publish-time-filtering">SINDI Unix-second input, UTC-day matching, and inclusive time-range
+contract</a>. The two indexes share one metadata filtering component
+for time-only, host-only, and combined time-and-host KNN routing. SINDI_V2 retains its term-first
+posting layout. Publish-time filtering supports mutable and immutable indexes with either
+<code>use_reorder</code> setting and is preserved by standard and streaming serialization; range search
+remains unfiltered. A mutable time-aware SINDI_V2 is build-once and follows the same initial
+<code>Build()</code> or first-<code>Add()</code> and later-<code>Add()</code> rejection rules as SINDI. Base timestamp <code>0</code> uses the
+same missing-time semantics: unfiltered and host-only queries include those documents, while time
+queries exclude them. Exact day filtering disables term-level posting pruning in each selected
+window, so time queries may scan more postings than host-only queries. Host-only queries on
+time-enabled indexes share the boundary-window behavior documented for SINDI.</p>
 <h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
 <p>Search parameters live under <code>{"sindi_v2": {...}}</code>.</p>
 <div class="table-wrapper">
@@ -423,6 +424,7 @@ boundary-window behavior documented for SINDI.</p>
 </thead>
 <tbody>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Coarse candidate count; <code>0</code> uses the index default derived from <code>topk</code>.</td></tr>
+<tr><td><code>filter_callback_limit</code></td><td>uint64</td><td><code>0</code></td><td>Maximum user <code>Filter::CheckValid</code> callback invocations for one filtered search. <code>0</code> disables the limit. Reaching a positive limit stops candidate and window scanning after processing the final callback result and returns the candidates accepted so far, so the result may be partial. The limit applies to the regular KNN and range-search APIs.</td></tr>
 <tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest-weight query terms skipped (<code>[0.0, 1.0)</code>).</td></tr>
 <tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest stored values skipped in each term list (<code>[0.0, 1.0)</code>).</td></tr>
 <tr><td><code>term_retain_threshold</code></td><td>uint64</td><td><code>0</code></td><td>Maximum postings for one term across all windows. <code>0</code> disables the limit; positive values allow each non-empty window posting list to scan at most <code>max(1, floor(threshold / window_count))</code> postings.</td></tr>
