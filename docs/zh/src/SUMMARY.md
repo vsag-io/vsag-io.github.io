@@ -16,6 +16,7 @@
 - [总览](indexes/README.md)
 - [索引参数](resources/index_parameters.md)
 - [HGraph](indexes/hgraph.md)
+  - [自适应邻居剪枝](indexes/adaptive_pruning.md)
 - [LazyHGraph](indexes/lazy_hgraph.md)
 - [IVF](indexes/ivf.md)
 - [SINDI](indexes/sindi.md)
@@ -40,6 +41,8 @@
 # 开发者指南
 
 - [代码目录结构](development/code_structure.md)
+- [VSAG Lite](development/lite_first.md)
+- [Lite RaBitQ 设计](development/lite_rabitq_design.md)
 - [C++ 编码指南](development/coding_style.md)
 - [新索引接入检查清单](development/new_index_checklist.md)
 - [编译构建](development/building.md)

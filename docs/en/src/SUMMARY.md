@@ -16,6 +16,7 @@
 - [Overview](indexes/README.md)
 - [Index Parameters](resources/index_parameters.md)
 - [HGraph](indexes/hgraph.md)
+  - [Adaptive neighbor pruning](indexes/adaptive_pruning.md)
 - [LazyHGraph](indexes/lazy_hgraph.md)
 - [IVF](indexes/ivf.md)
 - [SINDI](indexes/sindi.md)
@@ -40,6 +41,8 @@
 # Developer Guide
 
 - [Code Structure](development/code_structure.md)
+- [VSAG Lite](development/lite_first.md)
+- [Lite RaBitQ Design](development/lite_rabitq_design.md)
 - [C++ Coding Guide](development/coding_style.md)
 - [New Index Integration Checklist](development/new_index_checklist.md)
 - [Building](development/building.md)
