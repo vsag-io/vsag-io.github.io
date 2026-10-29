@@ -42,6 +42,7 @@ HGraph 的构建参数使用通用的 `index_param` 键（参见 `examples/cpp/1
 
 | 字段 | 典型值 | 说明 |
 |------|-------|------|
+| `adaptive_pruning` | `false` | 实验性 NSW 底层正向/反向 L2 剪枝；详见 [HGraph](../indexes/hgraph.md#实验性自适应剪枝) |
 | `max_degree` | 16~48 | 每节点最大出边数 |
 | `ef_construction` | 200~500 | 构建阶段候选集大小，越大召回越高、构建越慢 |
 | `alpha` | `1.0` | 最终 robust pruning 的系数；PiPNN 要求有限且不小于 `1.0` |
@@ -74,6 +75,8 @@ HGraph float32 L2/IP/cosine 的 `base_quantization_type` 和 `precise_quantizati
 
 现有的 `alpha` 字段控制 PiPNN 的最终 robust pruning。`ef_construction` 只调节 NSW，
 对 PiPNN 不生效。
+
+HGraph 还支持实验性的 L2 参数 `pipnn_adaptive_pruning`（默认 `false`）和 `pipnn_adaptive_pruning_adjust_step`（默认 `0.06`），在首次 `Build` 时逐点调整最终剪枝阈值。详情见 [HGraph 动态 PiPNN 剪枝](../indexes/hgraph.md)。Pyramid 未暴露这两个选项。
 
 搜索时：
 
@@ -148,6 +151,8 @@ LazyHGraph 只支持 `dtype: "float32"`。搜索参数使用 `hgraph` 对象，�
 无需额外参数。
 
 ## Pyramid
+
+`adaptive_pruning` 默认值为 `false`。实验性 NSW 底图正向/反向 L2 剪枝配置见 [Pyramid](../indexes/pyramid.md#实验性-nsw-自适应剪枝)。
 
 Pyramid 构建参数同样放在 `index_param` 下：
 

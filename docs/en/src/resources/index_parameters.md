@@ -45,6 +45,7 @@ HGraph places its build parameters under the generic `index_param` key (see
 
 | Field | Typical | Description |
 |-------|---------|-------------|
+| `adaptive_pruning` | `false` | Experimental NSW bottom forward/reverse L2 pruning; see [HGraph](../indexes/hgraph.md#experimental-adaptive-pruning) |
 | `max_degree` | 16–48 | Maximum out-degree per node |
 | `ef_construction` | 200–500 | Candidate set size during build; larger = higher recall, slower build |
 | `alpha` | `1.0` | Final robust-pruning factor; PiPNN requires a finite value at least `1.0` |
@@ -77,6 +78,8 @@ When `graph_type` is `pipnn`, HGraph and Pyramid also accept the following build
 
 The existing `alpha` field controls PiPNN's final robust pruning. `ef_construction` only tunes NSW
 and has no effect on PiPNN.
+
+HGraph additionally supports the experimental L2-only options `pipnn_adaptive_pruning` (default `false`) and `pipnn_adaptive_pruning_adjust_step` (default `0.06`). They adapt the final per-point pruning threshold during initial `Build`; see [HGraph adaptive PiPNN pruning](../indexes/hgraph.md). These options are not exposed by Pyramid.
 
 At search time:
 
@@ -155,6 +158,8 @@ The `hgraph` search-param object also accepts the following filter-related param
 No extra parameters.
 
 ## Pyramid
+
+`adaptive_pruning` defaults to `false`. For experimental NSW bottom forward/reverse L2 pruning, see [Pyramid](../indexes/pyramid.md#experimental-adaptive-nsw-pruning).
 
 Pyramid build parameters also live under `index_param`:
 
