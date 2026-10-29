@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
+            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8a615816.js"></script>
+        <script src="../toc-3b5df986.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -350,6 +350,7 @@ Optimizer”. Its implementation key is <code>use_elp_optimizer</code>, which no
 </ol>
 <h2 id="notes"><a class="header" href="#notes">Notes</a></h2>
 <ul>
+<li>When rebuilding HGraph vector codes, <code>Tune</code> needs a raw or FP32 source covering the full internal ID range. If a failed <code>Add</code> leaves that source incomplete and no complete fallback exists, <code>Tune</code> returns <code>false</code> without changing the index. Later successful Adds do not fill earlier unwritten IDs. Deduplicated storage must have a published mapping for every ID; ordinary storage retains unfinished-write information and reserved IDs across serialization, so an Add after restore cannot reuse a missing vector’s ID. This uses existing count metadata without changing the binary format; older snapshots without unfinished-write metadata cannot recover that information. <code>Merge</code> rejects a destination or any input with unfinished code writes with <code>INVALID_ARGUMENT</code>, before copying any input; rebuild incomplete indexes from original data before merging. Restores reject reservation counts above the serialized capacity or internal ID limit with <code>INVALID_BINARY</code>; legacy metadata without a reservation count still falls back to the written-code count. It does not recover vectors from the failed <code>Add</code>; rebuild the index from the original data before tuning again.</li>
 <li>Tuning is sensitive to the query distribution — use samples that reflect real traffic.</li>
 <li>Tuned parameters are persisted together with the index metadata via <code>Serialize</code>/<code>Deserialize</code>
 and remain in effect after deployment.</li>

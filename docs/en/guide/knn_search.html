@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
+            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8a615816.js"></script>
+        <script src="../toc-3b5df986.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -327,7 +327,10 @@ internally via the <code>dtype</code> option.</p>
 <ul>
 <li><strong>base</strong>: all vectors in the database; size = <code>num_vectors * dim</code>.</li>
 <li><strong>query</strong>: the query vector(s) for which to find nearest neighbors; size = <code>num_queries * dim</code>.
-Currently the public <code>KnnSearch</code> API processes one query at a time.</li>
+All indexes accept a single query vector (<code>num_queries == 1</code>). HGraph and IVF additionally
+accept batched queries (<code>num_queries &gt; 1</code>), returning a row-major <code>num_queries x dim</code> result;
+HGraph pads missing neighbors with <code>id == -1</code> and infinite distance. Check
+<code>SUPPORT_BATCH_SEARCH</code> via <code>Index::CheckFeature</code> before relying on batched input.</li>
 </ul>
 <pre><code class="language-cpp">int64_t num_vectors = 10000;
 int64_t dim = 128;

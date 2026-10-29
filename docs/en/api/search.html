@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
+            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8a615816.js"></script>
+        <script src="../toc-3b5df986.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -378,8 +378,27 @@ are rejected rather than silently changing search semantics.</p>
 metric to select <code>scan_buckets_count</code> buckets, then applies the callback to candidates in those
 buckets. The callback controls candidate ranking but cannot recover vectors outside the selected
 buckets; increase <code>scan_buckets_count</code> to improve recall. Callback IVF does not support range search,
-<code>disable_bucket_scan</code>, bucket-graph search, or parallel search. Those configurations are rejected.
+<code>disable_bucket_scan</code>, or bucket-graph search. Those configurations are rejected.
 Reordering is automatically disabled in callback mode. Other indexes do not support the callback.</p>
+<p>IVF callback search supports bucket-parallel execution using <code>parallelism</code> in the IVF search
+parameters (for example, <code>{"ivf":{"scan_buckets_count":8,"parallelism":4}}</code>)
+when a thread pool is available; otherwise it executes serially. Each worker owns its attribute
+Executor, batch buffers, and result heap. The processing order is <strong>attribute filter → distance
+callback → local top-k score check → request filter → heap insertion</strong>. The potentially expensive
+request filter is called only if the worker heap is not full or the score can improve it. Only
+candidates passing that filter enter the heap and tighten its threshold. Merging worker heaps does
+not call the filter again.</p>
+<p>Both the callback and request filter, including their shared/captured state, must support concurrent
+calls when parallel search is enabled. Filter decisions must remain stable during a request and
+must not depend on invocation order or whether other IDs have been checked.
+Batch composition and invocation order can vary; per-ID
+scores must not depend on either. <code>distance_batch_size_</code> remains the maximum width of each call,
+not a concurrency limit. Equal-score result IDs may differ with execution order. Worker-local
+thresholds can be looser than a serial threshold, so parallel search may perform more filter calls;
+score pruning reduces filter and heap work, not distance evaluations already submitted to the callback.
+In reasoning output, scored candidates are recorded as visited even if the score gate skips them.
+A filter rejection is recorded only when that filter actually runs and rejects the candidate;
+diagnostics never invoke the expensive filter solely to classify a score-pruned candidate.</p>
 <h3 id="ivf-bucket-routing"><a class="header" href="#ivf-bucket-routing">IVF bucket routing</a></h3>
 <p>IVF accepts <code>{"ivf":{"scan_buckets_count":N,"disable_bucket_scan":true}}</code> through
 <code>params_str_</code>. This routing-only mode returns the <code>N</code> selected bucket IDs per query in the

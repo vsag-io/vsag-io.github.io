@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-30c491ac.js";
+            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-653235e0.js"></script>
+        <script src="../toc-ec46237e.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -375,6 +375,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>term ID 上界，最高为 50 000 000。</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>每个 window 的文档数，范围为 10 000 到 60 000。</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建时丢弃最低权重文档 term 的比例，范围为 <code>[0.0, 1.0)</code>。</td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td><code>Build</code> 时每个窗口内各 term 永久裁剪的低权重 postings 比例，范围 <code>[0, 1)</code>，默认关闭。</td></tr>
+<tr><td><code>term_retain_threshold</code></td><td>integer</td><td><code>0</code></td><td>构建时每个 term 的 postings 数量上限，平均分配到各窗口；<code>0</code> 表示不限制。</td></tr>
 <tr><td><code>use_quantization</code></td><td>bool 或 string</td><td><code>false</code></td><td><code>false</code> 存 FP32，<code>true</code> 存 SQ8，<code>"fp16"</code> 存 FP16。</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>保存高精度向量并对粗排候选重排。</td></tr>
 <tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>重排存储类型：<code>fp32</code>、<code>fp16</code> 或 <code>dmq8</code>。FP16 以半精度保存文档 value，并以 FP32 打分。</td></tr>
@@ -382,6 +384,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>压缩稀疏或间隔很大的外部 term ID。</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>仅用于内存估算。</td></tr>
 <tr><td><code>immutable</code></td><td>bool</td><td><code>false</code></td><td>选择紧凑的只读内存 term DataCell。</td></tr>
+<tr><td><code>posting_cache_capacity_bytes</code></td><td>uint64</td><td><code>0</code></td><td>磁盘读取后端的倒排 term LRU 缓存容量，单位为字节；<code>0</code> 关闭。内存和 mmap 后端不填充此缓存。</td></tr>
 <tr><td><code>term_io</code></td><td>object</td><td><code>{"type": "reader_io"}</code></td><td>加载后保存 term-first posting 的后端。</td></tr>
 <tr><td><code>rerank_io</code></td><td>object</td><td><code>{"type": "block_memory_io"}</code></td><td>保存重排向量的后端。</td></tr>
 <tr><td><code>rerank_layout</code></td><td>uint32</td><td><code>0</code></td><td>top-terms-signature 布局使用的前导 term 数量；<code>0</code> 表示关闭。</td></tr>
@@ -405,8 +408,8 @@ metadata、streaming 序列化及仅支持 KNN 的规则均与 SINDI 相同。</
 两个索引共用一个 metadata 过滤组件，统一处理仅时间、仅 host 以及时间与 host 组合的 KNN 路由；
 SINDI_V2 仍保留 term-first posting 布局。发布时间过滤支持 mutable、immutable 以及
 <code>use_reorder</code> 的任意设置，并由普通与 streaming 序列化共同保存；范围搜索仍不参与过滤。mutable
-时间 SINDI_V2 同样是 build-once：只允许通过初次 <code>Build()</code> 或空索引上的第一次 <code>Add()</code> 写入
-<code>publish_time_stamp</code>，之后拒绝 <code>Add()</code>。base 时间戳 <code>0</code> 沿用 SINDI 的无时间语义：无时间条件和
+时间 SINDI_V2 与 SINDI 一样支持 mutable 增量 <code>Add()</code>：每批必须提供 <code>publish_time_stamp</code>，
+并保持 host metadata 模式一致，允许补录旧日期。base 时间戳 <code>0</code> 沿用 SINDI 的无时间语义：无时间条件和
 仅 host 查询会包含这些文档，时间查询会排除它们。为了执行精确 day 过滤，每个选中 window 都会
 关闭 term 级 posting 剪枝，因此时间查询可能比仅 host 查询扫描更多 posting。在启用时间的索引上，
 仅 host 查询也遵循 SINDI 所述的边界 window 行为。</p>
@@ -433,6 +436,10 @@ SINDI_V2 仍保留 term-first posting 布局。发布时间过滤支持 mutable�
 <h2 id="如何选择-sindi-与-sindi_v2"><a class="header" href="#如何选择-sindi-与-sindi_v2">如何选择 SINDI 与 SINDI_V2</a></h2>
 <p>完整稀疏索引常驻内存、且 window-first 序列化合适时选择 SINDI。需要按 term
 组织持久化 posting，或希望搜索时只从外部存储读取查询 term list 时选择 SINDI_V2。</p>
+<h3 id="构建时-term-裁剪"><a class="header" href="#构建时-term-裁剪">构建时 term 裁剪</a></h3>
+<p>索引创建参数也支持 <code>term_prune_ratio</code>（浮点数，范围 <code>[0, 1)</code>，默认 <code>0</code>）和 <code>term_retain_threshold</code>（非负整数，默认 <code>0</code>），默认均不开启。<code>Build</code> 时，每个窗口内各 term 的倒排列表按存储权重降序排列，永久保留 <code>floor(posting_count * (1 - term_prune_ratio))</code> 与 <code>floor(term_retain_threshold / window_count)</code> 中较小数量的 postings；阈值为 0 表示不限制数量，非空列表至少保留一条。可变、不可变构建均支持 FP32、FP16 和 SQ8。重排向量及文档标签保持完整。搜索时裁剪作用于构建后保留的 postings，无法恢复已删除的 postings。后续 <code>Add</code> 不执行构建时裁剪。</p>
+<p>例如，在索引构建参数中设置 <code>"term_prune_ratio": 0.2, "term_retain_threshold": 0</code>，可删除每个窗口内各倒排列表中权重最低的 20% postings。</p>
+<p>倒排缓存仅存在于运行时，重新加载或绑定 IO 时清空。容量统计包括驻留的解析后 buffer 和估算的条目开销。查询持有的 buffer 可在淘汰后继续存活，因此进程内存可能暂时超过该预算。此缓存不缓存重排向量。</p>
 
                     </main>
 

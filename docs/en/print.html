@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-0c80e679.js";
+            window.path_to_searchindex_js = "searchindex-5c69f2ef.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-8a615816.js"></script>
+        <script src="toc-3b5df986.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -513,7 +513,10 @@ internally via the <code>dtype</code> option.</p>
 <ul>
 <li><strong>base</strong>: all vectors in the database; size = <code>num_vectors * dim</code>.</li>
 <li><strong>query</strong>: the query vector(s) for which to find nearest neighbors; size = <code>num_queries * dim</code>.
-Currently the public <code>KnnSearch</code> API processes one query at a time.</li>
+All indexes accept a single query vector (<code>num_queries == 1</code>). HGraph and IVF additionally
+accept batched queries (<code>num_queries &gt; 1</code>), returning a row-major <code>num_queries x dim</code> result;
+HGraph pads missing neighbors with <code>id == -1</code> and infinite distance. Check
+<code>SUPPORT_BATCH_SEARCH</code> via <code>Index::CheckFeature</code> before relying on batched input.</li>
 </ul>
 <pre><code class="language-cpp">int64_t num_vectors = 10000;
 int64_t dim = 128;
@@ -1042,6 +1045,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <tr><th>Field</th><th>Typical</th><th>Description</th></tr>
 </thead>
 <tbody>
+<tr><td><code>adaptive_pruning</code></td><td><code>false</code></td><td>Experimental NSW bottom forward/reverse L2 pruning; see <a href="#experimental-adaptive-pruning">HGraph</a></td></tr>
 <tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
 <tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
 <tr><td><code>alpha</code></td><td><code>1.0</code></td><td>Final robust-pruning factor; PiPNN requires a finite value at least <code>1.0</code></td></tr>
@@ -1079,6 +1083,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 </div>
 <p>The existing <code>alpha</code> field controls PiPNN’s final robust pruning. <code>ef_construction</code> only tunes NSW
 and has no effect on PiPNN.</p>
+<p>HGraph additionally supports the experimental L2-only options <code>pipnn_adaptive_pruning</code> (default <code>false</code>) and <code>pipnn_adaptive_pruning_adjust_step</code> (default <code>0.06</code>). They adapt the final per-point pruning threshold during initial <code>Build</code>; see <a href="#hgraph-2">HGraph adaptive PiPNN pruning</a>. These options are not exposed by Pyramid.</p>
 <p>At search time:</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
@@ -1150,6 +1155,7 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
 </code></pre>
 <p>No extra parameters.</p>
 <h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
+<p><code>adaptive_pruning</code> defaults to <code>false</code>. For experimental NSW bottom forward/reverse L2 pruning, see <a href="#experimental-adaptive-nsw-pruning">Pyramid</a>.</p>
 <p>Pyramid build parameters also live under <code>index_param</code>:</p>
 <pre><code class="language-json">{
     "dtype": "float32",
@@ -1270,6 +1276,22 @@ query-&gt;NumElements(1)-&gt;Dim(128)-&gt;Float32Vectors(q)-&gt;Owner(false);
 auto result = index-&gt;KnnSearch(
     query, /*topk=*/10, R"({"hgraph": {"ef_search": 100}})").value();
 </code></pre>
+<h2 id="disk-read-cache-example"><a class="header" href="#disk-read-cache-example">Disk read-cache example</a></h2>
+<p><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/406_feature_read_cache.cpp"><code>406_feature_read_cache.cpp</code></a>
+uses 1,000 64-dimensional vectors, in-memory SQ8 base codes, and disk-backed FP32
+precise codes (<code>async_io</code>) for query reranking. It sets <code>build_by_base: true</code> so
+graph construction reads the in-memory base codes, avoiding repeated disk-cache
+refills during this small usage example. This changes the graph construction
+quantization; it is not a recall benchmark or an example of precise-code graph
+construction.</p>
+<p>Read caching remains enabled with a 131,072-byte budget (one 128-KiB page).
+The 256,000-byte FP32 payload spans two pages. The example serializes to a
+<code>BinarySet</code>, restores a new index, and checks the restored count, top-10 result
+shape, ID range, and finite distances. Run it with a writable file path in a
+fresh working directory. Writes and durability behavior are unchanged.
+Focused AsyncIO tests cover one-page eviction/refill, write invalidation, and
+invalid reads; the HGraph read-cache functional test retains precise-code graph
+construction coverage.</p>
 <h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>. The table below highlights the keys
 most users need; the exhaustive list is in <a href="#index-parameters">Index Parameters</a>.</p>
@@ -1291,6 +1313,8 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 <tr><td><code>pipnn_leaf_neighbor_count</code></td><td>int</td><td><code>5</code></td><td>Nearest candidates contributed per point in each leaf. This is the primary PiPNN quality/build-work knob; leaves smaller than <code>pipnn_min_leaf_size</code> use at least <code>4</code>.</td></tr>
 <tr><td><code>pipnn_hash_plane_count</code></td><td>int</td><td><code>12</code></td><td>Direction-hash bits, in <code>[1, 15]</code>; <code>max_degree &lt;= 2^pipnn_hash_plane_count</code>.</td></tr>
 <tr><td><code>pipnn_reservoir_size</code></td><td>int</td><td><code>64</code></td><td>Candidate slots retained per point before final pruning; effective capacity is at least <code>max_degree</code>.</td></tr>
+<tr><td><code>pipnn_adaptive_pruning</code></td><td>bool</td><td><code>false</code></td><td>Experimental per-point alpha adjustment in PiPNN final pruning; L2 only.</td></tr>
+<tr><td><code>pipnn_adaptive_pruning_adjust_step</code></td><td>float</td><td><code>0.06</code></td><td>Alpha adjustment step; finite, non-negative, <code>alpha - 2*step &gt; 0</code>, and <code>alpha + 3*step</code> finite when enabled.</td></tr>
 <tr><td><code>use_reverse_edges</code></td><td>bool</td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup. Roughly doubles edge storage and is unsupported with <code>graph_storage_type: "compressed"</code>.</td></tr>
 <tr><td><code>label_remap_type</code></td><td>string</td><td><code>"pg"</code></td><td>Label-to-inner-ID map implementation: <code>"pg"</code> or <code>"robin"</code>. Keep the same value when restoring or combining compatible indexes.</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse search</td></tr>
@@ -1303,9 +1327,9 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 <tr><td><code>rabitq_fused_datacell</code></td><td>bool</td><td><code>false</code></td><td>Fuse the bottom HGraph node and RaBitQ split codes into one in-memory record. Requires L2/IP, flat in-memory graph storage, RaBitQ x+y split codes with x in <code>[1, 4]</code>, and the other constraints described in <a href="#rabitq-xy-split">RaBitQ x+y split</a>.</td></tr>
 <tr><td><code>train_sample_count</code></td><td>int</td><td><code>65536</code></td><td>Maximum number of vectors sampled for quantizer training; must be at least <code>512</code> when set explicitly.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>Threads used to parallelise build</td></tr>
-<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Enable duplicate-ID detection on insert</td></tr>
+<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Group duplicate vectors while retaining their individual labels</td></tr>
 <tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>Share vector storage between duplicates; requires <code>support_duplicate: true</code></td></tr>
-<tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Duplicate-detection distance threshold. When greater than <code>0</code>, deduplicate by the nearest candidate distance; when <code>0</code>, fall back to the current code <code>memcmp</code> check</td></tr>
+<tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Duplicate-detection distance threshold. When greater than <code>0</code>, deduplicate by the nearest candidate distance; when <code>0</code>, compare codes with the nearest candidate first, then check the remaining returned build candidates until a match is found</td></tr>
 <tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable graph delete-tracking metadata used by mark-remove recovery paths</td></tr>
 <tr><td><code>support_force_remove</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>RemoveMode::FORCE_REMOVE</code> and its extra synchronization on the built index</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Keep the raw vector in addition to the quantized copy (useful for <code>cosine</code>)</td></tr>
@@ -1333,18 +1357,28 @@ full <code>Build</code>. The PiPNN builder accepts dense <code>float32</code> in
 <code>"ip"</code>, or <code>"cosine"</code>. It builds the bottom graph from the original build vectors, then reuses
 HGraph’s route layers, storage, search, filtering, reordering, incremental <code>Add</code>, removal, and
 serialization paths. The persistent base storage may use a supported quantizer such as <code>sq8</code>,
-including RaBitQ with SQ8 reorder. Cache-assisted build and deduplicated vector storage are not
-supported with PiPNN. The <code>pipnn_*</code> parameters in the table above tune this builder;
+including RaBitQ with SQ8 reorder. Cache-assisted build is not supported with PiPNN.
+The <code>pipnn_*</code> parameters in the table above tune this builder;
 <code>ef_construction</code> does not. The existing <code>alpha</code> parameter controls PiPNN’s final robust pruning.</p>
 <p><code>build_thread_count</code> parallelizes vector preparation, partitioning, candidate generation, and
 final pruning. Keep <code>OPENBLAS_NUM_THREADS=1</code> when benchmarking so BLAS threads do not obscure
 builder scaling. The reproducible <code>tools/eval/pipnn_parallel.yaml</code> workload compares NSW,
 ODescent, and PiPNN at a matched Recall@10 target on SIFT1M and query-validates every graph.</p>
+<h3 id="experimental-pipnn-adaptive-alpha"><a class="header" href="#experimental-pipnn-adaptive-alpha">Experimental PiPNN adaptive alpha</a></h3>
+<p>Set <code>pipnn_adaptive_pruning: true</code> under <code>index_param</code> to apply <a href="https://github.com/antgroup/vsag/pull/2933">PR #2933</a>’s per-node count-based schedule to the final PiPNN reservoir pruning. This opt-in experiment supports L2 and affects the initial batch <code>Build</code> only. It leaves partitioning, leaf neighbors, relative hashes, reservoir contents, incremental <code>Add</code>, and ODescent route-layer construction unchanged.</p>
+<p>For target degree K, scan the existing ordered reservoir at the configured <code>alpha</code>, yielding accepted A and scanned rejects B. Unscanned tail candidates do not count toward B. With a nonzero step, if <code>0 &lt; |A| &lt; K</code>, keep A and retry B with alpha increased by 1, 2, or 3 steps for <code>K/|A| &lt;= 1.5</code>, <code>(1.5, 3]</code>, or <code>&gt; 3</code>. If <code>|A| = K</code>, clear A and rescan the complete original reservoir, including the tail, with alpha decreased by 2, 1, or 0 steps for <code>|B|/K &lt; 2.5</code>, <code>[2.5, 5)</code>, or <code>&gt;= 5</code>. If the tightened pass is short, keep its accepted neighbors and retry its new rejects at the original alpha. Rejected neighbors are never appended unconditionally.</p>
+<p>The strict rejection rule remains <code>alpha * d(selected, candidate) &lt; d(source, candidate)</code>. PiPNN retains its BF16 source-distance cache, FP32 pairwise squared-L2 calculations, and <code>(distance, source-ID gap, ID)</code> order. Unlike the NSW selector’s disabled fast path, PiPNN already prunes short reservoirs, so zero adjustment step reproduces its original single-pass adjacency. Greedy selection and the degree cap mean recall need not improve monotonically with alpha.</p>
+<p>The policy and step are serialized. Loading an enabled index requires matching policy, base alpha, and step. Missing fields mean disabled. The disabled path preserves legacy behavior. This is experimental: compare build cost and query throughput at matched recall.</p>
 <h3 id="deduplicating-vector-storage"><a class="header" href="#deduplicating-vector-storage">Deduplicating vector storage</a></h3>
 <p>Set both <code>support_duplicate: true</code> and <code>deduplicate_storage: true</code> to let duplicate
 vectors share one physical code slot while retaining their individual labels. This option
-currently supports only dense-vector HGraph indexes using <code>graph_type: "nsw"</code>; it is not
-available for <code>graph_type: "odescent"</code> or <code>graph_type: "pipnn"</code>.</p>
+supports dense-vector HGraph indexes using <code>graph_type: "nsw"</code> or <code>"pipnn"</code>;
+<code>graph_type: "odescent"</code> is not supported.</p>
+<p>For PiPNN, initial <code>Build</code> groups byte-identical FP32 input rows and encodes each
+representative once. All labels, attributes, and extra information remain independent.
+This also works with adaptive alpha. <code>duplicate_distance_threshold</code> does not affect
+PiPNN batch grouping; later incremental <code>Add</code> retains its existing threshold/code-based
+duplicate detection. Quantizer training still uses the original training sample.</p>
 <p>The following operations and configurations are not supported while storage deduplication
 is enabled:</p>
 <ul>
@@ -1456,6 +1490,67 @@ quantizer such as <code>pq</code> / <code>sq8</code> for the in-index storage.</
 <p>The chosen <code>dtype</code> only constrains the <strong>input</strong> representation. The on-disk / in-memory storage is
 still controlled by <code>base_quantization_type</code> (and optionally <code>precise_quantization_type</code> when
 <code>use_reorder: true</code>), so e.g. <code>dtype: "float16"</code> + <code>base_quantization_type: "sq8"</code> is valid.</p>
+<h2 id="experimental-adaptive-pruning"><a class="header" href="#experimental-adaptive-pruning">Experimental adaptive pruning</a></h2>
+<p>See <a href="#adaptive-neighbor-pruning-in-hgraph-and-pyramid">algorithm details, examples and related work</a>.</p>
+<p>Parameters are flat fields under <code>index_param</code> and <code>adaptive_pruning</code> is a boolean; the former
+experimental nested object and the removed <code>fill_rejected</code> option are rejected. Indexes created
+with that experimental schema must be rebuilt.</p>
+<p><code>index_param.adaptive_pruning</code> enables a multi-pass L2 neighbor selector for NSW bottom-layer
+<strong>new-node forward edges</strong>. It is disabled by default. Ordinary <code>Build</code>, parallel insertion,
+<code>Add</code>, and the NSW optimized build path (including RaBitQ split/fused) use this selector.
+Set <code>adaptive_pruning_apply_to_reverse: true</code> to also prune full bottom-layer reverse neighbor lists adaptively.
+A reverse list with free slots still appends the new edge directly. When full, the existing
+neighbor is the selection center and its old neighbors plus the new node form the candidates;
+the same alpha/step policy applies under the existing neighbor lock. Upper layers and
+update/refinement operations retain their fixed-alpha policy. Enabled ODescent, imported-cache
+builds, inner product/cosine, and <code>adaptive_pruning_apply_to_upper: true</code> remain unsupported.</p>
+<p>The following fields belong inside <code>index_param</code>. This is a GIST reference experiment,
+not a dimension-dependent default or a claim of improved performance:</p>
+<pre><code class="language-json">{
+    "alpha": 1.06,
+    "graph_type": "nsw",
+    "adaptive_pruning": true,
+    "adaptive_pruning_adjust_step": 0.06,
+    "adaptive_pruning_apply_to_reverse": false,
+    "adaptive_pruning_apply_to_upper": false
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>adaptive_pruning</code></td><td><code>false</code></td><td>Enable the adaptive selector</td></tr>
+<tr><td><code>adaptive_pruning_adjust_step</code></td><td><code>0.06</code></td><td>Alpha adjustment step, delta</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_reverse</code></td><td><code>false</code></td><td>Also use adaptive pruning for full bottom-layer reverse lists; requires <code>adaptive_pruning: true</code></td></tr>
+<tr><td><code>adaptive_pruning_apply_to_upper</code></td><td><code>false</code></td><td>Reserved; <code>true</code> is unsupported when enabled</td></tr>
+</tbody>
+</table>
+</div>
+<p>The existing <code>alpha</code> is the baseline. Enabled mode requires finite alpha and delta,
+nonnegative delta, positive <code>alpha - 2*delta</code>, and finite <code>alpha + 3*delta</code>.
+Distances must be finite nonnegative L2 values from the existing build distance provider;
+this setting does not change the build quantizer.</p>
+<p>Candidates are sorted by <code>(distance, internal ID)</code>, deduplicated, and stripped of self edges.
+A candidate c is rejected if any selected s satisfies <code>alpha * d(s,c) &lt; d(center,c)</code>.
+The first pass stops at the graph’s actual maximum degree K, retaining the unscanned tail.</p>
+<ul>
+<li>If accepted A is below K, keep A and rescan rejects with <code>alpha + k*delta</code>.
+Choose k=3 for <code>K/|A| &gt; 3</code>, k=2 for <code>1.5 &lt; K/|A| &lt;= 3</code>, otherwise k=1.
+Remaining rejected candidates are not appended.</li>
+<li>If A reaches K, clear it and rescan the full sorted candidate list with <code>alpha - k*delta</code>.
+Choose k=0 for <code>|B|/K &gt;= 5</code>, k=1 for <code>2.5 &lt;= |B|/K &lt; 5</code>, otherwise k=2,
+where B contains first-pass rejects. If still below K, rescan the new rejects at baseline
+alpha. This branch never fills unconditionally.</li>
+<li>With zero delta, use one baseline pass without filling. This differs from disabled
+mode, whose original shortcut for fewer than K candidates is preserved.</li>
+</ul>
+<p>The selector holds only per-call scratch data and exposes optional per-call statistics for
+tests and profiling; it does not collect global counters or change graph locking.
+Serialized indexes retain the configuration. Reload using the same enabled state and, when
+enabled, the same alpha, delta and scope settings; mismatches fail compatibility checks.
+Indexes written before this option existed default to disabled mode.</p>
 <h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
 <p>Search-time parameters live under the <code>hgraph</code> sub-object:</p>
 <div class="table-wrapper">
@@ -1594,6 +1689,71 @@ strongly I/O-bound on a SSD, compare against <a href="#ivf-1">IVF</a> before com
 <li><a href="#optimizer-tune">Optimizer (Tune)</a></li>
 <li><a href="#serialization">Serialization</a></li>
 </ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="adaptive-neighbor-pruning-in-hgraph-and-pyramid"><a class="header" href="#adaptive-neighbor-pruning-in-hgraph-and-pyramid">Adaptive neighbor pruning in HGraph and Pyramid</a></h1>
+<p>HGraph offers an experimental, opt-in adaptive selector for NSW bottom-layer construction. It changes the graph built by <code>Build</code> and <code>Add</code>, including the optimized RaBitQ split/fused build path. It does not run during queries. See <a href="#experimental-adaptive-pruning">HGraph configuration</a> for the public parameters and defaults.</p>
+<p>Pyramid uses the same selector for NSW bottom graphs, with one global policy and each hierarchy’s effective alpha. See <a href="#experimental-adaptive-nsw-pruning">Pyramid configuration and scope</a>. Pyramid routing layers are not adapted; this extension does not enable HGraph’s temporary RaBitQ build storage in Pyramid.</p>
+<h2 id="scope-and-compatibility"><a class="header" href="#scope-and-compatibility">Scope and compatibility</a></h2>
+<ul>
+<li><code>adaptive_pruning=false</code> preserves the original selector, including its shortcut for fewer candidates than the degree limit.</li>
+<li><code>adaptive_pruning=true</code> applies to new-node forward selection. <code>adaptive_pruning_apply_to_reverse=true</code> additionally applies when an existing bottom-layer reverse neighbor list is full. Lists with free slots append directly.</li>
+<li>Reverse selection uses the existing neighbor as its center, with its old neighbors and the incoming node as candidates. Selection and publication remain under that neighbor’s existing lock.</li>
+<li>Upper layers and update/refinement operations retain the existing selector. ODescent, imported-cache builds, non-L2 metrics, and enabled <code>adaptive_pruning_apply_to_upper=true</code> are rejected.</li>
+<li>Serialization records the policy. Reload requires the same enabled state and, when enabled, the same baseline alpha, step and scope. Older parameter objects without this policy mean disabled mode. This is not a guarantee that older VSAG binaries can read newly written indexes.</li>
+</ul>
+<h2 id="distance-rule"><a class="header" href="#distance-rule">Distance rule</a></h2>
+<p>Let <code>u</code> be the center, <code>c</code> a candidate, <code>s</code> an already accepted neighbor, and <code>K</code> the target degree of the current graph. Distances come from the existing build distance provider; enabling this policy does not switch quantizers or retain raw vectors. For the supported L2 path, the scores are squared L2 distances, possibly estimated by the build quantizer.</p>
+<p>Reject <code>c</code> if any accepted <code>s</code> satisfies:</p>
+<p>$$
+\alpha,d(s,c) &lt; d(u,c).
+$$</p>
+<p>Equality does not reject. Increasing alpha relaxes this individual comparison; decreasing it tightens the comparison. This does not imply that every accepted neighbor set is nested as alpha changes, because selection is greedy and earlier choices affect later candidates.</p>
+<p>Candidates are sorted by <code>(distance, internal ID)</code>. Self edges and duplicate IDs are removed, retaining the closest occurrence of each ID. Distances must be finite and nonnegative. Equal vectors with different IDs are not deduplicated by this selector.</p>
+<h2 id="adaptive-schedule"><a class="header" href="#adaptive-schedule">Adaptive schedule</a></h2>
+<p>Write <code>alpha0</code> for the existing HGraph <code>alpha</code> parameter or the current Pyramid hierarchy’s effective <code>alpha</code> and <code>delta</code> for <code>adaptive_pruning_adjust_step</code>. A scan processes candidates in order, accepting non-rejected entries until <code>K</code> is reached or the input is exhausted. Rejected entries are recorded separately; unscanned entries are not counted as rejects.</p>
+<ol>
+<li>Scan the normalized candidates at <code>alpha0</code>, obtaining accepted list <code>A</code> and rejected list <code>B</code>.</li>
+<li>If <code>delta=0</code>, return the first-pass result without filling unused capacity. This is not equivalent to disabling the policy.</li>
+<li>If <code>0 &lt; |A| &lt; K</code>, retain <code>A</code> and rescan <code>B</code> at a relaxed alpha:</li>
+</ol>
+<p>| Ratio <code>K / |A|</code> | Relaxed alpha |
+| — | — |
+| <code>&lt;= 1.5</code> | <code>alpha0 + delta</code> |
+| <code>&gt; 1.5</code> and <code>&lt;= 3</code> | <code>alpha0 + 2*delta</code> |
+| <code>&gt; 3</code> | <code>alpha0 + 3*delta</code> |</p>
+<p>Remaining rejected candidates are not appended, even when capacity remains.</p>
+<ol start="4">
+<li>If <code>|A| = K</code>, compute the following alpha using the first scan’s rejected count:</li>
+</ol>
+<p>| Ratio <code>|B| / K</code> | Tightened alpha |
+| — | — |
+| <code>&gt;= 5</code> | <code>alpha0</code> |
+| <code>&gt;= 2.5</code> and <code>&lt; 5</code> | <code>alpha0 - delta</code> |
+| <code>&lt; 2.5</code> | <code>alpha0 - 2*delta</code> |</p>
+<p>Clear <code>A</code> and rescan the <strong>entire original normalized list</strong>, including its previously unscanned tail, at the tightened alpha. If fewer than <code>K</code> entries survive, retain them and rescan the new rejects at <code>alpha0</code>. This branch never fills unconditionally.</p>
+<p>Return the accepted list sorted by <code>(distance, internal ID)</code>. Empty inputs, self-only inputs and <code>K=0</code> produce no neighbors. The algorithm can return fewer than <code>K</code> neighbors; it does not invent candidates.</p>
+<p>Configuration requires finite <code>alpha0</code> and <code>delta</code>, <code>delta &gt;= 0</code>, <code>alpha0 - 2*delta &gt; 0</code>, and finite <code>alpha0 + 3*delta</code>. The GIST reference configuration <code>alpha0=1.06, delta=0.06</code> yields relaxed values 1.12/1.18/1.24 and tightened values 1.06/1.00/0.94. These are explicit experiment settings, not dimension-specific defaults.</p>
+<p>When the first pass rejects at least <code>5K</code> candidates, the tightening step count is zero. Keep the first-pass result without repeating the same-alpha scan. This differs from <code>delta=0</code>: the configured step may be positive, but the feedback rule chooses no tightening.</p>
+<h2 id="worked-example"><a class="header" href="#worked-example">Worked example</a></h2>
+<p>Use squared L2, center <code>u=(0,0)</code>, candidates <code>a=(1,0)</code>, <code>b=(0.5,1)</code>, <code>c=(-2,0)</code>, <code>K=2</code>, <code>alpha0=1.06</code>, and <code>delta=0.06</code>.</p>
+<p>The first scan accepts <code>a,b</code> because <code>d(a,b)=d(u,b)=1.25</code>; it stops before <code>c</code>. There are no rejects, so the tightened alpha is 0.94. The second scan accepts <code>a</code>, rejects <code>b</code> because <code>0.94*1.25 &lt; 1.25</code>, then accepts the previously unscanned <code>c</code> because <code>0.94*9 &gt;= 4</code>. The final neighbors are <code>a,c</code>. Retaining the unscanned tail is therefore essential.</p>
+<h2 id="cost-and-performance-interpretation"><a class="header" href="#cost-and-performance-interpretation">Cost and performance interpretation</a></h2>
+<p>For <code>C</code> candidates, normalization takes <code>O(C log C)</code> time. A constant number of scans perform <code>O(CK)</code> pairwise comparisons, whose individual cost depends on the build distance provider. Scratch is local to one selection: candidate/reject lists, an ID set, and per-source distance computers. No global adaptive state or query-time policy is introduced. The helper caches distance computers, not every pairwise distance result.</p>
+<p>More passes increase construction work, particularly when full reverse lists are repeatedly pruned. At query time, equal <code>efSearch</code> does not fix the number of expanded nodes, scanned edges, or RaBitQ refinements. A changed graph may improve recall while lowering QPS at the same <code>efSearch</code>; compare recall–QPS curves, construction cost and memory separately.</p>
+<h2 id="related-work-and-provenance"><a class="header" href="#related-work-and-provenance">Related work and provenance</a></h2>
+<p>The concrete two-sided count-based schedule above was adapted from behavior recovered from a Descartes <code>ClassicSelector</code> binary. The VSAG integration scope, configuration, validation and deterministic candidate normalization are implementation choices here. This is not a reproduction of the full Descartes index, nor a claim of inventing adaptive neighbor selection.</p>
+<ul>
+<li><a href="https://github.com/01-ai/Descartes">Descartes</a> publicly describes adaptive neighbor selection, but its README does not specify the numerical schedule above.</li>
+<li><a href="https://arxiv.org/pdf/1603.09320">HNSW, Algorithm 4</a> describes optional filling from rejected candidates (<code>keepPrunedConnections</code>), without this alpha schedule.</li>
+<li><a href="https://intel.github.io/ScalableVectorSearch/advanced/graph_search.html">Vamana construction</a> uses alpha-controlled pruning and two graph-wide passes; this differs from per-node feedback.</li>
+<li><a href="https://arxiv.org/html/2411.12229v1#S3.SS2.SSS2">SymphonyQG, section 3.2.2</a> adjusts a per-node angular threshold to supplement edges and align out-degree with FastScan batches.</li>
+<li><a href="https://arxiv.org/html/2510.05975v1#S4.SS2">Alpha-CNG, section 4.2 and Algorithm 4</a> increases alpha locally until a degree threshold is reached or the configured alpha range is exhausted. It uses a different pruning inequality with an additional tau term. Its published algorithm does not use this accept/reject-ratio tightening schedule.</li>
+</ul>
+<p>These establish related public techniques, not a proven derivation chain or priority claim for the exact constants used here.</p>
+<h2 id="validation"><a class="header" href="#validation">Validation</a></h2>
+<p>Tests tagged <code>[adaptive_pruning]</code> cover ratio boundaries, strict equality, unused capacity without filling, zero step, self/duplicate normalization, invalid inputs, a real L2 tightening example across input permutations, forward/reverse scope, cache rejection, parameter compatibility, and FP32/RaBitQ split/fused build–serialize–reload–Add with one and four construction threads. <code>[pruning_strategy]</code>, <code>[HGraphParameter]</code>, <code>[hgraph]</code>, and <code>[build_cache]</code> provide surrounding regression coverage.</p>
+<p>Parameters are flat fields under <code>index_param</code>; <code>adaptive_pruning</code> is a boolean. The former experimental nested object and removed <code>fill_rejected</code> option are rejected; rebuild indexes created with that experimental schema.</p>
+<p>Pyramid integration tests additionally cover flat-node promotion, single-layer and multi-layer roots, root and path queries, FP32/RaBitQ + SQ8 build–reload–Add with one and four threads, imported-cache rejection, and validation of hierarchy alpha and serialization policy compatibility.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="lazyhgraph-1"><a class="header" href="#lazyhgraph-1">LazyHGraph</a></h1>
 <p>LazyHGraph is an adaptive dense-vector index that starts as an exact
@@ -2073,6 +2233,8 @@ and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term id values (≥ max term id + 1, up to 50 000 000).</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window (range: 10 000 – 60 000).</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight terms dropped per doc at build time (<code>[0.0, 1.0)</code>).</td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight postings permanently removed per term per window during <code>Build</code>; <code>[0, 1)</code>, disabled by default.</td></tr>
+<tr><td><code>term_retain_threshold</code></td><td>integer</td><td><code>0</code></td><td>Build-time posting cap per term, divided across windows; <code>0</code> disables the cap.</td></tr>
 <tr><td><code>use_quantization</code></td><td>bool or string</td><td><code>false</code></td><td><code>false</code> stores FP32 values, <code>true</code> stores SQ8 values, and <code>"fp16"</code> stores FP16 values.</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a forward store and rescore candidates after coarse SINDI scoring.</td></tr>
 <tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Forward-store type used when <code>use_reorder</code> is enabled. <code>fp32</code> keeps exact values, <code>fp16</code> stores half-precision values while scoring in FP32, and <code>dmq8</code> stores compressed 8-bit DMQ codes.</td></tr>
@@ -2205,11 +2367,19 @@ query, then applies exact per-document day and optional host checks before candi
 heap. Time, host, tombstone, and user <code>Filter</code> conditions use AND semantics. Failed or skipped
 documents can make adjacent logical partitions share a physical window; the exact day check keeps
 boundary results correct.</p>
-<p>Time-aware indexes are build-once. A mutable index may receive <code>publish_time_stamp</code> through
-<code>Build()</code> or the first <code>Add()</code> while empty, but rejects every later <code>Add()</code>. Mutable host-only
-indexes retain incremental <code>Add()</code> support. Publish-time filtering supports mutable and immutable
-indexes with either <code>use_reorder</code> setting, applies only to KNN search, and is preserved by standard
-and streaming serialization. A restored mutable time-aware index remains build-once.</p>
+<p>Mutable time-aware indexes support incremental <code>Add()</code>. The initial <code>Build()</code> or first <code>Add()</code> on
+an empty index must supply one <code>publish_time_stamp</code> value per vector; every later <code>Add()</code> must
+also supply it and preserve whether host metadata is present. Each batch is sorted internally by
+time and appended as a contiguous ID segment. Dates may overlap across batches, so older dates
+can be backfilled. Missing-time documents remain at the end of each segment, and queries route
+through matching partitions in every segment. An existing index without time metadata cannot
+gain it through <code>Add()</code>. Publish-time filtering applies only to KNN and is preserved by standard
+and streaming serialization; a restored mutable index can continue to accept time-aware <code>Add()</code>.
+Immutable and DMQ8 rerank runtimes still reject incremental writes.
+Many small <code>Add()</code> batches create many segments, so time-filtered queries check more segment
+directories; batch inserts when practical.
+The new time metadata format is v2: current readers accept v1 snapshots, while older readers
+cannot load snapshots written in v2.</p>
 <p>Queries without a time selector scan every time and missing-time partition. Host-only queries
 select that host from every partition. Exact time filtering disables term-level posting pruning in
 each selected window, so time queries may scan more postings than host-only queries; wider ranges
@@ -2224,6 +2394,9 @@ windows that cross partition or host boundaries.</p>
 </thead>
 <tbody>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Candidate heap size. When <code>0</code>, defaults to <code>SPARSE_AMPLIFICATION_FACTOR · topk</code> (500×). If set, must satisfy <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code>.</td></tr>
+<tr><td><code>window_parallelism</code></td><td>int</td><td><code>1</code></td><td>Number of window-search workers (<code>1</code> to <code>16</code>). Workers run in a reusable thread pool and steal pending windows from one another. The merged heap keeps up to <code>n_candidate</code> candidates before reranking. When this is greater than <code>1</code>, KNN search ignores <code>timeout_ms</code>; window scanning for queries with a filter, active callback limit, or reasoning trace still uses one worker.</td></tr>
+<tr><td><code>worker_n_candidate</code></td><td>int</td><td><code>n_candidate</code></td><td>Requested per-worker candidate heap capacity; omit to inherit the effective final candidate count. The actual capacity is at least the query top-k, so one matching window can still supply top-k results. If set, it must be positive and <code>worker_n_candidate × window_parallelism ≥</code> the final candidate count. For example, <code>n_candidate=500</code>, <code>window_parallelism=2</code>, and <code>worker_n_candidate=300</code> are valid. Reducing this value can lower recall when top candidates are unevenly distributed across workers; the aggregate capacity bound does not guarantee retaining the global top candidates.</td></tr>
+<tr><td><code>window_scheduler</code></td><td>string</td><td><code>"count_deque"</code></td><td>Parallel KNN window scheduling: <code>count_deque</code> retains the count-based deque/try-lock implementation; <code>count_atomic</code> uses count-based contiguous ranges and shared atomic cursors; <code>cost_atomic</code> balances contiguous ranges by the sum of query-pruned, term-pruned posting scan counts, then uses atomic cursors. Each atomic worker drains its range and then visits other ranges in cyclic order.</td></tr>
 <tr><td><code>filter_callback_limit</code></td><td>uint64</td><td><code>0</code></td><td>Maximum user <code>Filter::CheckValid</code> callback invocations for one filtered search request. A value of <code>0</code> disables the limit. Internal checks such as the deleted-ID filter do not count. Reaching a positive limit stops candidate and window scanning after processing the final callback result and returns the already filtered candidates, so the result may be partial. The limit applies to KNN and range search through both the regular APIs and <code>SearchWithRequest</code>.</td></tr>
 <tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight query terms skipped (<code>[0.0, 1.0)</code>).</td></tr>
 <tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest-value postings skipped from each term list (<code>[0.0, 1.0)</code>).</td></tr>
@@ -2231,6 +2404,8 @@ windows that cross partition or host boundaries.</p>
 </tbody>
 </table>
 </div>
+<p>FP32/FP16 sparse KNN reranking automatically uses count-based static batches with the same parallelism as <code>window_parallelism</code> (capped by the candidate count). The caller participates using the same query thread pool; each worker writes distances at independent candidate positions, and final top-k selection follows the original candidate order. A single worker processes one batch. Reasoning queries, DMQ8 and range search retain scalar reranking. Library distance counters and result statistics remain enabled.</p>
+<p>Parallel windows and reranking share one lazy index-owned query pool, capped at 16 threads and reported hardware concurrency (at least one). Query tasks are isolated from caller-supplied pools: those pools may contain writers waiting for the read lock held by the query. Parallel workers use thread-safe default scratch allocation for computers, score buffers, contexts and local heaps; request-allocator calls and final result allocation stay on the calling thread.</p>
 <p>After combining the ratio and threshold limits, SINDI scans at least one posting from every
 non-empty term list.</p>
 <p>Within each window, postings for a term are sorted by their stored value in descending
@@ -2315,6 +2490,9 @@ is not physically reclaimed.</p>
 <li><a href="#index-parameters">Index Parameters</a></li>
 <li><a href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a></li>
 </ul>
+<h3 id="build-time-term-pruning"><a class="header" href="#build-time-term-pruning">Build-time term pruning</a></h3>
+<p>The index creation parameters also accept <code>term_prune_ratio</code> (float in <code>[0, 1)</code>, default <code>0</code>) and <code>term_retain_threshold</code> (non-negative integer, default <code>0</code>). Both default to disabled. During <code>Build</code>, each term’s postings in each window are sorted by stored weight and permanently trimmed to the smaller of <code>floor(posting_count * (1 - term_prune_ratio))</code> and <code>floor(term_retain_threshold / window_count)</code>; a zero threshold imposes no cap, and non-empty lists retain at least one posting. Mutable and immutable builds support FP32, FP16 and SQ8. Rerank vectors and document labels are preserved. Search-time pruning operates on the retained postings; it cannot restore removed postings. Subsequent <code>Add</code> calls do not apply build-time pruning.</p>
+<p>For example, set <code>"term_prune_ratio": 0.2, "term_retain_threshold": 0</code> inside the index’s build parameters to remove the lowest-weight 20% of each posting list per window.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="sindi_v2"><a class="header" href="#sindi_v2">SINDI_V2</a></h1>
 <p>SINDI_V2 is VSAG’s term-first sparse-vector index. It uses the same windowed
@@ -2389,6 +2567,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term IDs; maximum 50 000 000.</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window, from 10 000 to 60 000.</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight document terms removed during build (<code>[0.0, 1.0)</code>).</td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight postings permanently removed per term per window during <code>Build</code>; <code>[0, 1)</code>, disabled by default.</td></tr>
+<tr><td><code>term_retain_threshold</code></td><td>integer</td><td><code>0</code></td><td>Build-time posting cap per term, divided across windows; <code>0</code> disables the cap.</td></tr>
 <tr><td><code>use_quantization</code></td><td>bool or string</td><td><code>false</code></td><td><code>false</code> stores FP32, <code>true</code> stores SQ8, and <code>"fp16"</code> stores FP16 values.</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Store high-precision vectors and rerank coarse candidates.</td></tr>
 <tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Rerank storage type: <code>fp32</code>, <code>fp16</code>, or <code>dmq8</code>. FP16 stores document values in half precision and scores in FP32.</td></tr>
@@ -2396,6 +2576,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>Compact sparse or widely separated external term IDs.</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>Memory-estimation hint only.</td></tr>
 <tr><td><code>immutable</code></td><td>bool</td><td><code>false</code></td><td>Select the compact read-only in-memory term DataCell.</td></tr>
+<tr><td><code>posting_cache_capacity_bytes</code></td><td>uint64</td><td><code>0</code></td><td>LRU budget in bytes for parsed term postings on disk read backends. <code>0</code> disables caching; memory and mmap backends do not populate this cache.</td></tr>
 <tr><td><code>term_io</code></td><td>object</td><td><code>{"type": "reader_io"}</code></td><td>Backend used for term-first postings after load.</td></tr>
 <tr><td><code>rerank_io</code></td><td>object</td><td><code>{"type": "block_memory_io"}</code></td><td>Backend used for rerank vectors.</td></tr>
 <tr><td><code>rerank_layout</code></td><td>uint32</td><td><code>0</code></td><td>Number of leading terms in the top-terms-signature layout; <code>0</code> disables it.</td></tr>
@@ -2421,8 +2602,9 @@ contract</a>. The two indexes share one metadata filtering component
 for time-only, host-only, and combined time-and-host KNN routing. SINDI_V2 retains its term-first
 posting layout. Publish-time filtering supports mutable and immutable indexes with either
 <code>use_reorder</code> setting and is preserved by standard and streaming serialization; range search
-remains unfiltered. A mutable time-aware SINDI_V2 is build-once and follows the same initial
-<code>Build()</code> or first-<code>Add()</code> and later-<code>Add()</code> rejection rules as SINDI. Base timestamp <code>0</code> uses the
+remains unfiltered. Mutable time-aware SINDI_V2 follows SINDI’s incremental <code>Add()</code> rules:
+every batch supplies timestamps, preserves host metadata mode, and may backfill older dates.
+Base timestamp <code>0</code> uses the
 same missing-time semantics: unfiltered and host-only queries include those documents, while time
 queries exclude them. Exact day filtering disables term-level posting pruning in each selected
 window, so time queries may scan more postings than host-only queries. Host-only queries on
@@ -2454,6 +2636,10 @@ either ratio is greater than <code>0.1</code>, it uses term-list heap insertion.
 serialization is appropriate. Use SINDI_V2 when persisted postings should be
 organized by term or when searches should fetch only the query’s term lists
 from external storage.</p>
+<h3 id="build-time-term-pruning-1"><a class="header" href="#build-time-term-pruning-1">Build-time term pruning</a></h3>
+<p>The index creation parameters also accept <code>term_prune_ratio</code> (float in <code>[0, 1)</code>, default <code>0</code>) and <code>term_retain_threshold</code> (non-negative integer, default <code>0</code>). Both default to disabled. During <code>Build</code>, each term’s postings in each window are sorted by stored weight and permanently trimmed to the smaller of <code>floor(posting_count * (1 - term_prune_ratio))</code> and <code>floor(term_retain_threshold / window_count)</code>; a zero threshold imposes no cap, and non-empty lists retain at least one posting. Mutable and immutable builds support FP32, FP16 and SQ8. Rerank vectors and document labels are preserved. Search-time pruning operates on the retained postings; it cannot restore removed postings. Subsequent <code>Add</code> calls do not apply build-time pruning.</p>
+<p>For example, set <code>"term_prune_ratio": 0.2, "term_retain_threshold": 0</code> inside the index’s build parameters to remove the lowest-weight 20% of each posting list per window.</p>
+<p>The posting cache is runtime-only and is cleared on reload or IO rebinding. Its budget covers resident parsed buffers and estimated entry overhead. Query-held buffers can outlive eviction, so process memory can temporarily exceed this budget. It does not cache rerank vectors.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="simq"><a class="header" href="#simq">SIMQ</a></h1>
 <p>SIMQ (Single Index for Multi-vector Query) is VSAG’s index for <strong>multi-vector</strong>
@@ -2466,21 +2652,11 @@ is computed via <strong>MaxSim</strong> (sum of maximum per-query-token similari
 </ul>
 <h2 id="how-it-works-5"><a class="header" href="#how-it-works-5">How it works</a></h2>
 <ol>
-<li><strong>Dynamic clustering of token vectors.</strong> At build time, all token vectors
-across every document are extracted into a flat pool and clustered using an
-HGraph-based dynamic clustering algorithm. The initial cluster centers are
-sampled at a ratio controlled by <code>init_cluster_ratio</code>; clusters that grow
-beyond <code>max_cluster_size</code> are split incrementally.</li>
-<li><strong>Representative graph for coarse search.</strong> A representative HGraph is built
-over the cluster centroids. At query time, each query token searches this
-graph to find its nearest clusters (controlled by <code>coarse_k</code>). The cluster
-scores are accumulated across all query tokens to produce a candidate set.</li>
-<li><strong>Exact MaxSim reranking.</strong> The top <code>rerank_k</code> candidates are re-scored by
-reading back the original token vectors from disk (or memory) and computing
-the exact MaxSim similarity between query tokens and document tokens.</li>
+<li><strong>Graph-driven token partitioning.</strong> Tokens are encoded in a temporary pool. Sampled real tokens initialize an HGraph; remaining tokens route through the graph, and oversized partitions split dynamically. This is not iterative k-means.</li>
+<li><strong>Representative graph routing.</strong> Each partition selects a real member token as its representative. A quantized HGraph routes each query token to candidate partitions, whose document lists form a coarse-ranked candidate set.</li>
+<li><strong>MaxSim reranking.</strong> The top <code>rerank_k</code> candidate documents are read from memory or disk and decoded. MaxSim is evaluated over these stored representations. With lossy quantization this is not exact scoring against the original FP32 input.</li>
 </ol>
-<p>The combination of cluster-level coarse search and exact reranking gives SIMQ a
-tunable recall/latency tradeoff for multi-vector workloads.</p>
+<p>The two-stage pipeline trades candidate recall, quantization error, memory, and latency.</p>
 <h2 id="quick-start-6"><a class="header" href="#quick-start-6">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
 
@@ -2687,6 +2863,12 @@ overflows; centering it keeps the two halves balanced.</li>
 <li><a href="#index-parameters">Index Parameters</a></li>
 <li><a href="#k-nearest-neighbor-search">k-Nearest Neighbor Search</a></li>
 </ul>
+<h2 id="quantized-construction-and-incremental-ingestion"><a class="header" href="#quantized-construction-and-incremental-ingestion">Quantized construction and incremental ingestion</a></h2>
+<p>The Dataset input remains FP32 <code>MultiVector</code>, including when <code>quantization_type</code> is <code>fp16</code>, <code>bf16</code>, or <code>sq8_uniform</code>. SIMQ encodes tokens before partition construction and uses the selected quantizer’s native code-to-code distance for partition maintenance. Both construction and representative HGraphs use quantized base storage without an FP32 reorder copy. Temporary FP32 decoding remains necessary for graph insertion/query APIs and mean accumulation; this is not zero-decode construction.</p>
+<p>Construction avoids a full FP32 flattened token copy. It uses a temporary encoded token pool, token-address metadata, and at most 4096 FP32 tokens per training/staging buffer. The encoded pool duplicates document codes until Build returns. Caller-owned FP32 input and O(tokens) metadata still contribute to peak memory. Models requiring training use a deterministic sample of at most 4096 tokens (sampling with replacement for larger inputs); subsequent Add calls reuse the trained document model. HGraphs own separate models and never exchange encoded bytes across models.</p>
+<p>Use <code>Build(first_batch)</code> followed by <code>Add(next_batch)</code> for incremental ingestion. The first batch should represent subsequent data. A quantized or incrementally built index need not produce the same partitions or recall as an all-at-once FP32 build; benchmark your workload. FP32/BF16/FP16/SQ8 input and storage types must not be confused. SIMQ continues to accept only FP32 input and inner-product metric.</p>
+<h3 id="serialization-compatibility"><a class="header" href="#serialization-compatibility">Serialization compatibility</a></h3>
+<p>New readers support legacy, unversioned SIMQ indexes when constructed with matching dimension and document quantization. Legacy representative graphs remain FP32 to preserve existing search behavior. Load reconstructs document-model representative codes and refreshes token distances, requiring an O(tokens) migration pass with bounded vector scratch; subsequent incremental partitions are not promised to match older implementations. Resaving preserves the actual graph quantization and upgraded representative metadata. New writes use SIMQ format version 1; unknown versions and mismatched dimensions/quantizers are rejected. Reading new files with older binaries is not guaranteed.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pyramid-1"><a class="header" href="#pyramid-1">Pyramid</a></h1>
 <p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/indexes/pyramid-overview.svg" alt="Pyramid: a tree of per-node proximity sub-graphs keyed by path strings; vectors can belong to multiple paths and search walks the requested path prefixes"><span class="img-wrapper"><img src="figures/indexes/pyramid-overview.svg" alt="Pyramid: a tree of per-node proximity sub-graphs keyed by path strings; vectors can belong to multiple paths and search walks the requested path prefixes"></span></label></p>
@@ -2702,6 +2884,12 @@ results.</p>
 <li>Example (single hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
 <li>Example (multi-hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/112_index_pyramid_multi_hierarchy.cpp"><code>examples/cpp/112_index_pyramid_multi_hierarchy.cpp</code></a></li>
 </ul>
+<h2 id="read-only-indexes"><a class="header" href="#read-only-indexes">Read-only indexes</a></h2>
+<p><code>SetImmutable()</code> rejects further writes and releases per-vector locks, while retaining
+the reverse ID map for efficient ID-based distance and retrieval operations. The map
+uses additional memory compared with discarding it, but avoids linear ID scans.
+This applies whether the index is frozen before or after deserialization; the
+serialized format is unchanged.</p>
 <h2 id="how-it-works-6"><a class="header" href="#how-it-works-6">How it works</a></h2>
 <ol>
 <li><strong>Path tree.</strong> Each vector can carry independent paths in addition to its id.
@@ -2764,7 +2952,25 @@ auto result = index-&gt;KnnSearch(
     R"({"pyramid": {"ef_search": 100}})").value();
 </code></pre>
 <h2 id="input-data-type-1"><a class="header" href="#input-data-type-1">Input data type</a></h2>
-<p>The public <code>Build</code>, <code>Add</code>, and search paths currently accept FP32 vectors supplied with <code>Dataset::Float32Vectors</code>; set <code>dtype</code> to <code>"float32"</code>. <code>base_quantization_type</code> selects internal encoding and storage and does not by itself enable FP16, BF16, or INT8 input.</p>
+<p>Pyramid accepts <code>dtype: "float16"</code> and <code>dtype: "bfloat16"</code> input for <code>Build</code>, <code>Add</code>, and search, as well as the existing <code>"float32"</code> input. The input <code>dtype</code> is distinct from the storage quantizer: use <code>"float16"</code> / <code>"bfloat16"</code> for <code>dtype</code>, but <code>"fp16"</code> / <code>"bf16"</code> for quantization parameters.</p>
+<p>For either half input type, supply <code>Dataset::Float16Vectors</code> with a contiguous <code>uint16_t</code> buffer containing the <strong>encoded FP16 or BF16 bit patterns</strong>, not integers obtained by numerically casting floats. <code>dtype</code> determines how these bits are interpreted. Build/Add buffers contain <code>NumElements() * Dim()</code> entries; query buffers must use the same input format as the index. Supply IDs and paths as in the example above, replacing <code>Float32Vectors(data)</code> and <code>Float32Vectors(q)</code> with <code>Float16Vectors(half_data)</code> and <code>Float16Vectors(half_query)</code>. With <code>Owner(false)</code>, keep the borrowed buffers (including IDs and paths) alive for the operation.</p>
+<p>For half input, supported <code>base_quantization_type</code> and, when <code>use_reorder</code> is <code>true</code>, <code>precise_quantization_type</code> values are <code>fp16</code>, <code>bf16</code>, <code>pq</code>, <code>sq8</code>, and <code>fp32</code>. Quantizer-specific requirements still apply (for example, PQ training and dimension settings). A minimal matching-format configuration is:</p>
+<pre><code class="language-json">{
+    "dtype": "float16",
+    "metric_type": "l2",
+    "dim": 32,
+    "index_param": {
+        "graph_type": "nsw",
+        "base_quantization_type": "fp16",
+        "use_reorder": false
+    }
+}
+</code></pre>
+<p>For BF16 input with BF16 storage, change <code>dtype</code> to <code>"bfloat16"</code> and <code>base_quantization_type</code> to <code>"bf16"</code>. Cross-format storage conversion is also supported, such as FP16 input with BF16 storage or BF16 input with FP32 storage; this does not change the required input format of subsequent queries. <code>metric_type: "cosine"</code> normalizes vectors before encoding, so matching-format input does not imply byte-for-byte preservation for cosine.</p>
+<p>For L2/IP, matching FP16-to-FP16 and BF16-to-BF16 storage preserves the input bit patterns verbatim. Cross-format storage and <code>pq</code>/<code>sq8</code>/<code>fp32</code> storage convert the input through float32; they do not provide the same half-bit preservation guarantee.</p>
+<p>For <code>CalcDistanceById</code> and <code>CalcDistancesById</code> on half-input indexes, use the <code>DatasetPtr</code> overload with a native half query buffer matching the index dtype. The raw <code>const float*</code> overloads accept only float32 indexes and reject half-input indexes.</p>
+<p>An FP16 or BF16 stored vector code occupies <code>2 * dim</code> bytes, compared with <code>4 * dim</code> for FP32. This is <strong>vector-code size, not total index memory</strong>: graphs, IDs, paths, allocation overhead, and any reorder/raw-vector copies also consume space. Half input alone does not select half storage or halve total memory.</p>
+<p>Use <code>graph_type: "nsw"</code> or <code>"odescent"</code> with half input. <strong>PiPNN remains float32-only.</strong> These guarantees describe Pyramid, not every VSAG index.</p>
 <h2 id="build-parameters-6"><a class="header" href="#build-parameters-6">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>.</p>
 <div class="table-wrapper">
@@ -2781,6 +2987,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>graph_storage_type</code></td><td>string</td><td><code>"flat"</code></td><td>Bottom-graph storage for a <code>multi_layer</code> root: <code>flat</code> favors construction and search speed, while <code>compressed</code> reduces graph memory. Compressed storage requires <code>max_degree &lt;= 255</code>. Single-layer roots, routing graphs, and child graphs remain sparse.</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size for <code>nsw</code> builds.</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.2</code></td><td>Pruning factor during graph construction; PiPNN requires a finite value at least <code>1.0</code>.</td></tr>
+<tr><td><code>adaptive_pruning</code></td><td>boolean</td><td><code>false</code></td><td>Optional NSW bottom forward/reverse L2 selector; see <a href="#experimental-adaptive-nsw-pruning">configuration and scope</a>.</td></tr>
 <tr><td><code>graph_iter_turn</code></td><td>int</td><td>—</td><td>ODescent iterations (effective with <code>graph_type: "odescent"</code>).</td></tr>
 <tr><td><code>neighbor_sample_rate</code></td><td>float</td><td>—</td><td>ODescent neighbor sampling rate.</td></tr>
 <tr><td><code>pipnn_max_leaf_size</code></td><td>int</td><td><code>1024</code></td><td>Maximum PiPNN partition leaf size.</td></tr>
@@ -2865,6 +3072,7 @@ reduce recall unless the embedding model was trained for prefix dimensions.</p>
 <tr><td><code>factor</code></td><td>float</td><td>unset</td><td>KNN reorder candidate multiplier. Values <code>&lt;= 1</code> add no limit. When greater than <code>1</code>, Pyramid first completes the unchanged subgraph searches and merges their results, then sends at most <code>min(max(ef_search, topk), floor(topk * factor))</code> main-graph candidates to reorder. RaBitQ lower-bound safety candidates may be merged after this limit, matching HGraph; <code>reorder_candidate_count</code> reports the actual merged count. The value must be finite and positive. It has no effect on range search or when reorder is disabled.</td></tr>
 <tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Per-graph KNN hop cap for the root bottom graph and every non-root graph; ignored when it is not greater than <code>ef_search</code>. Sparse root routing layers are never hop-limited. FLAT scans and range search are unaffected.</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>Candidate list size used when traversing intermediate sub-graphs on the path.</td></tr>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Maximum concurrent sub-graph searches for one request. Values greater than <code>1</code> use the index thread pool; results are merged and de-duplicated before reordering. See the thread pool requirement below.</td></tr>
 <tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>Select which hierarchy to search. Empty means use the default (unnamed) hierarchy.</td></tr>
 <tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>How to combine results across hierarchies: <code>single</code> (search one hierarchy), <code>union</code>, or <code>intersection</code>. <strong>Note:</strong> <code>union</code> and <code>intersection</code> are not yet implemented — setting them will cause <code>KnnSearch</code>/<code>RangeSearch</code> to return an error.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Positive lower-bound error multiplier for this search. The default <code>1.9</code> is relatively large; increasing it improves accuracy but slows down search.</td></tr>
@@ -2875,6 +3083,10 @@ reduce recall unless the embedding model was trained for prefix dimensions.</p>
     query, topk,
     R"({"pyramid": {"ef_search": 200, "subindex_ef_search": 80}})").value();
 </code></pre>
+<h3 id="thread-pool-requirement-for-parallelism"><a class="header" href="#thread-pool-requirement-for-parallelism">Thread pool requirement for <code>parallelism</code></a></h3>
+<p><code>parallelism</code> only takes effect when the index owns a thread pool. An index created through an <code>Engine</code> whose <code>Resource</code> supplies a <code>ThreadPool</code> (for example <code>Engine::CreateThreadPool(n)</code>), or an index built with <code>build_thread_count &gt; 1</code>, has one. <code>Factory::CreateIndex</code> and <code>Index::Load</code> do not attach a thread pool, so on those paths <code>parallelism</code> is ignored and the routed sub-graphs are searched one after another. When the parameter cannot be honored, Pyramid logs a warning once per index.</p>
+<p>Values <code>&lt;= 0</code> are clamped to <code>1</code>. With <code>parallelism &gt;= 2</code>, Pyramid searches at most <code>parallelism</code> resolved sub-graphs concurrently. The effective concurrency is bounded by <code>min(parallelism, thread pool size, number of resolved sub-graphs)</code>; contention with other requests may reduce it. Thus <code>parallelism: 2</code> uses at most two simultaneous sub-graph searches even with a 32-thread pool.</p>
+<p>Results are merged by inner id, keeping the smallest distance. A path ending at an intermediate node can expand to multiple descendant index nodes; those nodes share the same request budget.</p>
 <h2 id="multi-hierarchy-support"><a class="header" href="#multi-hierarchy-support">Multi-Hierarchy Support</a></h2>
 <p>A single Pyramid index can maintain <strong>multiple independent path trees</strong>, each
 identified by a name (e.g. <code>"site"</code>, <code>"category"</code>). Vectors share IDs and data
@@ -3088,6 +3300,38 @@ the corrected lookup behavior; upgrade the reader as well.</p>
 <li><a href="#graph-index-enhancement">Graph Enhancement</a></li>
 <li><a href="#hgraph-2">HGraph</a></li>
 </ul>
+<h2 id="experimental-adaptive-nsw-pruning"><a class="header" href="#experimental-adaptive-nsw-pruning">Experimental adaptive NSW pruning</a></h2>
+<p>Pyramid reuses the <a href="#adaptive-neighbor-pruning-in-hgraph-and-pyramid">adaptive neighbor selector</a> used by HGraph. Parameters are flat fields under <code>index_param</code> and <code>adaptive_pruning</code> is a boolean; the old
+experimental nested object and the removed <code>fill_rejected</code> option are rejected, so indexes
+using that experimental schema must be rebuilt. Configure its flat fields once under <code>index_param</code>; it applies to the bottom graph of each built path node, including a <code>single_layer</code> root and the bottom of a <code>multi_layer</code> root. Routing layers keep their existing fixed-alpha selection. Flat nodes start using the policy when they are promoted to NSW graphs.</p>
+<pre><code class="language-json">{
+    "graph_type": "nsw",
+    "alpha": 1.06,
+    "adaptive_pruning": true,
+    "adaptive_pruning_adjust_step": 0.06,
+    "adaptive_pruning_apply_to_reverse": true,
+    "adaptive_pruning_apply_to_upper": false
+}
+</code></pre>
+<p>These fields belong inside <code>index_param</code>; the example is an experiment configuration, not a recommended default for every dataset.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>adaptive_pruning</code></td><td><code>false</code></td><td>Use the shared multi-pass selector during NSW insertion</td></tr>
+<tr><td><code>adaptive_pruning_adjust_step</code></td><td><code>0.06</code></td><td>Step used to relax or tighten the hierarchy’s baseline alpha</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_reverse</code></td><td><code>false</code></td><td>Also re-prune full reverse lists, centered on the existing neighbor</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_upper</code></td><td><code>false</code></td><td>Reserved; enabling upper-layer adaptation is unsupported</td></tr>
+</tbody>
+</table>
+</div>
+<p>The policy is global, while each hierarchy retains its own effective <code>alpha</code> and maximum degree. There is no hierarchy-specific <code>adaptive_pruning</code> override. Every effective alpha must be finite, with <code>adjust_step &gt;= 0</code>, <code>alpha - 2*adjust_step &gt; 0</code>, and finite <code>alpha + 3*adjust_step</code>. For alpha 1.06 and step 0.06, the possible adjusted values span 0.94–1.24; these constants are not derived automatically from vector dimension.</p>
+<p>Enabled mode requires <code>graph_type: "nsw"</code> and <code>metric_type: "l2"</code>. A build with a nonempty imported cache is rejected; an empty cache is accepted. ODescent, routing-layer adaptation, and update/refinement paths are outside this policy’s scope. Reverse lists with spare capacity still append directly. The distance provider and quantizer are unchanged.</p>
+<p>Serialization records the policy. Reload requires matching enabled state and, when enabled, matching alpha, step and scope settings. Parameters saved without this field mean disabled mode. This allows consistent subsequent <code>Add</code> operations; it does not guarantee that older VSAG binaries can read newly serialized indexes.</p>
+<p>Compare QPS at comparable recall, together with build time and memory. Extra pruning passes can increase construction time even when the resulting graph accelerates queries. For <code>k=10</code>, Pyramid currently accepts <code>ef_search</code> only in <code>[1, 1000]</code>. A root-only GIST run with empty build paths and no query <code>Paths</code> measures unfiltered root search; its gains do not establish gains for path-filtered workloads. For RaBitQ + SQ8 reorder, construction uses the existing SQ8 distance provider; this configuration is distinct from RaBitQ 3+5 split storage.</p>
+<p>In the GIST 1M four-combination ablation, the single-factor QPS change from filling ranged from −3.4% to +4.7%, without consistent benefit, so unconditional filling and its option were removed. Reverse adaptation remains optional: it slowed all matched recall targets at alpha=1.06 and improved them at alpha=1.2 in this experiment. Each configuration used one parallel-built index; small differences do not establish stable gains. Select the reverse setting for the dataset and target recall.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="bruteforce"><a class="header" href="#bruteforce">BruteForce</a></h1>
 <p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/indexes/brute_force-overview.svg" alt="BruteForce: vectors live in a flat store; the query is compared against every stored vector, with optional intra-query parallelism splitting the scan across threads, and the smallest distances are kept in a top-k heap"><span class="img-wrapper"><img src="figures/indexes/brute_force-overview.svg" alt="BruteForce: vectors live in a flat store; the query is compared against every stored vector, with optional intra-query parallelism splitting the scan across threads, and the smallest distances are kept in a top-k heap"></span></label></p>
@@ -4834,6 +5078,188 @@ parameter set consistent, not just the chain string.</p>
 </ul>
 <p>Each contains the test binaries, example executables, and libraries.</p>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="standalone-vsag-lite"><a class="header" href="#standalone-vsag-lite">Standalone VSAG Lite</a></h1>
+<p>This is the current supported contract for PR #2904, updated 2026-10-12.
+Historical experiment descriptions do not override this contract.</p>
+<h2 id="build-configuration-and-installation"><a class="header" href="#build-configuration-and-installation">Build, configuration and installation</a></h2>
+<pre><code class="language-bash">cmake -S lite -B build-lite -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTS=ON
+cmake --build build-lite -j2
+ctest --test-dir build-lite --output-on-failure
+cmake --install build-lite --prefix "$PWD/install-lite"
+</code></pre>
+<p>The default is FP32 BruteForce. <code>ENABLE_RABITQ_LITE_BACKEND</code> defaults OFF;
+explicitly add <code>-DENABLE_RABITQ_LITE_BACKEND=ON</code> to compile RaBitQ8 support.
+<code>ENABLE_COVERAGE=ON</code> instruments library and test translation units.
+Shared and static <code>libvsag-lite</code> libraries are built; installed CMake consumers
+use <code>find_package(vsag-lite CONFIG REQUIRED)</code> and <code>vsag::lite</code>.
+See <code>lite/example</code> for installed shared/static consumers and <code>rabitq_example.cpp</code>
+for the optional backend lifecycle. No Full <code>libvsag.so</code> is linked.</p>
+<h2 id="functions-mapped-to-implementation-and-tests"><a class="header" href="#functions-mapped-to-implementation-and-tests">Functions mapped to implementation and tests</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Supported function</th><th>Public entry / implementation</th><th>Regression evidence</th></tr>
+</thead>
+<tbody>
+<tr><td>Empty index, owned FP32 vectors and external int64 IDs</td><td><code>Index::Create</code>, <code>Add</code>; <code>src/lite/index.cpp</code>, <code>bruteforce_backend.cpp</code></td><td><code>index_test.cpp</code>: validation, duplicate IDs, exact search, scale</td></tr>
+<tr><td>Explicit graph conversion</td><td><code>BuildGraph(storage, degree, ef)</code>; <code>graph_backend.cpp</code>, <code>rabitq_backend.cpp</code></td><td>Floating graph and RaBitQ API suites; failure retains prior backend</td></tr>
+<tr><td>Single-vector insert/update/physical delete</td><td><code>Add</code>, <code>Update</code>, <code>Remove</code></td><td>All three storage modes; moved-slot references, incoming-edge invariants and mutable persistence</td></tr>
+<tr><td>L2 search, external-ID callback filter, per-call budget</td><td><code>Search</code>, <code>SearchWithOptions</code>; graph search helpers</td><td>Ties/nonmonotonic IDs, empty/filter/large-boundary/reference comparisons</td></tr>
+<tr><td>Save/Load, corruption and stream error handling</td><td><code>index.cpp</code>, <code>rabitq_snapshot.h</code></td><td>Truncation, duplicate IDs, invalid topology/metadata, short writes and round trips</td></tr>
+<tr><td>Allocation-failure rollback</td><td>Floating graph and RaBitQ transaction journals</td><td><code>graph_allocation_test.cpp</code>, <code>rabitq_backend_test.cpp</code>; logical state restored</td></tr>
+<tr><td>Native SIMD reuse with generic fallback</td><td><code>fp32_distance*</code>, <code>fp16_distance*</code>, <code>rabitq_filter_ip*</code></td><td>ISA/scalar differential tests, short dimensions and tails</td></tr>
+<tr><td>Bounded query workspace and snapshot staging</td><td><code>query_heap.h</code>, <code>query_visited.h</code>, block/stream I/O</td><td>Heap reference, bitmap boundary, endian/block/byte-equivalence fixtures</td></tr>
+</tbody>
+</table>
+</div>
+<p>BuildGraph uses degree 2–64 and configured ef at least degree. SearchOptions zero
+uses the stored budget; per-call overrides do not change build/CRUD/persistence
+configuration. Graph search is approximate; a filter may produce fewer than k
+results. Rejected IDs can still be traversed for connectivity. RaBitQ returned
+distances are quantized L2 estimates, not exact FP32 distances.</p>
+<h2 id="architecture-retained-and-removed-components"><a class="header" href="#architecture-retained-and-removed-components">Architecture, retained and removed components</a></h2>
+<p>Public <code>vsag::lite::Index</code> owns a private backend. The default dense BruteForce
+supports exact squared-L2 search. An explicit BuildGraph constructs a replacement
+single-layer graph before publication; it is not native HGraph/LazyHGraph and does
+not automatically transition at a size threshold. The FP32-input API can select
+FP16 graph storage or opt-in RaBitQ8. No SQ8, mmap, sparse, bindings, general Full
+factory or automatic backend selection is provided.</p>
+<p>Floating storage uses contiguous vector/ID arrays, an external-ID-to-slot map,
+outgoing and incoming adjacency. Delete compacts the last slot into the hole and
+repairs references. Capacity may remain after deletion; no guarantee of returning
+all freed bytes to the OS is made. Graph journals back up changed rows/records;
+successful growth can retain extra capacity after a failed operation.
+FP16 uses borrowed stored half rows for direct Save rather than decode/re-encode.</p>
+<p>RaBitQ stores a fixed trained centroid/rotation model, 3-bit filter and 5-bit
+supplement codes plus per-record metadata, IDs and graph adjacency. It does not
+retain an exact FP32 vector matrix. Current public construction/loading enables
+32-bit incoming adjacency and <code>CACHED</code> protection with safe link pruning;
+the additional Add/Remove/displaced-target guard flags remain false.
+Update protection is enabled by CACHED. This preserves an existing target’s last
+incoming edge when another edge can be safely removed; the farthest fallback
+remains if none can. It is not a global connectivity or recall guarantee.
+See <a href="#lite-rabitq8-current-implementation-contract">RaBitQ design</a> for the actual configuration and model limits.</p>
+<h2 id="compatibility-persistence-and-failure-boundaries"><a class="header" href="#compatibility-persistence-and-failure-boundaries">Compatibility, persistence and failure boundaries</a></h2>
+<p>This is a separate Lite API, not an ABI-compatible replacement for Full Index.
+One instance supports externally serialized calls only, not concurrent reads or
+read/write mixing. Inputs are borrowed during calls; results and stored state are owned.</p>
+<p>FP32 BruteForce uses <code>VSAGLT01</code> v1, FP32 graph v2, FP16 graph v3. Optional RaBitQ
+uses independent <code>VSAGLQ01</code> v1; existing floating formats are unchanged. All are
+little-endian and not compatible with native Full snapshots. RaBitQ Load restores
+model/codes/topology without training or reconstructing exact input vectors.
+Load requires a seekable stream and validates remaining lengths and content.
+Save has no checksum, fsync or atomic-file replacement guarantee. A failed Save
+may leave a partial output; callers must arrange temporary-file replacement.</p>
+<p>Add/Update/Search/Save/Load use the existing <code>tl::expected</code>/Error contract.
+For all backends, filter callback allocation/capacity exceptions return
+<code>NO_ENOUGH_MEMORY</code>; other thrown values return <code>INTERNAL_ERROR</code>, not an FP16
+query-range error. Search does not modify index contents on callback failure.
+Save translates allocation/capacity failures to <code>NO_ENOUGH_MEMORY</code>; stream failures
+remain <code>READ_ERROR</code>. This does not make failed output complete or atomic.
+Remove returns bool: false means missing ID or failed graph allocation, so the
+cause cannot be distinguished. Failed graph transactions preserve logical state,
+not allocator capacity. Complete identical stored representations preserve graph
+topology on Update; equal RaBitQ codes do not mean raw inputs are identical.</p>
+<h2 id="project-output-acceptance"><a class="header" href="#project-output-acceptance">Project output acceptance</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Required output</th><th>Present evidence</th><th>Remaining acceptance</th></tr>
+</thead>
+<tbody>
+<tr><td>Reviewable standalone implementation with CRUD/persistence/config/tests</td><td>PR #2904, sources and examples above; ON/OFF regression suites</td><td>Community CI and maintainer review, not automatic merge</td></tr>
+<tr><td>Architecture: modules/layout/memory/API boundaries</td><td>This guide and bilingual RaBitQ design</td><td>Keep synchronized when behavior changes</td></tr>
+<tr><td>Reproducible multi-dataset benchmarks and raw results</td><td>Delivered separately in benchmark PR #2926</td><td>One unified latest-source CPU/peak/CRUD/quality matrix, cold I/O and hours-long interleaved changed-vector stability</td></tr>
+<tr><td>At least one improvement against actual Full with stable retrieval</td><td>Historical warm load/RSS/ELF-closure results with explicit Full provenance</td><td>Quality-matched native Full comparison, complete deployment package; GIST maintenance quality remains incomplete</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>.github/workflows/lite.yml</code> defines default-OFF, RaBitQ-ON, ASan/UBSan and
+coverage jobs, all-source formatting, configured-TU/header tidy, installation
+and consumer checks. Coverage collector gates the production Lite line union at
+90%, not Full or branch coverage. Local passes do not imply online CI has passed.</p>
+<p>Old experiments and negative candidates are retained in benchmark PR #2926.
+Reported best values from different measured versions must not be combined into
+a fictitious latest-version matrix. Functional support is not complete quality,
+performance or long-term stability acceptance. The project is not declared finished.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="lite-rabitq8-current-implementation-contract"><a class="header" href="#lite-rabitq8-current-implementation-contract">Lite RaBitQ8: current implementation contract</a></h1>
+<p>Updated 2026-10-12. This contract supersedes historical NONE/reverse-disabled
+experiment descriptions. The public source is <code>src/lite/rabitq_backend.cpp</code>.</p>
+<h2 id="what-is-implemented"><a class="header" href="#what-is-implemented">What is implemented</a></h2>
+<p><code>ENABLE_RABITQ_LITE_BACKEND=ON</code> enables explicit
+<code>BuildGraph(VectorStorage::RABITQ8, degree, ef)</code> from a nonempty BruteForce index.
+Degree is 2–64; ef is at least degree. Training validates dimension/count limits,
+finite inputs and model arithmetic; failure leaves the original backend intact.
+The fixed profile uses a deterministic centroid/rotation, 3-bit coarse filter
+codes and 5-bit supplement codes. Native SIMD traits/kernels are reused, with
+generic fallback and scalar differential tests. It is not the whole native Full
+RaBitQ index and cannot reconstruct exact FP32 input vectors.</p>
+<p>Add, changed Update, physical Remove, filtered Search, SearchWithOptions and
+Save/Load are implemented. The model remains fixed after training: distribution
+drift can degrade quantization and graph quality. There is no automatic retraining,
+quality-aware budget selection, exact-FP32 rerank or background rebuild promise.</p>
+<h2 id="public-mutation-policy-exact-source-correspondence"><a class="header" href="#public-mutation-policy-exact-source-correspondence">Public mutation policy: exact source correspondence</a></h2>
+<p>The adapter constructor executes:</p>
+<pre><code class="language-cpp">state_.ConfigureIncomingProtection(
+    rabitq::IncomingProtection::CACHED, false, false, false, true);
+</code></pre>
+<p>Arguments correspond to mode, protect_add, protect_remove,
+protect_add_displaced and protect_link. Both Build and Load enable incoming
+adjacency. Thus Update protection and cached incoming counts are active;
+safe link pruning is active; the three extra stage guards are inactive.
+This is an internal fixed public-adapter policy, not a user-exposed tuning option.
+Safe pruning preserves a target’s last incoming edge when a safe alternative
+exists; its fallback does not guarantee complete connectivity or recall.</p>
+<p>Incoming slots are checked/narrowed to uint32. Transaction journals capture
+changed code/ID/outgoing/incoming rows and cached counts; cold/unsupported internal
+states can still use copy fallback. Costs depend on visited/local affected rows,
+degree, graph indegree, capacity growth and fallback, not constant-time CRUD.
+Update prepares its normalized query/code once and skips a complete identical
+stored representation, including all metadata. Equal encoding does not mean equal
+raw vector. Failure preserves logical state but can retain increased capacity.
+Remove bool conflates missing ID and failed graph allocation.</p>
+<h2 id="query-storage-and-persistence"><a class="header" href="#query-storage-and-persistence">Query, storage and persistence</a></h2>
+<p>The index stores model, IDs/map, two contiguous code planes, metadata, outgoing
+and incoming adjacency; no exact FP32 matrix. Query transform, coarse routing,
+supplement-code refinement and result selection remain real costs. Cached query
+sums/coarse inner products, batch4 kernels, bounded heaps, large-graph visited
+bitmap and routing-only estimates reduce selected costs without changing budgets.
+Distances are approximate quantized L2 estimates. A filter can yield fewer than k.
+Residual radii retain their actual nonnegative norm, including zero at the centroid;
+the safe normalization divisor does not replace the geometric radius. Finite queries
+with k=0 or an empty index return before transformation, after input validation.
+Ordinary finite scoring keeps its float evaluation order. Non-finite intermediate
+distance/bound results are recomputed in double before conversion: representable
+answers such as a large-vector self-match remain valid. Estimates outside the float
+range are represented by signed infinity; NaN scoring is rejected before heap ordering.</p>
+<p>Save streams model/codes/IDs/CSR-format topology without recreating original vectors.
+Load restores identical state without training and remains mutable even after
+deleting all rows and re-adding. Format <code>VSAGLQ01</code> v1 is independent of floating
+<code>VSAGLT01</code> v1/v2/v3 and native Full. Integer/float bit fields are little-endian;
+header sizes, finite metadata, IDs, adjacency, short/trailing input are validated.
+Model/code profile changes require explicit format compatibility handling.
+The residual-norm correction keeps the v1 field layout and reads existing positive-norm
+snapshots without re-encoding. Corrected snapshots can contain zero residual norms and
+require the corrected reader; older readers may reject them. Loading an old snapshot
+does not repair radii previously clamped to one: rebuild from original vectors when
+that case matters.
+No checksum, fsync, atomic file replacement or same-instance concurrent calls.</p>
+<h2 id="test-correspondence-and-completeness"><a class="header" href="#test-correspondence-and-completeness">Test correspondence and completeness</a></h2>
+<p><code>rabitq_backend_test.cpp</code> covers API lifecycle, filtering/budgets, mutable round
+trips, malformed input, fixed-model encoding, scalar/SIMD plane tails, safe-link
+cache invariants, incoming slot/edge validation, bounded heaps and streamed I/O.
+Allocation fault tests cover rollback; no test can promise all allocator/platform
+failure cases. See <a href="#standalone-vsag-lite">Lite requirements and tests</a>.</p>
+<p>RaBitQ is functionally implemented, not quality/performance-complete. GIST
+maintenance recall and fixed-model drift remain open. Existing 10k/100k and real
+changed-vector studies do not replace hours-long interleaved reads/mutations,
+blind quality cohorts or quality-matched Full comparison. Increasing ef is a
+quality/cost tradeoff, not a missing-function fix or universal speedup.
+Historical performance reports belong to benchmark PR #2926. Do not reinterpret
+their NONE/reverse-disabled configuration as current production or combine
+best values from different measured versions.</p>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="c-coding-guide"><a class="header" href="#c-coding-guide">C++ Coding Guide</a></h1>
 <p>VSAG follows the <a href="https://google.github.io/styleguide/cppguide.html">Google C++ Style Guide</a> with
 project-specific formatting, naming, and static-analysis rules. The configuration files at the
@@ -5723,6 +6149,81 @@ maintained indexes that advertise the corresponding feature flags.</li>
 <pre><code class="language-bash">make pyvsag PY_VERSION=3.10
 cd tests/python &amp;&amp; pytest -q
 </code></pre>
+<h2 id="report-testcase-budgets-and-time"><a class="header" href="#report-testcase-budgets-and-time">Report Testcase Budgets and Time</a></h2>
+<p><code>scripts/testing/test_budget_report.py</code> reads saved test listings, results and cost records
+without running tests. It works without Team CI inventory tooling:</p>
+<pre><code class="language-bash">build/tests/functests '~[daily]' --list-tests --reporter xml &gt; functests-list.xml
+build/tests/unittests '~[daily]' --list-tests --reporter xml &gt; unittests-list.xml
+python3 scripts/testing/test_budget_report.py \
+  --list-tests tests/functests=functests-list.xml \
+  --list-tests tests/unittests=unittests-list.xml \
+  --source-root "$PWD" --output budget-report.md
+</code></pre>
+<p><code>--list-tests</code> consumes Catch2 listing XML, not execution XML. The listing commands enumerate
+tests without executing them. All listed cases are retained, including template expansions;
+the report applies no extra daily exclusions. Add <code>--xml tests/functests=report.xml</code> for an
+existing Catch2 execution report, and <code>--cost tests/functests=cost.log</code> for budget logs from
+the same source revision. List XML hashes identify the input listings, not binary contents.</p>
+<p>Catch2’s XML reporter captures budget messages in <code>StdOut</code>. Import the same saved execution
+XML explicitly for both measurements; <code>--xml</code> imports time only, while <code>--cost</code> decodes XML
+escaping and reads only <code>[test-budget]</code> lines from <code>StdOut</code>:</p>
+<pre><code class="language-bash">python3 scripts/testing/test_budget_report.py \
+  --list-tests tests/functests=functests-list.xml \
+  --xml tests/functests=report.xml --cost tests/functests=report.xml \
+  --source-root "$PWD" --output budget-report.md
+</code></pre>
+<p>An XML report without marked budget records leaves costs <strong>unknown</strong>; malformed marked
+records fail rather than silently disappearing.</p>
+<p>Existing Team CI artifacts can instead supply the frozen inventory and execution results:</p>
+<pre><code class="language-bash">python3 scripts/testing/test_budget_report.py \
+  --inventory team-plan-RUN-ATTEMPT.zip \
+  --result team-results-0-RUN-ATTEMPT.zip \
+  --result team-results-1-RUN-ATTEMPT.zip \
+  --result team-results-2-RUN-ATTEMPT.zip \
+  --result team-results-3-RUN-ATTEMPT.zip \
+  --output budget-report.md
+</code></pre>
+<p>The inventory can also be schema 3 inventory/plan JSON, and each result can be a shard
+<code>result.json</code>. For Catch2 XML use <code>--xml tests/functests=report.xml</code> instead of duplicating
+those cases through <code>--result</code>. Add <code>--binary tests/functests</code> for the functional subset,
+<code>--group-by family</code> for index families, or <code>--format json</code> for per-case assignments.</p>
+<p>Counts retain binary identity: a case compiled into both unit and functional binaries counts
+twice. The ordered, mutually exclusive categories are Tune, recovery, serialization,
+mutation/concurrency, search/filter, build/train, data/quantization/SIMD, and Other. They are
+name/tag/source heuristics, not assertion coverage measurements.</p>
+<p>Optional <code>--cost tests/functests=cost.jsonl</code> adds schema 1 complete-case cost records. Each
+record has <code>model_version</code>, <code>unit</code>, <code>policy</code>, <code>case</code> (<code>name</code>, <code>tags</code>, <code>source_file</code>,
+<code>source_line</code>), <code>cap_points</code>, and <code>total_points</code>. Test logs may prefix records with
+<code>[test-budget]</code>; in that mode unrelated log lines are ignored. Only the top-level cap and
+estimated cost count, not nested <code>runs</code>. Identical complete plans emitted again by Catch
+generator re-entry count once and expose <code>identical_plan_repetitions</code>; differing plans for
+one case fail. A bridge record with empty tags and <code>source_line: 0</code> must match exactly one
+inventory case by binary, name, and full source identity. Catch’s original absolute or
+parent-relative paths are identity strings, never paths the report opens. Exact full-path
+matching is preferred; use <code>--source-root /absolute/checkout</code> only when an absolute path must
+map to a repository-relative identity. Basename matching is forbidden, and frozen inventory
+IDs and digests remain unchanged.</p>
+<p>Case-count shares, cap shares, estimated-cost shares, and measured case-second shares have
+separate denominators. Models, units, and policies are never combined. Missing measurements
+remain <strong>unknown</strong>, not zero; a timing-only baseline is valid when cost data is unavailable.
+Case-second sums are <strong>neither elapsed CI time nor CPU time</strong>. Failed cases and over-budget
+records remain visible; this reporting command does not replace CI’s completion checks.</p>
+<p>Run the report’s local fixture tests with <code>python3 tests/scripts/test_test_budget_report.py</code>.</p>
+<h2 id="budget-policy"><a class="header" href="#budget-policy">Budget Policy</a></h2>
+<p><code>tests/fixtures/core/test_budget.h</code> models logical work using N, D, Q and declared counts
+for data preparation, training, building, searching, reference-oracle calculations,
+serialization and mutations. A testcase plans its complete configuration matrix under one
+cap. Each candidate retains the required configurations and legal minimum sizes; if no legal
+candidate fits, planning fails. Catch generator re-entry shares that complete plan rather
+than granting a fresh cap. <code>CurrentPolicy</code> takes its seed from Catch’s <code>--rng-seed</code>, so resource
+selection is reproducible for the same testcase and seed.</p>
+<p>The first integration covers randomized resource families in HGraph, IVF, BruteForce, Warp
+and Dataset tests, not every static testcase. Uninstrumented cases remain unmodeled in reports.
+PR HGraph Tune keeps four representative transitions with Q=20 and N≤400; PiPNN uses one
+transition with Q=10 and N=256. Daily keeps all ten transitions with Q=100.</p>
+<p>Logical points and declared upper bounds are neither elapsed seconds nor a universal runtime
+limit. The budget does not replace assertions or timeouts, and exhausting it cannot silently
+skip a testcase or turn an incomplete run into a pass.</p>
 <h2 id="references"><a class="header" href="#references">References</a></h2>
 <ul>
 <li><code>tests/</code> directory</li>
@@ -8881,6 +9382,13 @@ exact-seeding regime, at the cost of a larger seed phase. The default of <code>3
 enumeration cheap in absolute terms – 32768 inner ids are 128 KiB and therefore stay in cache –
 so the saturated skip stays a win instead of turning a wide predicate into a scan-sized seed
 phase.</p>
+<p>For the pure MCI route with non-contiguous vector storage, a certified complete, sorted seed
+list can be scored directly through the existing batched distance backend, without initializing
+visited marks or maintaining an expansion queue. This shortcut requires static CSR, a complete
+valid bitmap, no timeout and no mutable-predicate revalidation; it validates IDs and the pinned
+deletion view before use. Other queries retain ordinary traversal. The result heap still keeps
+<code>max(k, ef_search)</code> entries so existing reorder behavior is preserved. This changes execution
+overhead, not the seed budget, distance precision or serialized index.</p>
 <p>The companion needs a <code>Filter</code> object with a meaningful <code>ValidRatio()</code> hint. Bitset and
 function filters are accepted, but a custom <code>Filter</code> gives the search planner better
 selectivity information.</p>
@@ -9243,6 +9751,91 @@ correctness. Review follow-up adds reverse-edge restoration and reload-mutation 
 Full lint, full tests, and &gt;=90% coverage verification are outstanding. Large-dataset snapshot reuse,
 ABI, serialization compatibility, and broader concurrent mutation require separate validation;
 targeted passes are not proof of production readiness.</p>
+<h2 id="packed-filtering-and-bounded-clique-activation"><a class="header" href="#packed-filtering-and-bounded-clique-activation">Packed filtering and bounded clique activation</a></h2>
+<p>The routed MCI search supports the following options inside the <code>hgraph</code> search object.
+They do not change the sparse-graph or <code>use_hybrid_traversal=true</code> expansion algorithm.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Search parameter</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>mci_packed_filter</code></td><td><code>true</code></td><td>Build a query-private one-bit predicate from complete mapped valid IDs, or an identity-mapped byte bitmap. Static CSR members use runtime-dispatched AVX512/AVX2, with a portable scalar fallback. Member order is preserved. When no complete source is available, use the existing predicate checks.</td></tr>
+<tr><td><code>mci_batch_distance</code></td><td><code>true</code></td><td>Score up to 64 newly visited legal points per datacell call. Submit the final batch before selecting another parent or checking convergence. FP32 kernels can choose different IDs among exactly tied distances.</td></tr>
+<tr><td><code>mci_activation_cap</code></td><td><code>0</code></td><td>Maximum number of outgoing clique incidences considered for each expanded point. Zero means all incidences. Already visited cliques still consume this prefix. This changes the explored graph and can lower recall.</td></tr>
+<tr><td><code>mci_hops_limit</code></td><td><code>4294967295</code></td><td>Depth limit independent of the legacy HGraph <code>hops_limit</code>. Seeds have depth 1; a child has its parent’s depth plus 1. Points at the limit are scored but not expanded.</td></tr>
+<tr><td><code>mci_expansion_idle_window</code></td><td><code>0</code></td><td>Stop after this many expanded parents insert no new candidates. Zero disables this heuristic. It monitors the bounded candidate queue, not only the final top-k results.</td></tr>
+<tr><td><code>search_no_lock</code></td><td><code>false</code></td><td>Skip index reader locks for a synchronous query. The caller must exclude ALL index mutation and destruction. Query-internal <code>parallelism</code> must be 1; independent concurrent queries are allowed. Shared mutable query pools retain synchronization. An unlocked MCI query requires a compact static CSR and rejects pending delta/tombstone state.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Setting both packed filtering and batching to <code>false</code>, leaving the activation cap at zero,
+and leaving the new depth/convergence options at their defaults disables these optimizations.
+The coverage seed budget is applied to routed MCI as well as joint Hybrid. When the seed
+phase has scored the complete valid set, it skips clique expansion and packed-bitmap construction.</p>
+<p>Complete-ID preparation uses direct conversion only after validating identity label mapping;
+other labels still use the reverse map. Unknown/deleted labels are excluded, duplicates are
+removed, and already sorted input avoids another sort. A worker reuses its temporary buffer
+without sharing it with concurrent or nested queries. Traversal epoch marks and packed member
+buffers also belong to separate scratch slots at each nesting depth. A worker retains at most
+two scratch objects after the outermost query returns; deeper temporary slots are released
+only after all active views have expired. During clique traversal, callback-only filters
+remember accepted and rejected IDs so overlapping cliques do not repeat their predicate calls.
+The packed path can skip the user predicate using the already prepared complete valid set.
+This bound excludes predicate calls during seed collection or source preparation and assumes
+that the predicate is stable throughout the query. If membership changes mid-query, results
+need not match either predicate generation. This preparation remains inside query time.
+For a locked query on a mutable index, prepared membership is rechecked against the current
+label before a newly visited point is scored; cached membership alone cannot bypass the predicate.
+Public distance reads and other index operations also reset the default policy at their boundary.
+Nested public synchronous searches first restore default locking at the API boundary;
+HGraph then installs its own <code>search_no_lock</code> setting (default <code>false</code>). Other backends
+therefore do not inherit an outer HGraph opt-in. Each continuation-session <code>Next</code> also installs
+its own call’s policy. Return or exception restores the outer policy.
+Callbacks remain subject to the outer request’s exclusion of mutation and destruction.</p>
+<p>For useful activation priorities, build with <code>"mci_clique_activation_order": true</code> in
+<code>index_param</code>. This is off by default. It greedily ranks each point’s incident cliques by
+new coverage of that point’s existing input KNN candidates, then orders the tail by near-edge
+density. Rows of at most 32 incidences retain their original order. There are no new distance
+calculations. This option reorders the existing point-to-clique CSR in place and serialization
+preserves that order using the current MCI format; no external sidecar or extra persistent
+incidence array is needed. It is independent of any global clique-ID reordering.</p>
+<p>For a fresh build with activation ordering, a cap of at least <code>max(32, input KNN row width)</code>
+preserves all <em>already represented input KNN</em> edges (including the unchanged short rows). This does not preserve every farther edge needed after
+filtering, and it is not a filtered-recall guarantee. An old index without ranking still works,
+but a cap then uses its existing storage order, rather than a useful activation priority.
+Tune nonzero caps with a ranked build and revalidate recall. This is a positional prefix,
+not a quota of new cliques: if its entries were already visited, this parent expands no
+new clique. The KNN-edge property above describes the stored truncated graph, not a
+minimum amount of new work or a recall guarantee for each expanded parent.
+Incremental changes and compaction preserve
+memberships, but can change these priorities; rebuild to restore the full-build greedy order
+and revalidate recall. Do not assume that flushing after mutation restores the ranked order.</p>
+<p>For example, a small-seed pure MCI query can use:</p>
+<pre><code class="language-json">{
+  "hgraph": {
+    "ef_search": 80,
+    "use_mci": true,
+    "use_hybrid_traversal": false,
+    "hgraph_valid_ratio_threshold": 1.0,
+    "mci_seed_ratio": 0.05,
+    "mci_seed_coverage": 0,
+    "mci_activation_cap": 128,
+    "mci_hops_limit": 9,
+    "mci_expansion_idle_window": 0,
+    "mci_packed_filter": true,
+    "mci_batch_distance": true,
+    "search_no_lock": true,
+    "parallelism": 1
+  }
+}
+</code></pre>
+<p>These are example effort controls, not dataset-independent recommended recall settings.
+Calibrate the cap, seed budget and ef on validation queries. Packed filtering and batching
+reduce execution cost; activation, depth and idle limits additionally trade search work for recall.</p>
+<p>A routed MCI query is attempted before HGraph navigation under either lock policy. If it succeeds,
+no unused route-graph distances or HGraph visited-list acquisition are performed;
+an unavailable MCI path still falls back to the normal graph route.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="api-reference"><a class="header" href="#api-reference">API Reference</a></h1>
 <p>This chapter is a curated reference for VSAG’s <strong>public C++ API</strong> — the headers installed under
@@ -10080,8 +10673,27 @@ are rejected rather than silently changing search semantics.</p>
 metric to select <code>scan_buckets_count</code> buckets, then applies the callback to candidates in those
 buckets. The callback controls candidate ranking but cannot recover vectors outside the selected
 buckets; increase <code>scan_buckets_count</code> to improve recall. Callback IVF does not support range search,
-<code>disable_bucket_scan</code>, bucket-graph search, or parallel search. Those configurations are rejected.
+<code>disable_bucket_scan</code>, or bucket-graph search. Those configurations are rejected.
 Reordering is automatically disabled in callback mode. Other indexes do not support the callback.</p>
+<p>IVF callback search supports bucket-parallel execution using <code>parallelism</code> in the IVF search
+parameters (for example, <code>{"ivf":{"scan_buckets_count":8,"parallelism":4}}</code>)
+when a thread pool is available; otherwise it executes serially. Each worker owns its attribute
+Executor, batch buffers, and result heap. The processing order is <strong>attribute filter → distance
+callback → local top-k score check → request filter → heap insertion</strong>. The potentially expensive
+request filter is called only if the worker heap is not full or the score can improve it. Only
+candidates passing that filter enter the heap and tighten its threshold. Merging worker heaps does
+not call the filter again.</p>
+<p>Both the callback and request filter, including their shared/captured state, must support concurrent
+calls when parallel search is enabled. Filter decisions must remain stable during a request and
+must not depend on invocation order or whether other IDs have been checked.
+Batch composition and invocation order can vary; per-ID
+scores must not depend on either. <code>distance_batch_size_</code> remains the maximum width of each call,
+not a concurrency limit. Equal-score result IDs may differ with execution order. Worker-local
+thresholds can be looser than a serial threshold, so parallel search may perform more filter calls;
+score pruning reduces filter and heap work, not distance evaluations already submitted to the callback.
+In reasoning output, scored candidates are recorded as visited even if the score gate skips them.
+A filter rejection is recorded only when that filter actually runs and rejects the candidate;
+diagnostics never invoke the expensive filter solely to classify a score-pruned candidate.</p>
 <h3 id="ivf-bucket-routing"><a class="header" href="#ivf-bucket-routing">IVF bucket routing</a></h3>
 <p>IVF accepts <code>{"ivf":{"scan_buckets_count":N,"disable_bucket_scan":true}}</code> through
 <code>params_str_</code>. This routing-only mode returns the <code>N</code> selected bucket IDs per query in the
@@ -11160,6 +11772,7 @@ Optimizer”. Its implementation key is <code>use_elp_optimizer</code>, which no
 </ol>
 <h2 id="notes-6"><a class="header" href="#notes-6">Notes</a></h2>
 <ul>
+<li>When rebuilding HGraph vector codes, <code>Tune</code> needs a raw or FP32 source covering the full internal ID range. If a failed <code>Add</code> leaves that source incomplete and no complete fallback exists, <code>Tune</code> returns <code>false</code> without changing the index. Later successful Adds do not fill earlier unwritten IDs. Deduplicated storage must have a published mapping for every ID; ordinary storage retains unfinished-write information and reserved IDs across serialization, so an Add after restore cannot reuse a missing vector’s ID. This uses existing count metadata without changing the binary format; older snapshots without unfinished-write metadata cannot recover that information. <code>Merge</code> rejects a destination or any input with unfinished code writes with <code>INVALID_ARGUMENT</code>, before copying any input; rebuild incomplete indexes from original data before merging. Restores reject reservation counts above the serialized capacity or internal ID limit with <code>INVALID_BINARY</code>; legacy metadata without a reservation count still falls back to the written-code count. It does not recover vectors from the failed <code>Add</code>; rebuild the index from the original data before tuning again.</li>
 <li>Tuning is sensitive to the query distribution — use samples that reflect real traffic.</li>
 <li>Tuned parameters are persisted together with the index metadata via <code>Serialize</code>/<code>Deserialize</code>
 and remain in effect after deployment.</li>
@@ -12052,6 +12665,10 @@ search candidates.</p>
 If evaluation completes but no candidate satisfies every constraint, they return a result with
 <code>status=TuneStatus::NO_FEASIBLE_CANDIDATE</code> and structured <code>best_effort</code>; recommendation fields are
 invalid in that state.</p>
+<p>The <code>327_feature_autotune_existing_index</code> example builds its tiny HGraph with
+<code>build_thread_count=1</code> to keep insertion order stable while requiring recall 1.0.
+Parallel construction can change graph connectivity; increasing <code>ef_search</code> alone
+does not guarantee that an existing graph can satisfy a recall constraint.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="hdf5-dataset-format"><a class="header" href="#hdf5-dataset-format">HDF5 Dataset Format</a></h1>
 <p>VSAG’s evaluation and benchmark tooling (most notably
@@ -12417,13 +13034,46 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 <ul>
 <li><strong>Input</strong>: a <code>SearchRequest</code> (query dataset + <code>topk</code> + search parameter JSON).</li>
 <li><strong>Output</strong>: a JSON-formatted string containing dynamic, query-driven metrics.</li>
-<li><strong>Supported indexes</strong>: currently <code>HGraph</code>, <code>IVF</code>, <code>Pyramid</code>, and <code>SINDI</code>. Indexes that do not
-implement this API will throw an exception when called.</li>
+<li><strong>Supported indexes</strong>: all factory-registered indexes: <code>HGraph</code>, <code>IVF</code>, <code>Pyramid</code>, <code>SINDI</code>,
+<code>SINDI_V2</code>, <code>SIMQ</code>, <code>BruteForce</code>, <code>WARP</code>, and <code>LazyHGraph</code>.</li>
 </ul>
 <p>It is complementary to <code>Index::GetStats()</code>, which reports static structural properties of the
 index without needing query data. For graph-based indexes, additional graph-health details such
 as degree distribution, entry-point quality, sub-index recall and low-recall hot-spots are
 exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBySearch</code>.</p>
+<h3 id="common-output-contract"><a class="header" href="#common-output-contract">Common output contract</a></h3>
+<p>Every successful static or dynamic analysis returns a JSON object with an <code>_analysis</code> member:</p>
+<pre><code class="language-json">{
+  "_analysis": {
+    "schema_version": 1,
+    "index_type": "brute_force",
+    "analysis_type": "search",
+    "status": "partial",
+    "sample_count": 10,
+    "topk": 10,
+    "consistency": "weak_snapshot",
+    "skipped": { "recall_query": "ground truth was not requested" }
+  }
+}
+</code></pre>
+<p>Existing index-specific fields remain at the JSON root for compatibility. <code>status</code> is <code>complete</code>
+when all applicable metrics were computed, <code>partial</code> when individual metrics are listed under
+<code>skipped</code>, and <code>not_applicable</code> when the request is valid but no metric can be computed (for
+example, search analysis on an empty index). Invalid arguments and execution failures still throw.
+Specialized analyzers may report an unavailable root-level metric as an object containing a
+string <code>skipped_reason</code>; the common metadata layer mirrors that reason into
+<code>_analysis.skipped.&lt;metric&gt;</code>. Baseline analyzers write the same public representation directly to
+<code>_analysis.skipped</code>. Consumers should rely on <code>_analysis.skipped</code>, while <code>skipped_reason</code> remains
+an index-specific compatibility detail.</p>
+<p><code>BruteForce</code> and <code>WARP</code> provide exact-search baseline counts and latency. <code>SINDI_V2</code> and <code>SIMQ</code>
+provide baseline counts and query latency while index-specific quality metrics are reported as
+skipped. <code>LazyHGraph</code> delegates to its active BruteForce or HGraph backend and adds its current
+<code>phase</code> and <code>transition_threshold</code>; its reported <code>index_type</code> remains <code>lazy_hgraph</code>.</p>
+<p>Analysis is synchronous and intended for offline diagnostics. It can scan substantial parts of an
+index and specialized analyzers may compute exact ground truth. Analysis never changes search or
+serialization configuration and is safe with concurrent read-only search. Unless an index offers a
+stronger lock-protected view, <code>_analysis.consistency</code> is <code>weak_snapshot</code>; do not run analysis
+concurrently with Add, Remove, Update, or phase transition.</p>
 <p>Pyramid query analysis follows the same path-scoping rules as <code>KnnSearch</code>. For the default
 hierarchy, attach paths with <code>Dataset::Paths</code>. For a named hierarchy, use
 <code>Dataset::Paths(hierarchy_name, paths)</code> and select that hierarchy in the Pyramid search parameters.
@@ -12711,6 +13361,24 @@ cmake --build build-release -j
 <p>The tool creates a current-version index instance, deserializes the old index file, then runs a
 small KNN search. It prints <code>&lt;identifier&gt; success</code> when both load and search succeed; otherwise it
 prints <code>&lt;identifier&gt; failed</code> and exits with a non-zero status.</p>
+<p>The optional second argument selects the input directory. Otherwise the tool uses
+<code>COMPATIBILITY_INDEX_DIR</code>, falling back to <code>/tmp</code> when it is unset or empty. The same
+directory supplies the index, both JSON files and the vector fixture; it may be mounted read-only.</p>
+<pre><code class="language-bash">COMPATIBILITY_INDEX_DIR=/path/to/fixtures BUILD_DIR=./build bash scripts/check_compatibility.sh
+./build/tools/check_compatibility/check_compatibility v1.1.0_hgraph /path/to/fixtures
+</code></pre>
+<p>The script requires Python 3 and derives the test cases from the published <code>v*_*.index</code> files.
+Before invoking the tool, it validates every maintained index triplet: the index and both
+parameter files must be nonempty, and the parameter files must contain JSON objects. Orphan
+JSON sidecars are reported without creating additional test cases; they remain part of the
+complete release manifest verification. The vector fixture must be exactly 20,480,000 bytes
+(10,000 vectors, 512 float32 values each); missing, truncated or oversized inputs fail. The tool still checks
+the first 500 vectors with top-1 search and requires their original IDs. Removed HNSW,
+fresh-HNSW and DiskANN fixtures remain excluded; an empty maintained set cannot pass.</p>
+<p>These checks validate local structure, not the release inventory or content checksums.
+CI cache/download producers must separately verify the complete expected asset manifest and
+hashes before publishing inputs. In particular, an entirely missing triplet or a same-size
+corrupted vector file cannot be detected from directory enumeration and size alone.</p>
 <h2 id="local-entry-point"><a class="header" href="#local-entry-point">Local Entry Point</a></h2>
 <p>A short local pointer is kept at <code>tools/check_compatibility/README.md</code> for developers browsing the
 tool directory.</p>

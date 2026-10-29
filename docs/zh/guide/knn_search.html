@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-30c491ac.js";
+            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-653235e0.js"></script>
+        <script src="../toc-ec46237e.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -317,7 +317,7 @@
 <p>一次 k-近邻搜索需要两个向量集合。</p>
 <ul>
 <li><code>base</code> 集合代表数据库中的所有向量，我们将会在其中进行搜索，它的大小是 <strong>向量数</strong> * <strong>向量维度</strong>；</li>
-<li><code>query</code> 集合代表查询向量，我们要为其查找最近的邻居，它的大小是 <strong>向量数</strong> * <strong>向量维度</strong>。当前，VSAG 只支持 <strong>向量数</strong> = 1的查询，即不支持批量查询；</li>
+<li><code>query</code> 集合代表查询向量，我们要为其查找最近的邻居，它的大小是 <strong>向量数</strong> * <strong>向量维度</strong>。所有索引都支持 <strong>向量数</strong> = 1 的查询；HGraph 与 IVF 还额外支持批量查询（<strong>向量数</strong> &gt; 1），此时返回 row-major 的 <strong>向量数</strong> * <strong>维度</strong> 结果，HGraph 会用 <code>id == -1</code> 与无穷距离填充缺失的邻居。使用批量查询前，请先通过 <code>Index::CheckFeature</code> 检查 <code>SUPPORT_BATCH_SEARCH</code>；</li>
 </ul>
 <p>现在，我们生成一些 d=128 维的随机向量，以及它们对应的 ID（搜索结果会以 ID 形式返回）。</p>
 <pre><code class="language-cpp">    int64_t num_vectors = 10000;

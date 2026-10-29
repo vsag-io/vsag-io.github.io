@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
+            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8a615816.js"></script>
+        <script src="../toc-3b5df986.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -380,6 +380,8 @@ and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term id values (≥ max term id + 1, up to 50 000 000).</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window (range: 10 000 – 60 000).</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight terms dropped per doc at build time (<code>[0.0, 1.0)</code>).</td></tr>
+<tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight postings permanently removed per term per window during <code>Build</code>; <code>[0, 1)</code>, disabled by default.</td></tr>
+<tr><td><code>term_retain_threshold</code></td><td>integer</td><td><code>0</code></td><td>Build-time posting cap per term, divided across windows; <code>0</code> disables the cap.</td></tr>
 <tr><td><code>use_quantization</code></td><td>bool or string</td><td><code>false</code></td><td><code>false</code> stores FP32 values, <code>true</code> stores SQ8 values, and <code>"fp16"</code> stores FP16 values.</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a forward store and rescore candidates after coarse SINDI scoring.</td></tr>
 <tr><td><code>rerank_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Forward-store type used when <code>use_reorder</code> is enabled. <code>fp32</code> keeps exact values, <code>fp16</code> stores half-precision values while scoring in FP32, and <code>dmq8</code> stores compressed 8-bit DMQ codes.</td></tr>
@@ -512,11 +514,19 @@ query, then applies exact per-document day and optional host checks before candi
 heap. Time, host, tombstone, and user <code>Filter</code> conditions use AND semantics. Failed or skipped
 documents can make adjacent logical partitions share a physical window; the exact day check keeps
 boundary results correct.</p>
-<p>Time-aware indexes are build-once. A mutable index may receive <code>publish_time_stamp</code> through
-<code>Build()</code> or the first <code>Add()</code> while empty, but rejects every later <code>Add()</code>. Mutable host-only
-indexes retain incremental <code>Add()</code> support. Publish-time filtering supports mutable and immutable
-indexes with either <code>use_reorder</code> setting, applies only to KNN search, and is preserved by standard
-and streaming serialization. A restored mutable time-aware index remains build-once.</p>
+<p>Mutable time-aware indexes support incremental <code>Add()</code>. The initial <code>Build()</code> or first <code>Add()</code> on
+an empty index must supply one <code>publish_time_stamp</code> value per vector; every later <code>Add()</code> must
+also supply it and preserve whether host metadata is present. Each batch is sorted internally by
+time and appended as a contiguous ID segment. Dates may overlap across batches, so older dates
+can be backfilled. Missing-time documents remain at the end of each segment, and queries route
+through matching partitions in every segment. An existing index without time metadata cannot
+gain it through <code>Add()</code>. Publish-time filtering applies only to KNN and is preserved by standard
+and streaming serialization; a restored mutable index can continue to accept time-aware <code>Add()</code>.
+Immutable and DMQ8 rerank runtimes still reject incremental writes.
+Many small <code>Add()</code> batches create many segments, so time-filtered queries check more segment
+directories; batch inserts when practical.
+The new time metadata format is v2: current readers accept v1 snapshots, while older readers
+cannot load snapshots written in v2.</p>
 <p>Queries without a time selector scan every time and missing-time partition. Host-only queries
 select that host from every partition. Exact time filtering disables term-level posting pruning in
 each selected window, so time queries may scan more postings than host-only queries; wider ranges
@@ -531,6 +541,9 @@ windows that cross partition or host boundaries.</p>
 </thead>
 <tbody>
 <tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Candidate heap size. When <code>0</code>, defaults to <code>SPARSE_AMPLIFICATION_FACTOR · topk</code> (500×). If set, must satisfy <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code>.</td></tr>
+<tr><td><code>window_parallelism</code></td><td>int</td><td><code>1</code></td><td>Number of window-search workers (<code>1</code> to <code>16</code>). Workers run in a reusable thread pool and steal pending windows from one another. The merged heap keeps up to <code>n_candidate</code> candidates before reranking. When this is greater than <code>1</code>, KNN search ignores <code>timeout_ms</code>; window scanning for queries with a filter, active callback limit, or reasoning trace still uses one worker.</td></tr>
+<tr><td><code>worker_n_candidate</code></td><td>int</td><td><code>n_candidate</code></td><td>Requested per-worker candidate heap capacity; omit to inherit the effective final candidate count. The actual capacity is at least the query top-k, so one matching window can still supply top-k results. If set, it must be positive and <code>worker_n_candidate × window_parallelism ≥</code> the final candidate count. For example, <code>n_candidate=500</code>, <code>window_parallelism=2</code>, and <code>worker_n_candidate=300</code> are valid. Reducing this value can lower recall when top candidates are unevenly distributed across workers; the aggregate capacity bound does not guarantee retaining the global top candidates.</td></tr>
+<tr><td><code>window_scheduler</code></td><td>string</td><td><code>"count_deque"</code></td><td>Parallel KNN window scheduling: <code>count_deque</code> retains the count-based deque/try-lock implementation; <code>count_atomic</code> uses count-based contiguous ranges and shared atomic cursors; <code>cost_atomic</code> balances contiguous ranges by the sum of query-pruned, term-pruned posting scan counts, then uses atomic cursors. Each atomic worker drains its range and then visits other ranges in cyclic order.</td></tr>
 <tr><td><code>filter_callback_limit</code></td><td>uint64</td><td><code>0</code></td><td>Maximum user <code>Filter::CheckValid</code> callback invocations for one filtered search request. A value of <code>0</code> disables the limit. Internal checks such as the deleted-ID filter do not count. Reaching a positive limit stops candidate and window scanning after processing the final callback result and returns the already filtered candidates, so the result may be partial. The limit applies to KNN and range search through both the regular APIs and <code>SearchWithRequest</code>.</td></tr>
 <tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight query terms skipped (<code>[0.0, 1.0)</code>).</td></tr>
 <tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest-value postings skipped from each term list (<code>[0.0, 1.0)</code>).</td></tr>
@@ -538,6 +551,8 @@ windows that cross partition or host boundaries.</p>
 </tbody>
 </table>
 </div>
+<p>FP32/FP16 sparse KNN reranking automatically uses count-based static batches with the same parallelism as <code>window_parallelism</code> (capped by the candidate count). The caller participates using the same query thread pool; each worker writes distances at independent candidate positions, and final top-k selection follows the original candidate order. A single worker processes one batch. Reasoning queries, DMQ8 and range search retain scalar reranking. Library distance counters and result statistics remain enabled.</p>
+<p>Parallel windows and reranking share one lazy index-owned query pool, capped at 16 threads and reported hardware concurrency (at least one). Query tasks are isolated from caller-supplied pools: those pools may contain writers waiting for the read lock held by the query. Parallel workers use thread-safe default scratch allocation for computers, score buffers, contexts and local heaps; request-allocator calls and final result allocation stay on the calling thread.</p>
 <p>After combining the ratio and threshold limits, SINDI scans at least one posting from every
 non-empty term list.</p>
 <p>Within each window, postings for a term are sorted by their stored value in descending
@@ -622,6 +637,9 @@ is not physically reclaimed.</p>
 <li><a href="../resources/index_parameters.html">Index Parameters</a></li>
 <li><a href="../guide/knn_search.html">k-Nearest Neighbor Search</a></li>
 </ul>
+<h3 id="build-time-term-pruning"><a class="header" href="#build-time-term-pruning">Build-time term pruning</a></h3>
+<p>The index creation parameters also accept <code>term_prune_ratio</code> (float in <code>[0, 1)</code>, default <code>0</code>) and <code>term_retain_threshold</code> (non-negative integer, default <code>0</code>). Both default to disabled. During <code>Build</code>, each term’s postings in each window are sorted by stored weight and permanently trimmed to the smaller of <code>floor(posting_count * (1 - term_prune_ratio))</code> and <code>floor(term_retain_threshold / window_count)</code>; a zero threshold imposes no cap, and non-empty lists retain at least one posting. Mutable and immutable builds support FP32, FP16 and SQ8. Rerank vectors and document labels are preserved. Search-time pruning operates on the retained postings; it cannot restore removed postings. Subsequent <code>Add</code> calls do not apply build-time pruning.</p>
+<p>For example, set <code>"term_prune_ratio": 0.2, "term_retain_threshold": 0</code> inside the index’s build parameters to remove the lowest-weight 20% of each posting list per window.</p>
 
                     </main>
 

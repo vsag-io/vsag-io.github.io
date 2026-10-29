@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
+            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8a615816.js"></script>
+        <script src="../toc-3b5df986.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -798,6 +798,10 @@ search candidates.</p>
 If evaluation completes but no candidate satisfies every constraint, they return a result with
 <code>status=TuneStatus::NO_FEASIBLE_CANDIDATE</code> and structured <code>best_effort</code>; recommendation fields are
 invalid in that state.</p>
+<p>The <code>327_feature_autotune_existing_index</code> example builds its tiny HGraph with
+<code>build_thread_count=1</code> to keep insertion order stable while requiring recall 1.0.
+Parallel construction can change graph connectivity; increasing <code>ef_search</code> alone
+does not guarantee that an existing graph can satisfy a recall constraint.</p>
 
                     </main>
 

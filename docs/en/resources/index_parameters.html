@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
+            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8a615816.js"></script>
+        <script src="../toc-3b5df986.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -353,6 +353,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <tr><th>Field</th><th>Typical</th><th>Description</th></tr>
 </thead>
 <tbody>
+<tr><td><code>adaptive_pruning</code></td><td><code>false</code></td><td>Experimental NSW bottom forward/reverse L2 pruning; see <a href="../indexes/hgraph.html#experimental-adaptive-pruning">HGraph</a></td></tr>
 <tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
 <tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
 <tr><td><code>alpha</code></td><td><code>1.0</code></td><td>Final robust-pruning factor; PiPNN requires a finite value at least <code>1.0</code></td></tr>
@@ -390,6 +391,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 </div>
 <p>The existing <code>alpha</code> field controls PiPNN’s final robust pruning. <code>ef_construction</code> only tunes NSW
 and has no effect on PiPNN.</p>
+<p>HGraph additionally supports the experimental L2-only options <code>pipnn_adaptive_pruning</code> (default <code>false</code>) and <code>pipnn_adaptive_pruning_adjust_step</code> (default <code>0.06</code>). They adapt the final per-point pruning threshold during initial <code>Build</code>; see <a href="../indexes/hgraph.html">HGraph adaptive PiPNN pruning</a>. These options are not exposed by Pyramid.</p>
 <p>At search time:</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
@@ -461,6 +463,7 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
 </code></pre>
 <p>No extra parameters.</p>
 <h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
+<p><code>adaptive_pruning</code> defaults to <code>false</code>. For experimental NSW bottom forward/reverse L2 pruning, see <a href="../indexes/pyramid.html#experimental-adaptive-nsw-pruning">Pyramid</a>.</p>
 <p>Pyramid build parameters also live under <code>index_param</code>:</p>
 <pre><code class="language-json">{
     "dtype": "float32",

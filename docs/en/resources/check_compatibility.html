@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
+            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8a615816.js"></script>
+        <script src="../toc-3b5df986.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -342,6 +342,24 @@ cmake --build build-release -j
 <p>The tool creates a current-version index instance, deserializes the old index file, then runs a
 small KNN search. It prints <code>&lt;identifier&gt; success</code> when both load and search succeed; otherwise it
 prints <code>&lt;identifier&gt; failed</code> and exits with a non-zero status.</p>
+<p>The optional second argument selects the input directory. Otherwise the tool uses
+<code>COMPATIBILITY_INDEX_DIR</code>, falling back to <code>/tmp</code> when it is unset or empty. The same
+directory supplies the index, both JSON files and the vector fixture; it may be mounted read-only.</p>
+<pre><code class="language-bash">COMPATIBILITY_INDEX_DIR=/path/to/fixtures BUILD_DIR=./build bash scripts/check_compatibility.sh
+./build/tools/check_compatibility/check_compatibility v1.1.0_hgraph /path/to/fixtures
+</code></pre>
+<p>The script requires Python 3 and derives the test cases from the published <code>v*_*.index</code> files.
+Before invoking the tool, it validates every maintained index triplet: the index and both
+parameter files must be nonempty, and the parameter files must contain JSON objects. Orphan
+JSON sidecars are reported without creating additional test cases; they remain part of the
+complete release manifest verification. The vector fixture must be exactly 20,480,000 bytes
+(10,000 vectors, 512 float32 values each); missing, truncated or oversized inputs fail. The tool still checks
+the first 500 vectors with top-1 search and requires their original IDs. Removed HNSW,
+fresh-HNSW and DiskANN fixtures remain excluded; an empty maintained set cannot pass.</p>
+<p>These checks validate local structure, not the release inventory or content checksums.
+CI cache/download producers must separately verify the complete expected asset manifest and
+hashes before publishing inputs. In particular, an entirely missing triplet or a same-size
+corrupted vector file cannot be detected from directory enumeration and size alone.</p>
 <h2 id="local-entry-point"><a class="header" href="#local-entry-point">Local Entry Point</a></h2>
 <p>A short local pointer is kept at <code>tools/check_compatibility/README.md</code> for developers browsing the
 tool directory.</p>

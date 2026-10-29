@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
+            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8a615816.js"></script>
+        <script src="../toc-3b5df986.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -318,6 +318,12 @@ results.</p>
 <li>Example (single hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/107_index_pyramid.cpp"><code>examples/cpp/107_index_pyramid.cpp</code></a></li>
 <li>Example (multi-hierarchy): <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/112_index_pyramid_multi_hierarchy.cpp"><code>examples/cpp/112_index_pyramid_multi_hierarchy.cpp</code></a></li>
 </ul>
+<h2 id="read-only-indexes"><a class="header" href="#read-only-indexes">Read-only indexes</a></h2>
+<p><code>SetImmutable()</code> rejects further writes and releases per-vector locks, while retaining
+the reverse ID map for efficient ID-based distance and retrieval operations. The map
+uses additional memory compared with discarding it, but avoids linear ID scans.
+This applies whether the index is frozen before or after deserialization; the
+serialized format is unchanged.</p>
 <h2 id="how-it-works"><a class="header" href="#how-it-works">How it works</a></h2>
 <ol>
 <li><strong>Path tree.</strong> Each vector can carry independent paths in addition to its id.
@@ -380,7 +386,25 @@ auto result = index-&gt;KnnSearch(
     R"({"pyramid": {"ef_search": 100}})").value();
 </code></pre>
 <h2 id="input-data-type"><a class="header" href="#input-data-type">Input data type</a></h2>
-<p>The public <code>Build</code>, <code>Add</code>, and search paths currently accept FP32 vectors supplied with <code>Dataset::Float32Vectors</code>; set <code>dtype</code> to <code>"float32"</code>. <code>base_quantization_type</code> selects internal encoding and storage and does not by itself enable FP16, BF16, or INT8 input.</p>
+<p>Pyramid accepts <code>dtype: "float16"</code> and <code>dtype: "bfloat16"</code> input for <code>Build</code>, <code>Add</code>, and search, as well as the existing <code>"float32"</code> input. The input <code>dtype</code> is distinct from the storage quantizer: use <code>"float16"</code> / <code>"bfloat16"</code> for <code>dtype</code>, but <code>"fp16"</code> / <code>"bf16"</code> for quantization parameters.</p>
+<p>For either half input type, supply <code>Dataset::Float16Vectors</code> with a contiguous <code>uint16_t</code> buffer containing the <strong>encoded FP16 or BF16 bit patterns</strong>, not integers obtained by numerically casting floats. <code>dtype</code> determines how these bits are interpreted. Build/Add buffers contain <code>NumElements() * Dim()</code> entries; query buffers must use the same input format as the index. Supply IDs and paths as in the example above, replacing <code>Float32Vectors(data)</code> and <code>Float32Vectors(q)</code> with <code>Float16Vectors(half_data)</code> and <code>Float16Vectors(half_query)</code>. With <code>Owner(false)</code>, keep the borrowed buffers (including IDs and paths) alive for the operation.</p>
+<p>For half input, supported <code>base_quantization_type</code> and, when <code>use_reorder</code> is <code>true</code>, <code>precise_quantization_type</code> values are <code>fp16</code>, <code>bf16</code>, <code>pq</code>, <code>sq8</code>, and <code>fp32</code>. Quantizer-specific requirements still apply (for example, PQ training and dimension settings). A minimal matching-format configuration is:</p>
+<pre><code class="language-json">{
+    "dtype": "float16",
+    "metric_type": "l2",
+    "dim": 32,
+    "index_param": {
+        "graph_type": "nsw",
+        "base_quantization_type": "fp16",
+        "use_reorder": false
+    }
+}
+</code></pre>
+<p>For BF16 input with BF16 storage, change <code>dtype</code> to <code>"bfloat16"</code> and <code>base_quantization_type</code> to <code>"bf16"</code>. Cross-format storage conversion is also supported, such as FP16 input with BF16 storage or BF16 input with FP32 storage; this does not change the required input format of subsequent queries. <code>metric_type: "cosine"</code> normalizes vectors before encoding, so matching-format input does not imply byte-for-byte preservation for cosine.</p>
+<p>For L2/IP, matching FP16-to-FP16 and BF16-to-BF16 storage preserves the input bit patterns verbatim. Cross-format storage and <code>pq</code>/<code>sq8</code>/<code>fp32</code> storage convert the input through float32; they do not provide the same half-bit preservation guarantee.</p>
+<p>For <code>CalcDistanceById</code> and <code>CalcDistancesById</code> on half-input indexes, use the <code>DatasetPtr</code> overload with a native half query buffer matching the index dtype. The raw <code>const float*</code> overloads accept only float32 indexes and reject half-input indexes.</p>
+<p>An FP16 or BF16 stored vector code occupies <code>2 * dim</code> bytes, compared with <code>4 * dim</code> for FP32. This is <strong>vector-code size, not total index memory</strong>: graphs, IDs, paths, allocation overhead, and any reorder/raw-vector copies also consume space. Half input alone does not select half storage or halve total memory.</p>
+<p>Use <code>graph_type: "nsw"</code> or <code>"odescent"</code> with half input. <strong>PiPNN remains float32-only.</strong> These guarantees describe Pyramid, not every VSAG index.</p>
 <h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>.</p>
 <div class="table-wrapper">
@@ -397,6 +421,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>graph_storage_type</code></td><td>string</td><td><code>"flat"</code></td><td>Bottom-graph storage for a <code>multi_layer</code> root: <code>flat</code> favors construction and search speed, while <code>compressed</code> reduces graph memory. Compressed storage requires <code>max_degree &lt;= 255</code>. Single-layer roots, routing graphs, and child graphs remain sparse.</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size for <code>nsw</code> builds.</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.2</code></td><td>Pruning factor during graph construction; PiPNN requires a finite value at least <code>1.0</code>.</td></tr>
+<tr><td><code>adaptive_pruning</code></td><td>boolean</td><td><code>false</code></td><td>Optional NSW bottom forward/reverse L2 selector; see <a href="#experimental-adaptive-nsw-pruning">configuration and scope</a>.</td></tr>
 <tr><td><code>graph_iter_turn</code></td><td>int</td><td>—</td><td>ODescent iterations (effective with <code>graph_type: "odescent"</code>).</td></tr>
 <tr><td><code>neighbor_sample_rate</code></td><td>float</td><td>—</td><td>ODescent neighbor sampling rate.</td></tr>
 <tr><td><code>pipnn_max_leaf_size</code></td><td>int</td><td><code>1024</code></td><td>Maximum PiPNN partition leaf size.</td></tr>
@@ -481,6 +506,7 @@ reduce recall unless the embedding model was trained for prefix dimensions.</p>
 <tr><td><code>factor</code></td><td>float</td><td>unset</td><td>KNN reorder candidate multiplier. Values <code>&lt;= 1</code> add no limit. When greater than <code>1</code>, Pyramid first completes the unchanged subgraph searches and merges their results, then sends at most <code>min(max(ef_search, topk), floor(topk * factor))</code> main-graph candidates to reorder. RaBitQ lower-bound safety candidates may be merged after this limit, matching HGraph; <code>reorder_candidate_count</code> reports the actual merged count. The value must be finite and positive. It has no effect on range search or when reorder is disabled.</td></tr>
 <tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Per-graph KNN hop cap for the root bottom graph and every non-root graph; ignored when it is not greater than <code>ef_search</code>. Sparse root routing layers are never hop-limited. FLAT scans and range search are unaffected.</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>Candidate list size used when traversing intermediate sub-graphs on the path.</td></tr>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Maximum concurrent sub-graph searches for one request. Values greater than <code>1</code> use the index thread pool; results are merged and de-duplicated before reordering. See the thread pool requirement below.</td></tr>
 <tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>Select which hierarchy to search. Empty means use the default (unnamed) hierarchy.</td></tr>
 <tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>How to combine results across hierarchies: <code>single</code> (search one hierarchy), <code>union</code>, or <code>intersection</code>. <strong>Note:</strong> <code>union</code> and <code>intersection</code> are not yet implemented — setting them will cause <code>KnnSearch</code>/<code>RangeSearch</code> to return an error.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Positive lower-bound error multiplier for this search. The default <code>1.9</code> is relatively large; increasing it improves accuracy but slows down search.</td></tr>
@@ -491,6 +517,10 @@ reduce recall unless the embedding model was trained for prefix dimensions.</p>
     query, topk,
     R"({"pyramid": {"ef_search": 200, "subindex_ef_search": 80}})").value();
 </code></pre>
+<h3 id="thread-pool-requirement-for-parallelism"><a class="header" href="#thread-pool-requirement-for-parallelism">Thread pool requirement for <code>parallelism</code></a></h3>
+<p><code>parallelism</code> only takes effect when the index owns a thread pool. An index created through an <code>Engine</code> whose <code>Resource</code> supplies a <code>ThreadPool</code> (for example <code>Engine::CreateThreadPool(n)</code>), or an index built with <code>build_thread_count &gt; 1</code>, has one. <code>Factory::CreateIndex</code> and <code>Index::Load</code> do not attach a thread pool, so on those paths <code>parallelism</code> is ignored and the routed sub-graphs are searched one after another. When the parameter cannot be honored, Pyramid logs a warning once per index.</p>
+<p>Values <code>&lt;= 0</code> are clamped to <code>1</code>. With <code>parallelism &gt;= 2</code>, Pyramid searches at most <code>parallelism</code> resolved sub-graphs concurrently. The effective concurrency is bounded by <code>min(parallelism, thread pool size, number of resolved sub-graphs)</code>; contention with other requests may reduce it. Thus <code>parallelism: 2</code> uses at most two simultaneous sub-graph searches even with a 32-thread pool.</p>
+<p>Results are merged by inner id, keeping the smallest distance. A path ending at an intermediate node can expand to multiple descendant index nodes; those nodes share the same request budget.</p>
 <h2 id="multi-hierarchy-support"><a class="header" href="#multi-hierarchy-support">Multi-Hierarchy Support</a></h2>
 <p>A single Pyramid index can maintain <strong>multiple independent path trees</strong>, each
 identified by a name (e.g. <code>"site"</code>, <code>"category"</code>). Vectors share IDs and data
@@ -704,6 +734,38 @@ the corrected lookup behavior; upgrade the reader as well.</p>
 <li><a href="../advanced/enhance_graph.html">Graph Enhancement</a></li>
 <li><a href="hgraph.html">HGraph</a></li>
 </ul>
+<h2 id="experimental-adaptive-nsw-pruning"><a class="header" href="#experimental-adaptive-nsw-pruning">Experimental adaptive NSW pruning</a></h2>
+<p>Pyramid reuses the <a href="adaptive_pruning.html">adaptive neighbor selector</a> used by HGraph. Parameters are flat fields under <code>index_param</code> and <code>adaptive_pruning</code> is a boolean; the old
+experimental nested object and the removed <code>fill_rejected</code> option are rejected, so indexes
+using that experimental schema must be rebuilt. Configure its flat fields once under <code>index_param</code>; it applies to the bottom graph of each built path node, including a <code>single_layer</code> root and the bottom of a <code>multi_layer</code> root. Routing layers keep their existing fixed-alpha selection. Flat nodes start using the policy when they are promoted to NSW graphs.</p>
+<pre><code class="language-json">{
+    "graph_type": "nsw",
+    "alpha": 1.06,
+    "adaptive_pruning": true,
+    "adaptive_pruning_adjust_step": 0.06,
+    "adaptive_pruning_apply_to_reverse": true,
+    "adaptive_pruning_apply_to_upper": false
+}
+</code></pre>
+<p>These fields belong inside <code>index_param</code>; the example is an experiment configuration, not a recommended default for every dataset.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>adaptive_pruning</code></td><td><code>false</code></td><td>Use the shared multi-pass selector during NSW insertion</td></tr>
+<tr><td><code>adaptive_pruning_adjust_step</code></td><td><code>0.06</code></td><td>Step used to relax or tighten the hierarchy’s baseline alpha</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_reverse</code></td><td><code>false</code></td><td>Also re-prune full reverse lists, centered on the existing neighbor</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_upper</code></td><td><code>false</code></td><td>Reserved; enabling upper-layer adaptation is unsupported</td></tr>
+</tbody>
+</table>
+</div>
+<p>The policy is global, while each hierarchy retains its own effective <code>alpha</code> and maximum degree. There is no hierarchy-specific <code>adaptive_pruning</code> override. Every effective alpha must be finite, with <code>adjust_step &gt;= 0</code>, <code>alpha - 2*adjust_step &gt; 0</code>, and finite <code>alpha + 3*adjust_step</code>. For alpha 1.06 and step 0.06, the possible adjusted values span 0.94–1.24; these constants are not derived automatically from vector dimension.</p>
+<p>Enabled mode requires <code>graph_type: "nsw"</code> and <code>metric_type: "l2"</code>. A build with a nonempty imported cache is rejected; an empty cache is accepted. ODescent, routing-layer adaptation, and update/refinement paths are outside this policy’s scope. Reverse lists with spare capacity still append directly. The distance provider and quantizer are unchanged.</p>
+<p>Serialization records the policy. Reload requires matching enabled state and, when enabled, matching alpha, step and scope settings. Parameters saved without this field mean disabled mode. This allows consistent subsequent <code>Add</code> operations; it does not guarantee that older VSAG binaries can read newly serialized indexes.</p>
+<p>Compare QPS at comparable recall, together with build time and memory. Extra pruning passes can increase construction time even when the resulting graph accelerates queries. For <code>k=10</code>, Pyramid currently accepts <code>ef_search</code> only in <code>[1, 1000]</code>. A root-only GIST run with empty build paths and no query <code>Paths</code> measures unfiltered root search; its gains do not establish gains for path-filtered workloads. For RaBitQ + SQ8 reorder, construction uses the existing SQ8 distance provider; this configuration is distinct from RaBitQ 3+5 split storage.</p>
+<p>In the GIST 1M four-combination ablation, the single-factor QPS change from filling ranged from −3.4% to +4.7%, without consistent benefit, so unconditional filling and its option were removed. Reverse adaptation remains optional: it slowed all matched recall targets at alpha=1.06 and improved them at alpha=1.2 in this experiment. Each configuration used one parallel-built index; small differences do not establish stable gains. Select the reverse setting for the dataset and target recall.</p>
 
                     </main>
 

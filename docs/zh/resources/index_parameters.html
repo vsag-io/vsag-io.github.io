@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-30c491ac.js";
+            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-653235e0.js"></script>
+        <script src="../toc-ec46237e.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -350,6 +350,7 @@
 <tr><th>字段</th><th>典型值</th><th>说明</th></tr>
 </thead>
 <tbody>
+<tr><td><code>adaptive_pruning</code></td><td><code>false</code></td><td>实验性 NSW 底层正向/反向 L2 剪枝；详见 <a href="../indexes/hgraph.html#实验性自适应剪枝">HGraph</a></td></tr>
 <tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
 <tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
 <tr><td><code>alpha</code></td><td><code>1.0</code></td><td>最终 robust pruning 的系数；PiPNN 要求有限且不小于 <code>1.0</code></td></tr>
@@ -387,6 +388,7 @@
 </div>
 <p>现有的 <code>alpha</code> 字段控制 PiPNN 的最终 robust pruning。<code>ef_construction</code> 只调节 NSW，
 对 PiPNN 不生效。</p>
+<p>HGraph 还支持实验性的 L2 参数 <code>pipnn_adaptive_pruning</code>（默认 <code>false</code>）和 <code>pipnn_adaptive_pruning_adjust_step</code>（默认 <code>0.06</code>），在首次 <code>Build</code> 时逐点调整最终剪枝阈值。详情见 <a href="../indexes/hgraph.html">HGraph 动态 PiPNN 剪枝</a>。Pyramid 未暴露这两个选项。</p>
 <p>搜索时：</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
@@ -454,6 +456,7 @@
 </code></pre>
 <p>无需额外参数。</p>
 <h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
+<p><code>adaptive_pruning</code> 默认值为 <code>false</code>。实验性 NSW 底图正向/反向 L2 剪枝配置见 <a href="../indexes/pyramid.html#实验性-nsw-自适应剪枝">Pyramid</a>。</p>
 <p>Pyramid 构建参数同样放在 <code>index_param</code> 下：</p>
 <pre><code class="language-json">{
     "dtype": "float32",

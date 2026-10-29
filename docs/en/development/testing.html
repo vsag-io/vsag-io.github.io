@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
+            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8a615816.js"></script>
+        <script src="../toc-3b5df986.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -393,6 +393,81 @@ maintained indexes that advertise the corresponding feature flags.</li>
 <pre><code class="language-bash">make pyvsag PY_VERSION=3.10
 cd tests/python &amp;&amp; pytest -q
 </code></pre>
+<h2 id="report-testcase-budgets-and-time"><a class="header" href="#report-testcase-budgets-and-time">Report Testcase Budgets and Time</a></h2>
+<p><code>scripts/testing/test_budget_report.py</code> reads saved test listings, results and cost records
+without running tests. It works without Team CI inventory tooling:</p>
+<pre><code class="language-bash">build/tests/functests '~[daily]' --list-tests --reporter xml &gt; functests-list.xml
+build/tests/unittests '~[daily]' --list-tests --reporter xml &gt; unittests-list.xml
+python3 scripts/testing/test_budget_report.py \
+  --list-tests tests/functests=functests-list.xml \
+  --list-tests tests/unittests=unittests-list.xml \
+  --source-root "$PWD" --output budget-report.md
+</code></pre>
+<p><code>--list-tests</code> consumes Catch2 listing XML, not execution XML. The listing commands enumerate
+tests without executing them. All listed cases are retained, including template expansions;
+the report applies no extra daily exclusions. Add <code>--xml tests/functests=report.xml</code> for an
+existing Catch2 execution report, and <code>--cost tests/functests=cost.log</code> for budget logs from
+the same source revision. List XML hashes identify the input listings, not binary contents.</p>
+<p>Catch2’s XML reporter captures budget messages in <code>StdOut</code>. Import the same saved execution
+XML explicitly for both measurements; <code>--xml</code> imports time only, while <code>--cost</code> decodes XML
+escaping and reads only <code>[test-budget]</code> lines from <code>StdOut</code>:</p>
+<pre><code class="language-bash">python3 scripts/testing/test_budget_report.py \
+  --list-tests tests/functests=functests-list.xml \
+  --xml tests/functests=report.xml --cost tests/functests=report.xml \
+  --source-root "$PWD" --output budget-report.md
+</code></pre>
+<p>An XML report without marked budget records leaves costs <strong>unknown</strong>; malformed marked
+records fail rather than silently disappearing.</p>
+<p>Existing Team CI artifacts can instead supply the frozen inventory and execution results:</p>
+<pre><code class="language-bash">python3 scripts/testing/test_budget_report.py \
+  --inventory team-plan-RUN-ATTEMPT.zip \
+  --result team-results-0-RUN-ATTEMPT.zip \
+  --result team-results-1-RUN-ATTEMPT.zip \
+  --result team-results-2-RUN-ATTEMPT.zip \
+  --result team-results-3-RUN-ATTEMPT.zip \
+  --output budget-report.md
+</code></pre>
+<p>The inventory can also be schema 3 inventory/plan JSON, and each result can be a shard
+<code>result.json</code>. For Catch2 XML use <code>--xml tests/functests=report.xml</code> instead of duplicating
+those cases through <code>--result</code>. Add <code>--binary tests/functests</code> for the functional subset,
+<code>--group-by family</code> for index families, or <code>--format json</code> for per-case assignments.</p>
+<p>Counts retain binary identity: a case compiled into both unit and functional binaries counts
+twice. The ordered, mutually exclusive categories are Tune, recovery, serialization,
+mutation/concurrency, search/filter, build/train, data/quantization/SIMD, and Other. They are
+name/tag/source heuristics, not assertion coverage measurements.</p>
+<p>Optional <code>--cost tests/functests=cost.jsonl</code> adds schema 1 complete-case cost records. Each
+record has <code>model_version</code>, <code>unit</code>, <code>policy</code>, <code>case</code> (<code>name</code>, <code>tags</code>, <code>source_file</code>,
+<code>source_line</code>), <code>cap_points</code>, and <code>total_points</code>. Test logs may prefix records with
+<code>[test-budget]</code>; in that mode unrelated log lines are ignored. Only the top-level cap and
+estimated cost count, not nested <code>runs</code>. Identical complete plans emitted again by Catch
+generator re-entry count once and expose <code>identical_plan_repetitions</code>; differing plans for
+one case fail. A bridge record with empty tags and <code>source_line: 0</code> must match exactly one
+inventory case by binary, name, and full source identity. Catch’s original absolute or
+parent-relative paths are identity strings, never paths the report opens. Exact full-path
+matching is preferred; use <code>--source-root /absolute/checkout</code> only when an absolute path must
+map to a repository-relative identity. Basename matching is forbidden, and frozen inventory
+IDs and digests remain unchanged.</p>
+<p>Case-count shares, cap shares, estimated-cost shares, and measured case-second shares have
+separate denominators. Models, units, and policies are never combined. Missing measurements
+remain <strong>unknown</strong>, not zero; a timing-only baseline is valid when cost data is unavailable.
+Case-second sums are <strong>neither elapsed CI time nor CPU time</strong>. Failed cases and over-budget
+records remain visible; this reporting command does not replace CI’s completion checks.</p>
+<p>Run the report’s local fixture tests with <code>python3 tests/scripts/test_test_budget_report.py</code>.</p>
+<h2 id="budget-policy"><a class="header" href="#budget-policy">Budget Policy</a></h2>
+<p><code>tests/fixtures/core/test_budget.h</code> models logical work using N, D, Q and declared counts
+for data preparation, training, building, searching, reference-oracle calculations,
+serialization and mutations. A testcase plans its complete configuration matrix under one
+cap. Each candidate retains the required configurations and legal minimum sizes; if no legal
+candidate fits, planning fails. Catch generator re-entry shares that complete plan rather
+than granting a fresh cap. <code>CurrentPolicy</code> takes its seed from Catch’s <code>--rng-seed</code>, so resource
+selection is reproducible for the same testcase and seed.</p>
+<p>The first integration covers randomized resource families in HGraph, IVF, BruteForce, Warp
+and Dataset tests, not every static testcase. Uninstrumented cases remain unmodeled in reports.
+PR HGraph Tune keeps four representative transitions with Q=20 and N≤400; PiPNN uses one
+transition with Q=10 and N=256. Daily keeps all ten transitions with Q=100.</p>
+<p>Logical points and declared upper bounds are neither elapsed seconds nor a universal runtime
+limit. The budget does not replace assertions or timeouts, and exhausting it cannot silently
+skip a testcase or turn an incomplete run into a pass.</p>
 <h2 id="references"><a class="header" href="#references">References</a></h2>
 <ul>
 <li><code>tests/</code> directory</li>

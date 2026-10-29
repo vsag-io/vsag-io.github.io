@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-0c80e679.js";
+            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-8a615816.js"></script>
+        <script src="../toc-3b5df986.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -320,13 +320,46 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 <ul>
 <li><strong>Input</strong>: a <code>SearchRequest</code> (query dataset + <code>topk</code> + search parameter JSON).</li>
 <li><strong>Output</strong>: a JSON-formatted string containing dynamic, query-driven metrics.</li>
-<li><strong>Supported indexes</strong>: currently <code>HGraph</code>, <code>IVF</code>, <code>Pyramid</code>, and <code>SINDI</code>. Indexes that do not
-implement this API will throw an exception when called.</li>
+<li><strong>Supported indexes</strong>: all factory-registered indexes: <code>HGraph</code>, <code>IVF</code>, <code>Pyramid</code>, <code>SINDI</code>,
+<code>SINDI_V2</code>, <code>SIMQ</code>, <code>BruteForce</code>, <code>WARP</code>, and <code>LazyHGraph</code>.</li>
 </ul>
 <p>It is complementary to <code>Index::GetStats()</code>, which reports static structural properties of the
 index without needing query data. For graph-based indexes, additional graph-health details such
 as degree distribution, entry-point quality, sub-index recall and low-recall hot-spots are
 exposed through <code>GetStats()</code> rather than through <code>AnalyzeIndexBySearch</code>.</p>
+<h3 id="common-output-contract"><a class="header" href="#common-output-contract">Common output contract</a></h3>
+<p>Every successful static or dynamic analysis returns a JSON object with an <code>_analysis</code> member:</p>
+<pre><code class="language-json">{
+  "_analysis": {
+    "schema_version": 1,
+    "index_type": "brute_force",
+    "analysis_type": "search",
+    "status": "partial",
+    "sample_count": 10,
+    "topk": 10,
+    "consistency": "weak_snapshot",
+    "skipped": { "recall_query": "ground truth was not requested" }
+  }
+}
+</code></pre>
+<p>Existing index-specific fields remain at the JSON root for compatibility. <code>status</code> is <code>complete</code>
+when all applicable metrics were computed, <code>partial</code> when individual metrics are listed under
+<code>skipped</code>, and <code>not_applicable</code> when the request is valid but no metric can be computed (for
+example, search analysis on an empty index). Invalid arguments and execution failures still throw.
+Specialized analyzers may report an unavailable root-level metric as an object containing a
+string <code>skipped_reason</code>; the common metadata layer mirrors that reason into
+<code>_analysis.skipped.&lt;metric&gt;</code>. Baseline analyzers write the same public representation directly to
+<code>_analysis.skipped</code>. Consumers should rely on <code>_analysis.skipped</code>, while <code>skipped_reason</code> remains
+an index-specific compatibility detail.</p>
+<p><code>BruteForce</code> and <code>WARP</code> provide exact-search baseline counts and latency. <code>SINDI_V2</code> and <code>SIMQ</code>
+provide baseline counts and query latency while index-specific quality metrics are reported as
+skipped. <code>LazyHGraph</code> delegates to its active BruteForce or HGraph backend and adds its current
+<code>phase</code> and <code>transition_threshold</code>; its reported <code>index_type</code> remains <code>lazy_hgraph</code>.</p>
+<p>Analysis is synchronous and intended for offline diagnostics. It can scan substantial parts of an
+index and specialized analyzers may compute exact ground truth. Analysis never changes search or
+serialization configuration and is safe with concurrent read-only search. Unless an index offers a
+stronger lock-protected view, <code>_analysis.consistency</code> is <code>weak_snapshot</code>; do not run analysis
+concurrently with Add, Remove, Update, or phase transition.</p>
 <p>Pyramid query analysis follows the same path-scoping rules as <code>KnnSearch</code>. For the default
 hierarchy, attach paths with <code>Dataset::Paths</code>. For a named hierarchy, use
 <code>Dataset::Paths(hierarchy_name, paths)</code> and select that hierarchy in the Pyramid search parameters.

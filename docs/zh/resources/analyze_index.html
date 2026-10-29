@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-30c491ac.js";
+            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-653235e0.js"></script>
+        <script src="../toc-ec46237e.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -319,12 +319,41 @@ AnalyzeIndexBySearch(const SearchRequest&amp; request);
 <ul>
 <li><strong>输入</strong>：<code>SearchRequest</code>（查询数据集 + <code>topk</code> + 搜索参数 JSON）。</li>
 <li><strong>输出</strong>：JSON 字符串，包含基于查询的动态指标。</li>
-<li><strong>支持的索引类型</strong>：当前支持 <code>HGraph</code>、<code>IVF</code>、<code>Pyramid</code> 与 <code>SINDI</code>。未实现该接口的
-索引在调用时会抛出异常。</li>
+<li><strong>支持的索引类型</strong>：工厂注册的全部索引，即 <code>HGraph</code>、<code>IVF</code>、<code>Pyramid</code>、<code>SINDI</code>、
+<code>SINDI_V2</code>、<code>SIMQ</code>、<code>BruteForce</code>、<code>WARP</code> 与 <code>LazyHGraph</code>。</li>
 </ul>
 <p>该接口与 <code>Index::GetStats()</code> 互为补充：后者无需查询数据，只输出索引的静态结构指标。
 对于基于图的索引，度分布、入口点质量、子索引召回率以及低召回热点节点等图健康度信息，
 通过 <code>GetStats()</code> 而非 <code>AnalyzeIndexBySearch</code> 输出。</p>
+<h3 id="公共输出契约"><a class="header" href="#公共输出契约">公共输出契约</a></h3>
+<p>每次成功的静态或动态分析都会返回 JSON 对象，并包含 <code>_analysis</code> 成员：</p>
+<pre><code class="language-json">{
+  "_analysis": {
+    "schema_version": 1,
+    "index_type": "brute_force",
+    "analysis_type": "search",
+    "status": "partial",
+    "sample_count": 10,
+    "topk": 10,
+    "consistency": "weak_snapshot",
+    "skipped": { "recall_query": "ground truth was not requested" }
+  }
+}
+</code></pre>
+<p>为保持兼容，已有索引专属字段继续位于 JSON 根节点。全部适用指标均已计算时 <code>status</code> 为
+<code>complete</code>；部分指标因依赖不足而位于 <code>skipped</code> 时为 <code>partial</code>；请求合法但无法计算任何指标
+（例如对空索引执行搜索分析）时为 <code>not_applicable</code>。非法参数和执行失败仍然抛出异常。
+专用 Analyzer 可以把不可用的根级指标表示为包含字符串 <code>skipped_reason</code> 的对象；公共元数据层
+会将该原因同步到 <code>_analysis.skipped.&lt;metric&gt;</code>。基线 Analyzer 则直接写入相同的公共表示
+<code>_analysis.skipped</code>。使用方应以 <code>_analysis.skipped</code> 为准，而将 <code>skipped_reason</code> 视为索引专属的
+兼容性细节。</p>
+<p><code>BruteForce</code> 与 <code>WARP</code> 提供精确搜索基线计数及耗时；<code>SINDI_V2</code> 与 <code>SIMQ</code> 提供基线计数和
+查询耗时，并将尚无真值的专属质量指标标记为 skipped。<code>LazyHGraph</code> 委托当前 BruteForce 或
+HGraph 后端，并追加 <code>phase</code> 与 <code>transition_threshold</code>；其 <code>index_type</code> 始终为 <code>lazy_hgraph</code>。</p>
+<p>Analysis 是同步、面向离线诊断的操作，可能扫描大量索引数据，专用 Analyzer 还可能计算精确
+真值。Analysis 不修改搜索或序列化配置，可与只读 Search 并发执行。除非索引提供更强的加锁
+快照，否则 <code>_analysis.consistency</code> 为 <code>weak_snapshot</code>；不要让 Analysis 与 Add、Remove、Update
+或 phase transition 并发执行。</p>
 <p>Pyramid 的查询分析遵循与 <code>KnnSearch</code> 相同的路径限定语义。对于默认 hierarchy，
 使用 <code>Dataset::Paths</code> 设置路径；对于命名 hierarchy，使用
 <code>Dataset::Paths(hierarchy_name, paths)</code> 设置路径，并在 Pyramid 搜索参数中选择该

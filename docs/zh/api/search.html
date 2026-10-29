@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-30c491ac.js";
+            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-653235e0.js"></script>
+        <script src="../toc-ec46237e.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -374,7 +374,20 @@ request.distance_batch_func_ = [query](const int64_t* ids, uint64_t count, float
 <p><code>ivf</code> 支持带回调的 KNN，但必须提供一个非空的单查询向量。IVF 先以配置的内置 metric 选出
 <code>scan_buckets_count</code> 个桶，再对这些桶中的候选调用回调。回调决定候选排序，但无法召回未被选中的
 桶内向量；增大 <code>scan_buckets_count</code> 可提高 recall。回调 IVF 不支持范围搜索、<code>disable_bucket_scan</code>、
-bucket graph 或并行搜索，这些配置会被拒绝。回调模式会自动关闭精排。其他索引不支持该回调。</p>
+bucket graph，这些配置会被拒绝。回调模式会自动关闭精排。其他索引不支持该回调。</p>
+<p>IVF 回调搜索在线程池可用时支持按搜索参数 <code>parallelism</code> 执行桶间并行，否则回退到串行。
+例如设置 <code>{"ivf":{"scan_buckets_count":8,"parallelism":4}}</code>。
+每个 worker 独立持有属性 Executor、批缓冲和结果堆，处理顺序为
+<strong>属性过滤 → 距离回调 → 局部 top-k 分数门槛判断 → 普通 filter → 入堆</strong>。
+只有局部堆未满或分数有机会改善结果时，才调用可能非常昂贵的普通 filter。
+只有通过该 filter 的候选才能入堆并收紧门槛；合并 worker 结果堆时不会再次调用 filter。</p>
+<p>启用并行搜索时，回调与普通 filter（包括共享或捕获的状态）都必须支持并发调用。
+filter 判定在一次请求内必须稳定，不能依赖调用顺序或其他 ID 是否已被检查。
+批组成和调用顺序可能变化，每个 ID 的分数不能依赖它们。<code>distance_batch_size_</code> 仍是单次调用的
+最大批宽，不是并发度上限。同分结果的 ID 可能随执行顺序变化。局部门槛可能比串行门槛宽松，
+因此并行搜索可能执行更多次 filter；分数剪枝节省的是 filter 与堆操作，不减少已提交给回调的距离计算。
+reasoning 中，已经评分的候选即使被分数门槛跳过也会记录为已访问；只有实际执行 filter 并被拒绝
+才记录过滤拒绝。诊断不会为了给分数剪枝候选分类而额外调用昂贵 filter。</p>
 <h3 id="ivf-桶路由"><a class="header" href="#ivf-桶路由">IVF 桶路由</a></h3>
 <p>IVF 可通过 <code>params_str_</code> 接收
 <code>{"ivf":{"scan_buckets_count":N,"disable_bucket_scan":true}}</code>。该仅路由模式按查询返回

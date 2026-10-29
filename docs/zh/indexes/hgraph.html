@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-30c491ac.js";
+            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-653235e0.js"></script>
+        <script src="../toc-ec46237e.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -314,6 +314,16 @@ HGraph 都是推荐的默认索引。</p>
 <li>源码：<code>src/algorithm/hgraph.{h,cpp}</code></li>
 <li>示例：<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/103_index_hgraph.cpp"><code>examples/cpp/103_index_hgraph.cpp</code></a></li>
 </ul>
+<h2 id="磁盘读缓存示例"><a class="header" href="#磁盘读缓存示例">磁盘读缓存示例</a></h2>
+<p><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/406_feature_read_cache.cpp"><code>406_feature_read_cache.cpp</code></a>
+使用 1,000 个 64 维向量，基础 SQ8 编码存于内存，精排 FP32 编码存于磁盘（<code>async_io</code>）。
+示例设置 <code>build_by_base: true</code>，让构图读取内存中的基础编码，避免在这个小型用法示例中反复填充磁盘读缓存。
+这会改变构图所用的量化编码，因此该示例不是召回率基准，也不演示使用精排编码构图。</p>
+<p>读缓存保持启用，预算为 131,072 字节（一个 128-KiB 页）；256,000 字节的 FP32 数据跨越两页。
+示例序列化为 <code>BinarySet</code> 后恢复新索引，并检查恢复后的元素数量、top-10 结果形状、ID 范围及距离是否有限。
+请在新的工作目录中使用可写文件路径运行。写入和持久化行为保持不变。
+专门的 AsyncIO 测试覆盖单页缓存的淘汰与重新加载、写入失效及无效读取；
+HGraph 读缓存功能测试继续覆盖使用精排编码构图的路径。</p>
 <h2 id="工作原理"><a class="header" href="#工作原理">工作原理</a></h2>
 <ol>
 <li><strong>构图。</strong> 向量被组织成层级近邻图：上层作为导航入口，底层连接每个数据点到在
@@ -373,6 +383,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>pipnn_leaf_neighbor_count</code></td><td>int</td><td><code>5</code></td><td>每个点在每个叶子中贡献的最近候选数，是 PiPNN 主要的质量/构建工作量旋钮；小于 <code>pipnn_min_leaf_size</code> 的叶子至少使用 <code>4</code></td></tr>
 <tr><td><code>pipnn_hash_plane_count</code></td><td>int</td><td><code>12</code></td><td>方向 hash 位数，范围 <code>[1, 15]</code>；<code>max_degree</code> 不能超过 <code>2</code> 的该次幂</td></tr>
 <tr><td><code>pipnn_reservoir_size</code></td><td>int</td><td><code>64</code></td><td>最终剪枝前每个点保留的候选槽数；实际容量至少为 <code>max_degree</code></td></tr>
+<tr><td><code>pipnn_adaptive_pruning</code></td><td>bool</td><td><code>false</code></td><td>实验性逐点动态 alpha，仅用于 PiPNN 最终剪枝，要求 L2</td></tr>
+<tr><td><code>pipnn_adaptive_pruning_adjust_step</code></td><td>float</td><td><code>0.06</code></td><td>调整步长；启用时要求有限、非负、<code>alpha - 2*step &gt; 0</code>，且 <code>alpha + 3*step</code> 有限</td></tr>
 <tr><td><code>use_reverse_edges</code></td><td>bool</td><td><code>false</code></td><td>跟踪入边，实现 O(1) 反向邻居查找；边存储约翻倍，且 <code>graph_storage_type: "compressed"</code> 不支持</td></tr>
 <tr><td><code>label_remap_type</code></td><td>string</td><td><code>"pg"</code></td><td>label 到内部 ID 的 map 实现：<code>"pg"</code> 或 <code>"robin"</code>；恢复或组合兼容索引时应保持一致</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否额外保留一份高精度副本用于精排</td></tr>
@@ -385,9 +397,9 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>rabitq_fused_datacell</code></td><td>bool</td><td><code>false</code></td><td>将底层 HGraph 节点与 RaBitQ split 编码融合到一条内存记录中；要求 L2/IP、flat 内存图、x 在 <code>[1, 4]</code> 的 RaBitQ x+y split 编码，并满足 <a href="../quantization/rabitq_split.html">RaBitQ x+y split</a> 中的其他约束</td></tr>
 <tr><td><code>train_sample_count</code></td><td>int</td><td><code>65536</code></td><td>量化器训练的最大采样向量数；显式配置时最小为 <code>512</code></td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>构建阶段并发线程数</td></tr>
-<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>是否在插入时做重复 ID 检测</td></tr>
+<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>合并重复向量的图节点，并保留各自的标签</td></tr>
 <tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>让重复向量共享存储；需同时设置 <code>support_duplicate: true</code></td></tr>
-<tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>重复判定距离阈值。大于 <code>0</code> 时按最近候选的距离判重；等于 <code>0</code> 时退化为当前编码 <code>memcmp</code> 判重</td></tr>
+<tr><td><code>duplicate_distance_threshold</code></td><td>float</td><td><code>0.0</code></td><td>重复判定距离阈值。大于 <code>0</code> 时按最近候选的距离判重；等于 <code>0</code> 时先比较最近候选的编码，不匹配则继续检查构建搜索返回的其余候选，直到找到匹配</td></tr>
 <tr><td><code>support_remove</code></td><td>bool</td><td><code>false</code></td><td>是否启用 mark-remove 恢复路径所需的图删除追踪元数据</td></tr>
 <tr><td><code>support_force_remove</code></td><td>bool</td><td><code>false</code></td><td>是否启用 <code>RemoveMode::FORCE_REMOVE</code> 及其额外同步</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>除量化副本外再保留原始向量（<code>cosine</code> 场景有用）</td></tr>
@@ -412,17 +424,26 @@ auto result = index-&gt;KnnSearch(
 <a href="https://arxiv.org/abs/2602.21247">PiPNN</a>。PiPNN 构建器接收 <code>dtype: "float32"</code>、
 <code>metric_type: "l2"</code>、<code>"ip"</code> 或 <code>"cosine"</code> 的稠密向量输入，从原始构建向量生成底层图，并复用
 HGraph 现有的路由层、向量存储、搜索、过滤、精排、增量 <code>Add</code>、删除和序列化路径。持久化底层
-存储可以使用 <code>sq8</code> 等受支持的量化器，包括 RaBitQ 配合 SQ8 精排。缓存辅助构建和向量存储去重
-暂不支持 PiPNN。上表的 <code>pipnn_*</code> 参数用于调节该构建器，<code>ef_construction</code> 不生效；
+存储可以使用 <code>sq8</code> 等受支持的量化器，包括 RaBitQ 配合 SQ8 精排。缓存辅助构建暂不支持 PiPNN。
+上表的 <code>pipnn_*</code> 参数用于调节该构建器，<code>ef_construction</code> 不生效；
 现有的 <code>alpha</code> 参数控制 PiPNN 的最终 robust pruning。</p>
 <p><code>build_thread_count</code> 会并行化向量预处理、分区、候选边生成和最终剪枝。性能测试时应固定
 <code>OPENBLAS_NUM_THREADS=1</code>，避免 BLAS 线程影响构建线程扩展性。可复现配置
 <code>tools/eval/pipnn_parallel.yaml</code> 会在 SIFT1M 上以相同 Recall@10 目标比较 NSW、ODescent 和
 PiPNN，并通过查询验证每一份生成的图。</p>
+<h3 id="实验性-pipnn-动态-alpha"><a class="header" href="#实验性-pipnn-动态-alpha">实验性 PiPNN 动态 alpha</a></h3>
+<p>在 <code>index_param</code> 中设置 <code>pipnn_adaptive_pruning: true</code>，将 <a href="https://github.com/antgroup/vsag/pull/2933">PR #2933</a> 的逐点计数反馈规则用于 PiPNN 最终 reservoir 剪枝。此实验功能默认关闭，仅支持 L2 和初始批量 <code>Build</code>；分区、leaf 内候选、relative hash、reservoir 内容、后续增量 <code>Add</code> 及 ODescent 路由层构建保持原有行为。</p>
+<p>设目标度数为 K，首轮按配置的 alpha 扫描原有有序 reservoir，得到接受集合 A 和已扫描的拒绝集合 B；未扫描尾部不计入 B。步长非零时，若 <code>0 &lt; |A| &lt; K</code>，保留 A，根据 <code>K/|A| &lt;= 1.5</code>、<code>(1.5, 3]</code>、<code>&gt; 3</code> 分别将 alpha 增加 1、2、3 个步长，重扫 B。若 <code>|A| = K</code>，根据 <code>|B|/K &lt; 2.5</code>、<code>[2.5, 5)</code>、<code>&gt;= 5</code> 分别将 alpha 减少 2、1、0 个步长，清空 A 并重扫完整原候选列表（包括首轮未扫描尾部）。收紧后若不足 K，保留当前接受项，按原 alpha 重扫收紧阶段新产生的拒绝集合。不会无条件补入被拒绝的邻居。</p>
+<p>拒绝条件仍为 <code>alpha * d(已选邻居, 候选) &lt; d(源点, 候选)</code>。保留 PiPNN 的 BF16 源点距离缓存、FP32 两点平方 L2 计算和 <code>(距离, 源点 ID 差, ID)</code> 排序。PiPNN 原算法已对较短 reservoir 剪枝，因此零步长会复现其原单轮邻接结果。贪心选择和度数上限意味着 Recall 不一定随 alpha 单调增加。</p>
+<p>策略和步长会序列化；加载已启用的索引要求策略、基础 alpha、步长一致，旧参数缺失字段按关闭处理。关闭时保留原有行为。该功能属于实验性质，需对比构建开销和匹配召回率时的查询吞吐。</p>
 <h3 id="向量存储去重"><a class="header" href="#向量存储去重">向量存储去重</a></h3>
 <p>同时设置 <code>support_duplicate: true</code> 和 <code>deduplicate_storage: true</code> 后，重复向量会共享
-同一个物理编码槽位，但仍保留各自的标签。该选项目前仅支持使用 <code>graph_type: "nsw"</code> 的
-稠密向量 HGraph 索引；<code>graph_type: "odescent"</code> 和 <code>graph_type: "pipnn"</code> 不支持。</p>
+同一个物理编码槽位，但仍保留各自的标签。该选项支持使用 <code>graph_type: "nsw"</code> 或 <code>"pipnn"</code> 的
+稠密向量 HGraph 索引；<code>graph_type: "odescent"</code> 不支持。</p>
+<p>PiPNN 初始 <code>Build</code> 按 FP32 原始输入行的字节相等关系分组，每个代表向量只编码一次，
+各 label 的属性和 extra_info 仍独立保存，也可同时启用动态 alpha。
+<code>duplicate_distance_threshold</code> 不参与 PiPNN 批量分组；后续增量 <code>Add</code> 沿用现有的
+距离阈值或编码判重规则。量化器仍使用原有训练样本进行训练。</p>
 <p>启用存储去重后，暂不支持以下操作和配置：</p>
 <ul>
 <li>强制删除（<code>support_force_remove: true</code>）；</li>
@@ -651,6 +672,57 @@ auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
 <li><a href="../advanced/optimizer.html">优化器</a></li>
 <li><a href="../advanced/serialization.html">序列化格式</a></li>
 </ul>
+<h2 id="实验性自适应剪枝"><a class="header" href="#实验性自适应剪枝">实验性自适应剪枝</a></h2>
+<p>完整规则、几何示例与相关研究见<a href="adaptive_pruning.html">自适应剪枝算法文档</a>。</p>
+<p>参数平铺在 <code>index_param</code> 下，<code>adaptive_pruning</code> 是布尔开关；旧实验版嵌套对象和已删除的 <code>fill_rejected</code> 参数会报错。使用旧实验格式的索引需重新构建。</p>
+<p><code>index_param.adaptive_pruning</code> 为 NSW <strong>底层新节点正向选边</strong>启用多轮 L2 剪枝，默认关闭。
+普通 <code>Build</code>、并行插入、<code>Add</code> 以及 NSW 优化构建（包括 RaBitQ split/fused）共用该选择器。
+设置 <code>adaptive_pruning_apply_to_reverse: true</code> 后，底层已满的反向邻居表也使用自适应剪枝。
+邻居表未满时仍直接追加新节点；已满时以被更新的旧节点为中心，将旧邻居与新节点合并为候选，
+在原有节点锁内使用相同的 alpha 和步长策略完成选边和写回。
+上层和更新/细化仍使用固定 alpha。启用时仍拒绝 ODescent、导入缓存后的构建、IP/cosine
+以及 <code>adaptive_pruning_apply_to_upper: true</code>。</p>
+<p>将以下字段放在 <code>index_param</code> 内。这是 GIST 参考实验配置，不按维度自动设置，也不代表已验证性能收益：</p>
+<pre><code class="language-json">{
+    "alpha": 1.06,
+    "graph_type": "nsw",
+    "adaptive_pruning": true,
+    "adaptive_pruning_adjust_step": 0.06,
+    "adaptive_pruning_apply_to_reverse": false,
+    "adaptive_pruning_apply_to_upper": false
+}
+</code></pre>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>默认值</th><th>含义</th></tr>
+</thead>
+<tbody>
+<tr><td><code>adaptive_pruning</code></td><td><code>false</code></td><td>启用自适应选择器</td></tr>
+<tr><td><code>adaptive_pruning_adjust_step</code></td><td><code>0.06</code></td><td>alpha 调整步长 δ</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_reverse</code></td><td><code>false</code></td><td>对已满的底层反向邻居表启用自适应剪枝；需同时 <code>adaptive_pruning: true</code></td></tr>
+<tr><td><code>adaptive_pruning_apply_to_upper</code></td><td><code>false</code></td><td>预留；启用时不支持 <code>true</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>基准值沿用已有 <code>alpha</code>。启用时要求 alpha 和 δ 有限，δ 非负，<code>alpha - 2*δ &gt; 0</code>，
+且 <code>alpha + 3*δ</code> 有限。距离来自原有建图距离提供器，必须为有限、非负的 L2 值；
+此开关不改变建图量化器。</p>
+<p>候选按 <code>(距离, 内部 ID)</code> 排序、去重并删除自环。若已选 s 满足
+<code>alpha * d(s,c) &lt; d(center,c)</code>，则拒绝候选 c。第一轮接受数达到图的实际最大度 K 时停止，保留未扫描尾部。</p>
+<ul>
+<li>接受集合 A 不满 K：保留 A，以 <code>alpha + k*δ</code> 重扫拒绝集合。
+<code>K/|A| &gt; 3</code> 取 k=3，<code>1.5 &lt; K/|A| &lt;= 3</code> 取 k=2，其余取 k=1。
+不追加仍被拒绝的候选，允许邻接表不足 K。</li>
+<li>A 达到 K：清空 A，以 <code>alpha - k*δ</code> 重扫完整排序候选（含原尾部）。
+以第一轮拒绝集合 B 计算：<code>|B|/K &gt;= 5</code> 取 k=0，<code>2.5 &lt;= |B|/K &lt; 5</code> 取 k=1，其余取 k=2。
+若仍不满 K，以基准 alpha 重扫新的拒绝集合；此分支不无条件补边。</li>
+<li>δ=0：只执行一次基准扫描，不补边。关闭功能时保留 legacy 的全部规则，
+包括候选不足 K 时直接返回的短路，因此两者不等价。</li>
+</ul>
+<p>临时数据和可选统计仅属于单次调用；不增加全局计数或修改图锁协议。
+序列化保存该配置。加载时 adaptive_pruning 必须相同；启用时还要求 alpha、步长和作用范围一致，
+否则兼容性检查失败。没有该字段的旧索引按关闭处理。</p>
 
                     </main>
 
@@ -660,7 +732,7 @@ auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../indexes/lazy_hgraph.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/adaptive_pruning.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -674,7 +746,7 @@ auto result = index-&gt;KnnSearch(query, topk, params, my_filter).value();
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../indexes/lazy_hgraph.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/adaptive_pruning.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
