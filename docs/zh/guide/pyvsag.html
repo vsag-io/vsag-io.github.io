@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
+            window.path_to_searchindex_js = "../searchindex-14903171.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ec46237e.js"></script>
+        <script src="../toc-e83d9634.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,18 +305,20 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="pyvsag"><a class="header" href="#pyvsag">pyvsag</a></h1>
-<p><code>pyvsag</code> 是 VSAG 的 Python 绑定包，接口封装基于 <a href="https://github.com/pybind/pybind11">pybind11</a> 实现，源代码位于仓库 <a href="https://github.com/antgroup/vsag/tree/main/python_bindings"><code>python_bindings/</code></a> 目录，打包脚本位于 <a href="https://github.com/antgroup/vsag/tree/main/python"><code>python/</code></a>。</p>
+<p><code>pyvsag</code> 是 VSAG 的 Python 绑定包，是一个纯 Python 层，通过 <a href="https://cffi.readthedocs.io/">cffi</a> 调用 <a href="c_api.html">C API</a>（<code>libvsag_c</code>）。每个 CPU 架构只需一个 <code>py3-none-manylinux_2_28</code> wheel，即可适用于所有 CPython 3.10+ 版本。数据仅以指针、形状和 dtype 的形式跨越边界，因此不依赖 NumPy 的 ABI。源代码与打包脚本位于 <a href="https://github.com/antgroup/vsag/tree/main/python"><code>python/</code></a>。</p>
 <h2 id="安装"><a class="header" href="#安装">安装</a></h2>
 <p>从 PyPI 安装最新发布版本：</p>
 <pre><code class="language-bash">pip install pyvsag
 </code></pre>
-<p>需要在 Linux 环境下使用（<code>manylinux2014</code> wheel）。如果希望构建本地 wheel，可以运行：</p>
-<pre><code class="language-bash"># 构建特定 Python 版本的 wheel
-make pyvsag PY_VERSION=3.11
-
-# 或一次构建所有受支持版本
-make pyvsag-all
+<p>需要在 Linux 环境下使用（<code>manylinux_2_28</code> wheel）。如果希望构建本地 wheel，可以运行：</p>
+<pre><code class="language-bash">make pyvsag
 </code></pre>
+<p>注意事项：</p>
+<ul>
+<li>C++ 库在搜索期间会释放 GIL，内部 OpenMP 线程不受 GIL 影响，线程数可通过 <code>OMP_NUM_THREADS</code> 控制。</li>
+<li>使用 <code>multiprocessing</code> 时请选择 <code>spawn</code> 启动方式，不要在 <code>fork</code> 之间共享索引。</li>
+<li>在源码目录中运行时，可通过 <code>PYVSAG_LIBRARY</code> 指定要加载的 <code>libvsag_c</code>。</li>
+</ul>
 <h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
 <p><code>pyvsag</code> 暴露一个与 C++ <code>Index</code> 对象对应的 <code>Index</code> 类，构建与搜索参数使用 JSON 字符串传递：</p>
 <pre><code class="language-python">import json
@@ -407,7 +409,7 @@ removed = index.remove(candidate_ids)
 <ul>
 <li>大多数 C++ 参数在 Python 中以相同的 JSON 字段传递；</li>
 <li>C++ 版本新增的索引类型、量化方式、距离度量会随 <code>pyvsag</code> 的下一个 release 一同发布；</li>
-<li>构建 wheel 时所使用的依赖项与发布版 C++ 库相同（OpenBLAS、libaio 等）。</li>
+<li>构建 wheel 时所使用的依赖项与发布版 C++ 库相同（OpenBLAS 等），但关闭了 libaio（<code>ENABLE_LIBAIO=OFF</code>）。此时 <code>async_io</code> 仍可选用，但会退化为带缓冲的兼容后端（单次 <code>buffer_io</code> 读取，且写入后不做 fsync），并只打印一次警告；需要真正的 libaio 路径时，请在本地用 <code>VSAG_ENABLE_LIBAIO=ON pip install python/</code> 自行构建。详见<a href="../resources/disk_index.html">磁盘索引</a>。</li>
 </ul>
 <p>关于可用参数和索引类型，请参考 <a href="create_index.html">创建索引</a> 和 <a href="../resources/index_parameters.html">索引参数</a>。</p>
 

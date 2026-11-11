@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
+            window.path_to_searchindex_js = "../searchindex-14903171.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ec46237e.js"></script>
+        <script src="../toc-e83d9634.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -311,7 +311,7 @@
 <li><a href="https://github.com/antgroup/vsag/blob/main/.clang-format"><code>.clang-format</code></a> 定义自动格式化规则；</li>
 <li><a href="https://github.com/antgroup/vsag/blob/main/.clang-tidy"><code>.clang-tidy</code></a> 定义命名与静态检查规则。</li>
 </ul>
-<p>VSAG 严格要求使用 <strong>clang-format 15</strong> 和 <strong>clang-tidy 15</strong>。其他版本可能产生不同的格式化
+<p>VSAG 严格要求使用 <strong>clang-format 20</strong> 和 <strong>clang-tidy 20</strong>。其他版本可能产生不同的格式化
 结果或诊断信息，无法通过 CI。</p>
 <h2 id="代码组织"><a class="header" href="#代码组织">代码组织</a></h2>
 <ul>
@@ -345,7 +345,7 @@
 </tbody>
 </table>
 </div>
-<p>例如，clang-format 15 会将类声明格式化为：</p>
+<p>例如，clang-format 20 会将类声明格式化为：</p>
 <pre><code class="language-cpp">class Example {
 public:
     Result&lt;DatasetPtr&gt;
@@ -453,10 +453,10 @@ auto* handle = reinterpret_cast&lt;Handle*&gt;(raw_handle);
 <h2 id="运行检查"><a class="header" href="#运行检查">运行检查</a></h2>
 <p>首先安装指定版本的工具：</p>
 <pre><code class="language-bash"># Ubuntu 或 Debian
-sudo apt-get install clang-format-15 clang-tidy-15 clang-tools-15
+sudo apt-get install clang-format-20 clang-tidy-20 clang-tools-20
 
 # macOS
-brew install llvm@15
+brew install llvm@20
 </code></pre>
 <p>格式化所有项目 C++ 文件并检查修改：</p>
 <pre><code class="language-bash">make fmt
@@ -477,8 +477,8 @@ make test
 </code></pre>
 <h2 id="提交修改前"><a class="header" href="#提交修改前">提交修改前</a></h2>
 <ul>
-<li>使用 clang-format 15 格式化所有修改过的 C++ 文件；</li>
-<li>使用 clang-tidy 15 检查修改过的生产环境源码；</li>
+<li>使用 clang-format 20 格式化所有修改过的 C++ 文件；</li>
+<li>使用 clang-tidy 20 检查修改过的生产环境源码；</li>
 <li>确认命名符合上述规则，尤其是结构体使用 <code>CamelCase</code>；</li>
 <li>确保每个 <code>NOLINT</code> 都指定具体检查，并说明原因；</li>
 <li>新功能包含测试，bug 修复包含回归测试；</li>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
+            window.path_to_searchindex_js = "../searchindex-14903171.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ec46237e.js"></script>
+        <script src="../toc-e83d9634.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -350,13 +350,13 @@ arm64。macOS 当前验证范围是核心 C++ 库的 <code>make debug</code>、<
 <li>构建工具：
 <ul>
 <li><strong>CMake 3.18.0</strong> 或更高版本</li>
-<li><strong>clang-format 15</strong>（精确版本，用于代码格式化）</li>
-<li><strong>clang-tidy 15</strong>（精确版本，用于静态检查）</li>
+<li><strong>clang-format 20</strong>（精确版本，用于代码格式化）</li>
+<li><strong>clang-tidy 20</strong>（精确版本，用于静态检查）</li>
 </ul>
 </li>
 <li>其他依赖项：
 <ul>
-<li>Linux：gfortran、OpenMP、libaio、Python 3.6+、curl</li>
+<li>Linux：gfortran、OpenMP、libaio、Python 3.10+、curl</li>
 <li>macOS：Xcode Command Line Tools、Homebrew</li>
 </ul>
 </li>
@@ -377,6 +377,8 @@ arm64。macOS 当前验证范围是核心 C++ 库的 <code>make debug</code>、<
 <pre><code class="language-bash">make release &amp;&amp; make install
 </code></pre>
 <p>更多构建选项请参考 <a href="../development/building.html">编译构建</a>。</p>
+<h2 id="c-客户端兼容性"><a class="header" href="#c-客户端兼容性">C++ 客户端兼容性</a></h2>
+<p>Full VSAG 源码构建在内部使用 C++20；安装后的公开头文件和 API 支持 C++17 客户端。CUDA、Node.js 绑定和独立 Lite 保持 C++17。Ubuntu 自动安装脚本要求 Ubuntu 24.04+，安装 GCC 13 和 LLVM 20；旧发行版需要自行准备对应工具链。预编译包保持既有 glibc 基线，客户端的 <code>_GLIBCXX_USE_CXX11_ABI</code> 必须与所选包一致。</p>
 
                     </main>
 

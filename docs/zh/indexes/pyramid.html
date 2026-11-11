@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
+            window.path_to_searchindex_js = "../searchindex-14903171.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ec46237e.js"></script>
+        <script src="../toc-e83d9634.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -380,7 +380,8 @@ auto result = index-&gt;KnnSearch(
 <h2 id="支持的输入数据类型"><a class="header" href="#支持的输入数据类型">支持的输入数据类型</a></h2>
 <p>Pyramid 的 <code>Build</code>、<code>Add</code> 和检索支持 <code>dtype: "float16"</code>、<code>dtype: "bfloat16"</code> 输入，也保留原有的 <code>"float32"</code> 输入支持。输入 <code>dtype</code> 与存储量化器是两个独立选项：<code>dtype</code> 使用 <code>"float16"</code> / <code>"bfloat16"</code>，量化参数则使用 <code>"fp16"</code> / <code>"bf16"</code>。</p>
 <p>两种半精度输入都通过 <code>Dataset::Float16Vectors</code> 提供连续的 <code>uint16_t</code> 缓冲区。缓冲区应包含<strong>已经编码的 FP16 或 BF16 位模式</strong>，而不是将浮点数直接数值转换为整数的结果；<code>dtype</code> 决定这些位模式的解释方式。Build/Add 缓冲区包含 <code>NumElements() * Dim()</code> 个元素，查询缓冲区也必须使用与索引一致的输入格式。ID 和路径的设置与上面的示例相同，将 <code>Float32Vectors(data)</code> 和 <code>Float32Vectors(q)</code> 分别替换为 <code>Float16Vectors(half_data)</code> 和 <code>Float16Vectors(half_query)</code> 即可。使用 <code>Owner(false)</code> 时，调用期间须保持借用的缓冲区（包括 ID 和路径）有效。</p>
-<p>对于半精度输入，<code>base_quantization_type</code> 以及启用 <code>use_reorder: true</code> 时的 <code>precise_quantization_type</code> 支持 <code>fp16</code>、<code>bf16</code>、<code>pq</code>、<code>sq8</code> 和 <code>fp32</code>。各量化器自身的要求仍然适用，例如 PQ 的训练和维度设置。以下是输入与存储格式匹配的最小配置：</p>
+<p>FP16/BF16 输入支持原来对 FP32 合法的同一组存储量化器配置，而非单独的受限列表：<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、普通 <code>sq4</code>/<code>sq8</code>、<code>sq4_uniform</code>/<code>sq8_uniform</code>、<code>sq4_local</code>/<code>sq8_local</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> 以及符合条件的 <code>tq</code> 链。此说明适用于基础存储和启用后的精排存储，并不意味着任意 base/precise 组合都合法；原有的 metric、维度、训练、图和 IO 限制仍然适用。TQ 链内仍禁止 local SQ4/SQ8。split RaBitQ 支持 3+5 bits（包括 MRLE），split TQ 链仅允许 <code>"mrle, rabitq"</code>。HGraph fused RaBitQ 仍仅支持 L2/IP，要求 flat 内存图并遵守原有 IO 限制，不支持 TQ。半精度输入不会放宽这些限制。</p>
+<p>以下是输入与存储格式匹配的最小配置：</p>
 <pre><code class="language-json">{
     "dtype": "float16",
     "metric_type": "l2",
@@ -393,10 +394,10 @@ auto result = index-&gt;KnnSearch(
 }
 </code></pre>
 <p>若使用 BF16 输入和 BF16 存储，将 <code>dtype</code> 改为 <code>"bfloat16"</code>，<code>base_quantization_type</code> 改为 <code>"bf16"</code>。也支持跨格式存储转换，例如 FP16 输入配 BF16 存储、BF16 输入配 FP32 存储；这不会改变后续查询所需的输入格式。<code>metric_type: "cosine"</code> 会在编码前归一化向量，因此即使输入和存储格式匹配，cosine 也不保证逐字节保留输入。</p>
-<p>对于 L2/IP，FP16 输入配 FP16 存储、BF16 输入配 BF16 存储会逐位保留输入编码。跨格式存储以及 <code>pq</code>/<code>sq8</code>/<code>fp32</code> 存储会先将输入转换为 float32，不提供相同的半精度位模式保留保证。</p>
+<p>对于 L2/IP，FP16 输入配 FP16 存储、BF16 输入配 BF16 存储会逐位保留输入编码。跨格式存储及其他量化器按需经过 FP32 转换，不提供相同的半精度位模式保留保证。</p>
 <p>在半精度输入索引上调用 <code>CalcDistanceById</code> 和 <code>CalcDistancesById</code> 时，请使用 <code>DatasetPtr</code> 重载，并提供与索引 dtype 一致的原生半精度查询缓冲区。原始 <code>const float*</code> 重载仅接受 float32 索引，对半精度输入索引会明确报错。</p>
 <p>FP16 或 BF16 的单向量存储码占 <code>2 * dim</code> 字节，FP32 则占 <code>4 * dim</code> 字节。这指的是<strong>向量编码大小，而非整个索引内存</strong>：图、ID、路径、分配开销以及可选的精排/原始向量副本还会占用空间。仅使用半精度输入并不会自动选择半精度存储，也不代表总内存减半。</p>
-<p>半精度输入可使用 <code>graph_type: "nsw"</code> 或 <code>"odescent"</code>；<strong>PiPNN 仍仅支持 float32 输入</strong>。以上说明仅针对 Pyramid，不代表 VSAG 的所有索引都支持这些输入类型。</p>
+<p>半精度输入可使用 <code>graph_type: "nsw"</code>、<code>"odescent"</code> 和 <code>"pipnn"</code>。以上说明仅针对 Pyramid，不代表 VSAG 的所有索引都支持这些输入类型。</p>
 <h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
 <p>构建参数放在 <code>index_param</code> 下。</p>
 <div class="table-wrapper">
@@ -405,7 +406,7 @@ auto result = index-&gt;KnnSearch(
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>底层量化类型（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>tq</code>）。各量化器细节见<a href="../quantization/">量化章节</a>。</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>底层量化类型（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_local</code>、<code>sq4_local</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>saq</code>、<code>tq</code>）。各量化器细节见<a href="../quantization/">量化章节</a>。</td></tr>
 <tr><td><code>tq_chain</code></td><td>string</td><td>—</td><td><code>base_quantization_type</code> 为 <code>tq</code> 时使用的变换链，例如 <code>"mrle, rabitq"</code>。</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>MRLE 保留的前缀维度；<code>0</code> 表示保持输入维度。</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>子图内节点的最大出度</td></tr>
@@ -423,6 +424,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>pipnn_leaf_neighbor_count</code></td><td>int</td><td><code>5</code></td><td>每个点在每个叶子中贡献的最近候选数，是 PiPNN 主要的质量/构建工作量旋钮；过小叶子至少使用 <code>4</code></td></tr>
 <tr><td><code>pipnn_hash_plane_count</code></td><td>int</td><td><code>12</code></td><td>方向 hash 位数，范围 <code>[1, 15]</code>；<code>max_degree</code> 不能超过 <code>2</code> 的该次幂</td></tr>
 <tr><td><code>pipnn_reservoir_size</code></td><td>int</td><td><code>64</code></td><td>最终剪枝前每个点保留的候选槽数；实际容量至少为 <code>max_degree</code></td></tr>
+<tr><td><code>pipnn_adaptive_pruning</code></td><td>bool</td><td><code>false</code></td><td>在 L2 批量构图时使用与 HGraph 共享的 PiPNN 动态 alpha 选择器</td></tr>
+<tr><td><code>pipnn_adaptive_pruning_adjust_step</code></td><td>float</td><td><code>0.06</code></td><td>PiPNN 选择器的 alpha 调整步长</td></tr>
 <tr><td><code>no_build_levels</code></td><td>int[]</td><td><code>[]</code></td><td>跳过构图的层级（从根节点开始的 0-based 下标）</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否保留高精度副本用于精排</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型。与 <code>rabitq_bits_per_dim_precise</code> 配合设为 <code>"rabitq"</code> 时，可启用从 base storage 重排的 RaBitQ x+y split。</td></tr>
@@ -430,6 +433,9 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>未设置</td><td>RaBitQ split 的 <code>y</code> bits。和 <code>base_quantization_type: "rabitq"</code>、<code>precise_quantization_type: "rabitq"</code> 一起设置时，Pyramid 使用 split storage；<code>rabitq_bits_per_dim_base</code> 仍表示 <code>x</code>，且 <code>x + y &lt;= 8</code>。</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>对 RaBitQ 底层或精排存储使用多 bit 快速编码器；设为 <code>false</code> 使用精确编码器</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>RaBitQ 快速编码的微调轮数，范围 <code>[1, 32]</code></td></tr>
+<tr><td><code>saq_avg_bits</code></td><td>float</td><td><code>4.0</code></td><td>SAQ 每维平均记录位预算，范围 <code>[1, 8]</code></td></tr>
+<tr><td><code>saq_segment_count</code></td><td>int</td><td><code>0</code></td><td>SAQ 分段数；<code>0</code> 表示动态选择边界</td></tr>
+<tr><td><code>saq_random_rotation</code></td><td>bool</td><td><code>true</code></td><td>在每个 SAQ 分段内使用独立正交旋转</td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>底层与精排存储后端；以 liburing 构建时可用 <code>uring_io</code></td></tr>
 <tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td><code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>mmap_io</code> 等磁盘存储必须设置</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>保留 FP32 原始向量，用于 <code>GetRawVectorByIds</code> 和精确的按 ID 距离计算</td></tr>
@@ -442,13 +448,34 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
-<p>PiPNN 支持 <code>dtype: "float32"</code>，并支持 <code>metric_type: "l2"</code>、<code>"ip"</code> 或 <code>"cosine"</code> 的 Pyramid
-构建。它批量构建每棵 hierarchy 中所有实际构建的图；设置
+<p>PiPNN 支持 <code>dtype: "float32"</code>、<code>"float16"</code> 或 <code>"bfloat16"</code>，以及
+<code>metric_type: "l2"</code>、<code>"ip"</code> 或 <code>"cosine"</code> 的 Pyramid 稠密向量构建；不支持稀疏向量或 <code>int8</code> 输入。
+对于 FP16/BF16 输入，PiPNN 以原生半精度格式借用完整输入行，不生成完整输入的 FP32 副本；
+仅将有界的局部分区/叶子操作数转换为 FP32 供 BLAS 矩阵运算使用，并以 FP32 累加。
+这不是原生半精度矩阵后端。最终向量存储量化与输入 dtype 独立配置，仍须遵守上文列出的量化器支持范围。
+量化器训练与 PiPNN 构图是独立阶段：训练仍可能将完整的选定训练样本物化为 FP32 缓冲区（选中全部行时可能覆盖整个数据集）。因此，借用半精度输入不保证整个 Build 都没有完整训练样本的 FP32 缓冲区。这些半精度输入路径仍在验证中，不作性能或无回归声明。
+它批量构建每棵 hierarchy 中所有实际构建的图；设置
 <code>root_graph_type: "multi_layer"</code> 时，也包括所有 root routing 层。搜索、增量 <code>Add</code>、删除、
 重复处理、精排和序列化保持标准 Pyramid 行为；<code>no_build_levels</code> 中列出的层级仍会跳过构图。
 <code>pipnn_*</code> 参数在整个 Pyramid 索引中共享；hierarchy 对象仍可分别覆盖
 <code>max_degree</code> 和 <code>alpha</code>，PiPNN 构建该 hierarchy 时会使用这些覆盖值。
 <code>ef_construction</code> 不调节 PiPNN。</p>
+<h3 id="pipnn-动态-alpha-剪枝"><a class="header" href="#pipnn-动态-alpha-剪枝">PiPNN 动态 alpha 剪枝</a></h3>
+<p>在 <code>index_param</code> 下设置以下字段，即可启用 HGraph PiPNN 使用的最终候选池剪枝策略：</p>
+<pre><code class="language-json">{
+    "graph_type": "pipnn",
+    "alpha": 1.2,
+    "pipnn_adaptive_pruning": true,
+    "pipnn_adaptive_pruning_adjust_step": 0.06
+}
+</code></pre>
+<p>该策略要求 <code>metric_type: "l2"</code>，作用于所有批量构建的路径图及根节点路由图。
+各 hierarchy 使用自己的有效 <code>alpha</code> 和度数上限，动态策略和步长全局共享。
+增量 <code>Add</code> 沿用现有 NSW 插入策略。另一个开关 <code>adaptive_pruning</code> 控制 NSW，使用 PiPNN 时应保持关闭。</p>
+<p>启用时要求 <code>alpha</code> 有限且不小于 1，步长有限且非负，<code>alpha - 2*step &gt; 0</code>，且
+<code>alpha + 3*step</code> 有限。零步长保持固定 alpha 的 PiPNN 选边结果。
+加载已启用策略的索引时，策略、基础 alpha、步长和 hierarchy 配置必须匹配；
+旧索引缺少这些字段时默认关闭。改变已有索引的策略需要重建。</p>
 <h3 id="rabitq-split-配置"><a class="header" href="#rabitq-split-配置">RaBitQ split 配置</a></h3>
 <p>需要同时设置以下五个参数，才能启用 RaBitQ x+y split 存储和精排：</p>
 <pre><code class="language-json">{

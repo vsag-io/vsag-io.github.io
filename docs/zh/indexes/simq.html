@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
+            window.path_to_searchindex_js = "../searchindex-14903171.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ec46237e.js"></script>
+        <script src="../toc-e83d9634.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -318,6 +318,7 @@
 <li><strong>代表图粗排。</strong> 每个分区选择真实成员 token 作为代表，用量化 HGraph 为各查询 token 路由，展开分区文档列表并聚合粗排分数。</li>
 <li><strong>MaxSim 精排。</strong> 读取前 <code>rerank_k</code> 个候选文档的存储编码并解码，在存储表示上计算 MaxSim。使用有损量化时，这不等于对原始 FP32 输入的精确打分。</li>
 </ol>
+<p>每篇文档在一次查询中只进入粗排候选集一次，即使累计粗排分数为零，或不同查询 token 的分数贡献相互抵消。</p>
 <p>两阶段检索在候选召回、量化误差、内存和延迟之间提供权衡。</p>
 <h2 id="快速开始"><a class="header" href="#快速开始">快速开始</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
@@ -386,40 +387,56 @@ for (int64_t i = 0; i &lt; result_count; ++i) {
 }
 </code></pre>
 <h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
-<p>SIMQ 专属构建参数放在 <code>index_param</code> 下。<code>dim</code>、<code>dtype</code>、<code>metric_type</code>
-是顶层字段。<code>dtype</code> <strong>必须</strong> 为 <code>"float32"</code>，<code>metric_type</code> <strong>必须</strong> 为 <code>"ip"</code>。</p>
+<p>SIMQ 专属构建参数放在 <code>index_param</code> 下；通用字段保留在顶层。
+无论内部采用哪种存储量化，输入仍为 FP32 <code>MultiVector</code> 数据。</p>
+<h3 id="顶层通用字段"><a class="header" href="#顶层通用字段">顶层通用字段</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>约束与作用</th></tr>
 </thead>
 <tbody>
-<tr><td><code>dim</code></td><td>int</td><td>—（必填）</td><td>每个 token 向量的维度</td></tr>
-<tr><td><code>base_io_type</code></td><td>string</td><td><code>"async_io"</code></td><td>精排阶段使用的原始多向量数据存储后端</td></tr>
-<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>磁盘 IO 类型使用的文件路径</td></tr>
-<tr><td><code>init_cluster_ratio</code></td><td>float</td><td><code>0.2</code></td><td>初始聚类中心的 token 向量采样比例</td></tr>
-<tr><td><code>max_cluster_size</code></td><td>int</td><td><code>64</code></td><td>单个簇允许的最大 token 向量数</td></tr>
-<tr><td><code>split_start_idx</code></td><td>int</td><td><code>32</code></td><td>簇切分时新簇的起始位置</td></tr>
-<tr><td><code>random_seed</code></td><td>int</td><td><code>42</code></td><td>聚类打乱的随机种子</td></tr>
-<tr><td><code>coarse_k</code></td><td>int</td><td><code>8</code></td><td>构建时每个查询 token 搜索的最近簇数量</td></tr>
-<tr><td><code>rerank_k</code></td><td>int</td><td><code>100</code></td><td>构建时进入精排的候选文档数量上限</td></tr>
+<tr><td><code>dim</code></td><td>int</td><td>必填</td><td>正整数；所有文档和查询 token 的维度。</td></tr>
+<tr><td><code>dtype</code></td><td>string</td><td>必填</td><td>必须为 <code>"float32"</code>；描述输入标量类型，而非存储量化器。</td></tr>
+<tr><td><code>metric_type</code></td><td>string</td><td>必填</td><td>必须为 <code>"ip"</code>。</td></tr>
+<tr><td><code>repr</code></td><td>string</td><td><code>"dense"</code>（通用解析器默认值）</td><td>可选通用布局字段；可显式用 <code>"multi_vector"</code> 描述数据。SIMQ 的 Build/Add/检索接口仍要求 <code>MultiVectors</code>，不能传入单个稠密向量。</td></tr>
+<tr><td><code>extra_info_size</code></td><td>int</td><td><code>0</code></td><td>共享解析器接受整数，无非负检查；正值会初始化继承的 extra-info 存储，但 SIMQ Build/Add 与检索不填充或返回它。本工作流请保持 <code>0</code>。</td></tr>
+<tr><td><code>use_old_serial_format</code></td><td>bool</td><td><code>false</code></td><td>通用兼容标志；SIMQ 不消费此字段来选择序列化格式。</td></tr>
 </tbody>
 </table>
 </div>
-<ul>
-<li><strong><code>dim</code></strong> — 所有文档和查询中的所有 token 共享同一维度</li>
-<li><strong><code>base_io_type</code></strong> — 可选值：<code>async_io</code>、<code>uring_io</code>、<code>memory_io</code>、
-<code>block_memory_io</code>、<code>buffer_io</code>、<code>mmap_io</code>、<code>reader_io</code>。原生 <code>uring_io</code>
-需要以 liburing 构建，否则回退到 <code>buffer_io</code></li>
-<li><strong><code>base_file_path</code></strong> — 默认值为占位符，使用磁盘类型（<code>async_io</code>、
-<code>uring_io</code>、<code>buffer_io</code>、<code>mmap_io</code>）时需提供真实路径</li>
-<li><strong><code>init_cluster_ratio</code></strong> — 取值范围 <code>(0, 1]</code>。值越小簇越少越大，
-值越大簇越多越细</li>
-<li><strong><code>max_cluster_size</code></strong> — 必须 &gt; 1</li>
-<li><strong><code>split_start_idx</code></strong> — 通常设为 <code>max_cluster_size</code> 的一半，
-取值范围 <code>(1, max_cluster_size)</code></li>
-<li><strong><code>coarse_k</code></strong>、<strong><code>rerank_k</code></strong> — 必须 &gt; 0</li>
-</ul>
+<h3 id="index_param-下的字段"><a class="header" href="#index_param-下的字段"><code>index_param</code> 下的字段</a></h3>
+<p>下表列出全部 15 个 SIMQ 公开构建字段；<code>index_param</code> 下的其他键会被拒绝。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>约束与作用</th></tr>
+</thead>
+<tbody>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"async_io"</code></td><td>文档 token 编码后端：<code>async_io</code>、<code>uring_io</code>、<code>buffer_io</code>、<code>mmap_io</code>、<code>memory_io</code>、<code>block_memory_io</code> 或 <code>reader_io</code>；注意下方 IO 限制。</td></tr>
+<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>磁盘存储（<code>async_io</code>、<code>uring_io</code>、<code>buffer_io</code>、<code>mmap_io</code>）需提供可用文件路径；默认值仅为占位符。</td></tr>
+<tr><td><code>base_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>为 <code>async_io</code>、<code>uring_io</code>、<code>buffer_io</code>、<code>reader_io</code> 启用可选 LRU 页缓存。<code>memory_io</code>、<code>block_memory_io</code>、<code>mmap_io</code> 使用 <code>NoCache</code>，忽略此开关。</td></tr>
+<tr><td><code>base_cache_total_size</code></td><td>unsigned int</td><td><code>268435456</code>（256 MiB）</td><td>缓存字节预算，必须为非负整数；容量按 128 KiB 页向下取整，小于一页（含 <code>0</code>）时即使开启也不缓存。作用于文档编码 IO 实例，不是代表图缓存。</td></tr>
+<tr><td><code>quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>工厂支持的文档/图存储类型：<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8_uniform</code>、<code>int8</code>；注意下方 <code>int8</code> 限制，不改变 FP32 输入要求。</td></tr>
+<tr><td><code>build_thread_count</code></td><td>unsigned int</td><td><code>1</code></td><td>共享解析器接受非负整数，SIMQ 无额外正数检查；建议使用 <code>&gt;= 1</code>。控制构建图、代表图与聚类工作，不是每次查询的并行度开关；聚类至少使用一个 worker。</td></tr>
+<tr><td><code>init_cluster_ratio</code></td><td>float</td><td><code>0.2</code></td><td>范围 <code>(0, 1]</code>；初始种子 token 的采样比例。较小值通常产生更少、更大的分区。</td></tr>
+<tr><td><code>max_cluster_size</code></td><td>int</td><td><code>64</code></td><td>必须 <code>&gt; 1</code>；触发分区切分的 token 数阈值，不是文档数上限。</td></tr>
+<tr><td><code>split_start_idx</code></td><td>int</td><td><code>32</code></td><td>范围 <code>(1, max_cluster_size)</code>；溢出分区按距离排序后，新分区的起始位置。</td></tr>
+<tr><td><code>random_seed</code></td><td>int</td><td><code>42</code></td><td>初始 token 打乱及文档模型有界训练采样的随机种子；SIMQ 无额外范围检查。</td></tr>
+<tr><td><code>coarse_k</code></td><td>int</td><td><code>8</code></td><td>必须 <code>&gt; 0</code>；默认每个查询 token 搜索的最近代表簇数，检索时不超过可用簇数。</td></tr>
+<tr><td><code>rerank_k</code></td><td>int</td><td><code>100</code></td><td>必须 <code>&gt; 0</code>；默认进入 MaxSim 精排的候选文档数上限，检索时不超过文档总数。</td></tr>
+<tr><td><code>split_delay_seconds</code></td><td>float</td><td><code>0.0</code></td><td>必须 <code>&gt;= 0</code>；增量 <code>Add</code> 首次溢出后，等待该时长才允许切分；<code>0</code> 表示立即切分。待切分项在 <code>Add</code> 中检查，不存在后台定时器，也不推迟初次 Build 聚类切分。</td></tr>
+<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>相同代表向量可共享代表 HGraph 节点；不对文档 ID 去重，也不在构建内部 HGraph 中抑制重复 token。</td></tr>
+<tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>要求 <code>support_duplicate: true</code>；共享代表 HGraph 中的重复向量编码槽位，不是文档 token 存储去重。</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>IO 限制。</strong> 原生 <code>uring_io</code> 需要 liburing；缺少时使用 buffered 后端回退。
+工厂识别 <code>reader_io</code>，但它是只读的外部 Reader 后端，需要绑定非空 Reader；
+仅在 JSON 中选择此类型不提供可写的 Build/Add 存储，不能把所有可识别的 IO 类型当作可互换的构建后端。</p>
+<p><strong>量化限制。</strong> 工厂支持 <code>int8</code>，但当前编码器直接复制输入原始字节，并不执行数值上的
+FP32 到 int8 转换。因此不能将其宣传为 FP32 token 值的常规标量压缩。
+FP32 工作流优先选择 <code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8_uniform</code>，并以实际数据验证存储精度。</p>
 <blockquote>
 <p><strong>聚类参数的选择。</strong> <code>init_cluster_ratio</code> 与 <code>max_cluster_size</code> 共同控制
 簇的数量与大小。较小的 <code>init_cluster_ratio</code> 搭配较大的 <code>max_cluster_size</code>
@@ -427,28 +444,55 @@ for (int64_t i = 0; i &lt; result_count; ++i) {
 <code>max_cluster_size = 2 × split_start_idx</code> 为起点，再通过检索参数调优。</p>
 </blockquote>
 <h2 id="检索参数"><a class="header" href="#检索参数">检索参数</a></h2>
-<p>检索参数放在 <code>simq</code> 子对象下：</p>
+<p><code>simq</code> 子对象中的以下字段同时作用于 <code>KnnSearch</code> 与 <code>RangeSearch</code>：</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
+<tr><th>参数</th><th>类型</th><th>默认值</th><th>约束与作用</th></tr>
 </thead>
 <tbody>
-<tr><td><code>coarse_k</code></td><td>int</td><td><em>（构建时默认值）</em></td><td>每个查询 token 搜索的最近簇数量</td></tr>
-<tr><td><code>rerank_k</code></td><td>int</td><td><em>（构建时默认值）</em></td><td>进入精排的候选文档数量上限</td></tr>
+<tr><td><code>coarse_k</code></td><td>int</td><td><code>-1</code> → 构建值</td><td>正数覆盖构建值；省略或 <code>&lt;= 0</code> 时回退到构建值。每个查询 token 探测更多簇会扩大候选范围，通常也增加延迟。</td></tr>
+<tr><td><code>rerank_k</code></td><td>int</td><td><code>-1</code> → 构建值</td><td>正数覆盖构建值；省略或 <code>&lt;= 0</code> 时回退到构建值。更多候选会增加 MaxSim IO/计算，与请求的 <code>topk</code>/范围输出数独立。</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>省略（无截止时间）</td><td>毫秒计的软耗时预算。字段存在即启用计时；解析器无正数检查，因此 <code>&lt;= 0</code> 表示预算立即耗尽，不是“关闭超时”。可能返回部分或空结果。</td></tr>
 </tbody>
 </table>
 </div>
-<ul>
-<li><strong><code>coarse_k</code></strong> — 覆盖构建时的值。值越大候选范围越广，
-召回越高但延迟也越大</li>
-<li><strong><code>rerank_k</code></strong> — 覆盖构建时的值。值越大召回越高，
-但磁盘读取和计算开销也越大</li>
-<li>不设置时使用构建时的默认值。显式设置时两个值都必须 &gt; 0</li>
-</ul>
+<p>计时在粗排前开始，但不会中断代表图搜索或正在进行的 IO/MaxSim 工作。
+粗排后、精排工作单元之间（KNN 每批最多 32 篇文档，范围搜索每次一篇）以及返回前检查预算。
+粗排阶段超时会清空粗排候选。这不是严格的墙钟延迟上界；请检查返回统计中的 <code>is_timeout</code> 标志。</p>
+<p>共享解析器还接受 <code>simq</code> 内的以下字段，但 SIMQ 的两条检索路径均不消费它们：</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>参数</th><th>类型</th><th>解析默认值</th><th>SIMQ 作用</th></tr>
+</thead>
+<tbody>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>忽略；共享解析器会把非正值归一为 <code>1</code>。</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>0.0</code></td><td>忽略；SIMQ 无范围检查。请改用 <code>rerank_k</code> 调节候选数。</td></tr>
+<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>忽略，包括 <code>false</code>；SIMQ 始终对保留候选执行 MaxSim 精排。</td></tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>根级参数</th><th>类型</th><th>默认值</th><th>约束与作用</th></tr>
+</thead>
+<tbody>
+<tr><td><code>threshold</code></td><td>float</td><td>省略</td><td>仅 KNN：最终距离的有限、包含边界的上限；详见下文。</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>仅 KNN</strong> 支持可选的根级 <code>threshold</code>（float，默认省略），必须是有限 JSON 数字。
+它是<strong>最终返回距离</strong>的包含边界的上限，不是粗排截断阈值或相似度下限；仅有限且
+<code>&lt;= threshold</code> 的距离通过。允许负阈值，返回数量可能少于 <code>topk</code>。
+SIMQ 距离是对每个查询 token 在存储文档 token 上求最小 <code>1 - inner_product</code> 后求和，
+并非单向量 IP 距离。参见 <a href="../guide/knn_search.html">KNN 阈值过滤</a>。
+<code>RangeSearch</code> 使用 <code>radius</code> 参数，不消费根级 <code>threshold</code>；<code>limited_size</code> 限制范围输出数量，
+不控制由 <code>rerank_k</code> 限定的候选池。</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
-    R"({"simq": {"coarse_k": 600, "rerank_k": 5000}})").value();
+    R"({"threshold": 4.0, "simq": {"coarse_k": 600, "rerank_k": 5000, "timeout_ms": 100}})").value();
 </code></pre>
 <h2 id="搜索统计"><a class="header" href="#搜索统计">搜索统计</a></h2>
 <p><code>KnnSearch</code> 与 <code>RangeSearch</code> 会在返回的 dataset 上附带 JSON 统计对象。可以读取完整对象，
@@ -488,8 +532,8 @@ auto values = result-&gt;GetStatistics(
 <h2 id="实践建议"><a class="header" href="#实践建议">实践建议</a></h2>
 <ul>
 <li><strong>调整 <code>coarse_k</code> 与 <code>rerank_k</code>。</strong> 增大 <code>coarse_k</code> 扩大簇级候选范围；
-增大 <code>rerank_k</code> 让更多文档进入精确打分。实践中 <code>rerank_k</code> 对召回的影响
-更大，但每个额外候选都需要一次磁盘读取和完整的 MaxSim 计算，延迟也会增加。</li>
+增大 <code>rerank_k</code> 让更多文档进入基于存储表示的 MaxSim 打分。实践中 <code>rerank_k</code> 对召回的影响
+更大，但每个额外候选都需要访问存储和完整的 MaxSim 计算，延迟也会增加。</li>
 <li><strong>IO 类型选择。</strong> 语料规模超出内存时使用 <code>async_io</code>；多向量数据可以放入
 内存时，使用 <code>memory_io</code> 或 <code>block_memory_io</code> 获得最低的精排延迟。</li>
 <li><strong>簇大小配置。</strong> 将 <code>max_cluster_size</code> 设为 <code>split_start_idx</code> 的约两倍。切分位置
@@ -515,7 +559,7 @@ auto values = result-&gt;GetStatistics(
 </ul>
 <h2 id="量化构建与增量导入"><a class="header" href="#量化构建与增量导入">量化构建与增量导入</a></h2>
 <p>即使 <code>quantization_type</code> 为 <code>fp16</code>、<code>bf16</code> 或 <code>sq8_uniform</code>，Dataset 输入仍然必须是 FP32 <code>MultiVector</code>。SIMQ 在分区构建前编码 token，通过量化器原生 code-to-code 距离维护分区；构建图与代表图均使用量化 base 存储，不配置 FP32 精排副本。图插入/查询接口和均值累加仍使用有界 FP32 临时解码，不是完全免解码构建。</p>
-<p>构建不再创建全量 FP32 token 打平副本，而使用临时编码池、token 地址元数据及每个最多 4096 个 token 的训练/暂存缓冲。编码池在 Build 返回前与文档编码存储重复存在；用户持有的 FP32 输入及 O(tokens) 元数据仍占内存。需要训练的量化器采用最多 4096 个 token 的确定性样本（数据更多时有放回抽样），后续 Add 复用已训练文档模型。两个 HGraph 各自拥有量化模型，不混用不同模型的编码字节。</p>
+<p>构建不再创建全量 FP32 token 打平副本，而使用临时编码池、token 地址元数据及每个最多 4096 个 token 的训练/暂存缓冲。编码池在 Build 返回前与文档编码存储重复存在；用户持有的 FP32 输入及 O(tokens) 元数据仍占内存。Build 将最多 4096 个 token 的确定性样本传给文档量化器的 Train 方法（数据更多时有放回抽样）；是否学习数据相关状态取决于量化器。后续 Add 复用文档模型，不重新训练。两个 HGraph 各自拥有量化模型，不混用不同模型的编码字节。</p>
 <p>可以使用 <code>Build(首批)</code> 后分批 <code>Add(后续批次)</code>，首批应覆盖后续数据分布。量化和增量构建不保证与全量 FP32 构建产生相同分区或召回，请使用真实负载评估。SIMQ 输入仍仅支持 FP32，metric 仍仅支持内积；输入类型与内部存储类型是不同概念。</p>
 <h3 id="序列化兼容性"><a class="header" href="#序列化兼容性">序列化兼容性</a></h3>
 <p>新版本可加载历史无版本标记的 SIMQ 索引，构造时维度与文档量化格式必须一致。历史代表图保持 FP32，保留加载前搜索行为；加载时以有界向量缓冲重建文档模型下的代表编码，并通过 O(tokens) 遍历更新距离。后续增量分区轨迹不保证与旧实现一致。重新保存会记录实际代表图量化格式和新元数据。新写入采用 SIMQ 格式版本 1，不支持的版本及维度/量化不匹配会被拒绝；不保证旧程序读取新文件。</p>

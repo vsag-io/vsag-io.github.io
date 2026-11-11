@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
+            window.path_to_searchindex_js = "../searchindex-786b3319.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b5df986.js"></script>
+        <script src="../toc-7ee31d19.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -306,97 +306,146 @@
                     <main>
                         <h1 id="c-api"><a class="header" href="#c-api">C API</a></h1>
 <p>VSAG exports a C ABI in <code>include/vsag/vsag_c_api.h</code>. It wraps the same index implementations as
-the C++ API and is useful for language bindings and applications that need opaque handles and
-C-style functions.</p>
-<p>The current installed header is not directly includable from a C translation unit: it contains an
-unguarded <code>extern "C"</code> block and uses C++ <code>bool</code>. Compile the translation unit that includes this
-header as C++ (for example, use a <code>.cpp</code> file). If the rest of the application is written in C,
-expose the required operations through a small application-owned C wrapper.</p>
+the C++ API and is the base for language bindings (<code>pyvsag</code> is built on it) and for applications
+that want opaque handles and plain C functions. The header can be included from C and C++.</p>
+<p><code>libvsag_c</code> (shared library, built with <code>ENABLE_PYBINDS=ON</code>) exports only <code>vsag_*</code> symbols.
+The C API is versioned with <code>VSAG_C_API_VERSION</code>; a binding should compare it with
+<code>vsag_c_api_version()</code> when it loads the library.</p>
+<h2 id="conventions"><a class="header" href="#conventions">Conventions</a></h2>
+<ul>
+<li><strong>Opaque handles:</strong> <code>vsag_index_t</code>, <code>vsag_dataset_t</code>, <code>vsag_filter_t</code>, <code>vsag_search_result_t</code>
+and <code>vsag_error_t</code> are opaque. Each has exactly one <code>_destroy</code> function, and destroying <code>NULL</code>
+is a no-op.</li>
+<li><strong>Errors:</strong> every fallible function returns a <code>vsag_error_t*</code>: <code>NULL</code> on success, otherwise an
+error object the caller reads with <code>vsag_error_code</code> and <code>vsag_error_message</code> and releases with
+<code>vsag_error_destroy</code>. No exception crosses the boundary and no error state is kept per thread.</li>
+<li><strong>Borrowed buffers:</strong> vectors, ids and filters are never copied or freed by the library. A
+buffer passed to a call only has to stay valid for that call; a buffer attached to a dataset or
+bitmap filter has to stay valid while that handle is in use.</li>
+<li><strong>Returned pointers:</strong> pointers read from a handle stay valid until that handle is destroyed.</li>
+<li><strong>Types:</strong> signatures use fixed-width integers only. Flags are <code>int32_t</code> (0 is false).</li>
+<li><strong>Parameters:</strong> index and search parameters are JSON strings, as in the C++ API.</li>
+<li><strong>Threads:</strong> an index can be searched concurrently. A dataset, filter or search result may be
+read concurrently but must not be modified or destroyed while another thread uses it.</li>
+</ul>
 <h2 id="lifecycle"><a class="header" href="#lifecycle">Lifecycle</a></h2>
-<p>Include the installed header from a C++ translation unit and link the normal VSAG library:</p>
-<pre><code class="language-cpp">#include &lt;vsag/vsag_c_api.h&gt;
-</code></pre>
-<p>The basic lifecycle is:</p>
-<ol>
-<li>Create an opaque <code>vsag_index_t</code> with <code>vsag_index_factory</code>.</li>
-<li>Build or train/add vectors.</li>
-<li>Search, update, serialize, or query the index.</li>
-<li>Release the handle with <code>vsag_index_destroy</code>.</li>
-</ol>
-<p><code>vsag_index_factory</code> returns <code>nullptr</code> when creation fails. Other functions return <code>Error_t</code>;
-<code>code == VSAG_SUCCESS</code> indicates success and <code>message</code> contains error details otherwise.</p>
-<pre><code class="language-cpp">const char* build_params =
+<pre><code class="language-c">#include &lt;vsag/vsag_c_api.h&gt;
+
+const char* params =
     "{\"dtype\":\"float32\",\"metric_type\":\"l2\",\"dim\":128,"
     "\"index_param\":{\"base_quantization_type\":\"fp32\","
     "\"max_degree\":32,\"ef_construction\":200}}";
 
-vsag_index_t index = vsag_index_factory("hgraph", build_params);
-if (index == nullptr) {
-    /* handle creation failure */
+vsag_index_t* index = NULL;
+vsag_error_t* error = vsag_index_create("hgraph", params, &amp;index);
+if (error != NULL) {
+    /* vsag_error_code(error), vsag_error_message(error) */
+    vsag_error_destroy(error);
+    return;
 }
 
-Error_t error = vsag_index_build(index, base, ids, 128, count);
-if (error.code != VSAG_SUCCESS) {
-    /* inspect error.message */
-}
+vsag_dataset_t* base = NULL;
+vsag_dataset_create(&amp;base);
+vsag_dataset_set_num_elements(base, count);
+vsag_dataset_set_dim(base, 128);
+vsag_dataset_set_ids(base, ids);
+vsag_dataset_set_float32_vectors(base, vectors);
+error = vsag_index_build(index, base);
+vsag_dataset_destroy(base);
 
 vsag_index_destroy(index);
 </code></pre>
-<h2 id="search-result-buffers"><a class="header" href="#search-result-buffers">Search result buffers</a></h2>
-<p>The caller owns the <code>ids</code> and <code>dists</code> buffers in <code>SearchResult_t</code>. Allocate at least <code>k</code> entries
-for both buffers before KNN or range search. VSAG writes no more than <code>k</code> results and stores the
-actual number in <code>count</code>.</p>
-<pre><code class="language-cpp">int64_t result_ids[10];
-float result_dists[10];
-SearchResult_t result{};
-result.dists = result_dists;
-result.ids = result_ids;
-
-Error_t error =
-    vsag_index_knn_search(index, query, 128, 10, "{\"hgraph\":{\"ef_search\":100}}", &amp;result);
-</code></pre>
-<p>The filter variants accept a <code>FilterFunc_t</code>. Returning <code>true</code> means the ID is valid and may be
-returned.</p>
-<h2 id="range-search-result-cap"><a class="header" href="#range-search-result-cap">Range search result cap</a></h2>
-<p>Both C range-search functions require an explicit positive result cap:</p>
-<pre><code class="language-cpp">Error_t
-vsag_index_range_search(vsag_index_t index,
-                        const float* query,
-                        uint64_t dim,
-                        float radius,
-                        int64_t k,
-                        const char* parameters,
-                        SearchResult_t* result);
-</code></pre>
-<p><code>k</code> must be at least <code>1</code>. It is forwarded to the C++ range-search <code>limited_size</code> argument and
-also protects the caller-owned buffers: <code>result.count</code> never exceeds <code>k</code>. Applications upgrading
-from the older signature must add this argument to both <code>vsag_index_range_search</code> and
-<code>vsag_index_range_search_with_filter</code>.</p>
+<h2 id="datasets"><a class="header" href="#datasets">Datasets</a></h2>
+<p>A dataset is a view over caller-owned memory and describes both base data and queries. Set the
+element count, then the vectors in one of these forms:</p>
+<ul>
+<li><code>vsag_dataset_set_float32_vectors</code>, <code>vsag_dataset_set_float16_vectors</code> (also used for bfloat16
+as raw <code>uint16</code> bits) and <code>vsag_dataset_set_int8_vectors</code>, with <code>vsag_dataset_set_dim</code>.</li>
+<li><code>vsag_dataset_set_sparse_vectors</code>: CSR rows, where row <code>i</code> owns
+<code>indices[index_pointers[i] .. index_pointers[i + 1])</code> and the matching values.</li>
+</ul>
+<p><code>vsag_dataset_set_ids</code> is required for build and add. Dense and sparse data go through the same
+<code>vsag_index_build</code>, <code>vsag_index_add</code> and <code>vsag_index_knn_search</code> functions.</p>
+<h2 id="search"><a class="header" href="#search">Search</a></h2>
+<p><code>vsag_index_knn_search</code> and <code>vsag_index_range_search</code> take a single-query dataset and return a
+<code>vsag_search_result_t</code>. Read it with <code>vsag_search_result_count</code>, <code>vsag_search_result_ids</code>,
+<code>vsag_search_result_distances</code> and <code>vsag_search_result_statistics</code> (a JSON string), then release
+it with <code>vsag_search_result_destroy</code>. The pointers can be wrapped without copying.
+<code>vsag_index_range_search</code> takes a <code>limit</code> that caps the number of results; <code>-1</code> means no cap.</p>
+<p>For dense float32 queries, <code>vsag_index_knn_search_float32</code> is the low-overhead path: one call, no
+handles, and caller-allocated <code>out_ids</code>/<code>out_distances</code> buffers of <code>num_queries * k</code> entries.</p>
+<h2 id="filters"><a class="header" href="#filters">Filters</a></h2>
+<p>Filters are plain data, so no call crosses the language boundary per candidate:</p>
+<ul>
+<li><code>vsag_filter_create_id_list</code>: keep (<code>VSAG_FILTER_ALLOW</code>) or drop (<code>VSAG_FILTER_DENY</code>) a list of ids.</li>
+<li><code>vsag_filter_create_bitmap</code>: keep id <code>i</code> when bit <code>i</code> of a caller-owned bitmap is set.</li>
+<li><code>vsag_filter_create_id_range</code>: keep ids in an inclusive range.</li>
+</ul>
+<p>Pass a filter, or <code>NULL</code>, to the search functions. A per-candidate callback is available separately for hosts (see Callback filters), but <code>pyvsag</code>
+does not expose it: it would cost a GIL acquisition per candidate.</p>
+<h2 id="logging"><a class="header" href="#logging">Logging</a></h2>
+<p><code>vsag_set_log_level</code> sets the minimum level (<code>VSAG_LOG_*</code>). A host can route library log records
+to its own logger with <code>vsag_set_logger(log_fn, user_data)</code>; passing <code>NULL</code> restores the built-in
+logger. The callback may be invoked concurrently from any thread, including threads created by the
+library, so it must be thread-safe, must not throw or unwind into the library, and must not keep
+the message pointer after it returns. <code>user_data</code> must stay valid until the logger is replaced. The first call with a non-<code>NULL</code> callback
+installs a forwarding logger and should happen before other threads log; later calls only swap the
+callback and are safe while other threads log.</p>
 <h2 id="api-groups"><a class="header" href="#api-groups">API groups</a></h2>
 <ul>
-<li><strong>Create and destroy:</strong> <code>vsag_index_factory</code>, <code>vsag_index_destroy</code>.</li>
+<li><strong>Create and destroy:</strong> <code>vsag_index_create</code>, <code>vsag_index_destroy</code>.</li>
 <li><strong>Populate:</strong> <code>vsag_index_build</code>, <code>vsag_index_train</code>, <code>vsag_index_add</code>.</li>
-<li><strong>Search:</strong> <code>vsag_index_knn_search</code>, <code>vsag_index_range_search</code>, and their filter variants.</li>
-<li><strong>Read and update:</strong> <code>vsag_index_calculate_distance_by_ids</code>,
-<code>vsag_index_get_vector_by_ids</code>, <code>vsag_index_update_ids</code>, <code>vsag_index_update_vector</code>, and
-<code>vsag_index_update_vector_force</code>.</li>
+<li><strong>Modify:</strong> <code>vsag_index_remove</code>, <code>vsag_index_update_ids</code>, <code>vsag_index_update_vector</code>.</li>
+<li><strong>Search:</strong> <code>vsag_index_knn_search</code>, <code>vsag_index_range_search</code>, <code>vsag_index_knn_search_float32</code>.</li>
+<li><strong>Read:</strong> <code>vsag_index_calc_distances_by_ids</code>, <code>vsag_index_get_vectors_by_ids</code>,
+<code>vsag_index_get_num_elements</code>, <code>vsag_index_get_memory_usage</code>, <code>vsag_index_check_id_exist</code> and
+<code>vsag_index_get_min_max_id</code>.</li>
 <li><strong>Copy and reuse:</strong> <code>vsag_index_clone</code>, <code>vsag_index_export_model</code>.</li>
-<li><strong>Persistence:</strong> <code>vsag_serialize_file</code>, <code>vsag_deserialize_file</code>,
-<code>vsag_serialize_write_func</code>, and <code>vsag_deserialize_read_func</code>.</li>
+<li><strong>Persistence:</strong> <code>vsag_index_serialize_file</code>, <code>vsag_index_deserialize_file</code>, and, for hosts that
+keep index bytes in their own storage, <code>vsag_index_serialize_writer</code> and
+<code>vsag_index_deserialize_reader</code>.</li>
 </ul>
 <p>Support still depends on the selected index. An unsupported operation returns
-<code>VSAG_UNSUPPORTED_INDEX_OPERATION</code>.</p>
-<h2 id="persistence-errors"><a class="header" href="#persistence-errors">Persistence errors</a></h2>
-<p><code>vsag_serialize_file</code> and <code>vsag_deserialize_file</code> validate that the target file can be opened.
-Check the returned <code>Error_t</code> for <code>VSAG_READ_ERROR</code>, <code>VSAG_MISSING_FILE</code>, or another non-success
-code instead of assuming a file operation completed.</p>
-<p>The callback-based persistence functions are available when the application manages its own
-storage. Their callback offsets and sizes use the <code>OffsetType</code> and <code>SizeType</code> aliases declared in
-the header.</p>
+<code>VSAG_UNSUPPORTED_INDEX_OPERATION</code>. Check the returned error code for <code>VSAG_READ_ERROR</code>,
+<code>VSAG_MISSING_FILE</code>, or another non-success value instead of assuming a file operation completed.</p>
+<h2 id="host-storage-callbacks"><a class="header" href="#host-storage-callbacks">Host storage callbacks</a></h2>
+<p><code>vsag_index_serialize_writer(index, write_fn, user_data)</code> passes the serialized bytes to
+<code>write_fn(user_data, offset, size, data)</code>. <code>vsag_index_deserialize_reader(index, read_fn, size_fn, user_data)</code> reads them back through <code>read_fn(user_data, offset, size, dest)</code> and
+<code>size_fn(user_data)</code>; both callbacks are required because deserialization seeks to the end of the input. The
+callbacks return <code>0</code> on success and any other value on failure, which makes the call return an
+error: <code>VSAG_INTERNAL_ERROR</code> for a failing write callback (there is no dedicated write code) and
+<code>VSAG_READ_ERROR</code> for a failing read callback. They run synchronously on the calling thread, must not throw or unwind into the library,
+and must not keep the pointers they receive. <code>user_data</code> only has to stay valid for the call.</p>
+<h2 id="host-allocator-and-thread-pool"><a class="header" href="#host-allocator-and-thread-pool">Host allocator and thread pool</a></h2>
+<p>An engine creates indexes that use memory and threads supplied by the host:</p>
+<pre><code class="language-c">vsag_engine_options_t* options = NULL;
+vsag_engine_options_create(&amp;options);
+vsag_engine_options_set_allocator(options, "host", allocate, deallocate, reallocate, host);
+vsag_engine_options_set_thread_pool(options, submit, host);
+
+vsag_engine_t* engine = NULL;
+vsag_engine_create(options, &amp;engine);   /* options may be NULL for the defaults */
+vsag_engine_options_destroy(options);   /* the engine copies what it needs */
+
+vsag_index_t* index = NULL;
+vsag_engine_create_index(engine, "hgraph", params, &amp;index);
+vsag_engine_destroy(engine);            /* indexes keep the resources alive */
+</code></pre>
+<p>The allocator callbacks mirror <code>malloc</code>, <code>free</code> and <code>realloc</code>; returning <code>NULL</code> for a non-zero size is
+reported to the caller as <code>VSAG_NO_ENOUGH_MEMORY</code>. <code>submit(user_data, task, task_data)</code> must run <code>task(task_data)</code> exactly once on any thread and return <code>0</code>, or return a
+non-zero value to decline, in which case the library runs the task on the calling thread. The pool
+is owned by the host, so the library never resizes it. All of these callbacks may run concurrently
+from any thread, must not throw or unwind into the library, and <code>user_data</code> has to stay valid until
+the engine and every index created from it are destroyed.</p>
+<h2 id="callback-filters"><a class="header" href="#callback-filters">Callback filters</a></h2>
+<p><code>vsag_filter_create_callback(filter_fn, user_data, &amp;filter)</code> is the host-side alternative to the
+data filters: <code>filter_fn(user_data, id)</code> returns non-zero to keep an id. It is called for every
+candidate a search considers, possibly concurrently, so it must be thread-safe and cheap and must
+not call back into VSAG. Prefer a data filter whenever the valid ids are known up front.</p>
 <h2 id="reference"><a class="header" href="#reference">Reference</a></h2>
-<p><code>include/vsag/vsag_c_api.h</code> is the complete source-level reference for signatures, error codes,
-callbacks, and structures. Search parameters use the same JSON objects documented on the
-corresponding <a href="../indexes/">index pages</a>.</p>
+<p><code>include/vsag/vsag_c_api.h</code> is the complete source-level reference for signatures and error
+codes. Search parameters use the same JSON objects documented on the corresponding
+<a href="../indexes/">index pages</a>.</p>
 
                     </main>
 

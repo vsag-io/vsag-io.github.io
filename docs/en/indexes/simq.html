@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
+            window.path_to_searchindex_js = "../searchindex-786b3319.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b5df986.js"></script>
+        <script src="../toc-7ee31d19.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -319,6 +319,7 @@ is computed via <strong>MaxSim</strong> (sum of maximum per-query-token similari
 <li><strong>Representative graph routing.</strong> Each partition selects a real member token as its representative. A quantized HGraph routes each query token to candidate partitions, whose document lists form a coarse-ranked candidate set.</li>
 <li><strong>MaxSim reranking.</strong> The top <code>rerank_k</code> candidate documents are read from memory or disk and decoded. MaxSim is evaluated over these stored representations. With lossy quantization this is not exact scoring against the original FP32 input.</li>
 </ol>
+<p>Each document enters the coarse candidate set once per query, including when its accumulated coarse score is zero or contributions from query tokens cancel out.</p>
 <p>The two-stage pipeline trades candidate recall, quantization error, memory, and latency.</p>
 <h2 id="quick-start"><a class="header" href="#quick-start">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
@@ -387,41 +388,58 @@ for (int64_t i = 0; i &lt; result_count; ++i) {
 }
 </code></pre>
 <h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
-<p>SIMQ-specific build parameters live under <code>index_param</code>. The common fields
-<code>dim</code>, <code>dtype</code>, and <code>metric_type</code> are top-level. <code>dtype</code> <strong>must</strong> be
-<code>"float32"</code> and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
+<p>SIMQ-specific build parameters live under <code>index_param</code>; common fields stay at the top level.
+Input is FP32 <code>MultiVector</code> data regardless of the internal storage quantization.</p>
+<h3 id="top-level-common-fields"><a class="header" href="#top-level-common-fields">Top-level common fields</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Constraints and effect</th></tr>
 </thead>
 <tbody>
-<tr><td><code>dim</code></td><td>int</td><td>— (required)</td><td>Dimension of each token vector.</td></tr>
-<tr><td><code>base_io_type</code></td><td>string</td><td><code>"async_io"</code></td><td>Storage backend for reranking multi-vector data.</td></tr>
-<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path for disk-backed IO types.</td></tr>
-<tr><td><code>init_cluster_ratio</code></td><td>float</td><td><code>0.2</code></td><td>Fraction of tokens sampled as initial cluster centers.</td></tr>
-<tr><td><code>max_cluster_size</code></td><td>int</td><td><code>64</code></td><td>Maximum token vectors per cluster before split.</td></tr>
-<tr><td><code>split_start_idx</code></td><td>int</td><td><code>32</code></td><td>Split position within an overflowing cluster.</td></tr>
-<tr><td><code>random_seed</code></td><td>int</td><td><code>42</code></td><td>Random seed for clustering shuffle.</td></tr>
-<tr><td><code>coarse_k</code></td><td>int</td><td><code>8</code></td><td>Default nearest clusters per query token at build time.</td></tr>
-<tr><td><code>rerank_k</code></td><td>int</td><td><code>100</code></td><td>Default max rerank candidates at build time.</td></tr>
+<tr><td><code>dim</code></td><td>int</td><td>required</td><td>Positive dimension of every document/query token.</td></tr>
+<tr><td><code>dtype</code></td><td>string</td><td>required</td><td>Must be <code>"float32"</code>; this is the input scalar type, not the storage quantizer.</td></tr>
+<tr><td><code>metric_type</code></td><td>string</td><td>required</td><td>Must be <code>"ip"</code>.</td></tr>
+<tr><td><code>repr</code></td><td>string</td><td><code>"dense"</code> (common-parser default)</td><td>Optional common layout field; use <code>"multi_vector"</code> to describe this data explicitly. SIMQ’s Build/Add/search APIs still require <code>MultiVectors</code>, not single dense vectors.</td></tr>
+<tr><td><code>extra_info_size</code></td><td>int</td><td><code>0</code></td><td>Shared parser accepts an integer without a non-negative check; positive values initialize inherited extra-info storage, but SIMQ Build/Add and search do not populate or return it. Leave at <code>0</code> for this workflow.</td></tr>
+<tr><td><code>use_old_serial_format</code></td><td>bool</td><td><code>false</code></td><td>Common compatibility flag; SIMQ does not consume it to select its serialization format.</td></tr>
 </tbody>
 </table>
 </div>
-<ul>
-<li><strong><code>dim</code></strong> — shared across all documents and queries.</li>
-<li><strong><code>base_io_type</code></strong> — supported values: <code>async_io</code>, <code>uring_io</code>, <code>memory_io</code>,
-<code>block_memory_io</code>, <code>buffer_io</code>, <code>mmap_io</code>, <code>reader_io</code>. Native <code>uring_io</code>
-requires a build with liburing; otherwise it falls back to <code>buffer_io</code>.</li>
-<li><strong><code>base_file_path</code></strong> — the default is a placeholder; provide a real path
-when using a disk-backed type (<code>async_io</code>, <code>uring_io</code>, <code>buffer_io</code>, <code>mmap_io</code>).</li>
-<li><strong><code>init_cluster_ratio</code></strong> — range <code>(0, 1]</code>. Smaller values yield fewer,
-larger clusters; larger values produce more, finer-grained clusters.</li>
-<li><strong><code>max_cluster_size</code></strong> — must be &gt; 1.</li>
-<li><strong><code>split_start_idx</code></strong> — typically half of <code>max_cluster_size</code>.
-Must be in <code>(1, max_cluster_size)</code>.</li>
-<li><strong><code>coarse_k</code></strong>, <strong><code>rerank_k</code></strong> — must be &gt; 0.</li>
-</ul>
+<h3 id="fields-under-index_param"><a class="header" href="#fields-under-index_param">Fields under <code>index_param</code></a></h3>
+<p>These are all 15 public SIMQ build fields. Other keys under <code>index_param</code> are rejected.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Constraints and effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"async_io"</code></td><td>Document-token code backend: <code>async_io</code>, <code>uring_io</code>, <code>buffer_io</code>, <code>mmap_io</code>, <code>memory_io</code>, <code>block_memory_io</code>, or <code>reader_io</code>; see IO caveats below.</td></tr>
+<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>Provide a usable file path for disk-backed storage (<code>async_io</code>, <code>uring_io</code>, <code>buffer_io</code>, <code>mmap_io</code>); the default is a placeholder.</td></tr>
+<tr><td><code>base_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the optional LRU page cache for <code>async_io</code>, <code>uring_io</code>, <code>buffer_io</code>, and <code>reader_io</code>. Ignored by <code>memory_io</code>, <code>block_memory_io</code>, and <code>mmap_io</code> (<code>NoCache</code>).</td></tr>
+<tr><td><code>base_cache_total_size</code></td><td>unsigned int</td><td><code>268435456</code> (256 MiB)</td><td>Non-negative byte budget for that cache. Capacity is rounded down to 128 KiB pages; less than one page (including <code>0</code>) disables caching even when enabled. Applies to the document-code IO instance, not the representative graph.</td></tr>
+<tr><td><code>quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Factory-supported document/graph storage types: <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8_uniform</code>, <code>int8</code>. See the <code>int8</code> caveat below; this does not change FP32 input requirements.</td></tr>
+<tr><td><code>build_thread_count</code></td><td>unsigned int</td><td><code>1</code></td><td>Shared parser accepts non-negative integers without a SIMQ-specific positive check; use <code>&gt;= 1</code>. Controls construction/representative HGraphs and clustering work, not a per-query parallelism override. Clustering uses at least one worker.</td></tr>
+<tr><td><code>init_cluster_ratio</code></td><td>float</td><td><code>0.2</code></td><td>In <code>(0, 1]</code>; fraction of tokens selected as initial seeds. Smaller values tend to produce fewer, larger partitions.</td></tr>
+<tr><td><code>max_cluster_size</code></td><td>int</td><td><code>64</code></td><td>Must be <code>&gt; 1</code>; token-count threshold for splitting a partition, not a document-count limit.</td></tr>
+<tr><td><code>split_start_idx</code></td><td>int</td><td><code>32</code></td><td>Must be in <code>(1, max_cluster_size)</code>; start of the new partition in the distance-sorted overflowing partition.</td></tr>
+<tr><td><code>random_seed</code></td><td>int</td><td><code>42</code></td><td>Seed for initial token shuffle and bounded document-model training sample; no additional SIMQ range check.</td></tr>
+<tr><td><code>coarse_k</code></td><td>int</td><td><code>8</code></td><td>Must be <code>&gt; 0</code>; default number of nearest representative clusters per query token, capped by available clusters at search time.</td></tr>
+<tr><td><code>rerank_k</code></td><td>int</td><td><code>100</code></td><td>Must be <code>&gt; 0</code>; default maximum candidate documents for MaxSim reranking, capped by document count at search time.</td></tr>
+<tr><td><code>split_delay_seconds</code></td><td>float</td><td><code>0.0</code></td><td>Must be <code>&gt;= 0</code>; delay after first overflow before incremental <code>Add</code> splits become eligible. <code>0</code> is immediate. Pending splits are checked during <code>Add</code>, not by a background timer; this does not delay initial Build clustering.</td></tr>
+<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Let identical representative vectors share a representative-HGraph node. Does not deduplicate document IDs or suppress duplicate tokens in the construction-internal HGraph.</td></tr>
+<tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>Requires <code>support_duplicate: true</code>; share duplicate vector-code storage slots in the representative HGraph, not document-token storage.</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>IO caveats.</strong> Native <code>uring_io</code> requires liburing; without it, the backend uses a buffered fallback.
+<code>reader_io</code> is recognized by the factory but is an external-reader, read-only backend requiring a
+non-null Reader binding. Selecting it in JSON alone does not provide writable Build/Add storage.
+Do not treat every recognized IO type as interchangeable for construction.</p>
+<p><strong>Quantization caveat.</strong> <code>int8</code> is factory-supported, but its current encoder copies raw input bytes
+rather than performing a numeric FP32-to-int8 conversion. It must not be advertised as ordinary
+scalar compression of FP32 token values. Prefer <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, or <code>sq8_uniform</code> for the
+FP32 workflow, and validate storage accuracy on your data.</p>
 <blockquote>
 <p><strong>Choosing cluster parameters.</strong> <code>init_cluster_ratio</code> and <code>max_cluster_size</code>
 together control the number and size of clusters. A smaller
@@ -431,29 +449,59 @@ faster coarse search at the cost of recall. Start with
 <code>split_start_idx</code>, then tune with the search parameters.</p>
 </blockquote>
 <h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
-<p>Search-time parameters live under the <code>simq</code> sub-object:</p>
+<p>The following fields under the <code>simq</code> sub-object apply to both <code>KnnSearch</code> and <code>RangeSearch</code>:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Constraints and effect</th></tr>
 </thead>
 <tbody>
-<tr><td><code>coarse_k</code></td><td>int</td><td><em>(index default)</em></td><td>Nearest clusters per query token.</td></tr>
-<tr><td><code>rerank_k</code></td><td>int</td><td><em>(index default)</em></td><td>Max rerank candidates.</td></tr>
+<tr><td><code>coarse_k</code></td><td>int</td><td><code>-1</code> → build value</td><td>Positive values override the build value; omitted or <code>&lt;= 0</code> falls back to it. More clusters per query token widen the candidate pool, usually at higher latency.</td></tr>
+<tr><td><code>rerank_k</code></td><td>int</td><td><code>-1</code> → build value</td><td>Positive values override the build value; omitted or <code>&lt;= 0</code> falls back to it. More candidates increase MaxSim IO/compute; this is independent of requested <code>topk</code>/range output size.</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>omitted (no deadline)</td><td>Soft elapsed-time budget in milliseconds. Presence enables timing; the parser has no positivity check, so <code>&lt;= 0</code> is an immediately expired budget, not “disabled”. Can return partial or empty results.</td></tr>
 </tbody>
 </table>
 </div>
-<ul>
-<li><strong><code>coarse_k</code></strong> — overrides the build-time value. Larger values increase
-the candidate pool and improve recall at the cost of latency.</li>
-<li><strong><code>rerank_k</code></strong> — overrides the build-time value. Larger values improve
-recall at the cost of more disk reads and compute.</li>
-<li>When omitted, the build-time defaults are used. Both values must be &gt; 0
-when explicitly set.</li>
-</ul>
+<p>The timeout starts before coarse search but does not interrupt representative-graph searches or
+in-flight IO/MaxSim work. It is checked after coarse search and between rerank work units
+(up to 32 documents per KNN batch; one document for range search), and again before returning.
+A coarse-phase timeout clears the coarse candidates. This is not a hard wall-clock latency bound;
+check the returned statistics’ <code>is_timeout</code> flag.</p>
+<p>The inherited shared parser also accepts these fields inside <code>simq</code>, but SIMQ consumes none of
+them in either search path:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Parsed default</th><th>SIMQ effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Ignored; the shared parser normalizes non-positive values to <code>1</code>.</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>0.0</code></td><td>Ignored; no SIMQ range check. Tune <code>rerank_k</code> instead.</td></tr>
+<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>Ignored, including <code>false</code>; SIMQ always performs MaxSim reranking of retained candidates.</td></tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Root-level parameter</th><th>Type</th><th>Default</th><th>Constraints and effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>threshold</code></td><td>float</td><td>omitted</td><td>KNN only: finite inclusive upper bound on final distance; see below.</td></tr>
+</tbody>
+</table>
+</div>
+<p>For <strong>KNN only</strong>, optional root-level <code>threshold</code> (float, absent by default) must be a finite JSON
+number. It is an inclusive upper bound on the <strong>final returned distance</strong>, not a coarse-search
+cutoff or minimum similarity. Only finite distances <code>&lt;= threshold</code> pass; negative thresholds are
+allowed and fewer than <code>topk</code> results may be returned. SIMQ’s distance sums the per-query-token
+minimum <code>1 - inner_product</code> over stored document tokens, rather than using a single-vector IP
+distance. See <a href="../guide/knn_search.html">KNN threshold filtering</a>.
+<code>RangeSearch</code> uses its <code>radius</code> argument instead and does not consume root-level <code>threshold</code>;
+<code>limited_size</code> limits range output, not the candidate pool controlled by <code>rerank_k</code>.</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
-    R"({"simq": {"coarse_k": 600, "rerank_k": 5000}})").value();
+    R"({"threshold": 4.0, "simq": {"coarse_k": 600, "rerank_k": 5000, "timeout_ms": 100}})").value();
 </code></pre>
 <h2 id="search-statistics"><a class="header" href="#search-statistics">Search statistics</a></h2>
 <p><code>KnnSearch</code> and <code>RangeSearch</code> attach a JSON statistics object to the returned dataset. Read the
@@ -498,8 +546,8 @@ for those).</p>
 <ul>
 <li><strong>Scaling <code>coarse_k</code> and <code>rerank_k</code>.</strong> Increasing <code>coarse_k</code> widens the
 cluster-level candidate net; increasing <code>rerank_k</code> admits more documents to
-exact scoring. In practice, <code>rerank_k</code> has a larger impact on recall but also
-on latency because each additional candidate requires a disk read and full
+MaxSim scoring over stored representations. In practice, <code>rerank_k</code> has a larger impact on recall but also
+on latency because each additional candidate requires storage access and full
 MaxSim computation.</li>
 <li><strong>IO type selection.</strong> Use <code>async_io</code> for large corpora that do not fit in
 memory. Use <code>memory_io</code> or <code>block_memory_io</code> when the multi-vector data fits in
@@ -528,7 +576,7 @@ overflows; centering it keeps the two halves balanced.</li>
 </ul>
 <h2 id="quantized-construction-and-incremental-ingestion"><a class="header" href="#quantized-construction-and-incremental-ingestion">Quantized construction and incremental ingestion</a></h2>
 <p>The Dataset input remains FP32 <code>MultiVector</code>, including when <code>quantization_type</code> is <code>fp16</code>, <code>bf16</code>, or <code>sq8_uniform</code>. SIMQ encodes tokens before partition construction and uses the selected quantizer’s native code-to-code distance for partition maintenance. Both construction and representative HGraphs use quantized base storage without an FP32 reorder copy. Temporary FP32 decoding remains necessary for graph insertion/query APIs and mean accumulation; this is not zero-decode construction.</p>
-<p>Construction avoids a full FP32 flattened token copy. It uses a temporary encoded token pool, token-address metadata, and at most 4096 FP32 tokens per training/staging buffer. The encoded pool duplicates document codes until Build returns. Caller-owned FP32 input and O(tokens) metadata still contribute to peak memory. Models requiring training use a deterministic sample of at most 4096 tokens (sampling with replacement for larger inputs); subsequent Add calls reuse the trained document model. HGraphs own separate models and never exchange encoded bytes across models.</p>
+<p>Construction avoids a full FP32 flattened token copy. It uses a temporary encoded token pool, token-address metadata, and at most 4096 FP32 tokens per training/staging buffer. The encoded pool duplicates document codes until Build returns. Caller-owned FP32 input and O(tokens) metadata still contribute to peak memory. Build passes a deterministic sample of at most 4096 tokens to the document quantizer’s Train method (sampling with replacement for larger inputs); whether training learns data-dependent state is quantizer-specific. Subsequent Add calls reuse the document model without retraining. HGraphs own separate models and never exchange encoded bytes across models.</p>
 <p>Use <code>Build(first_batch)</code> followed by <code>Add(next_batch)</code> for incremental ingestion. The first batch should represent subsequent data. A quantized or incrementally built index need not produce the same partitions or recall as an all-at-once FP32 build; benchmark your workload. FP32/BF16/FP16/SQ8 input and storage types must not be confused. SIMQ continues to accept only FP32 input and inner-product metric.</p>
 <h3 id="serialization-compatibility"><a class="header" href="#serialization-compatibility">Serialization compatibility</a></h3>
 <p>New readers support legacy, unversioned SIMQ indexes when constructed with matching dimension and document quantization. Legacy representative graphs remain FP32 to preserve existing search behavior. Load reconstructs document-model representative codes and refreshes token distances, requiring an O(tokens) migration pass with bounded vector scratch; subsequent incremental partitions are not promised to match older implementations. Resaving preserves the actual graph quantization and upgraded representative metadata. New writes use SIMQ format version 1; unknown versions and mismatched dimensions/quantizers are rejected. Reading new files with older binaries is not guaranteed.</p>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
+            window.path_to_searchindex_js = "../searchindex-14903171.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ec46237e.js"></script>
+        <script src="../toc-e83d9634.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,7 +305,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="编译构建"><a class="header" href="#编译构建">编译构建</a></h1>
-<p>VSAG 是一个 C++ 项目，使用 CMake 构建。项目源码使用 C++17 标准编写，请确保你使用的编译器支持 C++17 的语法。我们建议你使用 GCC 9.4.0 或者 Clang 13.0.0 以后的版本，因为这些版本在我们的开发中工作良好。</p>
+<p>VSAG 使用 CMake 构建。Full VSAG 的内部 CPU 源码使用 C++20，Linux 保留 GCC 9.4.0+ / Clang 13.0.0+ 的源码编译器基线，开发和 CI 固定使用 GCC 13 / Clang 20，并单独验证旧基线。公开头文件和 API 保持 C++17 可用；CUDA 源文件、Node.js 绑定和独立 Lite 继续使用 C++17。clang-format 和 clang-tidy 固定为版本 20。</p>
 <p>支持的平台包括 Ubuntu 20.04+、CentOS 7+，以及 Apple Silicon 上的 macOS 14+。
 macOS 使用 Xcode Command Line Tools 提供的 Apple Clang 和 Homebrew 依赖；当前支持范围是
 arm64 核心 C++ 构建，预编译 C++ 包与 Python wheel 仍以 Linux 为主。首次构建前运行：</p>
@@ -348,8 +348,7 @@ release:                 ## Build vsag with release options.
 dist-pre-cxx11-abi:      ## Build vsag with distribution options.
 dist-cxx11-abi:          ## Build vsag with distribution options.
 dist-libcxx:             ## Build vsag using libc++.
-pyvsag:                  ## Build a specific Python version wheel. Usage: make pyvsag PY_VERSION=3.10
-pyvsag-all:              ## Build wheels for all supported versions. Usage: make pyvsag-all
+pyvsag:                  ## Build the pyvsag wheel (one py3-none wheel per architecture).
 clean-release:           ## Clear build-release/ directory.
 install:                 ## Build and install the release version of vsag.
 </code></pre>
@@ -383,10 +382,10 @@ stamp、日志和元数据不计入 <code>local_bytes</code>，也不计入准�
 <p><strong><a href="https://github.com/antgroup/vsag/pull/2899"> #2899 </a> 修复前，旧版 no-op 测量不可信。</strong> 独立工作流会对缺少受支持 schema 3 <code>true_noop</code> 报告能力的 collector 明确预检失败。拆分 PR 构建本身并不修复 collector；前置 PR 尚未合并时，定时任务会失败，而不是发布误导性的旧版基线。</p>
 </blockquote>
 <p>PR CI 的 <strong>ASan Build X86</strong> 只运行一次 <code>make asan COMPILE_JOBS=3</code>，保留 Ninja、compile commands、system OpenBLAS、examples 和 tools。Makefile 仍启用 tests、Sanitize 和 ASan/UBSan，changed-source lint、下游测试、兼容性检查及构建产物契约保持不变。<code>ccache --zero-stats</code> 只重置统计，<strong>不删除缓存对象</strong>。构建步骤记录耗时，always 步骤输出 verbose/兼容回退缓存诊断，不掩盖真实构建失败；ccache 仍启用并使用一次性 GitHub-hosted VM 上的默认目录，不跨 job 恢复或保存编译缓存。PR X86 的依赖归档缓存有意从恢复并保存改为<strong>只恢复</strong>（<code>actions/cache/restore@v4</code>），防止 PR 上下文将归档写回共享缓存；这项策略并不只适用于独立 benchmark。</p>
-<p>独立的 <strong>Build Performance Benchmark</strong>（<code>.github/workflows/build_performance.yml</code>）每周一 UTC 03:23 测 upstream <code>main</code>，也可通过 Actions 手动运行。它不是 PR required check，使用独立 concurrency、Ubuntu 22.04 hosted runner、180 分钟超时和 14 天报告保留期。工作流进入默认分支后，可运行：</p>
-<pre><code class="language-bash">gh workflow run build_performance.yml --ref main -f ref=main
+<p><strong>Daily CI / Build Performance X86</strong> 配置（<code>.github/workflows/daily_test.yml</code>, <code>profile=build-performance</code>）每周一 UTC 03:23 测 upstream <code>main</code>，也可通过 Actions 手动运行。它不是 PR required check，使用独立 concurrency、Ubuntu 24.04 hosted runner、180 分钟超时和 14 天报告保留期。工作流进入默认分支后，可运行：</p>
+<pre><code class="language-bash">gh workflow run daily_test.yml --ref main -f profile=build-performance -f ref=main
 # 或指定本仓库 main 历史中可达的完整 40 位 commit SHA：
-gh workflow run build_performance.yml --ref main -f ref=&lt;full-main-history-sha&gt;
+gh workflow run daily_test.yml --ref main -f profile=build-performance -f ref=&lt;full-main-history-sha&gt;
 </code></pre>
 <p>工作流本身必须从 <code>main</code> dispatch（其他工作流分支会被跳过），并显式 checkout <code>antgroup/vsag</code> upstream <code>main</code>，只接受 <code>main</code> 或该已获取 upstream 历史中的完整 SHA，并将实际 checkout 的 SHA（不是 dispatch 事件 SHA）及 main 基线写入 <code>target.txt</code>。PR ref、任意分支和未合并功能提交均被有意拒绝，因此迁移草稿分支无法通过此入口测量自己；hosted dispatch 和端到端验收需等工作流及受支持 collector 进入 main 后完成。fork 的定时任务被禁用。</p>
 <p>安全边界采取保守策略：contents 只读权限、不使用业务 secrets、不保留 checkout 凭据，通过环境变量传递并引用输入，校验 SHA 及祖先关系；Ubuntu 安装使用工作流自身固定的包列表，而不以特权运行目标 ref 的安装脚本。包列表与 PR 的 OpenBLAS-only host 准备一致，后续应保持同步。现有 composite action checkout 固定版本的依赖源码；下载归档缓存只恢复、<strong>不保存</strong>，编译缓存完全不跨运行恢复或保存。全新 benchmark job 独占 <code>build/</code> 和 <code>.benchmark-ccache</code>，<code>--clear-ccache</code> 不触碰普通 PR 缓存；保留默认 <code>build/</code> 以兼容现有 collector/Makefile API。</p>
@@ -433,11 +432,8 @@ gh workflow run build_performance.yml --ref main -f ref=&lt;full-main-history-sh
 </ul>
 <h2 id="编译-pyvsag-包"><a class="header" href="#编译-pyvsag-包">编译 pyvsag 包</a></h2>
 <p>pyvsag 是 VSAG 的 Python 版本。通过 <code>pip install pyvsag</code> 下载安装的 wheel 包就是通过 <code>make pyvsag</code> 命令构建出来的。</p>
-<p>默认会使用 <code>PY_VERSION=3.10</code>，你可以显式指定目标 Python 版本：</p>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.11
-</code></pre>
-<p>或者一次构建所有受支持版本的 wheel：</p>
-<pre><code class="language-bash">make pyvsag-all
+<p>wheel 为 <code>py3-none</code> 平台包，不区分 Python 版本，每个架构只需构建一次：</p>
+<pre><code class="language-bash">make pyvsag
 </code></pre>
 <h2 id="环境变量"><a class="header" href="#环境变量">环境变量</a></h2>
 <p>在 Makefile 文件的开始可以看到一些 VSAG 编译系统定义的环境变量。这些变量可以通过命令行运行 <code>export</code> 命令，或者在 <code>.bashrc</code> / <code>.zshrc</code> 等 shell 配置文件中设置来修改。</p>
@@ -478,6 +474,12 @@ CMake 优先使用带版本后缀的变量，再使用旧变量，并保留默�
 不设置该路径时保持原有行为；显式设置为空或不可读路径会报错。</p>
 <p>如果机器内存足够，可以适当调大 <code>COMPILE_JOBS</code>；默认值会比较保守，以避免 CI 里再次触发
 内存不足。</p>
+<h2 id="工具链分层验证"><a class="header" href="#工具链分层验证">工具链分层验证</a></h2>
+<p>Linux 开发以 GCC 13 为主编译器、Clang 20 为第二编译器。分别使用独立目录执行 <code>make test DEBUG_BUILD_DIR=build_gcc13 EXTRA_DEFINED="-DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13"</code> 和 <code>make test DEBUG_BUILD_DIR=build_clang20 EXTRA_DEFINED="-DCMAKE_C_COMPILER=clang-20 -DCMAKE_CXX_COMPILER=clang++-20"</code>。</p>
+<p>Ubuntu 自动依赖安装脚本要求 Ubuntu 24.04+，安装 GCC 13 和 LLVM 20（必要时使用 apt.llvm.org）；其他发行版需要自行准备对应工具链。源码编译器要求不改变预编译包的 glibc 基线或 libstdc++ ABI 选择，客户端仍可使用 C++17。</p>
+<p>开发工具链版本不等于客户端或源码构建的最低编译器版本。GCC 9.4.0 / Clang 13.0.0 的既有源码基线保持为兼容性验证目标；这里的 C++20 表示本库采用的构建模式，不代表旧编译器完整实现了所有 C++20 特性。</p>
+<p>启用 CUDA 时，必须单独选择已安装 CUDA toolkit 支持的 host compiler。CMake 默认将 <code>CMAKE_CUDA_HOST_COMPILER</code> 设为 CPU 编译器；如果该组合不受 toolkit 支持，请通过 <code>EXTRA_DEFINED="-DENABLE_CUDA=ON -DCMAKE_CUDA_HOST_COMPILER=/path/to/toolkit-supported-g++"</code> 显式指定。CUDA 使用 C++17 并不改变 nvcc 对 host compiler 的支持范围；CPU 检查不能替代实际 CUDA toolkit 的构建验证。</p>
+<p>维护中的 CI 容器镜像以 Ubuntu 26.04 为基线，使用 GCC 13 和 LLVM 20。Ubuntu 24.04 是开发与运行兼容性目标。发布包继续保持既有 manylinux/glibc 基线；Ubuntu 24.04 上的运行兼容性应独立于 Ubuntu 26.04 的 CI 构建进行验证。</p>
 
                     </main>
 

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
+            window.path_to_searchindex_js = "../searchindex-14903171.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ec46237e.js"></script>
+        <script src="../toc-e83d9634.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -305,94 +305,136 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="c-api"><a class="header" href="#c-api">C API</a></h1>
-<p>VSAG 在 <code>include/vsag/vsag_c_api.h</code> 中导出 C ABI。它封装了与 C++ API 相同的索引实现，
-适合需要不透明句柄和 C 风格函数的应用及语言绑定。</p>
-<p>当前安装的头文件不能直接被 C 编译单元包含：其中使用了未加条件保护的 <code>extern "C"</code>
-代码块和 C++ <code>bool</code>。请将包含该头文件的编译单元按 C++ 编译（例如使用 <code>.cpp</code> 文件）。
-如果应用的其余部分使用 C，请在这个 C++ 编译单元中封装所需操作，再导出应用自己的
-C 接口。</p>
+<p>VSAG 在 <code>include/vsag/vsag_c_api.h</code> 中导出 C ABI。它封装了与 C++ API 相同的索引实现，是各语言
+绑定（<code>pyvsag</code> 即基于它构建）的基础，也适合需要不透明句柄和纯 C 函数的应用。该头文件可同时被 C
+和 C++ 包含。</p>
+<p><code>libvsag_c</code>（共享库，需 <code>ENABLE_PYBINDS=ON</code> 构建）只导出 <code>vsag_*</code> 符号。C API 通过
+<code>VSAG_C_API_VERSION</code> 标识版本，绑定在加载库时应将其与 <code>vsag_c_api_version()</code> 比较。</p>
+<h2 id="约定"><a class="header" href="#约定">约定</a></h2>
+<ul>
+<li><strong>不透明句柄：</strong> <code>vsag_index_t</code>、<code>vsag_dataset_t</code>、<code>vsag_filter_t</code>、<code>vsag_search_result_t</code> 和
+<code>vsag_error_t</code> 都是不透明类型，每种恰有一个 <code>_destroy</code> 函数，销毁 <code>NULL</code> 不做任何事。</li>
+<li><strong>错误：</strong> 所有可能失败的函数返回 <code>vsag_error_t*</code>：成功为 <code>NULL</code>，否则返回错误对象，调用方用
+<code>vsag_error_code</code> 和 <code>vsag_error_message</code> 读取，并用 <code>vsag_error_destroy</code> 释放。异常不会越过
+边界，也不保存线程局部的错误状态。</li>
+<li><strong>借用缓冲区：</strong> 向量、id 和过滤器数据不会被库复制或释放。传给某次调用的缓冲区只需在该调用期间
+有效；挂到 dataset 或 bitmap 过滤器上的缓冲区需在该句柄使用期间保持有效。</li>
+<li><strong>返回的指针：</strong> 从句柄读取的指针在该句柄销毁前有效。</li>
+<li><strong>类型：</strong> 签名中只使用定宽整数；标志位为 <code>int32_t</code>（0 表示假）。</li>
+<li><strong>参数：</strong> 索引参数和搜索参数与 C++ API 一样是 JSON 字符串。</li>
+<li><strong>线程：</strong> 索引可被并发搜索。dataset、过滤器和搜索结果可并发读取，但在其他线程使用时不得修改
+或销毁。</li>
+</ul>
 <h2 id="生命周期"><a class="header" href="#生命周期">生命周期</a></h2>
-<p>在 C++ 编译单元中包含安装后的头文件，并链接普通 VSAG 库：</p>
-<pre><code class="language-cpp">#include &lt;vsag/vsag_c_api.h&gt;
-</code></pre>
-<p>基本生命周期如下：</p>
-<ol>
-<li>使用 <code>vsag_index_factory</code> 创建不透明的 <code>vsag_index_t</code>。</li>
-<li>构建索引，或先训练再增量添加向量。</li>
-<li>执行搜索、更新、序列化或读取操作。</li>
-<li>使用 <code>vsag_index_destroy</code> 释放句柄。</li>
-</ol>
-<p>创建失败时，<code>vsag_index_factory</code> 返回 <code>nullptr</code>。其他函数返回 <code>Error_t</code>；
-<code>code == VSAG_SUCCESS</code> 表示成功，否则可从 <code>message</code> 读取错误详情。</p>
-<pre><code class="language-cpp">const char* build_params =
+<pre><code class="language-c">#include &lt;vsag/vsag_c_api.h&gt;
+
+const char* params =
     "{\"dtype\":\"float32\",\"metric_type\":\"l2\",\"dim\":128,"
     "\"index_param\":{\"base_quantization_type\":\"fp32\","
     "\"max_degree\":32,\"ef_construction\":200}}";
 
-vsag_index_t index = vsag_index_factory("hgraph", build_params);
-if (index == nullptr) {
-    /* 处理创建失败 */
+vsag_index_t* index = NULL;
+vsag_error_t* error = vsag_index_create("hgraph", params, &amp;index);
+if (error != NULL) {
+    /* vsag_error_code(error)、vsag_error_message(error) */
+    vsag_error_destroy(error);
+    return;
 }
 
-Error_t error = vsag_index_build(index, base, ids, 128, count);
-if (error.code != VSAG_SUCCESS) {
-    /* 检查 error.message */
-}
+vsag_dataset_t* base = NULL;
+vsag_dataset_create(&amp;base);
+vsag_dataset_set_num_elements(base, count);
+vsag_dataset_set_dim(base, 128);
+vsag_dataset_set_ids(base, ids);
+vsag_dataset_set_float32_vectors(base, vectors);
+error = vsag_index_build(index, base);
+vsag_dataset_destroy(base);
 
 vsag_index_destroy(index);
 </code></pre>
-<h2 id="搜索结果缓冲区"><a class="header" href="#搜索结果缓冲区">搜索结果缓冲区</a></h2>
-<p><code>SearchResult_t</code> 中的 <code>ids</code> 与 <code>dists</code> 缓冲区由调用方持有。执行 KNN 或范围
-搜索前，两个缓冲区都至少分配 <code>k</code> 个元素。VSAG 最多写入 <code>k</code> 条结果，并把实际
-数量写入 <code>count</code>。</p>
-<pre><code class="language-cpp">int64_t result_ids[10];
-float result_dists[10];
-SearchResult_t result{};
-result.dists = result_dists;
-result.ids = result_ids;
-
-Error_t error =
-    vsag_index_knn_search(index, query, 128, 10, "{\"hgraph\":{\"ef_search\":100}}", &amp;result);
-</code></pre>
-<p>带过滤器的重载接收 <code>FilterFunc_t</code>。回调返回 <code>true</code> 表示该 ID 有效，可以出现
-在结果中。</p>
-<h2 id="范围搜索结果上限"><a class="header" href="#范围搜索结果上限">范围搜索结果上限</a></h2>
-<p>两个 C 范围搜索接口都要求显式传入正数结果上限：</p>
-<pre><code class="language-cpp">Error_t
-vsag_index_range_search(vsag_index_t index,
-                        const float* query,
-                        uint64_t dim,
-                        float radius,
-                        int64_t k,
-                        const char* parameters,
-                        SearchResult_t* result);
-</code></pre>
-<p><code>k</code> 必须至少为 <code>1</code>。它会传递给 C++ 范围搜索的 <code>limited_size</code> 参数，同时保护
-调用方缓冲区：<code>result.count</code> 不会超过 <code>k</code>。从旧签名升级时，需要为
-<code>vsag_index_range_search</code> 和 <code>vsag_index_range_search_with_filter</code> 同时补上该参数。</p>
-<h2 id="接口分组"><a class="header" href="#接口分组">接口分组</a></h2>
+<h2 id="dataset"><a class="header" href="#dataset">Dataset</a></h2>
+<p>dataset 是对调用方内存的视图，既可描述底库数据，也可描述查询。先设置元素个数，再用下列形式之一
+设置向量：</p>
 <ul>
-<li><strong>创建与释放：</strong> <code>vsag_index_factory</code>、<code>vsag_index_destroy</code>。</li>
-<li><strong>写入数据：</strong> <code>vsag_index_build</code>、<code>vsag_index_train</code>、<code>vsag_index_add</code>。</li>
-<li><strong>搜索：</strong> <code>vsag_index_knn_search</code>、<code>vsag_index_range_search</code> 及其过滤器重载。</li>
-<li><strong>读取与更新：</strong> <code>vsag_index_calculate_distance_by_ids</code>、
-<code>vsag_index_get_vector_by_ids</code>、<code>vsag_index_update_ids</code>、<code>vsag_index_update_vector</code>
-及 <code>vsag_index_update_vector_force</code>。</li>
-<li><strong>复制与复用：</strong> <code>vsag_index_clone</code>、<code>vsag_index_export_model</code>。</li>
-<li><strong>持久化：</strong> <code>vsag_serialize_file</code>、<code>vsag_deserialize_file</code>、
-<code>vsag_serialize_write_func</code> 及 <code>vsag_deserialize_read_func</code>。</li>
+<li><code>vsag_dataset_set_float32_vectors</code>、<code>vsag_dataset_set_float16_vectors</code>（bfloat16 也使用它，
+传入原始 <code>uint16</code> 位）和 <code>vsag_dataset_set_int8_vectors</code>，并配合 <code>vsag_dataset_set_dim</code>。</li>
+<li><code>vsag_dataset_set_sparse_vectors</code>：CSR 行，第 <code>i</code> 行拥有
+<code>indices[index_pointers[i] .. index_pointers[i + 1])</code> 及对应的值。</li>
 </ul>
-<p>具体接口是否可用仍取决于索引类型。不支持的操作返回
-<code>VSAG_UNSUPPORTED_INDEX_OPERATION</code>。</p>
-<h2 id="持久化错误"><a class="header" href="#持久化错误">持久化错误</a></h2>
-<p><code>vsag_serialize_file</code> 与 <code>vsag_deserialize_file</code> 会校验目标文件是否成功打开。
-不要假定文件操作已经完成；应检查返回的 <code>Error_t</code> 是否为 <code>VSAG_READ_ERROR</code>、
-<code>VSAG_MISSING_FILE</code> 或其他非成功状态。</p>
-<p>应用自行管理存储时，可以使用基于回调的持久化接口。回调中的 offset 和 size
-使用头文件里声明的 <code>OffsetType</code> 与 <code>SizeType</code>。</p>
+<p>构建和添加需要 <code>vsag_dataset_set_ids</code>。稠密与稀疏数据使用相同的 <code>vsag_index_build</code>、
+<code>vsag_index_add</code> 和 <code>vsag_index_knn_search</code>。</p>
+<h2 id="搜索"><a class="header" href="#搜索">搜索</a></h2>
+<p><code>vsag_index_knn_search</code> 和 <code>vsag_index_range_search</code> 接收只含一条查询的 dataset，返回
+<code>vsag_search_result_t</code>。用 <code>vsag_search_result_count</code>、<code>vsag_search_result_ids</code>、
+<code>vsag_search_result_distances</code> 和 <code>vsag_search_result_statistics</code>（JSON 字符串）读取，再用
+<code>vsag_search_result_destroy</code> 释放，指针可零拷贝包装。<code>vsag_index_range_search</code> 的 <code>limit</code> 限制
+结果数量，<code>-1</code> 表示不限。</p>
+<p>对于稠密 float32 查询，<code>vsag_index_knn_search_float32</code> 是低开销路径：一次调用、无需句柄，输出
+缓冲区 <code>out_ids</code>/<code>out_distances</code> 由调用方分配，大小为 <code>num_queries * k</code>。</p>
+<h2 id="过滤器"><a class="header" href="#过滤器">过滤器</a></h2>
+<p>过滤器是纯数据，因此每个候选点都不会跨越语言边界：</p>
+<ul>
+<li><code>vsag_filter_create_id_list</code>：保留（<code>VSAG_FILTER_ALLOW</code>）或排除（<code>VSAG_FILTER_DENY</code>）一组 id。</li>
+<li><code>vsag_filter_create_bitmap</code>：当调用方持有的 bitmap 第 <code>i</code> 位为 1 时保留 id <code>i</code>。</li>
+<li><code>vsag_filter_create_id_range</code>：保留闭区间内的 id。</li>
+</ul>
+<p>将过滤器（或 <code>NULL</code>）传给搜索函数。面向宿主的逐候选点回调另有提供（见“回调过滤器”），但 <code>pyvsag</code> 不暴露它：
+每个候选点都会产生一次 GIL 获取。</p>
+<h2 id="日志"><a class="header" href="#日志">日志</a></h2>
+<p><code>vsag_set_log_level</code> 设置最低日志级别（<code>VSAG_LOG_*</code>）。宿主可通过
+<code>vsag_set_logger(log_fn, user_data)</code> 将库的日志转发到自己的日志系统，传入 <code>NULL</code> 则恢复内置
+日志器。回调可能在任意线程并发调用（包括库创建的线程），因此必须线程安全，不得抛出异常或展开
+到库内，返回后不得保留消息指针。<code>user_data</code> 需在日志器被替换前保持有效。第一次传入非 <code>NULL</code> 回调时会安装转发日志器，应在其他线程
+开始打日志之前完成；之后的调用只替换回调，在其他线程打日志时也是安全的。</p>
+<h2 id="api-分组"><a class="header" href="#api-分组">API 分组</a></h2>
+<ul>
+<li><strong>创建与销毁：</strong> <code>vsag_index_create</code>、<code>vsag_index_destroy</code>。</li>
+<li><strong>写入：</strong> <code>vsag_index_build</code>、<code>vsag_index_train</code>、<code>vsag_index_add</code>。</li>
+<li><strong>修改：</strong> <code>vsag_index_remove</code>、<code>vsag_index_update_ids</code>、<code>vsag_index_update_vector</code>。</li>
+<li><strong>搜索：</strong> <code>vsag_index_knn_search</code>、<code>vsag_index_range_search</code>、<code>vsag_index_knn_search_float32</code>。</li>
+<li><strong>读取：</strong> <code>vsag_index_calc_distances_by_ids</code>、<code>vsag_index_get_vectors_by_ids</code>、
+<code>vsag_index_get_num_elements</code>、<code>vsag_index_get_memory_usage</code>、<code>vsag_index_check_id_exist</code> 和
+<code>vsag_index_get_min_max_id</code>。</li>
+<li><strong>复制与复用：</strong> <code>vsag_index_clone</code>、<code>vsag_index_export_model</code>。</li>
+<li><strong>持久化：</strong> <code>vsag_index_serialize_file</code>、<code>vsag_index_deserialize_file</code>；对于把索引字节放在自有
+存储中的宿主，还有 <code>vsag_index_serialize_writer</code> 和 <code>vsag_index_deserialize_reader</code>。</li>
+</ul>
+<p>是否支持仍取决于所选索引，不支持的操作返回 <code>VSAG_UNSUPPORTED_INDEX_OPERATION</code>。请检查返回的
+错误码是否为 <code>VSAG_READ_ERROR</code>、<code>VSAG_MISSING_FILE</code> 等非成功值，不要假定文件操作一定完成。</p>
+<h2 id="宿主存储回调"><a class="header" href="#宿主存储回调">宿主存储回调</a></h2>
+<p><code>vsag_index_serialize_writer(index, write_fn, user_data)</code> 把序列化后的字节交给
+<code>write_fn(user_data, offset, size, data)</code>。<code>vsag_index_deserialize_reader(index, read_fn, size_fn, user_data)</code> 通过 <code>read_fn(user_data, offset, size, dest)</code> 和 <code>size_fn(user_data)</code> 读回；
+两个回调都必须提供，因为反序列化会定位到输入的末尾。回调成功返回 <code>0</code>，其他值表示失败，此时调用
+会返回错误：写回调失败返回 <code>VSAG_INTERNAL_ERROR</code>（目前没有专门的写错误码），读回调失败返回
+<code>VSAG_READ_ERROR</code>。回调在调用线程上同步执行，不得抛出异常或展开到库内，也不得保留收到的指针。
+<code>user_data</code> 只需在该调用期间保持有效。</p>
+<h2 id="宿主-allocator-与线程池"><a class="header" href="#宿主-allocator-与线程池">宿主 allocator 与线程池</a></h2>
+<p>engine 创建的索引会使用宿主提供的内存和线程：</p>
+<pre><code class="language-c">vsag_engine_options_t* options = NULL;
+vsag_engine_options_create(&amp;options);
+vsag_engine_options_set_allocator(options, "host", allocate, deallocate, reallocate, host);
+vsag_engine_options_set_thread_pool(options, submit, host);
+
+vsag_engine_t* engine = NULL;
+vsag_engine_create(options, &amp;engine);   /* options 可为 NULL，使用默认实现 */
+vsag_engine_options_destroy(options);   /* engine 已复制所需内容 */
+
+vsag_index_t* index = NULL;
+vsag_engine_create_index(engine, "hgraph", params, &amp;index);
+vsag_engine_destroy(engine);            /* 索引会让这些资源继续存活 */
+</code></pre>
+<p>allocator 回调对应 <code>malloc</code>、<code>free</code> 和 <code>realloc</code>；对非零大小返回 <code>NULL</code> 时，调用方会收到
+<code>VSAG_NO_ENOUGH_MEMORY</code>。<code>submit(user_data, task, task_data)</code> 必须在
+任意线程上恰好执行一次 <code>task(task_data)</code> 并返回 <code>0</code>；返回非零表示拒绝，此时库会在调用线程上
+执行该任务。线程池由宿主持有，库不会调整其大小。这些回调都可能在任意线程并发调用，不得抛出
+异常或展开到库内，且 <code>user_data</code> 需在 engine 及其创建的所有索引销毁之前保持有效。</p>
+<h2 id="回调过滤器"><a class="header" href="#回调过滤器">回调过滤器</a></h2>
+<p><code>vsag_filter_create_callback(filter_fn, user_data, &amp;filter)</code> 是数据型过滤器之外、面向宿主的选择：
+<code>filter_fn(user_data, id)</code> 返回非零表示保留该 id。搜索考察的每个候选点都会调用它，且可能并发，
+因此必须线程安全、足够轻量，并且不得回调 VSAG。只要事先知道有效 id，就优先使用数据型过滤器。</p>
 <h2 id="参考"><a class="header" href="#参考">参考</a></h2>
-<p><code>include/vsag/vsag_c_api.h</code> 是函数签名、错误码、回调和结构体的完整源码级
-参考。搜索参数 JSON 与对应<a href="../indexes/">索引页面</a>中的 C++ API 相同。</p>
+<p><code>include/vsag/vsag_c_api.h</code> 是签名和错误码的完整源码参考。搜索参数使用对应
+<a href="../indexes/">索引页面</a>中记录的 JSON 对象。</p>
 
                     </main>
 

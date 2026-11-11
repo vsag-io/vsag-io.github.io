@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
+            window.path_to_searchindex_js = "../searchindex-14903171.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ec46237e.js"></script>
+        <script src="../toc-e83d9634.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -387,7 +387,6 @@ ExternalProject_Add (antlr4
 <tr><td><code>VSAG_THIRDPARTY_YAML_CPP_0_9_0</code></td><td>yaml-cpp 0.9.0</td><td><code>github.com/jbeder/yaml-cpp/.../yaml-cpp-0.9.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_TABULATE_COMMIT_3A58301067BB</code></td><td>p-ranav/tabulate</td><td><code>github.com/p-ranav/tabulate/archive/3a583010...tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_HTTPLIB_0_35_0</code></td><td>cpp-httplib 0.35.0</td><td><code>github.com/yhirose/cpp-httplib/.../v0.35.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code>（且 C++11 ABI）</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_PYBIND11_2_11_1</code></td><td>pybind11 2.11.1</td><td><code>github.com/pybind/pybind11/.../v2.11.1.tar.gz</code></td><td>Python 绑定（<code>pyvsag</code> / <code>ENABLE_PYBINDS=ON</code>）</td></tr>
 </tbody>
 </table>
 </div>
@@ -408,7 +407,6 @@ OpenBLAS 提供时，<code>OPENBLAS</code> <strong>不会</strong>下载；当�
 <li><strong>+ 工具</strong>（<code>ENABLE_TOOLS=ON</code> <strong>且</strong> <code>ENABLE_CXX11_ABI=ON</code>）：另加 <code>HDF5</code>、
 <code>ARGPARSE</code>、<code>YAML_CPP</code>、<code>TABULATE</code>、<code>HTTPLIB</code>——仅当两个选项同时开启时才会下载
 （见 <a href="https://github.com/antgroup/vsag/blob/main/cmake/VSAGThirdParty.cmake"><code>cmake/VSAGThirdParty.cmake</code></a>）。</li>
-<li><strong>+ Python wheel</strong>（<code>make pyvsag</code>）：另加 <code>PYBIND11</code>。</li>
 </ul>
 <h2 id="示例"><a class="header" href="#示例">示例</a></h2>
 <h3 id="a-内网-http-服务或对象存储推荐"><a class="header" href="#a-内网-http-服务或对象存储推荐">A. 内网 HTTP 服务或对象存储（推荐）</a></h3>

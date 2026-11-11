@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
+            window.path_to_searchindex_js = "../searchindex-786b3319.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b5df986.js"></script>
+        <script src="../toc-7ee31d19.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -306,6 +306,10 @@
                     <main>
                         <h1 id="disk-based-index-best-practices"><a class="header" href="#disk-based-index-best-practices">Disk-Based Index Best Practices</a></h1>
 <p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="../figures/resources/disk-index-overview.svg" alt="Disk-backed HGraph: the graph and compact base codes stay in memory for traversal, while a higher-precision precise copy on disk is read only for the ef_search finalists during reorder"><span class="img-wrapper"><img src="../figures/resources/disk-index-overview.svg" alt="Disk-backed HGraph: the graph and compact base codes stay in memory for traversal, while a higher-precision precise copy on disk is read only for the ef_search finalists during reorder"></span></label></p>
+<h2 id="user-defined-io-callbacks"><a class="header" href="#user-defined-io-callbacks">User-defined IO callbacks</a></h2>
+<p>Assign <code>precise_io_type</code> to <code>"user_defined_io"</code> and register callbacks through
+<code>Factory::CreateUserDefinedIO</code>. See <strong><a href="../advanced/user_defined_io.html">User-Defined IO</a></strong>
+for the full callback contract, configuration table, and runnable example.</p>
 <p>When a corpus grows past the point where every vector fits in RAM, moving the coldest,
 largest part of the index onto an SSD is the most direct way to control cost. VSAG does
 this by letting each part of an index choose its own storage backend, so hot data stays

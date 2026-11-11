@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
+            window.path_to_searchindex_js = "../searchindex-786b3319.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b5df986.js"></script>
+        <script src="../toc-7ee31d19.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -814,6 +814,7 @@ They do not change the sparse-graph or <code>use_hybrid_traversal=true</code> ex
 <tr><th>Search parameter</th><th>Default</th><th>Meaning</th></tr>
 </thead>
 <tbody>
+<tr><td><code>hybrid_filter_cost_ratio</code></td><td><code>1.0</code></td><td>For <code>use_hybrid_traversal</code>: relative cost of one predicate filtering against one distance computation (<code>O_filter / O_dist</code>). The virtual-overhead budget early-stops the MCI part once <code>considered * (hybrid_filter_cost_ratio + local_selectivity)</code> reaches <code>hybrid_vob</code>.</td></tr>
 <tr><td><code>mci_packed_filter</code></td><td><code>true</code></td><td>Build a query-private one-bit predicate from complete mapped valid IDs, or an identity-mapped byte bitmap. Static CSR members use runtime-dispatched AVX512/AVX2, with a portable scalar fallback. Member order is preserved. When no complete source is available, use the existing predicate checks.</td></tr>
 <tr><td><code>mci_batch_distance</code></td><td><code>true</code></td><td>Score up to 64 newly visited legal points per datacell call. Submit the final batch before selecting another parent or checking convergence. FP32 kernels can choose different IDs among exactly tied distances.</td></tr>
 <tr><td><code>mci_activation_cap</code></td><td><code>0</code></td><td>Maximum number of outgoing clique incidences considered for each expanded point. Zero means all incidences. Already visited cliques still consume this prefix. This changes the explored graph and can lower recall.</td></tr>
@@ -899,7 +900,7 @@ an unavailable MCI path still falls back to the normal graph route.</p>
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../api/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../advanced/rpt_partition.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -913,7 +914,7 @@ an unavailable MCI path still falls back to the normal graph route.</p>
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../api/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../advanced/rpt_partition.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

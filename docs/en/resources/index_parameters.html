@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
+            window.path_to_searchindex_js = "../searchindex-786b3319.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b5df986.js"></script>
+        <script src="../toc-7ee31d19.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -357,7 +357,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
 <tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
 <tr><td><code>alpha</code></td><td><code>1.0</code></td><td>Final robust-pruning factor; PiPNN requires a finite value at least <code>1.0</code></td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq8_local</code> / <code>sq4_local</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage — see the <a href="../quantization/">Quantization chapter</a> for all supported values</td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq8_local</code> / <code>sq4_local</code> / <code>sq4</code> / <code>pq</code> / <code>rabitq</code> / <code>saq</code> / <code>tq</code></td><td>Quantization of the base storage; see the <a href="../quantization/">Quantization chapter</a> for behavior and per-index restrictions</td></tr>
 <tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup; roughly doubles edge storage and is unsupported with compressed graph storage</td></tr>
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>Label-map implementation: <code>pg</code> (default) or <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>Reorder from the <code>precise</code> store or directly from <code>base</code>; RaBitQ x+y split, including <code>tq_chain="mrle, rabitq"</code>, selects <code>base</code> automatically</td></tr>
@@ -370,6 +370,24 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 </table>
 </div>
 <p>For HGraph float32 L2/IP/cosine, <code>sq8_local</code> and <code>sq4_local</code> can select either <code>base_quantization_type</code> or <code>precise_quantization_type</code> (the latter requires <code>use_reorder: true</code>). See <a href="../quantization/sq.html#local-sq4--sq8-float32-l2-ip-and-cosine">local SQ4/SQ8</a> for memory, persistence and limitations.</p>
+<h3 id="saq-base-quantizer-parameters"><a class="header" href="#saq-base-quantizer-parameters">SAQ base-quantizer parameters</a></h3>
+<p>When <code>base_quantization_type</code> is <code>saq</code>, HGraph, IVF, and Pyramid accept the following parameters.
+They are part of the trained model state and must remain consistent when loading or merging
+compatible index states.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Valid values</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>saq_avg_bits</code></td><td>float</td><td><code>4.0</code></td><td><code>[1, 8]</code></td><td>Average payload target per input dimension. The complete record reserves the same 12-byte allowance as equal-length multi-bit RaBitQ; SAQ’s 8-byte metadata per segment and byte-aligned bit planes are charged against that fixed record budget.</td></tr>
+<tr><td><code>saq_segment_count</code></td><td>unsigned integer</td><td><code>0</code></td><td><code>0</code> or a feasible positive value</td><td><code>0</code> jointly learns the segment count, 64-dimension-aligned boundaries, and bit widths. A positive value fixes evenly distributed aligned boundaries and still learns bit widths. Training rejects requests that cannot fit the dimension or record budget.</td></tr>
+<tr><td><code>saq_random_rotation</code></td><td>boolean</td><td><code>true</code></td><td><code>true</code> / <code>false</code></td><td>Apply a deterministic, persisted orthogonal rotation within every segment.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See the <a href="../quantization/saq.html">SAQ guide</a> for record layout, metric semantics, persistence, and a
+complete HGraph example.</p>
 <h3 id="pipnn-build-parameters"><a class="header" href="#pipnn-build-parameters">PiPNN build parameters</a></h3>
 <p>When <code>graph_type</code> is <code>pipnn</code>, HGraph and Pyramid also accept the following build parameters under
 <code>index_param</code>. They share these defaults and validation rules:</p>
@@ -525,6 +543,19 @@ parameters such as <code>n_candidate</code>.</p>
 </code></pre>
 <p>See the <a href="../indexes/sindi_v2.html">SINDI_V2 page</a> for build parameters and search parameters such as
 <code>n_candidate</code> and <code>filter_callback_limit</code>.</p>
+<h2 id="simq-multi-vector-retrieval"><a class="header" href="#simq-multi-vector-retrieval">SIMQ (multi-vector retrieval)</a></h2>
+<p>SIMQ requires top-level <code>dim &gt; 0</code>, <code>dtype: "float32"</code>, and <code>metric_type: "ip"</code>;
+<code>repr: "multi_vector"</code> can describe the layout explicitly. Its 15 public build fields live under
+<code>index_param</code>: <code>base_io_type</code>, <code>base_file_path</code>, <code>base_enable_read_cache</code>, <code>base_cache_total_size</code>,
+<code>quantization_type</code>, <code>build_thread_count</code>, <code>init_cluster_ratio</code>, <code>max_cluster_size</code>,
+<code>split_start_idx</code>, <code>random_seed</code>, <code>coarse_k</code>, <code>rerank_k</code>, <code>split_delay_seconds</code>,
+<code>support_duplicate</code>, and <code>deduplicate_storage</code>.</p>
+<p>Both KNN and range search accept <code>simq.coarse_k</code>, <code>simq.rerank_k</code> (omitted/non-positive values
+use build defaults), and soft <code>simq.timeout_ms</code>. Root-level finite <code>threshold</code> limits KNN final
+distances only; range search uses <code>radius</code>. Shared <code>parallelism</code>, <code>factor</code>, and <code>enable_reorder</code>
+are parsed inside <code>simq</code> but ignored; MaxSim reranking cannot be disabled. See the
+<a href="../indexes/simq.html">SIMQ parameter tables</a> for defaults, constraints, storage/quantization caveats,
+and the distinction between input dtype and storage format.</p>
 <h2 id="runtime-parameters"><a class="header" href="#runtime-parameters">Runtime Parameters</a></h2>
 <p>Beyond build-time parameters, <code>Index::Tune</code> and <code>SearchParam</code> tweak runtime settings such as
 <code>ef_search</code> and <code>nprobe</code>. See <a href="../advanced/optimizer.html">Optimizer</a> and the

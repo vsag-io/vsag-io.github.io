@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5c69f2ef.js";
+            window.path_to_searchindex_js = "searchindex-786b3319.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-3b5df986.js"></script>
+        <script src="toc-7ee31d19.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -342,8 +342,8 @@ enhancement, online <code>Tune</code>-based optimization, custom allocator / thr
 <p>VSAG can be installed as a C++ library, a Python package (<code>pyvsag</code>), or a Node.js/TypeScript
 package (<code>vsag</code>).</p>
 <h2 id="using-docker-recommended-for-development"><a class="header" href="#using-docker-recommended-for-development">Using Docker (Recommended for Development)</a></h2>
-<p>The official development image includes the full toolchain (GCC 9.4+, CMake 3.18+,
-<code>clang-format</code>/<code>clang-tidy</code> 15, HDF5, etc.):</p>
+<p>The official development image includes the full toolchain (GCC 13, CMake 3.18+,
+<code>clang-format</code>/<code>clang-tidy</code> 20, HDF5, etc.):</p>
 <pre><code class="language-bash">docker pull vsaglib/vsag:ubuntu
 docker run -it --rm -v $(pwd):/work -w /work vsaglib/vsag:ubuntu bash
 </code></pre>
@@ -353,7 +353,7 @@ docker run -it --rm -v $(pwd):/work -w /work vsaglib/vsag:ubuntu bash
 <li><strong>Operating System</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 14+ on Apple Silicon</li>
 <li><strong>Compiler</strong>: GCC 9.4.0+, Clang 13.0.0+, or Apple Clang from Xcode Command Line Tools</li>
 <li><strong>CMake</strong>: 3.18.0+</li>
-<li><strong>clang-format / clang-tidy</strong>: exactly version <strong>15</strong> (enforced by <code>make fmt</code> / <code>make lint</code>)</li>
+<li><strong>clang-format / clang-tidy</strong>: exactly version <strong>20</strong> (enforced by <code>make fmt</code> / <code>make lint</code>)</li>
 </ul>
 <h3 id="build"><a class="header" href="#build">Build</a></h3>
 <pre><code class="language-bash">git clone https://github.com/antgroup/vsag.git
@@ -372,7 +372,7 @@ Linux-focused.</p>
 <li><code>make test</code> — build with tests enabled and run the unit + functional suites.</li>
 <li><code>make cov</code> — build with coverage instrumentation; run tests afterwards to generate the report.</li>
 <li><code>make asan</code> / <code>make tsan</code> — sanitizer-enabled builds.</li>
-<li><code>make pyvsag PY_VERSION=3.10</code> — build the Python wheel.</li>
+<li><code>make pyvsag</code> — build the Python wheel.</li>
 <li><code>make dist-pre-cxx11-abi</code> / <code>dist-cxx11-abi</code> / <code>dist-libcxx</code> — build redistributable tarballs.</li>
 </ul>
 <p>See <a href="#building">Building</a> for details.</p>
@@ -396,6 +396,8 @@ Linux-focused.</p>
 <code>VSAG_ENABLE_INTEL_MKL=ON</code>, <code>VSAG_ENABLE_LIBAIO=ON</code>, <code>VSAG_ENABLE_TOOLS=ON</code>, and
 <code>VSAG_ENABLE_EXAMPLES=ON</code>. <code>ENABLE_LIBURING</code> is currently a direct CMake option; configure it
 with <code>cmake -S . -B build-release -DENABLE_LIBURING=ON</code>.</p>
+<h2 id="c-client-compatibility"><a class="header" href="#c-client-compatibility">C++ client compatibility</a></h2>
+<p>Full VSAG source builds use C++20 internally; installed public headers and APIs support C++17 clients. CUDA, Node.js bindings and standalone Lite remain C++17. The Ubuntu installer requires Ubuntu 24.04+ for GCC 13 and LLVM 20. Older distributions require a manually prepared toolchain. Prebuilt packages retain their existing glibc baselines; match <code>_GLIBCXX_USE_CXX11_ABI</code> to the selected package.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="creating-an-index"><a class="header" href="#creating-an-index">Creating an Index</a></h1>
 <p>All VSAG indexes are built through <code>vsag::Factory::CreateIndex(name, build_params_json)</code>. The
@@ -756,109 +758,166 @@ behavior contract in <code>tests/test_search_statistics.cpp</code>.</li>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="c-api"><a class="header" href="#c-api">C API</a></h1>
 <p>VSAG exports a C ABI in <code>include/vsag/vsag_c_api.h</code>. It wraps the same index implementations as
-the C++ API and is useful for language bindings and applications that need opaque handles and
-C-style functions.</p>
-<p>The current installed header is not directly includable from a C translation unit: it contains an
-unguarded <code>extern "C"</code> block and uses C++ <code>bool</code>. Compile the translation unit that includes this
-header as C++ (for example, use a <code>.cpp</code> file). If the rest of the application is written in C,
-expose the required operations through a small application-owned C wrapper.</p>
+the C++ API and is the base for language bindings (<code>pyvsag</code> is built on it) and for applications
+that want opaque handles and plain C functions. The header can be included from C and C++.</p>
+<p><code>libvsag_c</code> (shared library, built with <code>ENABLE_PYBINDS=ON</code>) exports only <code>vsag_*</code> symbols.
+The C API is versioned with <code>VSAG_C_API_VERSION</code>; a binding should compare it with
+<code>vsag_c_api_version()</code> when it loads the library.</p>
+<h2 id="conventions"><a class="header" href="#conventions">Conventions</a></h2>
+<ul>
+<li><strong>Opaque handles:</strong> <code>vsag_index_t</code>, <code>vsag_dataset_t</code>, <code>vsag_filter_t</code>, <code>vsag_search_result_t</code>
+and <code>vsag_error_t</code> are opaque. Each has exactly one <code>_destroy</code> function, and destroying <code>NULL</code>
+is a no-op.</li>
+<li><strong>Errors:</strong> every fallible function returns a <code>vsag_error_t*</code>: <code>NULL</code> on success, otherwise an
+error object the caller reads with <code>vsag_error_code</code> and <code>vsag_error_message</code> and releases with
+<code>vsag_error_destroy</code>. No exception crosses the boundary and no error state is kept per thread.</li>
+<li><strong>Borrowed buffers:</strong> vectors, ids and filters are never copied or freed by the library. A
+buffer passed to a call only has to stay valid for that call; a buffer attached to a dataset or
+bitmap filter has to stay valid while that handle is in use.</li>
+<li><strong>Returned pointers:</strong> pointers read from a handle stay valid until that handle is destroyed.</li>
+<li><strong>Types:</strong> signatures use fixed-width integers only. Flags are <code>int32_t</code> (0 is false).</li>
+<li><strong>Parameters:</strong> index and search parameters are JSON strings, as in the C++ API.</li>
+<li><strong>Threads:</strong> an index can be searched concurrently. A dataset, filter or search result may be
+read concurrently but must not be modified or destroyed while another thread uses it.</li>
+</ul>
 <h2 id="lifecycle"><a class="header" href="#lifecycle">Lifecycle</a></h2>
-<p>Include the installed header from a C++ translation unit and link the normal VSAG library:</p>
-<pre><code class="language-cpp">#include &lt;vsag/vsag_c_api.h&gt;
-</code></pre>
-<p>The basic lifecycle is:</p>
-<ol>
-<li>Create an opaque <code>vsag_index_t</code> with <code>vsag_index_factory</code>.</li>
-<li>Build or train/add vectors.</li>
-<li>Search, update, serialize, or query the index.</li>
-<li>Release the handle with <code>vsag_index_destroy</code>.</li>
-</ol>
-<p><code>vsag_index_factory</code> returns <code>nullptr</code> when creation fails. Other functions return <code>Error_t</code>;
-<code>code == VSAG_SUCCESS</code> indicates success and <code>message</code> contains error details otherwise.</p>
-<pre><code class="language-cpp">const char* build_params =
+<pre><code class="language-c">#include &lt;vsag/vsag_c_api.h&gt;
+
+const char* params =
     "{\"dtype\":\"float32\",\"metric_type\":\"l2\",\"dim\":128,"
     "\"index_param\":{\"base_quantization_type\":\"fp32\","
     "\"max_degree\":32,\"ef_construction\":200}}";
 
-vsag_index_t index = vsag_index_factory("hgraph", build_params);
-if (index == nullptr) {
-    /* handle creation failure */
+vsag_index_t* index = NULL;
+vsag_error_t* error = vsag_index_create("hgraph", params, &amp;index);
+if (error != NULL) {
+    /* vsag_error_code(error), vsag_error_message(error) */
+    vsag_error_destroy(error);
+    return;
 }
 
-Error_t error = vsag_index_build(index, base, ids, 128, count);
-if (error.code != VSAG_SUCCESS) {
-    /* inspect error.message */
-}
+vsag_dataset_t* base = NULL;
+vsag_dataset_create(&amp;base);
+vsag_dataset_set_num_elements(base, count);
+vsag_dataset_set_dim(base, 128);
+vsag_dataset_set_ids(base, ids);
+vsag_dataset_set_float32_vectors(base, vectors);
+error = vsag_index_build(index, base);
+vsag_dataset_destroy(base);
 
 vsag_index_destroy(index);
 </code></pre>
-<h2 id="search-result-buffers"><a class="header" href="#search-result-buffers">Search result buffers</a></h2>
-<p>The caller owns the <code>ids</code> and <code>dists</code> buffers in <code>SearchResult_t</code>. Allocate at least <code>k</code> entries
-for both buffers before KNN or range search. VSAG writes no more than <code>k</code> results and stores the
-actual number in <code>count</code>.</p>
-<pre><code class="language-cpp">int64_t result_ids[10];
-float result_dists[10];
-SearchResult_t result{};
-result.dists = result_dists;
-result.ids = result_ids;
-
-Error_t error =
-    vsag_index_knn_search(index, query, 128, 10, "{\"hgraph\":{\"ef_search\":100}}", &amp;result);
-</code></pre>
-<p>The filter variants accept a <code>FilterFunc_t</code>. Returning <code>true</code> means the ID is valid and may be
-returned.</p>
-<h2 id="range-search-result-cap"><a class="header" href="#range-search-result-cap">Range search result cap</a></h2>
-<p>Both C range-search functions require an explicit positive result cap:</p>
-<pre><code class="language-cpp">Error_t
-vsag_index_range_search(vsag_index_t index,
-                        const float* query,
-                        uint64_t dim,
-                        float radius,
-                        int64_t k,
-                        const char* parameters,
-                        SearchResult_t* result);
-</code></pre>
-<p><code>k</code> must be at least <code>1</code>. It is forwarded to the C++ range-search <code>limited_size</code> argument and
-also protects the caller-owned buffers: <code>result.count</code> never exceeds <code>k</code>. Applications upgrading
-from the older signature must add this argument to both <code>vsag_index_range_search</code> and
-<code>vsag_index_range_search_with_filter</code>.</p>
+<h2 id="datasets"><a class="header" href="#datasets">Datasets</a></h2>
+<p>A dataset is a view over caller-owned memory and describes both base data and queries. Set the
+element count, then the vectors in one of these forms:</p>
+<ul>
+<li><code>vsag_dataset_set_float32_vectors</code>, <code>vsag_dataset_set_float16_vectors</code> (also used for bfloat16
+as raw <code>uint16</code> bits) and <code>vsag_dataset_set_int8_vectors</code>, with <code>vsag_dataset_set_dim</code>.</li>
+<li><code>vsag_dataset_set_sparse_vectors</code>: CSR rows, where row <code>i</code> owns
+<code>indices[index_pointers[i] .. index_pointers[i + 1])</code> and the matching values.</li>
+</ul>
+<p><code>vsag_dataset_set_ids</code> is required for build and add. Dense and sparse data go through the same
+<code>vsag_index_build</code>, <code>vsag_index_add</code> and <code>vsag_index_knn_search</code> functions.</p>
+<h2 id="search-1"><a class="header" href="#search-1">Search</a></h2>
+<p><code>vsag_index_knn_search</code> and <code>vsag_index_range_search</code> take a single-query dataset and return a
+<code>vsag_search_result_t</code>. Read it with <code>vsag_search_result_count</code>, <code>vsag_search_result_ids</code>,
+<code>vsag_search_result_distances</code> and <code>vsag_search_result_statistics</code> (a JSON string), then release
+it with <code>vsag_search_result_destroy</code>. The pointers can be wrapped without copying.
+<code>vsag_index_range_search</code> takes a <code>limit</code> that caps the number of results; <code>-1</code> means no cap.</p>
+<p>For dense float32 queries, <code>vsag_index_knn_search_float32</code> is the low-overhead path: one call, no
+handles, and caller-allocated <code>out_ids</code>/<code>out_distances</code> buffers of <code>num_queries * k</code> entries.</p>
+<h2 id="filters"><a class="header" href="#filters">Filters</a></h2>
+<p>Filters are plain data, so no call crosses the language boundary per candidate:</p>
+<ul>
+<li><code>vsag_filter_create_id_list</code>: keep (<code>VSAG_FILTER_ALLOW</code>) or drop (<code>VSAG_FILTER_DENY</code>) a list of ids.</li>
+<li><code>vsag_filter_create_bitmap</code>: keep id <code>i</code> when bit <code>i</code> of a caller-owned bitmap is set.</li>
+<li><code>vsag_filter_create_id_range</code>: keep ids in an inclusive range.</li>
+</ul>
+<p>Pass a filter, or <code>NULL</code>, to the search functions. A per-candidate callback is available separately for hosts (see Callback filters), but <code>pyvsag</code>
+does not expose it: it would cost a GIL acquisition per candidate.</p>
+<h2 id="logging"><a class="header" href="#logging">Logging</a></h2>
+<p><code>vsag_set_log_level</code> sets the minimum level (<code>VSAG_LOG_*</code>). A host can route library log records
+to its own logger with <code>vsag_set_logger(log_fn, user_data)</code>; passing <code>NULL</code> restores the built-in
+logger. The callback may be invoked concurrently from any thread, including threads created by the
+library, so it must be thread-safe, must not throw or unwind into the library, and must not keep
+the message pointer after it returns. <code>user_data</code> must stay valid until the logger is replaced. The first call with a non-<code>NULL</code> callback
+installs a forwarding logger and should happen before other threads log; later calls only swap the
+callback and are safe while other threads log.</p>
 <h2 id="api-groups"><a class="header" href="#api-groups">API groups</a></h2>
 <ul>
-<li><strong>Create and destroy:</strong> <code>vsag_index_factory</code>, <code>vsag_index_destroy</code>.</li>
+<li><strong>Create and destroy:</strong> <code>vsag_index_create</code>, <code>vsag_index_destroy</code>.</li>
 <li><strong>Populate:</strong> <code>vsag_index_build</code>, <code>vsag_index_train</code>, <code>vsag_index_add</code>.</li>
-<li><strong>Search:</strong> <code>vsag_index_knn_search</code>, <code>vsag_index_range_search</code>, and their filter variants.</li>
-<li><strong>Read and update:</strong> <code>vsag_index_calculate_distance_by_ids</code>,
-<code>vsag_index_get_vector_by_ids</code>, <code>vsag_index_update_ids</code>, <code>vsag_index_update_vector</code>, and
-<code>vsag_index_update_vector_force</code>.</li>
+<li><strong>Modify:</strong> <code>vsag_index_remove</code>, <code>vsag_index_update_ids</code>, <code>vsag_index_update_vector</code>.</li>
+<li><strong>Search:</strong> <code>vsag_index_knn_search</code>, <code>vsag_index_range_search</code>, <code>vsag_index_knn_search_float32</code>.</li>
+<li><strong>Read:</strong> <code>vsag_index_calc_distances_by_ids</code>, <code>vsag_index_get_vectors_by_ids</code>,
+<code>vsag_index_get_num_elements</code>, <code>vsag_index_get_memory_usage</code>, <code>vsag_index_check_id_exist</code> and
+<code>vsag_index_get_min_max_id</code>.</li>
 <li><strong>Copy and reuse:</strong> <code>vsag_index_clone</code>, <code>vsag_index_export_model</code>.</li>
-<li><strong>Persistence:</strong> <code>vsag_serialize_file</code>, <code>vsag_deserialize_file</code>,
-<code>vsag_serialize_write_func</code>, and <code>vsag_deserialize_read_func</code>.</li>
+<li><strong>Persistence:</strong> <code>vsag_index_serialize_file</code>, <code>vsag_index_deserialize_file</code>, and, for hosts that
+keep index bytes in their own storage, <code>vsag_index_serialize_writer</code> and
+<code>vsag_index_deserialize_reader</code>.</li>
 </ul>
 <p>Support still depends on the selected index. An unsupported operation returns
-<code>VSAG_UNSUPPORTED_INDEX_OPERATION</code>.</p>
-<h2 id="persistence-errors"><a class="header" href="#persistence-errors">Persistence errors</a></h2>
-<p><code>vsag_serialize_file</code> and <code>vsag_deserialize_file</code> validate that the target file can be opened.
-Check the returned <code>Error_t</code> for <code>VSAG_READ_ERROR</code>, <code>VSAG_MISSING_FILE</code>, or another non-success
-code instead of assuming a file operation completed.</p>
-<p>The callback-based persistence functions are available when the application manages its own
-storage. Their callback offsets and sizes use the <code>OffsetType</code> and <code>SizeType</code> aliases declared in
-the header.</p>
+<code>VSAG_UNSUPPORTED_INDEX_OPERATION</code>. Check the returned error code for <code>VSAG_READ_ERROR</code>,
+<code>VSAG_MISSING_FILE</code>, or another non-success value instead of assuming a file operation completed.</p>
+<h2 id="host-storage-callbacks"><a class="header" href="#host-storage-callbacks">Host storage callbacks</a></h2>
+<p><code>vsag_index_serialize_writer(index, write_fn, user_data)</code> passes the serialized bytes to
+<code>write_fn(user_data, offset, size, data)</code>. <code>vsag_index_deserialize_reader(index, read_fn, size_fn, user_data)</code> reads them back through <code>read_fn(user_data, offset, size, dest)</code> and
+<code>size_fn(user_data)</code>; both callbacks are required because deserialization seeks to the end of the input. The
+callbacks return <code>0</code> on success and any other value on failure, which makes the call return an
+error: <code>VSAG_INTERNAL_ERROR</code> for a failing write callback (there is no dedicated write code) and
+<code>VSAG_READ_ERROR</code> for a failing read callback. They run synchronously on the calling thread, must not throw or unwind into the library,
+and must not keep the pointers they receive. <code>user_data</code> only has to stay valid for the call.</p>
+<h2 id="host-allocator-and-thread-pool"><a class="header" href="#host-allocator-and-thread-pool">Host allocator and thread pool</a></h2>
+<p>An engine creates indexes that use memory and threads supplied by the host:</p>
+<pre><code class="language-c">vsag_engine_options_t* options = NULL;
+vsag_engine_options_create(&amp;options);
+vsag_engine_options_set_allocator(options, "host", allocate, deallocate, reallocate, host);
+vsag_engine_options_set_thread_pool(options, submit, host);
+
+vsag_engine_t* engine = NULL;
+vsag_engine_create(options, &amp;engine);   /* options may be NULL for the defaults */
+vsag_engine_options_destroy(options);   /* the engine copies what it needs */
+
+vsag_index_t* index = NULL;
+vsag_engine_create_index(engine, "hgraph", params, &amp;index);
+vsag_engine_destroy(engine);            /* indexes keep the resources alive */
+</code></pre>
+<p>The allocator callbacks mirror <code>malloc</code>, <code>free</code> and <code>realloc</code>; returning <code>NULL</code> for a non-zero size is
+reported to the caller as <code>VSAG_NO_ENOUGH_MEMORY</code>. <code>submit(user_data, task, task_data)</code> must run <code>task(task_data)</code> exactly once on any thread and return <code>0</code>, or return a
+non-zero value to decline, in which case the library runs the task on the calling thread. The pool
+is owned by the host, so the library never resizes it. All of these callbacks may run concurrently
+from any thread, must not throw or unwind into the library, and <code>user_data</code> has to stay valid until
+the engine and every index created from it are destroyed.</p>
+<h2 id="callback-filters"><a class="header" href="#callback-filters">Callback filters</a></h2>
+<p><code>vsag_filter_create_callback(filter_fn, user_data, &amp;filter)</code> is the host-side alternative to the
+data filters: <code>filter_fn(user_data, id)</code> returns non-zero to keep an id. It is called for every
+candidate a search considers, possibly concurrently, so it must be thread-safe and cheap and must
+not call back into VSAG. Prefer a data filter whenever the valid ids are known up front.</p>
 <h2 id="reference"><a class="header" href="#reference">Reference</a></h2>
-<p><code>include/vsag/vsag_c_api.h</code> is the complete source-level reference for signatures, error codes,
-callbacks, and structures. Search parameters use the same JSON objects documented on the
-corresponding <a href="indexes">index pages</a>.</p>
+<p><code>include/vsag/vsag_c_api.h</code> is the complete source-level reference for signatures and error
+codes. Search parameters use the same JSON objects documented on the corresponding
+<a href="indexes">index pages</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="pyvsag"><a class="header" href="#pyvsag">pyvsag</a></h1>
-<p><code>pyvsag</code> is the official Python binding for VSAG, implemented with pybind11. Sources live under
-<code>python_bindings/</code> and <code>python/</code>.</p>
+<p><code>pyvsag</code> is the official Python binding for VSAG. It is a pure-Python layer that calls the
+<a href="#c-api">C API</a> (<code>libvsag_c</code>) through <a href="https://cffi.readthedocs.io/">cffi</a>, so one
+<code>py3-none-manylinux_2_28</code> wheel per architecture serves every CPython 3.10+ release. Data crosses
+the boundary only as pointer, shape and dtype, hence it does not depend on the NumPy ABI. Sources
+live under <code>python/</code>.</p>
 <h2 id="installation-1"><a class="header" href="#installation-1">Installation</a></h2>
 <pre><code class="language-bash">pip install pyvsag
 </code></pre>
 <p>To build from source:</p>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
-# Build wheels for multiple Python versions:
-make pyvsag-all
+<pre><code class="language-bash">make pyvsag
 </code></pre>
+<p>Notes:</p>
+<ul>
+<li>The C++ library releases the GIL while searching, and internal OpenMP threads are unaffected by
+it. Control their count with <code>OMP_NUM_THREADS</code>.</li>
+<li>With <code>multiprocessing</code>, use the <code>spawn</code> start method; do not share an index across <code>fork</code>.</li>
+<li>Set <code>PYVSAG_LIBRARY</code> to load a specific <code>libvsag_c</code> when running from a source tree.</li>
+</ul>
 <h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
 <p><code>pyvsag.Index(name, parameters)</code> accepts the index name and a JSON-encoded parameter string,
 matching the C++ <code>vsag::Factory::CreateIndex</code> signature:</p>
@@ -949,6 +1008,11 @@ propagating underlying operation failures.</p>
 <h2 id="relationship-with-the-c-library"><a class="header" href="#relationship-with-the-c-library">Relationship with the C++ Library</a></h2>
 <p><code>pyvsag</code> wraps the same <code>vsag::Index</code> API as C++ and shares the underlying index binaries. You can
 build an index in Python and load it in C++ (and vice versa) as long as parameters match.</p>
+<p>The released wheel is built with <code>ENABLE_LIBAIO=OFF</code>, so it has no libaio dependency. The
+<code>async_io</code> I/O type can still be selected, but it falls back to a buffered compatibility backend
+(single <code>buffer_io</code>-style reads and no fsync after writes) and logs a one-time warning. To get the
+real libaio path, build locally with <code>VSAG_ENABLE_LIBAIO=ON pip install python/</code>. See
+<a href="#disk-based-index-best-practices">Disk Index</a>.</p>
 <h2 id="more-examples"><a class="header" href="#more-examples">More Examples</a></h2>
 <p>See <code>examples/python/</code> in the repository.</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -1049,7 +1113,7 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 <tr><td><code>max_degree</code></td><td>16–48</td><td>Maximum out-degree per node</td></tr>
 <tr><td><code>ef_construction</code></td><td>200–500</td><td>Candidate set size during build; larger = higher recall, slower build</td></tr>
 <tr><td><code>alpha</code></td><td><code>1.0</code></td><td>Final robust-pruning factor; PiPNN requires a finite value at least <code>1.0</code></td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq8_local</code> / <code>sq4_local</code> / <code>sq4</code> / <code>pq</code></td><td>Quantization of the base storage — see the <a href="quantization">Quantization chapter</a> for all supported values</td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq8_local</code> / <code>sq4_local</code> / <code>sq4</code> / <code>pq</code> / <code>rabitq</code> / <code>saq</code> / <code>tq</code></td><td>Quantization of the base storage; see the <a href="quantization">Quantization chapter</a> for behavior and per-index restrictions</td></tr>
 <tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>Track incoming neighbors for O(1) reverse-edge lookup; roughly doubles edge storage and is unsupported with compressed graph storage</td></tr>
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>Label-map implementation: <code>pg</code> (default) or <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>Reorder from the <code>precise</code> store or directly from <code>base</code>; RaBitQ x+y split, including <code>tq_chain="mrle, rabitq"</code>, selects <code>base</code> automatically</td></tr>
@@ -1062,6 +1126,24 @@ Use <code>repr: "multi_vector"</code> with a supported multi-vector index and a 
 </table>
 </div>
 <p>For HGraph float32 L2/IP/cosine, <code>sq8_local</code> and <code>sq4_local</code> can select either <code>base_quantization_type</code> or <code>precise_quantization_type</code> (the latter requires <code>use_reorder: true</code>). See <a href="#local-sq4--sq8-float32-l2-ip-and-cosine">local SQ4/SQ8</a> for memory, persistence and limitations.</p>
+<h3 id="saq-base-quantizer-parameters"><a class="header" href="#saq-base-quantizer-parameters">SAQ base-quantizer parameters</a></h3>
+<p>When <code>base_quantization_type</code> is <code>saq</code>, HGraph, IVF, and Pyramid accept the following parameters.
+They are part of the trained model state and must remain consistent when loading or merging
+compatible index states.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Default</th><th>Valid values</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>saq_avg_bits</code></td><td>float</td><td><code>4.0</code></td><td><code>[1, 8]</code></td><td>Average payload target per input dimension. The complete record reserves the same 12-byte allowance as equal-length multi-bit RaBitQ; SAQ’s 8-byte metadata per segment and byte-aligned bit planes are charged against that fixed record budget.</td></tr>
+<tr><td><code>saq_segment_count</code></td><td>unsigned integer</td><td><code>0</code></td><td><code>0</code> or a feasible positive value</td><td><code>0</code> jointly learns the segment count, 64-dimension-aligned boundaries, and bit widths. A positive value fixes evenly distributed aligned boundaries and still learns bit widths. Training rejects requests that cannot fit the dimension or record budget.</td></tr>
+<tr><td><code>saq_random_rotation</code></td><td>boolean</td><td><code>true</code></td><td><code>true</code> / <code>false</code></td><td>Apply a deterministic, persisted orthogonal rotation within every segment.</td></tr>
+</tbody>
+</table>
+</div>
+<p>See the <a href="#saq-segmented-code-adjustment-quantization">SAQ guide</a> for record layout, metric semantics, persistence, and a
+complete HGraph example.</p>
 <h3 id="pipnn-build-parameters"><a class="header" href="#pipnn-build-parameters">PiPNN build parameters</a></h3>
 <p>When <code>graph_type</code> is <code>pipnn</code>, HGraph and Pyramid also accept the following build parameters under
 <code>index_param</code>. They share these defaults and validation rules:</p>
@@ -1217,6 +1299,19 @@ parameters such as <code>n_candidate</code>.</p>
 </code></pre>
 <p>See the <a href="#sindi_v2">SINDI_V2 page</a> for build parameters and search parameters such as
 <code>n_candidate</code> and <code>filter_callback_limit</code>.</p>
+<h2 id="simq-multi-vector-retrieval"><a class="header" href="#simq-multi-vector-retrieval">SIMQ (multi-vector retrieval)</a></h2>
+<p>SIMQ requires top-level <code>dim &gt; 0</code>, <code>dtype: "float32"</code>, and <code>metric_type: "ip"</code>;
+<code>repr: "multi_vector"</code> can describe the layout explicitly. Its 15 public build fields live under
+<code>index_param</code>: <code>base_io_type</code>, <code>base_file_path</code>, <code>base_enable_read_cache</code>, <code>base_cache_total_size</code>,
+<code>quantization_type</code>, <code>build_thread_count</code>, <code>init_cluster_ratio</code>, <code>max_cluster_size</code>,
+<code>split_start_idx</code>, <code>random_seed</code>, <code>coarse_k</code>, <code>rerank_k</code>, <code>split_delay_seconds</code>,
+<code>support_duplicate</code>, and <code>deduplicate_storage</code>.</p>
+<p>Both KNN and range search accept <code>simq.coarse_k</code>, <code>simq.rerank_k</code> (omitted/non-positive values
+use build defaults), and soft <code>simq.timeout_ms</code>. Root-level finite <code>threshold</code> limits KNN final
+distances only; range search uses <code>radius</code>. Shared <code>parallelism</code>, <code>factor</code>, and <code>enable_reorder</code>
+are parsed inside <code>simq</code> but ignored; MaxSim reranking cannot be disabled. See the
+<a href="#simq">SIMQ parameter tables</a> for defaults, constraints, storage/quantization caveats,
+and the distinction between input dtype and storage format.</p>
 <h2 id="runtime-parameters"><a class="header" href="#runtime-parameters">Runtime Parameters</a></h2>
 <p>Beyond build-time parameters, <code>Index::Tune</code> and <code>SearchParam</code> tweak runtime settings such as
 <code>ef_search</code> and <code>nprobe</code>. See <a href="#optimizer-tune">Optimizer</a> and the
@@ -1243,7 +1338,7 @@ NSW-style insertion (<code>graph_type: "nsw"</code>, the default), ODescent
 (<code>graph_type: "odescent"</code>), or PiPNN (<code>graph_type: "pipnn"</code>).</li>
 <li><strong>Quantization.</strong> The base storage is compressed with a configurable quantizer
 (<code>base_quantization_type</code> — <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>,
-<code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code>). Optionally, a second high-precision copy is kept
+<code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code>, <code>tq</code>). Optionally, a second high-precision copy is kept
 (<code>use_reorder: true</code> with <code>precise_quantization_type</code>) and used to re-rank the
 candidates returned by the coarse search.</li>
 <li><strong>Search.</strong> Greedy beam search traverses the graph top-down, expanding the current
@@ -1301,7 +1396,7 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>— (required)</td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code> — see the <a href="quantization">Quantization chapter</a> for per-quantizer details</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>— (required)</td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code>, <code>tq</code> — see the <a href="quantization">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per graph node</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size during build (higher = better recall, slower build)</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.0</code></td><td>Final robust-pruning factor; PiPNN requires a finite value at least <code>1.0</code>.</td></tr>
@@ -1324,6 +1419,9 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Output dimension for an MRLE transform in <code>tq_chain</code>; allowed range <code>[0, dim]</code>, where <code>0</code> means the input dimension.</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use the fast multi-bit RaBitQ encoder; set to <code>false</code> for the previous exact encoder.</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Fast RaBitQ coordinate-refinement rounds, in <code>[1, 32]</code>.</td></tr>
+<tr><td><code>saq_avg_bits</code></td><td>float</td><td><code>4.0</code></td><td>SAQ average record bits per dimension, in <code>[1, 8]</code>.</td></tr>
+<tr><td><code>saq_segment_count</code></td><td>int</td><td><code>0</code></td><td>SAQ segment count; <code>0</code> selects boundaries dynamically.</td></tr>
+<tr><td><code>saq_random_rotation</code></td><td>bool</td><td><code>true</code></td><td>Apply an independent orthogonal rotation inside each SAQ segment.</td></tr>
 <tr><td><code>rabitq_fused_datacell</code></td><td>bool</td><td><code>false</code></td><td>Fuse the bottom HGraph node and RaBitQ split codes into one in-memory record. Requires L2/IP, flat in-memory graph storage, RaBitQ x+y split codes with x in <code>[1, 4]</code>, and the other constraints described in <a href="#rabitq-xy-split">RaBitQ x+y split</a>.</td></tr>
 <tr><td><code>train_sample_count</code></td><td>int</td><td><code>65536</code></td><td>Maximum number of vectors sampled for quantizer training; must be at least <code>512</code> when set explicitly.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>100</code></td><td>Threads used to parallelise build</td></tr>
@@ -1344,7 +1442,7 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 </tbody>
 </table>
 </div>
-<p><code>sq8_local</code> and <code>sq4_local</code> support float32 L2/IP/cosine base and precise stores (including RaBitQ + local SQ4/SQ8 reranking). See <a href="#local-sq4--sq8-float32-l2-ip-and-cosine">layout, numeric limits and Tune compatibility</a>.</p>
+<p><code>sq8_local</code> and <code>sq4_local</code> support float32/float16/bfloat16 input with L2/IP/cosine base and precise stores (including RaBitQ + local SQ4/SQ8 reranking). See <a href="#local-sq4--sq8-float32-l2-ip-and-cosine">layout, numeric limits and Tune compatibility</a>.</p>
 <p><code>use_reverse_edges</code> is intended for workloads that need fast incoming-neighbor inspection, graph
 analysis, or future graph-maintenance algorithms. It is disabled by default because maintaining
 the reverse adjacency approximately doubles edge storage.</p>
@@ -1353,8 +1451,15 @@ the reverse adjacency approximately doubles edge storage.</p>
 before changing it.</p>
 <h3 id="pipnn-build-boundary"><a class="header" href="#pipnn-build-boundary">PiPNN build boundary</a></h3>
 <p>Set <code>graph_type: "pipnn"</code> to use <a href="https://arxiv.org/abs/2602.21247">PiPNN</a> for the initial,
-full <code>Build</code>. The PiPNN builder accepts dense <code>float32</code> input with <code>metric_type</code> set to <code>"l2"</code>,
-<code>"ip"</code>, or <code>"cosine"</code>. It builds the bottom graph from the original build vectors, then reuses
+full <code>Build</code>. The PiPNN builder accepts dense <code>dtype: "float32"</code>, <code>"float16"</code>, or <code>"bfloat16"</code>
+input with <code>metric_type</code> set to <code>"l2"</code>, <code>"ip"</code>, or <code>"cosine"</code>; sparse and <code>int8</code> inputs are not
+supported. For FP16/BF16 input, it borrows the full input rows in their original half format
+rather than materializing a full FP32 input copy. Bounded, local partition/leaf operands are
+converted to FP32 for BLAS matrix operations, with FP32 accumulation; this is not a native
+half-precision matrix backend. Final vector-storage quantization is configured independently
+of the input dtype, subject to the index and quantizer support restrictions.
+Quantizer training is separate from PiPNN graph construction: training may still materialize the full selected training sample in an FP32 buffer (potentially the full dataset when all rows are selected). Borrowing half input therefore does not guarantee that the complete build avoids a full-sample FP32 buffer. Validation of these half-input paths is in progress; no performance or non-regression claim is made.
+It builds the bottom graph from the original build vectors, then reuses
 HGraph’s route layers, storage, search, filtering, reordering, incremental <code>Add</code>, removal, and
 serialization paths. The persistent base storage may use a supported quantizer such as <code>sq8</code>,
 including RaBitQ with SQ8 reorder. Cache-assisted build is not supported with PiPNN.
@@ -1477,6 +1582,7 @@ A runnable FP16 example is
 <code>BFloat16Vectors()</code> setter, but no such setter exists — <code>Float16Vectors</code> is the single entry
 point for both FP16 and BF16. Use it for both <code>dtype: "float16"</code> and <code>dtype: "bfloat16"</code>.</p>
 </blockquote>
+<p>FP16/BF16 input supports the same originally legal FP32 storage-quantizer configurations, not a separate limited quantizer list: <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, ordinary <code>sq4</code>/<code>sq8</code>, <code>sq4_uniform</code>/<code>sq8_uniform</code>, <code>sq4_local</code>/<code>sq8_local</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, and eligible <code>tq</code> chains. This applies to base storage and, when enabled, precise storage; it does not make every base/precise combination legal. Existing metric, dimension, training, graph, and IO restrictions still apply. Local SQ4/SQ8 remain prohibited inside TQ chains. Split RaBitQ supports 3+5 bits, including MRLE; a split TQ chain is restricted to <code>"mrle, rabitq"</code>. HGraph fused RaBitQ remains L2/IP-only, requires flat in-memory graph storage and its existing IO constraints, and does not support TQ. Half input does not relax any of these restrictions.</p>
 <h3 id="choosing-an-input-type"><a class="header" href="#choosing-an-input-type">Choosing an input type</a></h3>
 <ul>
 <li>Pick <code>float32</code> when accuracy matters most and memory budget allows; this is the default.</li>
@@ -1566,6 +1672,12 @@ Indexes written before this option existed default to disabled mode.</p>
 <tr><td><code>brute_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Selectivity-aware brute-force fallback. When <code>&gt; 0</code> and the supplied filter’s <code>ValidRatio()</code> is <code>≤ brute_force_threshold</code>, the search <strong>bypasses the graph traversal entirely</strong> and runs an exact scan over the valid ids using the best available flatten codes (see the section below). Must lie in <code>[0.0, 1.0]</code>; the default <code>0.0</code> disables the feature and preserves legacy behavior.</td></tr>
 <tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>Enables the RaBitQ filter/lower-bound path. On an x+y split index it uses all x filter bits; see <a href="#rabitq-xy-split">RaBitQ x+y Split</a>.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td>index default</td><td>Positive lower-bound error multiplier for this search. It can be tuned without rebuilding the split index.</td></tr>
+<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>Whether to re-rank coarse candidates against the precise codes. Set to <code>false</code> to skip reordering and return the approximate results directly. Use <code>use_reorder: true</code> in <code>index_param</code> to store the precise codes needed for reordering.</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>0.0</code></td><td>Reorder-candidate amplification factor. When <code>&gt; 1.0</code>, the reorder-candidate pool is capped at <code>k * factor</code> (but never below <code>max(ef_search, k)</code>); the default <code>0.0</code> preserves the existing behaviour with <code>ef_search</code> candidates.</td></tr>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Number of parallel workers for a single HGraph search. Values <code>&lt;= 0</code> are reset to <code>1</code> during parsing; parallel execution requires a configured executor, otherwise the search falls back to sequential execution.</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>unlimited</td><td>Per-query wall-clock timeout in milliseconds. The timer starts after routing; once exceeded, the search returns the current frontier. Best-effort only — it does not preempt a distance-computation batch.</td></tr>
+<tr><td><code>use_extra_info_filter</code></td><td>bool</td><td><code>false</code></td><td>Create the query filter from extra-info rather than plain label membership. Requires matching extra-info columns at build time.</td></tr>
+<tr><td><code>use_conjugate_graph_search</code></td><td>bool</td><td><code>true</code></td><td>Search enhancement pass. When <code>use_conjugate_graph: true</code> was set at build time, the search expands results through the conjugate graph for potentially higher recall; set to <code>false</code> to skip it. Only takes effect when a conjugate graph was built.</td></tr>
 </tbody>
 </table>
 </div>
@@ -1941,7 +2053,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>gpu_device_id</code></td><td>int</td><td><code>0</code></td><td>CUDA device ordinal (effective for <code>ivf</code>); an ordinal the machine does not have keeps the build on the CPU</td></tr>
 <tr><td><code>gpu_memory_budget</code></td><td>int</td><td><code>0</code></td><td>Ceiling in bytes on the device working set (effective for <code>ivf</code>); <code>0</code> derives it from what the device has free</td></tr>
 <tr><td><code>gpu_min_work_threshold</code></td><td>int</td><td><code>0</code></td><td>Smallest <code>count * buckets_count * dim</code> worth offloading (effective for <code>ivf</code>); <code>0</code> uses the calibrated default</td></tr>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="quantization">Quantization chapter</a> for per-quantizer details</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code> — see the <a href="quantization">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ subspaces (required with <code>pq</code> / <code>pqfs</code>)</td></tr>
 <tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td>Optional PCA preprocessing dimension for <code>base_quantization_type: "rabitq"</code></td></tr>
 <tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>Query bits for <code>rabitq</code>; allowed values are <code>4</code> or <code>32</code></td></tr>
@@ -1953,6 +2065,9 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use CAQ fast construction for multi-bit <code>rabitq</code>; set to <code>false</code> for exact encoding</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>CAQ adjustment rounds; allowed range is <code>[1, 32]</code></td></tr>
 <tr><td><code>use_residual</code></td><td>bool</td><td><code>false</code></td><td>Encode vectors relative to their IVF bucket centroid (<code>x-c</code>).</td></tr>
+<tr><td><code>saq_avg_bits</code></td><td>float</td><td><code>4.0</code></td><td>SAQ average record bits per dimension, in <code>[1, 8]</code></td></tr>
+<tr><td><code>saq_segment_count</code></td><td>int</td><td><code>0</code></td><td>SAQ segment count; <code>0</code> selects boundaries dynamically</td></tr>
+<tr><td><code>saq_random_rotation</code></td><td>bool</td><td><code>true</code></td><td>Apply an independent orthogonal rotation inside each SAQ segment</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse scan</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (with <code>use_reorder: true</code>)</td></tr>
 <tr><td><code>precise_codes_layout</code></td><td>string</td><td><code>"flat"</code></td><td>Storage layout for precise codes: <code>"flat"</code> keeps the legacy one-code-per-vector layout; <code>"bucket"</code> stores the precise code in the same bucket and offset as its basic posting</td></tr>
@@ -2656,6 +2771,7 @@ is computed via <strong>MaxSim</strong> (sum of maximum per-query-token similari
 <li><strong>Representative graph routing.</strong> Each partition selects a real member token as its representative. A quantized HGraph routes each query token to candidate partitions, whose document lists form a coarse-ranked candidate set.</li>
 <li><strong>MaxSim reranking.</strong> The top <code>rerank_k</code> candidate documents are read from memory or disk and decoded. MaxSim is evaluated over these stored representations. With lossy quantization this is not exact scoring against the original FP32 input.</li>
 </ol>
+<p>Each document enters the coarse candidate set once per query, including when its accumulated coarse score is zero or contributions from query tokens cancel out.</p>
 <p>The two-stage pipeline trades candidate recall, quantization error, memory, and latency.</p>
 <h2 id="quick-start-6"><a class="header" href="#quick-start-6">Quick start</a></h2>
 <pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
@@ -2724,41 +2840,58 @@ for (int64_t i = 0; i &lt; result_count; ++i) {
 }
 </code></pre>
 <h2 id="build-parameters-5"><a class="header" href="#build-parameters-5">Build parameters</a></h2>
-<p>SIMQ-specific build parameters live under <code>index_param</code>. The common fields
-<code>dim</code>, <code>dtype</code>, and <code>metric_type</code> are top-level. <code>dtype</code> <strong>must</strong> be
-<code>"float32"</code> and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
+<p>SIMQ-specific build parameters live under <code>index_param</code>; common fields stay at the top level.
+Input is FP32 <code>MultiVector</code> data regardless of the internal storage quantization.</p>
+<h3 id="top-level-common-fields"><a class="header" href="#top-level-common-fields">Top-level common fields</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Constraints and effect</th></tr>
 </thead>
 <tbody>
-<tr><td><code>dim</code></td><td>int</td><td>— (required)</td><td>Dimension of each token vector.</td></tr>
-<tr><td><code>base_io_type</code></td><td>string</td><td><code>"async_io"</code></td><td>Storage backend for reranking multi-vector data.</td></tr>
-<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path for disk-backed IO types.</td></tr>
-<tr><td><code>init_cluster_ratio</code></td><td>float</td><td><code>0.2</code></td><td>Fraction of tokens sampled as initial cluster centers.</td></tr>
-<tr><td><code>max_cluster_size</code></td><td>int</td><td><code>64</code></td><td>Maximum token vectors per cluster before split.</td></tr>
-<tr><td><code>split_start_idx</code></td><td>int</td><td><code>32</code></td><td>Split position within an overflowing cluster.</td></tr>
-<tr><td><code>random_seed</code></td><td>int</td><td><code>42</code></td><td>Random seed for clustering shuffle.</td></tr>
-<tr><td><code>coarse_k</code></td><td>int</td><td><code>8</code></td><td>Default nearest clusters per query token at build time.</td></tr>
-<tr><td><code>rerank_k</code></td><td>int</td><td><code>100</code></td><td>Default max rerank candidates at build time.</td></tr>
+<tr><td><code>dim</code></td><td>int</td><td>required</td><td>Positive dimension of every document/query token.</td></tr>
+<tr><td><code>dtype</code></td><td>string</td><td>required</td><td>Must be <code>"float32"</code>; this is the input scalar type, not the storage quantizer.</td></tr>
+<tr><td><code>metric_type</code></td><td>string</td><td>required</td><td>Must be <code>"ip"</code>.</td></tr>
+<tr><td><code>repr</code></td><td>string</td><td><code>"dense"</code> (common-parser default)</td><td>Optional common layout field; use <code>"multi_vector"</code> to describe this data explicitly. SIMQ’s Build/Add/search APIs still require <code>MultiVectors</code>, not single dense vectors.</td></tr>
+<tr><td><code>extra_info_size</code></td><td>int</td><td><code>0</code></td><td>Shared parser accepts an integer without a non-negative check; positive values initialize inherited extra-info storage, but SIMQ Build/Add and search do not populate or return it. Leave at <code>0</code> for this workflow.</td></tr>
+<tr><td><code>use_old_serial_format</code></td><td>bool</td><td><code>false</code></td><td>Common compatibility flag; SIMQ does not consume it to select its serialization format.</td></tr>
 </tbody>
 </table>
 </div>
-<ul>
-<li><strong><code>dim</code></strong> — shared across all documents and queries.</li>
-<li><strong><code>base_io_type</code></strong> — supported values: <code>async_io</code>, <code>uring_io</code>, <code>memory_io</code>,
-<code>block_memory_io</code>, <code>buffer_io</code>, <code>mmap_io</code>, <code>reader_io</code>. Native <code>uring_io</code>
-requires a build with liburing; otherwise it falls back to <code>buffer_io</code>.</li>
-<li><strong><code>base_file_path</code></strong> — the default is a placeholder; provide a real path
-when using a disk-backed type (<code>async_io</code>, <code>uring_io</code>, <code>buffer_io</code>, <code>mmap_io</code>).</li>
-<li><strong><code>init_cluster_ratio</code></strong> — range <code>(0, 1]</code>. Smaller values yield fewer,
-larger clusters; larger values produce more, finer-grained clusters.</li>
-<li><strong><code>max_cluster_size</code></strong> — must be &gt; 1.</li>
-<li><strong><code>split_start_idx</code></strong> — typically half of <code>max_cluster_size</code>.
-Must be in <code>(1, max_cluster_size)</code>.</li>
-<li><strong><code>coarse_k</code></strong>, <strong><code>rerank_k</code></strong> — must be &gt; 0.</li>
-</ul>
+<h3 id="fields-under-index_param"><a class="header" href="#fields-under-index_param">Fields under <code>index_param</code></a></h3>
+<p>These are all 15 public SIMQ build fields. Other keys under <code>index_param</code> are rejected.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Constraints and effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"async_io"</code></td><td>Document-token code backend: <code>async_io</code>, <code>uring_io</code>, <code>buffer_io</code>, <code>mmap_io</code>, <code>memory_io</code>, <code>block_memory_io</code>, or <code>reader_io</code>; see IO caveats below.</td></tr>
+<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>Provide a usable file path for disk-backed storage (<code>async_io</code>, <code>uring_io</code>, <code>buffer_io</code>, <code>mmap_io</code>); the default is a placeholder.</td></tr>
+<tr><td><code>base_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the optional LRU page cache for <code>async_io</code>, <code>uring_io</code>, <code>buffer_io</code>, and <code>reader_io</code>. Ignored by <code>memory_io</code>, <code>block_memory_io</code>, and <code>mmap_io</code> (<code>NoCache</code>).</td></tr>
+<tr><td><code>base_cache_total_size</code></td><td>unsigned int</td><td><code>268435456</code> (256 MiB)</td><td>Non-negative byte budget for that cache. Capacity is rounded down to 128 KiB pages; less than one page (including <code>0</code>) disables caching even when enabled. Applies to the document-code IO instance, not the representative graph.</td></tr>
+<tr><td><code>quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Factory-supported document/graph storage types: <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8_uniform</code>, <code>int8</code>. See the <code>int8</code> caveat below; this does not change FP32 input requirements.</td></tr>
+<tr><td><code>build_thread_count</code></td><td>unsigned int</td><td><code>1</code></td><td>Shared parser accepts non-negative integers without a SIMQ-specific positive check; use <code>&gt;= 1</code>. Controls construction/representative HGraphs and clustering work, not a per-query parallelism override. Clustering uses at least one worker.</td></tr>
+<tr><td><code>init_cluster_ratio</code></td><td>float</td><td><code>0.2</code></td><td>In <code>(0, 1]</code>; fraction of tokens selected as initial seeds. Smaller values tend to produce fewer, larger partitions.</td></tr>
+<tr><td><code>max_cluster_size</code></td><td>int</td><td><code>64</code></td><td>Must be <code>&gt; 1</code>; token-count threshold for splitting a partition, not a document-count limit.</td></tr>
+<tr><td><code>split_start_idx</code></td><td>int</td><td><code>32</code></td><td>Must be in <code>(1, max_cluster_size)</code>; start of the new partition in the distance-sorted overflowing partition.</td></tr>
+<tr><td><code>random_seed</code></td><td>int</td><td><code>42</code></td><td>Seed for initial token shuffle and bounded document-model training sample; no additional SIMQ range check.</td></tr>
+<tr><td><code>coarse_k</code></td><td>int</td><td><code>8</code></td><td>Must be <code>&gt; 0</code>; default number of nearest representative clusters per query token, capped by available clusters at search time.</td></tr>
+<tr><td><code>rerank_k</code></td><td>int</td><td><code>100</code></td><td>Must be <code>&gt; 0</code>; default maximum candidate documents for MaxSim reranking, capped by document count at search time.</td></tr>
+<tr><td><code>split_delay_seconds</code></td><td>float</td><td><code>0.0</code></td><td>Must be <code>&gt;= 0</code>; delay after first overflow before incremental <code>Add</code> splits become eligible. <code>0</code> is immediate. Pending splits are checked during <code>Add</code>, not by a background timer; this does not delay initial Build clustering.</td></tr>
+<tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Let identical representative vectors share a representative-HGraph node. Does not deduplicate document IDs or suppress duplicate tokens in the construction-internal HGraph.</td></tr>
+<tr><td><code>deduplicate_storage</code></td><td>bool</td><td><code>false</code></td><td>Requires <code>support_duplicate: true</code>; share duplicate vector-code storage slots in the representative HGraph, not document-token storage.</td></tr>
+</tbody>
+</table>
+</div>
+<p><strong>IO caveats.</strong> Native <code>uring_io</code> requires liburing; without it, the backend uses a buffered fallback.
+<code>reader_io</code> is recognized by the factory but is an external-reader, read-only backend requiring a
+non-null Reader binding. Selecting it in JSON alone does not provide writable Build/Add storage.
+Do not treat every recognized IO type as interchangeable for construction.</p>
+<p><strong>Quantization caveat.</strong> <code>int8</code> is factory-supported, but its current encoder copies raw input bytes
+rather than performing a numeric FP32-to-int8 conversion. It must not be advertised as ordinary
+scalar compression of FP32 token values. Prefer <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, or <code>sq8_uniform</code> for the
+FP32 workflow, and validate storage accuracy on your data.</p>
 <blockquote>
 <p><strong>Choosing cluster parameters.</strong> <code>init_cluster_ratio</code> and <code>max_cluster_size</code>
 together control the number and size of clusters. A smaller
@@ -2768,29 +2901,59 @@ faster coarse search at the cost of recall. Start with
 <code>split_start_idx</code>, then tune with the search parameters.</p>
 </blockquote>
 <h2 id="search-parameters-5"><a class="header" href="#search-parameters-5">Search parameters</a></h2>
-<p>Search-time parameters live under the <code>simq</code> sub-object:</p>
+<p>The following fields under the <code>simq</code> sub-object apply to both <code>KnnSearch</code> and <code>RangeSearch</code>:</p>
 <div class="table-wrapper">
 <table>
 <thead>
-<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Constraints and effect</th></tr>
 </thead>
 <tbody>
-<tr><td><code>coarse_k</code></td><td>int</td><td><em>(index default)</em></td><td>Nearest clusters per query token.</td></tr>
-<tr><td><code>rerank_k</code></td><td>int</td><td><em>(index default)</em></td><td>Max rerank candidates.</td></tr>
+<tr><td><code>coarse_k</code></td><td>int</td><td><code>-1</code> → build value</td><td>Positive values override the build value; omitted or <code>&lt;= 0</code> falls back to it. More clusters per query token widen the candidate pool, usually at higher latency.</td></tr>
+<tr><td><code>rerank_k</code></td><td>int</td><td><code>-1</code> → build value</td><td>Positive values override the build value; omitted or <code>&lt;= 0</code> falls back to it. More candidates increase MaxSim IO/compute; this is independent of requested <code>topk</code>/range output size.</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>omitted (no deadline)</td><td>Soft elapsed-time budget in milliseconds. Presence enables timing; the parser has no positivity check, so <code>&lt;= 0</code> is an immediately expired budget, not “disabled”. Can return partial or empty results.</td></tr>
 </tbody>
 </table>
 </div>
-<ul>
-<li><strong><code>coarse_k</code></strong> — overrides the build-time value. Larger values increase
-the candidate pool and improve recall at the cost of latency.</li>
-<li><strong><code>rerank_k</code></strong> — overrides the build-time value. Larger values improve
-recall at the cost of more disk reads and compute.</li>
-<li>When omitted, the build-time defaults are used. Both values must be &gt; 0
-when explicitly set.</li>
-</ul>
+<p>The timeout starts before coarse search but does not interrupt representative-graph searches or
+in-flight IO/MaxSim work. It is checked after coarse search and between rerank work units
+(up to 32 documents per KNN batch; one document for range search), and again before returning.
+A coarse-phase timeout clears the coarse candidates. This is not a hard wall-clock latency bound;
+check the returned statistics’ <code>is_timeout</code> flag.</p>
+<p>The inherited shared parser also accepts these fields inside <code>simq</code>, but SIMQ consumes none of
+them in either search path:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Parsed default</th><th>SIMQ effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Ignored; the shared parser normalizes non-positive values to <code>1</code>.</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>0.0</code></td><td>Ignored; no SIMQ range check. Tune <code>rerank_k</code> instead.</td></tr>
+<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>Ignored, including <code>false</code>; SIMQ always performs MaxSim reranking of retained candidates.</td></tr>
+</tbody>
+</table>
+</div>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Root-level parameter</th><th>Type</th><th>Default</th><th>Constraints and effect</th></tr>
+</thead>
+<tbody>
+<tr><td><code>threshold</code></td><td>float</td><td>omitted</td><td>KNN only: finite inclusive upper bound on final distance; see below.</td></tr>
+</tbody>
+</table>
+</div>
+<p>For <strong>KNN only</strong>, optional root-level <code>threshold</code> (float, absent by default) must be a finite JSON
+number. It is an inclusive upper bound on the <strong>final returned distance</strong>, not a coarse-search
+cutoff or minimum similarity. Only finite distances <code>&lt;= threshold</code> pass; negative thresholds are
+allowed and fewer than <code>topk</code> results may be returned. SIMQ’s distance sums the per-query-token
+minimum <code>1 - inner_product</code> over stored document tokens, rather than using a single-vector IP
+distance. See <a href="#k-nearest-neighbor-search">KNN threshold filtering</a>.
+<code>RangeSearch</code> uses its <code>radius</code> argument instead and does not consume root-level <code>threshold</code>;
+<code>limited_size</code> limits range output, not the candidate pool controlled by <code>rerank_k</code>.</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
-    R"({"simq": {"coarse_k": 600, "rerank_k": 5000}})").value();
+    R"({"threshold": 4.0, "simq": {"coarse_k": 600, "rerank_k": 5000, "timeout_ms": 100}})").value();
 </code></pre>
 <h2 id="search-statistics-1"><a class="header" href="#search-statistics-1">Search statistics</a></h2>
 <p><code>KnnSearch</code> and <code>RangeSearch</code> attach a JSON statistics object to the returned dataset. Read the
@@ -2835,8 +2998,8 @@ for those).</p>
 <ul>
 <li><strong>Scaling <code>coarse_k</code> and <code>rerank_k</code>.</strong> Increasing <code>coarse_k</code> widens the
 cluster-level candidate net; increasing <code>rerank_k</code> admits more documents to
-exact scoring. In practice, <code>rerank_k</code> has a larger impact on recall but also
-on latency because each additional candidate requires a disk read and full
+MaxSim scoring over stored representations. In practice, <code>rerank_k</code> has a larger impact on recall but also
+on latency because each additional candidate requires storage access and full
 MaxSim computation.</li>
 <li><strong>IO type selection.</strong> Use <code>async_io</code> for large corpora that do not fit in
 memory. Use <code>memory_io</code> or <code>block_memory_io</code> when the multi-vector data fits in
@@ -2865,7 +3028,7 @@ overflows; centering it keeps the two halves balanced.</li>
 </ul>
 <h2 id="quantized-construction-and-incremental-ingestion"><a class="header" href="#quantized-construction-and-incremental-ingestion">Quantized construction and incremental ingestion</a></h2>
 <p>The Dataset input remains FP32 <code>MultiVector</code>, including when <code>quantization_type</code> is <code>fp16</code>, <code>bf16</code>, or <code>sq8_uniform</code>. SIMQ encodes tokens before partition construction and uses the selected quantizer’s native code-to-code distance for partition maintenance. Both construction and representative HGraphs use quantized base storage without an FP32 reorder copy. Temporary FP32 decoding remains necessary for graph insertion/query APIs and mean accumulation; this is not zero-decode construction.</p>
-<p>Construction avoids a full FP32 flattened token copy. It uses a temporary encoded token pool, token-address metadata, and at most 4096 FP32 tokens per training/staging buffer. The encoded pool duplicates document codes until Build returns. Caller-owned FP32 input and O(tokens) metadata still contribute to peak memory. Models requiring training use a deterministic sample of at most 4096 tokens (sampling with replacement for larger inputs); subsequent Add calls reuse the trained document model. HGraphs own separate models and never exchange encoded bytes across models.</p>
+<p>Construction avoids a full FP32 flattened token copy. It uses a temporary encoded token pool, token-address metadata, and at most 4096 FP32 tokens per training/staging buffer. The encoded pool duplicates document codes until Build returns. Caller-owned FP32 input and O(tokens) metadata still contribute to peak memory. Build passes a deterministic sample of at most 4096 tokens to the document quantizer’s Train method (sampling with replacement for larger inputs); whether training learns data-dependent state is quantizer-specific. Subsequent Add calls reuse the document model without retraining. HGraphs own separate models and never exchange encoded bytes across models.</p>
 <p>Use <code>Build(first_batch)</code> followed by <code>Add(next_batch)</code> for incremental ingestion. The first batch should represent subsequent data. A quantized or incrementally built index need not produce the same partitions or recall as an all-at-once FP32 build; benchmark your workload. FP32/BF16/FP16/SQ8 input and storage types must not be confused. SIMQ continues to accept only FP32 input and inner-product metric.</p>
 <h3 id="serialization-compatibility"><a class="header" href="#serialization-compatibility">Serialization compatibility</a></h3>
 <p>New readers support legacy, unversioned SIMQ indexes when constructed with matching dimension and document quantization. Legacy representative graphs remain FP32 to preserve existing search behavior. Load reconstructs document-model representative codes and refreshes token distances, requiring an O(tokens) migration pass with bounded vector scratch; subsequent incremental partitions are not promised to match older implementations. Resaving preserves the actual graph quantization and upgraded representative metadata. New writes use SIMQ format version 1; unknown versions and mismatched dimensions/quantizers are rejected. Reading new files with older binaries is not guaranteed.</p>
@@ -2954,7 +3117,8 @@ auto result = index-&gt;KnnSearch(
 <h2 id="input-data-type-1"><a class="header" href="#input-data-type-1">Input data type</a></h2>
 <p>Pyramid accepts <code>dtype: "float16"</code> and <code>dtype: "bfloat16"</code> input for <code>Build</code>, <code>Add</code>, and search, as well as the existing <code>"float32"</code> input. The input <code>dtype</code> is distinct from the storage quantizer: use <code>"float16"</code> / <code>"bfloat16"</code> for <code>dtype</code>, but <code>"fp16"</code> / <code>"bf16"</code> for quantization parameters.</p>
 <p>For either half input type, supply <code>Dataset::Float16Vectors</code> with a contiguous <code>uint16_t</code> buffer containing the <strong>encoded FP16 or BF16 bit patterns</strong>, not integers obtained by numerically casting floats. <code>dtype</code> determines how these bits are interpreted. Build/Add buffers contain <code>NumElements() * Dim()</code> entries; query buffers must use the same input format as the index. Supply IDs and paths as in the example above, replacing <code>Float32Vectors(data)</code> and <code>Float32Vectors(q)</code> with <code>Float16Vectors(half_data)</code> and <code>Float16Vectors(half_query)</code>. With <code>Owner(false)</code>, keep the borrowed buffers (including IDs and paths) alive for the operation.</p>
-<p>For half input, supported <code>base_quantization_type</code> and, when <code>use_reorder</code> is <code>true</code>, <code>precise_quantization_type</code> values are <code>fp16</code>, <code>bf16</code>, <code>pq</code>, <code>sq8</code>, and <code>fp32</code>. Quantizer-specific requirements still apply (for example, PQ training and dimension settings). A minimal matching-format configuration is:</p>
+<p>FP16/BF16 input supports the same originally legal FP32 storage-quantizer configurations, not a separate limited quantizer list: <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, ordinary <code>sq4</code>/<code>sq8</code>, <code>sq4_uniform</code>/<code>sq8_uniform</code>, <code>sq4_local</code>/<code>sq8_local</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, and eligible <code>tq</code> chains. This applies to base storage and, when enabled, precise storage; it does not make every base/precise combination legal. Existing metric, dimension, training, graph, and IO restrictions still apply. Local SQ4/SQ8 remain prohibited inside TQ chains. Split RaBitQ supports 3+5 bits, including MRLE; a split TQ chain is restricted to <code>"mrle, rabitq"</code>. HGraph fused RaBitQ remains L2/IP-only, requires flat in-memory graph storage and its existing IO constraints, and does not support TQ. Half input does not relax any of these restrictions.</p>
+<p>A minimal matching-format configuration is:</p>
 <pre><code class="language-json">{
     "dtype": "float16",
     "metric_type": "l2",
@@ -2967,10 +3131,10 @@ auto result = index-&gt;KnnSearch(
 }
 </code></pre>
 <p>For BF16 input with BF16 storage, change <code>dtype</code> to <code>"bfloat16"</code> and <code>base_quantization_type</code> to <code>"bf16"</code>. Cross-format storage conversion is also supported, such as FP16 input with BF16 storage or BF16 input with FP32 storage; this does not change the required input format of subsequent queries. <code>metric_type: "cosine"</code> normalizes vectors before encoding, so matching-format input does not imply byte-for-byte preservation for cosine.</p>
-<p>For L2/IP, matching FP16-to-FP16 and BF16-to-BF16 storage preserves the input bit patterns verbatim. Cross-format storage and <code>pq</code>/<code>sq8</code>/<code>fp32</code> storage convert the input through float32; they do not provide the same half-bit preservation guarantee.</p>
+<p>For L2/IP, matching FP16-to-FP16 and BF16-to-BF16 storage preserves the input bit patterns verbatim. Cross-format storage and other quantizers use FP32 conversion as required; they do not provide the same half-bit preservation guarantee.</p>
 <p>For <code>CalcDistanceById</code> and <code>CalcDistancesById</code> on half-input indexes, use the <code>DatasetPtr</code> overload with a native half query buffer matching the index dtype. The raw <code>const float*</code> overloads accept only float32 indexes and reject half-input indexes.</p>
 <p>An FP16 or BF16 stored vector code occupies <code>2 * dim</code> bytes, compared with <code>4 * dim</code> for FP32. This is <strong>vector-code size, not total index memory</strong>: graphs, IDs, paths, allocation overhead, and any reorder/raw-vector copies also consume space. Half input alone does not select half storage or halve total memory.</p>
-<p>Use <code>graph_type: "nsw"</code> or <code>"odescent"</code> with half input. <strong>PiPNN remains float32-only.</strong> These guarantees describe Pyramid, not every VSAG index.</p>
+<p>Half input supports <code>graph_type: "nsw"</code>, <code>"odescent"</code>, and <code>"pipnn"</code>. These guarantees describe Pyramid, not every VSAG index.</p>
 <h2 id="build-parameters-6"><a class="header" href="#build-parameters-6">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>.</p>
 <div class="table-wrapper">
@@ -2979,7 +3143,7 @@ auto result = index-&gt;KnnSearch(
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>tq</code>). See the <a href="quantization">Quantization chapter</a> for per-quantizer details.</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code>, <code>tq</code>). See the <a href="quantization">Quantization chapter</a> for per-quantizer details.</td></tr>
 <tr><td><code>tq_chain</code></td><td>string</td><td>—</td><td>Transform chain used when <code>base_quantization_type</code> is <code>tq</code>, for example <code>"mrle, rabitq"</code>.</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Prefix dimension retained by MRLE; <code>0</code> keeps the input dimension.</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per node within a sub-graph.</td></tr>
@@ -2997,6 +3161,8 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>pipnn_leaf_neighbor_count</code></td><td>int</td><td><code>5</code></td><td>Nearest candidates contributed per point and leaf; the primary PiPNN quality/build-work knob. Undersized leaves use at least <code>4</code>.</td></tr>
 <tr><td><code>pipnn_hash_plane_count</code></td><td>int</td><td><code>12</code></td><td>Direction-hash bits, in <code>[1, 15]</code>; <code>max_degree &lt;= 2^pipnn_hash_plane_count</code>.</td></tr>
 <tr><td><code>pipnn_reservoir_size</code></td><td>int</td><td><code>64</code></td><td>Candidate slots retained per point before final pruning; effective capacity is at least <code>max_degree</code>.</td></tr>
+<tr><td><code>pipnn_adaptive_pruning</code></td><td>bool</td><td><code>false</code></td><td>Use HGraph’s shared PiPNN dynamic-alpha selector during L2 batch builds.</td></tr>
+<tr><td><code>pipnn_adaptive_pruning_adjust_step</code></td><td>float</td><td><code>0.06</code></td><td>Alpha adjustment step for the PiPNN selector.</td></tr>
 <tr><td><code>no_build_levels</code></td><td>int[]</td><td><code>[]</code></td><td>Tree levels that skip graph construction (0-indexed from the root).</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy for rescoring.</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer for reordering. Use <code>"rabitq"</code> with <code>rabitq_bits_per_dim_precise</code> to enable RaBitQ x+y split reorder from base storage.</td></tr>
@@ -3004,6 +3170,9 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>RaBitQ split <code>y</code> bits. When set with <code>base_quantization_type: "rabitq"</code> and <code>precise_quantization_type: "rabitq"</code>, Pyramid uses split storage; <code>rabitq_bits_per_dim_base</code> remains <code>x</code>, and <code>x + y &lt;= 8</code>.</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use the fast multi-bit RaBitQ encoder for RaBitQ base or precise storage; set to <code>false</code> for the exact encoder.</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Fast RaBitQ refinement rounds in <code>[1, 32]</code>.</td></tr>
+<tr><td><code>saq_avg_bits</code></td><td>float</td><td><code>4.0</code></td><td>SAQ average record bits per dimension, in <code>[1, 8]</code>.</td></tr>
+<tr><td><code>saq_segment_count</code></td><td>int</td><td><code>0</code></td><td>SAQ segment count; <code>0</code> selects boundaries dynamically.</td></tr>
+<tr><td><code>saq_random_rotation</code></td><td>bool</td><td><code>true</code></td><td>Apply an independent orthogonal rotation inside each SAQ segment.</td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Base and reorder storage backends; <code>uring_io</code> is available in builds with liburing.</td></tr>
 <tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>Required for disk-backed storage such as <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, or <code>mmap_io</code>.</td></tr>
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Preserve an FP32 copy for <code>GetRawVectorByIds</code> and precise distance-by-id calculations.</td></tr>
@@ -3016,14 +3185,39 @@ auto result = index-&gt;KnnSearch(
 </tbody>
 </table>
 </div>
-<p>PiPNN supports Pyramid builds with <code>dtype: "float32"</code> and <code>metric_type</code> set to <code>"l2"</code>, <code>"ip"</code>, or
-<code>"cosine"</code>. It batch-builds every constructed graph in each hierarchy; with
+<p>PiPNN supports dense Pyramid builds with <code>dtype: "float32"</code>, <code>"float16"</code>, or <code>"bfloat16"</code> and
+<code>metric_type</code> set to <code>"l2"</code>, <code>"ip"</code>, or <code>"cosine"</code>; sparse and <code>int8</code> inputs are not supported.
+For FP16/BF16 input, PiPNN borrows the full input rows in their original half format rather than
+materializing a full FP32 input copy. It converts bounded, local partition/leaf operands to FP32
+for BLAS matrix operations and accumulates in FP32; this is not a native half-precision matrix
+backend. Final vector-storage quantization is configured independently of the input dtype,
+subject to the supported quantizers listed above.
+Quantizer training is separate from PiPNN graph construction: training may still materialize the full selected training sample in an FP32 buffer (potentially the full dataset when all rows are selected). Borrowing half input therefore does not guarantee that the complete build avoids a full-sample FP32 buffer. Validation of these half-input paths is in progress; no performance or non-regression claim is made.
+It batch-builds every constructed graph in each hierarchy; with
 <code>root_graph_type: "multi_layer"</code>, this also includes every root routing layer. Search, incremental
 <code>Add</code>, removal, duplicate handling, reorder, and serialization retain the standard Pyramid
 behavior. Levels in <code>no_build_levels</code> are still skipped.
 The <code>pipnn_*</code> values are global to the Pyramid index; hierarchy objects may continue to override
 <code>max_degree</code> and <code>alpha</code>, and those overrides are applied when PiPNN builds that hierarchy.
 <code>ef_construction</code> does not tune PiPNN.</p>
+<h3 id="adaptive-pipnn-pruning"><a class="header" href="#adaptive-pipnn-pruning">Adaptive PiPNN pruning</a></h3>
+<p>Set the following fields under <code>index_param</code> to enable the same final-reservoir pruning policy
+used by HGraph PiPNN:</p>
+<pre><code class="language-json">{
+    "graph_type": "pipnn",
+    "alpha": 1.2,
+    "pipnn_adaptive_pruning": true,
+    "pipnn_adaptive_pruning_adjust_step": 0.06
+}
+</code></pre>
+<p>This policy requires <code>metric_type: "l2"</code> and applies to every batch-built path graph and root
+routing graph. Each hierarchy supplies its own effective <code>alpha</code> and degree limit; the policy
+and step are shared. Incremental <code>Add</code> retains the existing NSW insertion policy. The separate
+<code>adaptive_pruning</code> switch controls NSW and must remain disabled for PiPNN.</p>
+<p>Enabled policies require finite <code>alpha &gt;= 1</code>, a finite nonnegative step,
+<code>alpha - 2*step &gt; 0</code>, and finite <code>alpha + 3*step</code>. A zero step preserves fixed-alpha PiPNN
+selection. Loading an enabled index requires matching policy, base alpha, step, and hierarchy
+configuration. Older indexes without the fields default to disabled; rebuild to change policy.</p>
 <h3 id="rabitq-split-configuration"><a class="header" href="#rabitq-split-configuration">RaBitQ split configuration</a></h3>
 <p>Set all five parameters together to enable RaBitQ x+y split storage and reordering:</p>
 <pre><code class="language-json">{
@@ -3544,7 +3738,7 @@ it.</p>
                  |   base quantizer    |   fp32 / fp16 / bf16 /
                  |                     |   sq8 / sq4 / sq8_uniform /
                  |                     |   sq4_uniform / pq / pqfs /
-                 |                     |   rabitq
+                 |                     |   rabitq / saq
                  +----------+----------+
                             |
                             v
@@ -3575,7 +3769,7 @@ quantizer — they apply whenever the index supports reordering (see
 <a href="#hgraph-2">HGraph</a>, <a href="#ivf-1">IVF</a>,
 <a href="#pyramid-1">Pyramid</a>).</p>
 <h2 id="supported-quantizers-at-a-glance"><a class="header" href="#supported-quantizers-at-a-glance">Supported quantizers at a glance</a></h2>
-<p>The factory in <code>src/datacell/flatten_interface.cpp</code> dispatches to
+<p>The factory in <code>src/datacell/flatten_datacell_factory_impl.h</code> dispatches to
 the concrete quantizer based on the JSON <code>type</code> field.</p>
 <div class="table-wrapper">
 <table>
@@ -3593,6 +3787,7 @@ the concrete quantizer based on the JSON <code>type</code> field.</p>
 <tr><td><code>pq</code></td><td>~<code>pq_bits</code> × <code>pq_dim</code> / <code>dim</code></td><td><strong>yes</strong></td><td>no</td><td>Codebook-based, very compact</td></tr>
 <tr><td><code>pqfs</code></td><td>4 × <code>pq_dim</code> / <code>dim</code></td><td><strong>yes</strong></td><td>no</td><td>PQ FastScan — SIMD-accelerated PQ</td></tr>
 <tr><td><code>rabitq</code></td><td>1 or HGraph x+y</td><td><strong>yes</strong></td><td>no</td><td>1-bit / low-bit split binary quantization, strongest compression</td></tr>
+<tr><td><code>saq</code></td><td>configurable 1–8</td><td><strong>yes</strong></td><td>no</td><td>PCA + variance-aware segmented CAQ for high-accuracy low-bit search</td></tr>
 <tr><td><code>tq</code></td><td>depends on chain</td><td>depends on terminal quantizer</td><td>no</td><td><a href="#quantization-transform">Transform Quantizer</a>: prepend rotations / PCA before another quantizer</td></tr>
 </tbody>
 </table>
@@ -3640,6 +3835,8 @@ embeddings).</li>
 or <code>pqfs</code> when the platform supports the SIMD path.</li>
 <li><strong>Maximum compression (1-bit) and willing to pay reorder cost?</strong> Use
 <code>rabitq</code>, ideally with <code>rabitq_use_fht: true</code> or a <code>tq</code> chain.</li>
+<li><strong>Need a stronger 2–8 bit accuracy/encoding trade-off?</strong> Use <code>saq</code>; start
+with <code>saq_avg_bits: 4</code> and automatic segmentation.</li>
 </ol>
 <p>For every lossy quantizer above, enabling <code>use_reorder: true</code> with
 <code>precise_quantization_type: "fp32"</code> is the standard way to recover recall at
@@ -3652,15 +3849,18 @@ for the exact behavior.</p>
 <code>precise_quantization_type</code>, <code>use_reorder</code>, <code>base_pq_dim</code>,
 <code>rabitq_pca_dim</code>, <code>rabitq_bits_per_dim_query</code>,
 <code>rabitq_bits_per_dim_base</code>, <code>rabitq_bits_per_dim_precise</code>,
-<code>rabitq_error_rate</code>, <code>rabitq_use_fht</code>, <code>sq4_uniform_trunc_rate</code>, <code>tq_chain</code>
-(see <code>src/algorithm/hgraph/hgraph.cpp</code>).</li>
+<code>rabitq_error_rate</code>, <code>rabitq_use_fht</code>, <code>saq_avg_bits</code>, <code>saq_segment_count</code>,
+<code>saq_random_rotation</code>,
+<code>sq4_uniform_trunc_rate</code>, <code>tq_chain</code>
+(see <code>src/algorithm/hgraph/hgraph_param_mapping.cpp</code>).</li>
 <li><strong>IVF</strong> exposes <code>base_quantization_type</code>, <code>base_pq_dim</code>, the common reorder
 keys, and the RabitQ tuning keys <code>rabitq_pca_dim</code>,
 <code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>,
 <code>rabitq_bits_per_dim_precise</code>, <code>rabitq_version</code>,
-<code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code>.</li>
+<code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code>, plus all three <code>saq_*</code> keys.</li>
 <li><strong>Pyramid</strong> exposes <code>base_quantization_type</code>, <code>base_pq_dim</code>, the common
-reorder keys, and the RabitQ PCA, base/query bit, and FHT keys.</li>
+reorder keys, the RabitQ PCA, base/query bit, and FHT keys, and all five
+<code>saq_*</code> keys.</li>
 <li><strong>BruteForce</strong> exposes <code>base_quantization_type</code> and the common reorder keys;
 some tunables (e.g. <code>tq_chain</code>) are wired internally but not exposed as
 external keys today.</li>
@@ -3675,6 +3875,7 @@ external keys today.</li>
 <li><a href="#product-quantization-pq">Product Quantization (PQ)</a></li>
 <li><a href="#pq-fastscan">PQ FastScan</a></li>
 <li><a href="#rabitq">RaBitQ</a></li>
+<li><a href="#saq-segmented-code-adjustment-quantization">SAQ</a></li>
 <li><a href="#rabitq-xy-split">RaBitQ x+y Split</a></li>
 <li><a href="#quantization-transform">Transform Quantizer (TQ)</a></li>
 </ul>
@@ -4361,6 +4562,120 @@ significantly higher recall than pure 1-bit when using more total bits.</li>
 <li><a href="quantization">Quantization overview</a></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="saq-segmented-code-adjustment-quantization"><a class="header" href="#saq-segmented-code-adjustment-quantization">SAQ (Segmented Code Adjustment Quantization)</a></h1>
+<p><code>saq</code> is a trained low-bit quantizer for high-dimensional dense vectors. It combines a
+full-dimensional PCA rotation, variance-aware dimension segmentation, dynamic bit allocation, and
+Code Adjustment Quantization (CAQ). The implementation follows the algorithm in
+<a href="https://arxiv.org/abs/2509.12086">SAQ: Pushing the Limits of Vector Quantization through Code Adjustment and Dimension
+Segmentation</a>.</p>
+<blockquote>
+<p>Implementation: <code>src/quantization/saq_quantization/saq_quantizer.cpp</code>; parameters:
+<code>saq_quantizer_parameter.cpp</code>.</p>
+</blockquote>
+<h2 id="pipeline"><a class="header" href="#pipeline">Pipeline</a></h2>
+<p>Training performs these steps:</p>
+<ol>
+<li>Learn a full-dimensional PCA rotation and order components by decreasing variance. L2 data is
+centered with the learned mean, matching the reference SAQ preprocessing. Inner product and
+cosine are not centered because translation changes those metrics. The projection keeps every
+dimension.</li>
+<li>Split the ordered dimensions on 64-dimension boundaries. Dynamic programming jointly chooses
+boundaries and a 1–13 bit width for each segment under the configured record budget. Setting an
+explicit segment count uses evenly spaced boundaries and optimizes only the bit allocation.
+Allocation uses centered variance for L2 and the second moment, including retained mean energy,
+for inner product and cosine.</li>
+<li>Create an independent pseudorandom orthogonal rotation for each segment, unless disabled. SAQ
+derives it from the fixed seed <code>20260825</code> and the segment offset so repeated training on the
+same input produces the same persisted model.</li>
+<li>Encode each segment with symmetric scalar quantization, then run CAQ coordinate adjustment to
+improve the direction of the quantized vector. SAQ and RaBitQ share the CAQ encoder; SAQ uses
+its default adjustment limit and stops early when no coordinate changes.</li>
+</ol>
+<p>Search projects the query once and builds byte lookup tables for the projected coordinates. Scalar
+codes are stored as bit planes and scanned by dedicated batch-four lookup kernels (AVX512 where
+available, with AVX2 and generic fallbacks), without reconstructing an FP32 candidate. L2 threshold
+scans visit segments in variance order and can stop as soon as the accumulated non-negative segment
+distance exceeds the current threshold.</p>
+<h2 id="parameters-7"><a class="header" href="#parameters-7">Parameters</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Key</th><th>Type</th><th>Default</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>saq_avg_bits</code></td><td>float</td><td><code>4.0</code></td><td>Average payload target per input dimension, in <code>[1, 8]</code>. The complete record reserves the same 12-byte overhead as the equal-length multi-bit RaBitQ baseline; SAQ charges 8 bytes per selected segment within that record.</td></tr>
+<tr><td><code>saq_segment_count</code></td><td>integer</td><td><code>0</code></td><td><code>0</code> lets dynamic programming choose the segment count and boundaries. A positive value requests that many 64-dimension-aligned segments. Training fails if the bit budget cannot represent them.</td></tr>
+<tr><td><code>saq_random_rotation</code></td><td>bool</td><td><code>true</code></td><td>Balance coordinates with an orthogonal rotation inside every segment.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The complete record length matches multi-bit RaBitQ at the same configured average bit count. Each
+segment uses 8 bytes of metadata: one adjusted scale and one metric-specific squared norm. L2 stores
+the original projected norm required by its asymmetric query-to-code formula; cosine stores the
+reconstructed norm so query-to-code and code-to-code paths compute the same decoded-vector cosine.
+Multiple segments therefore leave fewer payload bits under the fixed record budget. Bit-plane code
+records are fixed-width, so memory and disk layouts remain stable after training.</p>
+<h2 id="hgraph-example"><a class="header" href="#hgraph-example">HGraph example</a></h2>
+<pre><code class="language-json">{
+    "dim": 768,
+    "dtype": "float32",
+    "metric_type": "l2",
+    "index_param": {
+        "base_quantization_type": "saq",
+        "saq_avg_bits": 4,
+        "saq_segment_count": 0,
+        "saq_random_rotation": true,
+        "max_degree": 32,
+        "ef_construction": 400,
+        "use_reorder": true,
+        "precise_quantization_type": "fp32"
+    }
+}
+</code></pre>
+<p>The same three <code>saq_*</code> keys are accepted by IVF and Pyramid when
+<code>base_quantization_type</code> is <code>saq</code>. IVF trains SAQ on its base-code input (residuals when
+<code>use_residual</code> is enabled). HGraph and Pyramid use the quantizer directly through the shared flatten
+datacell.</p>
+<p>For a complete build-and-query program, see <code>examples/cpp/502_quantization_saq.cpp</code>.</p>
+<h2 id="training-persistence-and-limitations"><a class="header" href="#training-persistence-and-limitations">Training, persistence, and limitations</a></h2>
+<ul>
+<li>SAQ needs at least two training vectors. Initial <code>Train</code>, <code>Build</code>, or <code>Add</code> with only one vector
+is rejected. After training, individual vectors can be added with <code>Add</code>.</li>
+<li>Serialization includes the PCA matrix, projected L2 mean, segment plan, bit allocation, and
+segment rotations. Loading does not retrain the model; it rejects non-finite PCA coefficients,
+projected means, or rotations, as well as rotation sizes that do not match the segment dimensions.</li>
+<li>An untrained quantizer can also be serialized and loaded with an empty PCA model and segment
+plan. Empty HGraph and Pyramid indexes retain this state across a round trip and train SAQ when
+the initial batch is added; the minimum of two training vectors still applies.</li>
+<li>The full PCA model takes O(dim²) space. The quantizer deterministically samples at most 65,536
+evenly spaced inputs for PCA and segment-plan training; all inputs are still encoded into the
+index.</li>
+<li>Segment rotations use a fixed implementation seed for reproducible builds; the learned matrices
+are serialized, so loading never regenerates them.</li>
+<li>All dense metrics (<code>l2</code>, <code>ip</code>, and <code>cosine</code>) are supported. Cosine inputs are normalized before
+PCA and encoding. Norm accumulation and division use double precision to preserve the direction
+of finite FP32 vectors, including subnormal inputs and inputs whose norm exceeds the FP32 range.
+Small nonzero norms are not rounded to zero by an absolute tolerance. If
+either operand has zero norm, cosine distance is defined as <code>1.0</code>, matching VSAG’s finite-distance
+convention.</li>
+<li>Progressive threshold termination is currently enabled only for L2, where partial segment
+distances form a safe monotonic lower bound on the remaining work.</li>
+</ul>
+<h2 id="choosing-settings"><a class="header" href="#choosing-settings">Choosing settings</a></h2>
+<p>Start with <code>saq_avg_bits: 4</code>, automatic segmentation, and random segment rotations. PCA is always
+enabled. CAQ uses the shared encoder with its default adjustment limit and convergence stopping.
+Compare against RaBitQ at the same code budget and enable an FP32 reorder store when the application
+requires high recall. Use <code>saq_segment_count</code> to request a fixed layout; automatic segmentation
+adapts to the variance profile of the training data.</p>
+<h2 id="related-pages-7"><a class="header" href="#related-pages-7">Related pages</a></h2>
+<ul>
+<li><a href="quantization">Quantization overview</a></li>
+<li><a href="#rabitq">RaBitQ</a></li>
+<li><a href="#hgraph-2">HGraph</a></li>
+<li><a href="#ivf-1">IVF</a></li>
+<li><a href="#pyramid-1">Pyramid</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="rabitq-xy-split"><a class="header" href="#rabitq-xy-split">RaBitQ x+y Split</a></h1>
 <p>RaBitQ x+y split is an HGraph, IVF, and Pyramid storage and search mode for
 low-bit base codes.
@@ -4428,6 +4743,11 @@ storage; <code>rabitq_fused_datacell</code> is not a Pyramid parameter. The spec
 HGraph search loop reads the record directly and prefetches graph links and
 quantized codes together. The codec uses 16 reproducibly trained residual
 clusters.</p>
+<p>For latency-sensitive single-query searches, <code>rabitq_use_fht: true</code> selects
+FHT/Kac rotation in place of the dense random orthogonal matrix. This option
+is independent of <code>rabitq_fused_datacell</code>. Both options must be set before
+<code>Build</code>; changing an existing dense-rotation or ordinary split index requires
+a rebuild. They cannot be enabled through search parameters.</p>
 <p>By default, fused HGraph trains the base RaBitQ quantizer and fused KMeans codec on at most 65,536
 vectors. When <code>train_sample_count</code> is smaller than the dataset, it selects that many vectors using
 fixed-seed uniform reservoir sampling. Increasing the value can improve cluster-centroid quality at
@@ -4452,6 +4772,10 @@ graph construction, then discards them. The completed index keeps only the
 fused RaBitQ records. Post-build <code>Add</code> decodes fused records on demand for
 pairwise graph updates, so it does not retain an SQ8 or raw-vector copy; batch
 adds are preferable when insertion throughput matters.</p>
+<p>For <code>graph_type="pipnn"</code>, fused HGraph preencodes the batch in parallel and reuses
+those bytes when publishing the index, so each input is encoded once. The temporary
+code buffer grows with the input batch. When all input labels are accepted, it is
+released before PiPNN builds the bottom graph.</p>
 <p>The fused layout is opt-in and has stricter constraints than ordinary split
 storage:</p>
 <ul>
@@ -4803,6 +5127,9 @@ second count-scaled copy of the split codes.</p>
 </div>
 <h2 id="operational-notes"><a class="header" href="#operational-notes">Operational notes</a></h2>
 <ul>
+<li>Pyramid incremental <code>Add</code> reuses decoded scalar codes in bounded, operation-local
+caches during graph traversal and pruning, including after model deserialization.
+No additional parameter is needed; persisted split records remain unchanged.</li>
 <li>Split storage is currently available on HGraph, IVF, and Pyramid and requires
 fp32 query codes. Pyramid enables the one-bit split search path by default for
 split indexes; pass <code>rabitq_one_bit_search: false</code> under <code>pyramid</code> to force the
@@ -5023,7 +5350,7 @@ seed). These parameters change the effective code dimension and layout, so for t
 to be practically merge-/clone-compatible you must keep the <strong>entire</strong> transform + quantizer
 parameter set consistent, not just the chain string.</p>
 </blockquote>
-<h2 id="related-pages-7"><a class="header" href="#related-pages-7">Related pages</a></h2>
+<h2 id="related-pages-8"><a class="header" href="#related-pages-8">Related pages</a></h2>
 <ul>
 <li><a href="#hgraph-2">HGraph index</a> — parameter reference for <code>base_quantization_type</code>,
 <code>use_reorder</code>, <code>precise_quantization_type</code>.</li>
@@ -5045,7 +5372,7 @@ parameter set consistent, not just the chain string.</p>
 <tr><td><code>examples/cpp/</code></td><td>C++ end-to-end examples</td></tr>
 <tr><td><code>examples/python/</code></td><td>Python examples</td></tr>
 <tr><td><code>python/</code></td><td><code>pyvsag</code> packaging</td></tr>
-<tr><td><code>python_bindings/</code></td><td>pybind11 bindings</td></tr>
+<tr><td><code>python/</code></td><td>pyvsag packaging and cffi layer</td></tr>
 <tr><td><code>typescript/</code></td><td>Node.js / TypeScript bindings (npm package <code>vsag</code>)</td></tr>
 <tr><td><code>tools/</code></td><td>Utilities such as <code>eval_performance</code>, <code>analyze_index</code>, <code>check_compatibility</code></td></tr>
 <tr><td><code>extern/</code></td><td>Third-party dependencies (do not modify unless necessary)</td></tr>
@@ -5174,7 +5501,7 @@ topology on Update; equal RaBitQ codes do not mean raw inputs are identical.</p>
 </tbody>
 </table>
 </div>
-<p><code>.github/workflows/lite.yml</code> defines default-OFF, RaBitQ-ON, ASan/UBSan and
+<p><code>.github/workflows/manual-checks.yml</code> defines default-OFF, RaBitQ-ON, ASan/UBSan and
 coverage jobs, all-source formatting, configured-TU/header tidy, installation
 and consumer checks. Coverage collector gates the production Lite line union at
 90%, not Full or branch coverage. Local passes do not imply online CI has passed.</p>
@@ -5270,7 +5597,7 @@ formatting.</li>
 <li><a href="https://github.com/antgroup/vsag/blob/main/.clang-tidy"><code>.clang-tidy</code></a> defines naming and
 static-analysis checks.</li>
 </ul>
-<p>VSAG requires <strong>clang-format 15</strong> and <strong>clang-tidy 15</strong> exactly. Other versions may produce
+<p>VSAG requires <strong>clang-format 20</strong> and <strong>clang-tidy 20</strong> exactly. Other versions may produce
 different formatting or diagnostics and are not accepted by CI.</p>
 <h2 id="code-layout"><a class="header" href="#code-layout">Code layout</a></h2>
 <ul>
@@ -5304,7 +5631,7 @@ different formatting or diagnostics and are not accepted by CI.</p>
 </tbody>
 </table>
 </div>
-<p>For example, clang-format 15 formats a class declaration like this:</p>
+<p>For example, clang-format 20 formats a class declaration like this:</p>
 <pre><code class="language-cpp">class Example {
 public:
     Result&lt;DatasetPtr&gt;
@@ -5422,10 +5749,10 @@ there is no narrower practical option.</p>
 <h2 id="running-the-checks"><a class="header" href="#running-the-checks">Running the checks</a></h2>
 <p>Install the required tools:</p>
 <pre><code class="language-bash"># Ubuntu or Debian
-sudo apt-get install clang-format-15 clang-tidy-15 clang-tools-15
+sudo apt-get install clang-format-20 clang-tidy-20 clang-tools-20
 
 # macOS
-brew install llvm@15
+brew install llvm@20
 </code></pre>
 <p>Format all project C++ files and inspect the resulting diff:</p>
 <pre><code class="language-bash">make fmt
@@ -5448,8 +5775,8 @@ make test
 </code></pre>
 <h2 id="before-submitting-a-change"><a class="header" href="#before-submitting-a-change">Before submitting a change</a></h2>
 <ul>
-<li>Format all changed C++ files with clang-format 15.</li>
-<li>Run clang-tidy 15 for changed production sources.</li>
+<li>Format all changed C++ files with clang-format 20.</li>
+<li>Run clang-tidy 20 for changed production sources.</li>
 <li>Ensure names follow the rules above, including <code>CamelCase</code> struct names.</li>
 <li>Keep every <code>NOLINT</code> check-specific and document its rationale.</li>
 <li>Add tests for new features and regression tests for bug fixes.</li>
@@ -5704,7 +6031,7 @@ the sum of simultaneously resident build processes.</p>
 <li><strong>Compiler</strong>: GCC 9.4.0+, Clang 13.0.0+, or Apple Clang from Xcode Command Line Tools</li>
 <li><strong>CMake</strong>: 3.18.0+</li>
 <li><strong>Ninja</strong>: preferred when available; Unix Makefiles are used as the fallback</li>
-<li><strong>clang-format / clang-tidy</strong>: exactly version 15 (enforced)</li>
+<li><strong>clang-format / clang-tidy</strong>: exactly version 20 (enforced)</li>
 <li>Optional: HDF5 (for <code>tools/eval/eval_performance</code>), libaio (for the <code>async_io</code> data-cell backend),
 liburing (for <code>uring_io</code> on Linux), Intel MKL.</li>
 </ul>
@@ -5723,8 +6050,7 @@ tsan        Build with ThreadSanitizer
 fmt         Run clang-format
 lint        Run clang-tidy
 fix-lint    Apply clang-tidy fix-its in-place (destructive)
-pyvsag      Build pyvsag for a specific Python version (PY_VERSION=...)
-pyvsag-all  Build pyvsag wheels for all supported Python versions
+pyvsag      Build the pyvsag py3-none wheel
 dist-pre-cxx11-abi  Build redistributable tarball (pre-C++11 ABI)
 dist-cxx11-abi      Build redistributable tarball (C++11 ABI)
 dist-libcxx         Build redistributable tarball (libc++)
@@ -5758,10 +6084,10 @@ or a measurement of generated build artifacts alone.</p>
 <p><strong>Legacy no-op measurements are not trustworthy until <a href="https://github.com/antgroup/vsag/pull/2899">#2899</a>.</strong> The standalone workflow deliberately fails its preflight on collectors without the supported schema 3 <code>true_noop</code> reporting. Separating PR builds does not itself fix the collector. While the prerequisite is unmerged, scheduled runs fail clearly instead of publishing misleading legacy baselines.</p>
 </blockquote>
 <p>PR CI’s <strong>ASan Build X86</strong> runs one <code>make asan COMPILE_JOBS=3</code>, with Ninja, compile commands, system OpenBLAS, examples and tools enabled. The Makefile still enables tests, Sanitize and ASan/UBSan; changed-source lint, downstream tests, compatibility checks and build artifacts retain their existing contracts. <code>ccache --zero-stats</code> resets counters, <strong>not cached objects</strong>. The build step logs elapsed time, and an always-run step prints verbose/fallback cache diagnostics without hiding a build failure. ccache stays enabled in its default directory on the disposable GitHub-hosted VM; no compiler cache is restored or saved between jobs. PR X86 dependency archives intentionally change from restore-and-save to <strong>restore-only</strong> (<code>actions/cache/restore@v4</code>), preventing PR contexts from writing archives back to the shared cache; this policy is not limited to the standalone benchmark.</p>
-<p>The separate <strong>Build Performance Benchmark</strong> workflow (<code>.github/workflows/build_performance.yml</code>) runs weekly on Mondays at 03:23 UTC on upstream <code>main</code>, or manually from Actions. It is not a PR required check and uses separate concurrency, an Ubuntu 22.04 hosted runner, a 180-minute timeout and 14-day report retention. Once the workflow is on the default branch, for example:</p>
-<pre><code class="language-bash">gh workflow run build_performance.yml --ref main -f ref=main
+<p>The <strong>Daily CI / Build Performance X86</strong> profile (<code>.github/workflows/daily_test.yml</code>, <code>profile=build-performance</code>) runs weekly on Mondays at 03:23 UTC on upstream <code>main</code>, or manually from Actions. It is not a PR required check and uses separate concurrency, an Ubuntu 24.04 hosted runner, a 180-minute timeout and 14-day report retention. Once the workflow is on the default branch, for example:</p>
+<pre><code class="language-bash">gh workflow run daily_test.yml --ref main -f profile=build-performance -f ref=main
 # Or use a full 40-character commit SHA reachable from this repository's main:
-gh workflow run build_performance.yml --ref main -f ref=&lt;full-main-history-sha&gt;
+gh workflow run daily_test.yml --ref main -f profile=build-performance -f ref=&lt;full-main-history-sha&gt;
 </code></pre>
 <p>The workflow must itself be dispatched from <code>main</code> (other workflow branches are skipped). It explicitly checks out <code>antgroup/vsag</code> upstream <code>main</code>, accepts only <code>main</code> or a full SHA in that fetched upstream history, and records the actual checked-out SHA (not the dispatch event SHA) and the main baseline in <code>target.txt</code>. PR refs, arbitrary branches and unmerged feature commits are intentionally rejected. Therefore a draft migration branch cannot benchmark itself through this entry point; hosted dispatch and end-to-end validation remain pending until the workflow and supported collector are available on main. Scheduled execution is disabled on forks.</p>
 <p>Security is deliberately conservative: read-only contents permission, no business secrets, no persisted checkout credentials, quoted environment input with SHA/ancestry validation, and a fixed workflow-owned Ubuntu package list instead of privileged installation scripts from the selected ref. Packages match the PR’s OpenBLAS-only host setup; keep these lists synchronized. Dependencies are checked out at pinned revisions by the existing composite action; download archives are restored <strong>without saving</strong>. There is no compiler-cache restore/save. The fresh benchmark job owns <code>build/</code> and <code>.benchmark-ccache</code>; <code>--clear-ccache</code> never touches the normal PR cache. Default <code>build/</code> retains compatibility with the existing collector/Makefile API.</p>
@@ -5816,9 +6142,7 @@ mirror (internal HTTP server, object storage, etc.). See
 <a href="#offline--air-gapped-builds-1">Offline / Air-gapped Builds</a> for the full list of variables
 and worked examples.</p>
 <h2 id="python-wheel-pyvsag"><a class="header" href="#python-wheel-pyvsag">Python Wheel (pyvsag)</a></h2>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
-# Or build all supported versions in parallel:
-make pyvsag-all
+<pre><code class="language-bash">make pyvsag
 </code></pre>
 <p>Wheels are emitted under <code>python/dist/</code>.</p>
 <h2 id="distribution-tarballs"><a class="header" href="#distribution-tarballs">Distribution Tarballs</a></h2>
@@ -5854,6 +6178,15 @@ CMake prefers pinned names over legacy names and retains default URLs as downloa
 An unset path preserves existing behavior; an explicitly empty or unreadable path is an error.</p>
 <p>You can increase <code>COMPILE_JOBS</code> if your machine has enough memory, but the default is conservative
 to avoid out-of-memory failures in CI runners.</p>
+<h2 id="c-standard-and-compiler-validation"><a class="header" href="#c-standard-and-compiler-validation">C++ standard and compiler validation</a></h2>
+<p>Full VSAG CPU implementation targets require C++20; installed public headers and the <code>vsag::vsag</code> target support C++17 clients. CUDA translation units, Node.js bindings, and standalone Lite stay on C++17. Linux development uses GCC 13 as the primary compiler and Clang 20 as the second compiler. Use separate build directories:</p>
+<pre><code class="language-bash">make test DEBUG_BUILD_DIR=build_gcc13 EXTRA_DEFINED="-DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13"
+make test DEBUG_BUILD_DIR=build_clang20 EXTRA_DEFINED="-DCMAKE_C_COMPILER=clang-20 -DCMAKE_CXX_COMPILER=clang++-20"
+</code></pre>
+<p>The Ubuntu dependency installer requires Ubuntu 24.04+ and installs GCC 13 and LLVM 20 (using apt.llvm.org if needed). Other distributions need a matching toolchain prepared manually. Compiler requirements concern source builds, not the glibc baseline of prebuilt packages. Existing manylinux release baselines and both libstdc++ ABI choices are preserved. Installing a package does not require a C++20 client compiler.</p>
+<p>The development toolchain versions are not minimum consumer compiler requirements. The existing GCC 9.4.0 / Clang 13.0.0 source baseline remains a compatibility validation target. C++20 mode here describes the standard used to build this library, not full support for every C++20 feature in those older compilers.</p>
+<p>When enabling CUDA, choose a host compiler supported by the installed CUDA toolkit independently of the CPU compiler. CMake defaults <code>CMAKE_CUDA_HOST_COMPILER</code> to the CPU compiler; override it with <code>EXTRA_DEFINED="-DENABLE_CUDA=ON -DCMAKE_CUDA_HOST_COMPILER=/path/to/toolkit-supported-g++"</code> when that pair is unsupported. C++17 CUDA mode does not change nvcc’s host-compiler support. CUDA builds still require validation with the actual toolkit; the CPU-only checks do not verify them.</p>
+<p>Maintained CI container images use Ubuntu 26.04 with GCC 13 and LLVM 20. Ubuntu 24.04 remains a development and runtime compatibility target. Published packages retain their existing manylinux/glibc baselines; validate their Ubuntu 24.04 runtime compatibility separately from the Ubuntu 26.04 CI build.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="offline--air-gapped-builds-1"><a class="header" href="#offline--air-gapped-builds-1">Offline / Air-gapped Builds</a></h1>
 <p>VSAG downloads a set of third-party libraries at CMake <strong>configure / build time</strong>
@@ -5952,7 +6285,6 @@ not print the value because URLs can contain credentials.</li>
 <tr><td><code>VSAG_THIRDPARTY_YAML_CPP_0_9_0</code></td><td>yaml-cpp 0.9.0</td><td><code>github.com/jbeder/yaml-cpp/.../yaml-cpp-0.9.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_TABULATE_COMMIT_3A58301067BB</code></td><td>p-ranav/tabulate</td><td><code>github.com/p-ranav/tabulate/archive/3a583010...tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
 <tr><td><code>VSAG_THIRDPARTY_HTTPLIB_0_35_0</code></td><td>cpp-httplib 0.35.0</td><td><code>github.com/yhirose/cpp-httplib/.../v0.35.0.tar.gz</code></td><td><code>ENABLE_TOOLS=ON</code> (+ C++11 ABI)</td></tr>
-<tr><td><code>VSAG_THIRDPARTY_PYBIND11_2_11_1</code></td><td>pybind11 2.11.1</td><td><code>github.com/pybind/pybind11/.../v2.11.1.tar.gz</code></td><td>Python bindings (<code>pyvsag</code> / <code>ENABLE_PYBINDS=ON</code>)</td></tr>
 </tbody>
 </table>
 </div>
@@ -5977,7 +6309,6 @@ and <code>FMT</code> is skipped when a system <code>fmt</code> is found.</li>
 <code>ARGPARSE</code>, <code>YAML_CPP</code>, <code>TABULATE</code>, <code>HTTPLIB</code> — downloaded only when <em>both</em>
 options are enabled (see
 <a href="https://github.com/antgroup/vsag/blob/main/cmake/VSAGThirdParty.cmake"><code>cmake/VSAGThirdParty.cmake</code></a>).</li>
-<li><strong>+ Python wheel</strong> (<code>make pyvsag</code>): also <code>PYBIND11</code>.</li>
 </ul>
 <h2 id="examples-1"><a class="header" href="#examples-1">Examples</a></h2>
 <h3 id="a-internal-http-server-or-object-storage-recommended"><a class="header" href="#a-internal-http-server-or-object-storage-recommended">A. Internal HTTP server or object storage (recommended)</a></h3>
@@ -6146,7 +6477,7 @@ destruction paths.</li>
 maintained indexes that advertise the corresponding feature flags.</li>
 </ul>
 <h2 id="python-tests"><a class="header" href="#python-tests">Python Tests</a></h2>
-<pre><code class="language-bash">make pyvsag PY_VERSION=3.10
+<pre><code class="language-bash">make pyvsag
 cd tests/python &amp;&amp; pytest -q
 </code></pre>
 <h2 id="report-testcase-budgets-and-time"><a class="header" href="#report-testcase-budgets-and-time">Report Testcase Budgets and Time</a></h2>
@@ -6323,7 +6654,7 @@ compliance, and taking full responsibility for the contribution.</p>
 </ul>
 <h2 id="coding-style"><a class="header" href="#coding-style">Coding Style</a></h2>
 <p>Read the <a href="#c-coding-guide">C++ Coding Guide</a> before changing C++ code. It documents the exact
-clang-format 15 and clang-tidy 15 rules, naming conventions, diagnostic suppressions, and local
+clang-format 20 and clang-tidy 20 rules, naming conventions, diagnostic suppressions, and local
 commands required by VSAG.</p>
 <h2 id="local-testing"><a class="header" href="#local-testing">Local Testing</a></h2>
 <p>Run the full test suite and make sure it passes:</p>
@@ -8830,6 +9161,139 @@ applications.</p>
 <li><code>examples/cpp/401_persistent_kv.cpp</code></li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="user-defined-io"><a class="header" href="#user-defined-io">User-Defined IO</a></h1>
+<p>User-defined IO (<code>user_defined_io</code>) lets callers inject their own read, write, and resize callbacks so that VSAG builds an index directly into external storage without an intermediate serialization step. This is useful when the precise codes must live in a managed store (e.g. a distributed filesystem, an object store, or a custom block device) that VSAG does not natively support.</p>
+<h2 id="supported-configuration"><a class="header" href="#supported-configuration">Supported configuration</a></h2>
+<ul>
+<li><strong>Index</strong>: HGraph with <code>use_reorder: true</code>.</li>
+<li><strong>Base codes</strong>: <code>sq8</code> in <code>block_memory_io</code>.</li>
+<li><strong>Precise codes</strong>: <code>fp32</code> in <code>user_defined_io</code>.</li>
+<li><strong>Graph</strong>: <code>block_memory_io</code>.</li>
+</ul>
+<p>Other graph / base / bucket storage combinations are not supported in this version.</p>
+<h2 id="what-precise_user_defined_io-means"><a class="header" href="#what-precise_user_defined_io-means">What <code>precise_user_defined_io</code> means</a></h2>
+<p><code>precise_io_type</code> selects the IO backend for <strong>HGraph precise codes</strong>. When set to <code>"user_defined_io"</code>, <code>precise_user_defined_io</code> is the <strong>registered name</strong> used to look up a Reader/Writer pair. It is not a file path, a connection address, or another IO type, and it does not create the backing store. The name is resolved in the <code>UserDefinedIOSet</code> supplied to this <code>CreateIndex</code> call; there is no process-wide registry.</p>
+<p>Bind the pair in this order:</p>
+<ol>
+<li>Provide a Reader and Writer accessing the same backing bytes. You can wrap synchronous
+callbacks with <code>Factory::CreateUserDefinedIO(read_func, write_func, resize_func, initial_size)</code>, or implement the Reader/Writer interfaces yourself. 2. Register the pair with <code>storages.Set("hgraph_precise", storage.reader, storage.writer)</code>. The application chooses this non-empty name; it must be unique <strong>within the same set</strong>. A name does not imply a separate on-disk file. 3. Set both <code>"precise_io_type": "user_defined_io"</code> and <code>"precise_user_defined_io": "hgraph_precise"</code> inside HGraph’s <code>index_param</code>, then call <code>engine.CreateIndex("hgraph", parameters, storages)</code> (or the corresponding Factory overload). VSAG looks up the pair by name for construction writes and subsequent reads of precise codes.</li>
+</ol>
+<p>The two names must <strong>match exactly</strong>. Registering <code>"hgraph_precise"</code> but specifying <code>"other_store"</code> causes index creation to fail with “user defined IO not found”. When <code>user_defined_io</code> is selected, a missing, non-string, or empty name is rejected; omitting the pair set also fails. Conversely, if <code>precise_io_type</code> does <strong>not</strong> select <code>user_defined_io</code>, pre-populating <code>precise_user_defined_io</code> does not activate custom storage: the chosen IO type is used instead. Registration and parameter selection are both necessary.</p>
+<p>This setting affects only the <code>fp32</code> <strong>precise codes</strong>. The <code>sq8</code> base codes and graph remain in <code>block_memory_io</code>, and <code>use_reorder: true</code> is required. It cannot redirect the whole index or base/graph/bucket storage to custom IO. The constructed index retains shared ownership of its bound pair; changing or destroying the set later does not rebind that index to another name.</p>
+<h2 id="callback-contract"><a class="header" href="#callback-contract">Callback contract</a></h2>
+<p>Three synchronous callbacks must be provided:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Callback</th><th>Signature</th><th>Responsibilities</th></tr>
+</thead>
+<tbody>
+<tr><td>Read</td><td><code>void(uint64_t offset, uint64_t len, void* dest)</code></td><td>Copy <code>len</code> bytes from <code>offset</code> into <code>dest</code>. Throw on out-of-bounds.</td></tr>
+<tr><td>Write</td><td><code>void(uint64_t offset, uint64_t len, const void* src)</code></td><td>Consume <code>len</code> bytes from <code>src</code> at <code>offset</code>. Grow the backing store if <code>offset + len</code> exceeds the current size.</td></tr>
+<tr><td>Resize</td><td><code>void(uint64_t new_size)</code></td><td>Truncate or extend the backing store to <code>new_size</code> while preserving the retained prefix.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Constraints:</p>
+<ul>
+<li>All three callbacks are serialized by a mutex and must not reenter the same adapter.</li>
+<li>Serialize writes and resize/shrink operations at the index/application level. Per-callback
+locking does not make a size-check followed by resize atomic. Custom Reader/Writer pairs must share backing bytes and provide compatible synchronization. Do not mutate the backing store outside the pair while the index is using it.</li>
+<li>Writes must be immediately readable by a subsequent Read call.</li>
+<li>The <code>initial_size</code> argument to <code>Factory::CreateUserDefinedIO</code> must match the existing
+backing store (use <code>0</code> for a fresh store).</li>
+<li>Throw on failure; partial writes are not rolled back.</li>
+<li>Each independent <code>user_defined_io</code> instance needs independent backing bytes; registering
+the same store under two names does not provide isolation.</li>
+</ul>
+<h2 id="example"><a class="header" href="#example">Example</a></h2>
+<pre><code class="language-cpp">auto store = std::make_shared&lt;ByteStore&gt;();
+
+auto read_func = [store](uint64_t offset, uint64_t len, void* dest) {
+    std::lock_guard lock(store-&gt;mutex);
+    if (offset &gt; store-&gt;bytes.size() || len &gt; store-&gt;bytes.size() - offset)
+        throw std::runtime_error("read out of bounds");
+    if (len &gt; 0)
+        std::memcpy(dest, store-&gt;bytes.data() + offset, len);
+    ++store-&gt;reads;
+};
+
+auto write_func = [store](uint64_t offset, uint64_t len, const void* src) {
+    std::lock_guard lock(store-&gt;mutex);
+    if (offset &gt; UINT64_MAX - len)
+        throw std::runtime_error("write overflow");
+    if (offset + len &gt; store-&gt;bytes.size())
+        store-&gt;bytes.resize(offset + len);
+    if (len &gt; 0)
+        std::memcpy(store-&gt;bytes.data() + offset, src, len);
+    ++store-&gt;writes;
+};
+
+auto resize_func = [store](uint64_t size) {
+    std::lock_guard lock(store-&gt;mutex);
+    store-&gt;bytes.resize(size);
+    ++store-&gt;resizes;
+};
+
+auto storage = vsag::Factory::CreateUserDefinedIO(read_func, write_func, resize_func, 0);
+
+vsag::UserDefinedIOSet storages;
+// "hgraph_precise" is a registry name, not a path; it must match the JSON value below.
+storages.Set("hgraph_precise", storage.reader, storage.writer);
+
+auto index = engine.CreateIndex("hgraph", R"({
+    "dtype": "float32", "metric_type": "l2", "dim": 128,
+    "index_param": {
+        "base_quantization_type": "sq8",
+        "max_degree": 26, "ef_construction": 100,
+        "use_reorder": true,
+        "precise_quantization_type": "fp32",
+        "precise_io_type": "user_defined_io",
+        "precise_user_defined_io": "hgraph_precise"
+    }
+})", storages).value();
+
+index-&gt;Build(base);
+auto result = index-&gt;KnnSearch(query, 10, R"({"hgraph": {"ef_search": 50}})");
+</code></pre>
+<p>A runnable version is at <code>examples/cpp/200_user_defined_io.cpp</code>.</p>
+<h2 id="index-parameters-1"><a class="header" href="#index-parameters-1">Index parameters</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Value</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>precise_io_type</code></td><td><code>"user_defined_io"</code></td><td>Select this IO type to enable custom precise-code storage; the name below has no effect otherwise.</td></tr>
+<tr><td><code>precise_user_defined_io</code></td><td><strong>non-empty string</strong></td><td>Required when that IO type is selected; must exactly match a <code>UserDefinedIOSet::Set</code> name supplied to this <code>CreateIndex</code> call. Names cannot be duplicated within one set.</td></tr>
+<tr><td><code>use_reorder</code></td><td><code>true</code></td><td>Required</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td><code>"fp32"</code></td><td>Required</td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>"sq8"</code></td><td>Required</td></tr>
+<tr><td><code>graph_io_type</code></td><td><code>"block_memory_io"</code></td><td>Implicit default</td></tr>
+<tr><td><code>base_io_type</code></td><td><code>"block_memory_io"</code></td><td>Implicit default</td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="limitations"><a class="header" href="#limitations">Limitations</a></h2>
+<ul>
+<li>Graph, base, and bucket storage must remain in memory.</li>
+<li>No asynchronous writes, crash durability, transactions, or validated writable-storage
+restore.</li>
+<li>Realtime construction performance over a network is not measured; ODescent may issue
+many small reads.</li>
+<li>Callback backing residency is not counted in the backend memory estimate.</li>
+</ul>
+<h2 id="see-also-9"><a class="header" href="#see-also-9">See also</a></h2>
+<ul>
+<li><a href="#extensibility">Extensibility</a> — other VSAG extension points.</li>
+<li><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/200_user_defined_io.cpp">Example <code>200_user_defined_io</code></a>
+(runnable).</li>
+<li><a href="https://github.com/antgroup/vsag/blob/main/include/vsag/readerset.h"><code>include/vsag/readerset.h</code></a> —
+the <code>UserDefinedIOSet</code> API.</li>
+<li><a href="#disk-based-index-best-practices">Disk-Based Index Best Practices</a> — using <code>user_defined_io</code>
+as a disk-tiering backend.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="graph-index-enhancement"><a class="header" href="#graph-index-enhancement">Graph Index Enhancement</a></h1>
 <p>Graph-based indexes may see recall drops on “hard queries” — queries that are
 poorly connected to their true nearest neighbors. VSAG patches these queries online or offline
@@ -8865,7 +9329,7 @@ methods return the number of newly inserted conjugate edges; redundant feedback 
 candidates after HGraph’s normal traversal. <code>use_conjugate_graph</code> is disabled by default; calling
 <code>Feedback</code> or <code>Pretrain</code> without it returns <code>UNSUPPORTED_INDEX_OPERATION</code>. Search enhancement is
 enabled by default for an enabled graph and can be disabled per search.</p>
-<h2 id="example"><a class="header" href="#example">Example</a></h2>
+<h2 id="example-1"><a class="header" href="#example-1">Example</a></h2>
 <p><code>examples/cpp/304_feature_enhance_graph.cpp</code> walks through building, training, and comparing
 recall end-to-end.</p>
 <h2 id="when-to-use-it-6"><a class="header" href="#when-to-use-it-6">When to Use It</a></h2>
@@ -9053,7 +9517,7 @@ indexes that support memory estimation for this storage.</li>
 <li>Keep the payload compact because it is read during extra-info filtering.</li>
 <li>The feature is currently C++ only; there is no Python binding for <code>extra_info</code>.</li>
 </ul>
-<h2 id="example-1"><a class="header" href="#example-1">Example</a></h2>
+<h2 id="example-2"><a class="header" href="#example-2">Example</a></h2>
 <p>A complete, runnable example is available at
 <code>examples/cpp/320_feature_extra_info.cpp</code>. It demonstrates building an HGraph index with
 <code>extra_info</code>, retrieval by id, extra-info filtering, and in-place updates.</p>
@@ -9711,7 +10175,7 @@ companion automatically.</p>
 <li><code>mci_max_clique_size</code></li>
 <li><code>mci_memory_usage</code></li>
 </ul>
-<h2 id="example-2"><a class="header" href="#example-2">Example</a></h2>
+<h2 id="example-3"><a class="header" href="#example-3">Example</a></h2>
 <p>See
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/324_feature_hgraph_mci_companion.cpp"><code>examples/cpp/324_feature_hgraph_mci_companion.cpp</code></a>
 for a minimal build and filtered-search flow.</p>
@@ -9760,6 +10224,7 @@ They do not change the sparse-graph or <code>use_hybrid_traversal=true</code> ex
 <tr><th>Search parameter</th><th>Default</th><th>Meaning</th></tr>
 </thead>
 <tbody>
+<tr><td><code>hybrid_filter_cost_ratio</code></td><td><code>1.0</code></td><td>For <code>use_hybrid_traversal</code>: relative cost of one predicate filtering against one distance computation (<code>O_filter / O_dist</code>). The virtual-overhead budget early-stops the MCI part once <code>considered * (hybrid_filter_cost_ratio + local_selectivity)</code> reaches <code>hybrid_vob</code>.</td></tr>
 <tr><td><code>mci_packed_filter</code></td><td><code>true</code></td><td>Build a query-private one-bit predicate from complete mapped valid IDs, or an identity-mapped byte bitmap. Static CSR members use runtime-dispatched AVX512/AVX2, with a portable scalar fallback. Member order is preserved. When no complete source is available, use the existing predicate checks.</td></tr>
 <tr><td><code>mci_batch_distance</code></td><td><code>true</code></td><td>Score up to 64 newly visited legal points per datacell call. Submit the final batch before selecting another parent or checking convergence. FP32 kernels can choose different IDs among exactly tied distances.</td></tr>
 <tr><td><code>mci_activation_cap</code></td><td><code>0</code></td><td>Maximum number of outgoing clique incidences considered for each expanded point. Zero means all incidences. Already visited cliques still consume this prefix. This changes the explored graph and can lower recall.</td></tr>
@@ -9836,6 +10301,122 @@ reduce execution cost; activation, depth and idle limits additionally trade sear
 <p>A routed MCI query is attempted before HGraph navigation under either lock policy. If it succeeds,
 no unused route-graph distances or HGraph visited-list acquisition are performed;
 an unavailable MCI path still falls back to the normal graph route.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="random-projection-tree-partitioning"><a class="header" href="#random-projection-tree-partitioning">Random Projection Tree Partitioning</a></h1>
+<p><code>vsag::rpt_partition</code> splits a set of dense vectors into <strong>near-uniform partitions</strong> using a
+random projection tree (RPT). It is a standalone utility: it does not build an index and does not
+retain the input data. Typical uses are sharding a large collection before building per-shard
+indexes, balancing parallel build jobs, or producing locality-preserving buckets for downstream
+algorithms.</p>
+<p>Compared with random bucketing or sorting on a single dimension, an RPT keeps nearby vectors in
+the same partition far more often while still producing partitions of almost identical size.</p>
+<h2 id="distance-space"><a class="header" href="#distance-space">Distance Space</a></h2>
+<p>The locality behavior assumes Euclidean geometry. The function computes projections using inner
+products with random directions and does not normalize the input vectors. If the partitions will
+be used for cosine similarity, L2-normalize every input vector before calling <code>rpt_partition</code>.
+For unit-normalized vectors, cosine similarity and Euclidean distance induce the same neighborhood
+ordering.</p>
+<h2 id="api-overview-1"><a class="header" href="#api-overview-1">API Overview</a></h2>
+<pre><code class="language-cpp">struct RPTPartitionParams {
+    uint64_t bucket_size{1000};  // target bucket size L
+    uint64_t max_depth{64};      // upper bound on the tree depth
+    uint64_t seed{0};            // random seed
+};
+
+tl::expected&lt;std::vector&lt;std::vector&lt;int64_t&gt;&gt;, Error&gt;
+rpt_partition(uint64_t d, uint64_t n, const float* x, const RPTPartitionParams&amp; params);
+</code></pre>
+<p>Declarations live in
+<a href="https://github.com/antgroup/vsag/blob/main/include/vsag/utils.h"><code>include/vsag/utils.h</code></a>.</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>d</code></td><td>Dimensionality of the vectors. Must be positive.</td></tr>
+<tr><td><code>n</code></td><td>Number of vectors. <code>n == 0</code> returns an empty result.</td></tr>
+<tr><td><code>x</code></td><td>Row-major array of <code>n * d</code> floats. Owned by the caller; neither modified nor retained.</td></tr>
+<tr><td><code>params.bucket_size</code></td><td>Target bucket size <code>L</code>. Every partition holds at most <code>L</code> vectors. Must be positive.</td></tr>
+<tr><td><code>params.max_depth</code></td><td>Safety bound on recursion depth. When <code>0</code>, projection splits are disabled and the input IDs are returned in contiguous, size-balanced chunks; locality is not guaranteed. At a positive depth limit, remaining vectors are split into nearly equal chunks in the current permutation order.</td></tr>
+<tr><td><code>params.seed</code></td><td>Random seed. The same input, parameters, and seed always yield the same partitions. Node directions are derived from the seed and node position; use a different seed for an independent partition.</td></tr>
+</tbody>
+</table>
+</div>
+<p>The result is one <code>std::vector&lt;int64_t&gt;</code> per partition, holding the row indices into <code>x</code>.</p>
+<p>Callers that need the returned partition memory to be tracked by a VSAG allocator can use the
+five-argument overload with an <code>Allocator*</code>. It returns <code>RPTPartitionResult</code>, whose outer and
+inner vectors use the supplied allocator. The allocator must remain alive until the result is
+destroyed. The four-argument overload above remains available and returns standard-library
+vectors.</p>
+<h2 id="size-guarantees"><a class="header" href="#size-guarantees">Size Guarantees</a></h2>
+<p>For <code>n &gt; 0</code>, given <code>n</code> vectors and bucket size <code>L</code>, let <code>K = ceil(n / L)</code>. The output always
+satisfies:</p>
+<ul>
+<li>exactly <code>K</code> partitions are produced;</li>
+<li>every partition holds either <code>floor(n / K)</code> or <code>ceil(n / K)</code> vectors.</li>
+</ul>
+<p>The first two guarantees hold by construction and do not depend on the data distribution or on
+the seed. They imply that every partition holds at most <code>L</code> vectors. When <code>n &gt;= L</code>, they also
+imply that every partition holds at least <code>floor(L / 2)</code> vectors and that the largest partition
+is at most twice the size of the smallest one.</p>
+<h2 id="how-it-works-10"><a class="header" href="#how-it-works-10">How It Works</a></h2>
+<p>At each node, this implementation draws a random projection direction and assigns the node the
+number of leaves <code>k = ceil(n_node / L)</code> it must produce. With <code>n_node = q * k + r</code>, the node is
+cut so that the left child receives <code>ceil(k / 2)</code> leaves and
+<code>q * ceil(k / 2) + min(r, ceil(k / 2))</code> vectors. The cut rank is therefore chosen to balance the
+target leaf counts; it is generally not the projection median, and no additional random threshold
+offset is used. The cut position is found with <code>std::nth_element</code> on the projection values; ties
+are broken by vector id, so duplicated vectors and constant projections are handled without
+special cases. Vectors whose projection is <code>NaN</code> are ranked last.</p>
+<p>The size guarantees above follow from this construction. Locality behavior is an empirical
+property of the random projection directions and the input data; it does not claim the theoretical
+guarantees of other RPT variants that use a randomly perturbed projection threshold.</p>
+<p>Each node draws its projection direction from a generator seeded by a hash of the user seed and
+the node position, so the output is independent of the traversal order. Consequently, node
+directions are deterministic for a given seed and tree shape. Changing only the input size or
+bucket size does not provide an independent random partition; use a different seed when an
+independent partition is required.</p>
+<p>When <code>max_depth == 0</code>, no projection split is performed: the initial ID order is divided into
+contiguous, size-balanced ranges. The size guarantees still hold, but locality is not guaranteed.</p>
+<p>Memory overhead beyond the input is one id permutation (<code>n * 4</code> bytes), one projection buffer
+(<code>n * 4</code> bytes) and one direction vector (<code>d * 4</code> bytes). No vector data is copied.</p>
+<h2 id="example-4"><a class="header" href="#example-4">Example</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+vsag::RPTPartitionParams params;
+params.bucket_size = 1000;
+params.seed = 42;
+
+auto result = vsag::rpt_partition(dim, num_vectors, datas.data(), params);
+if (not result.has_value()) {
+    std::cerr &lt;&lt; result.error().message &lt;&lt; std::endl;
+    return -1;
+}
+for (const auto&amp; partition : result.value()) {
+    // partition holds the row indices of one bucket
+}
+</code></pre>
+<p>A complete program is available at
+<a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/601_utils_rpt_partition.cpp"><code>examples/cpp/601_utils_rpt_partition.cpp</code></a>.</p>
+<h2 id="errors"><a class="header" href="#errors">Errors</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Condition</th><th>Result</th></tr>
+</thead>
+<tbody>
+<tr><td><code>d == 0</code></td><td><code>INVALID_ARGUMENT</code></td></tr>
+<tr><td><code>params.bucket_size == 0</code></td><td><code>INVALID_ARGUMENT</code></td></tr>
+<tr><td><code>x == nullptr</code> and <code>n &gt; 0</code></td><td><code>INVALID_ARGUMENT</code></td></tr>
+<tr><td><code>n</code> larger than <code>2^32 - 1</code></td><td><code>INVALID_ARGUMENT</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="benchmark-input"><a class="header" href="#benchmark-input">Benchmark Input</a></h2>
+<p>The <code>rpt_bench</code> option <code>--bucket_sizes</code> accepts a comma-separated list of decimal integers in
+<code>[1, UINT64_MAX]</code>, with whitespace allowed around each number. Empty or malformed entries are
+rejected before loading the dataset; the error identifies <code>--bucket_sizes</code> and the offending entry.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="api-reference"><a class="header" href="#api-reference">API Reference</a></h1>
 <p>This chapter is a curated reference for VSAG’s <strong>public C++ API</strong> — the headers installed under
@@ -10060,7 +10641,7 @@ engine’s shared <code>Resource</code> (allocator and thread pool) instead of a
 <p>See <a href="#resource-management">Resource Management</a> for how <code>Resource</code>, <code>Allocator</code>, and <code>ThreadPool</code> fit
 together, and <code>examples/cpp/201_custom_allocator.cpp</code> / <code>203_custom_thread_pool.cpp</code> for runnable
 samples.</p>
-<h2 id="see-also-9"><a class="header" href="#see-also-9">See also</a></h2>
+<h2 id="see-also-10"><a class="header" href="#see-also-10">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — what you can do with the index once it is created.</li>
 <li><a href="#resource-management">Resource Management</a> — allocator, thread pool, and <code>Resource</code> details.</li>
@@ -10181,7 +10762,7 @@ bytes (at the given source pointer) at logical <code>OffsetType</code> in the ou
 </table>
 </div>
 <p>See <code>examples/cpp/303_feature_remove.cpp</code>.</p>
-<h2 id="search-1"><a class="header" href="#search-1">Search</a></h2>
+<h2 id="search-2"><a class="header" href="#search-2">Search</a></h2>
 <p>The recommended entry point is <a href="#searchwithrequest"><code>SearchWithRequest</code></a>, which takes a single
 <a href="#searchrequest"><code>SearchRequest</code></a> carrying the query, mode, top-k / radius, and any filters.
 The older per-argument <code>KnnSearch</code> / <code>RangeSearch</code> overloads remain for compatibility.</p>
@@ -10380,7 +10961,7 @@ and <code>examples/cpp/401_persistent_kv.cpp</code> / <code>402_persistent_strea
 </div>
 <p>See <code>examples/cpp/308_feature_estimate_memory.cpp</code>, <code>319_feature_get_memory_usage.cpp</code>, and the
 <a href="#index-analysis-analyzeindexbysearch--analyze_index">Index Analysis Tool</a>.</p>
-<h2 id="see-also-10"><a class="header" href="#see-also-10">See also</a></h2>
+<h2 id="see-also-11"><a class="header" href="#see-also-11">See also</a></h2>
 <ul>
 <li><a href="#dataset">Dataset</a> — construct query/base inputs and read search results.</li>
 <li><a href="#search-request--filters">Search Request &amp; Filters</a> — the <code>SearchRequest</code> fields and filter types.</li>
@@ -10565,7 +11146,7 @@ filtering. A time range on a one-element query dataset uses <code>publish_time_s
 <code>publish_time_stamp_end</code>. For SINDI and SINDI_V2 base datasets, <code>publish_time_stamp == 0</code> is
 reserved for a missing timestamp and never matches a time selector. These arrays have one value
 per dataset element and follow the normal Dataset ownership, deep-copy, and append rules.</p>
-<h2 id="see-also-11"><a class="header" href="#see-also-11">See also</a></h2>
+<h2 id="see-also-12"><a class="header" href="#see-also-12">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — the methods that consume and return datasets.</li>
 <li><a href="#search-request--filters">Search Request &amp; Filters</a> — wrapping a query dataset in a <code>SearchRequest</code>.</li>
@@ -10594,10 +11175,8 @@ Legacy <code>dist_cmp</code> and <code>reorder_distance_count</code> remain avai
 Python preserves <code>(ids, distances)</code> tuple unpacking. Opt in with
 <code>knn_search_with_statistics</code>: the dense overload returns one statistics JSON string, while the
 sparse CSR overload returns one string per query. <code>range_search_with_statistics</code> returns the range
-arrays plus one statistics JSON string. C preserves <code>SearchResult_t</code>; call
-<code>vsag_search_result_enable_statistics()</code> before a search and release returned statistics with
-<code>vsag_search_result_destroy_statistics()</code>. Legacy callers retain <code>other_result</code> ownership and
-incur no statistics allocation. Legacy HNSW and DiskANN are explicit non-goals.</p>
+arrays plus one statistics JSON string. C returns the statistics JSON string of a <code>vsag_search_result_t</code> through
+<code>vsag_search_result_statistics()</code>. Legacy HNSW and DiskANN are explicit non-goals.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="search-request--filters"><a class="header" href="#search-request--filters">Search Request &amp; Filters</a></h1>
 <p>This page covers the types that describe <em>how</em> to search: the unified
@@ -10852,7 +11431,7 @@ the deprecated <code>KnnSearch(query, k, SearchParam&amp;)</code> overload.</p>
 <p><strong>Prefer <a href="#searchrequest"><code>SearchRequest</code></a> + <a href="#searchwithrequest"><code>SearchWithRequest</code></a>
 for all new code.</strong> <code>SearchParam</code> holds <code>parameters</code> by reference, so the referenced string must
 outlive the call.</p>
-<h2 id="see-also-12"><a class="header" href="#see-also-12">See also</a></h2>
+<h2 id="see-also-13"><a class="header" href="#see-also-13">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — the search methods that consume these types.</li>
 <li><a href="#dataset">Dataset</a> — building the <code>query_</code> and reading results.</li>
@@ -10996,7 +11575,7 @@ load_parameters.Set("precise_io_type", "reader_io")
 </code></pre>
 <p>Readers that only implement <code>Reader</code> remain compatible; the enabled hint is then a safe no-op.
 See the runnable <code>examples/cpp/408_feature_reader_prefetch.cpp</code> example.</p>
-<h2 id="see-also-13"><a class="header" href="#see-also-13">See also</a></h2>
+<h2 id="see-also-14"><a class="header" href="#see-also-14">See also</a></h2>
 <ul>
 <li><a href="#serialization-1">Index</a> — the <code>Serialize</code> / <code>Deserialize</code> method family.</li>
 <li><a href="#createlocalfilereader">Factory &amp; Engine</a> — creating file-backed readers.</li>
@@ -11172,7 +11751,7 @@ public:
 </table>
 </div>
 <p>See <code>examples/cpp/202_custom_logger.cpp</code>.</p>
-<h2 id="see-also-14"><a class="header" href="#see-also-14">See also</a></h2>
+<h2 id="see-also-15"><a class="header" href="#see-also-15">See also</a></h2>
 <ul>
 <li><a href="#factory--engine">Factory &amp; Engine</a> — how <code>Engine</code> consumes a <code>Resource</code>.</li>
 <li><a href="#index">Index</a> — per-call allocators on retrieval and search methods.</li>
@@ -11379,7 +11958,7 @@ instead of raw string literals avoids typos. They fall into several groups:</p>
 </div>
 <p>For the meaning of each parameter key, see <a href="#index-parameters">Index Parameters</a> and
 the individual <a href="indexes">index pages</a>.</p>
-<h2 id="see-also-15"><a class="header" href="#see-also-15">See also</a></h2>
+<h2 id="see-also-16"><a class="header" href="#see-also-16">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — <code>CheckFeature</code>, <code>GetIndexDetailInfos</code>, <code>UpdateAttribute</code>.</li>
 <li><a href="#dataset">Dataset</a> — attaching <code>AttributeSet</code> data to elements.</li>
@@ -11449,6 +12028,10 @@ allocator; see <a href="#memory-management">Memory Management</a>.</li>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="disk-based-index-best-practices"><a class="header" href="#disk-based-index-best-practices">Disk-Based Index Best Practices</a></h1>
 <p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/resources/disk-index-overview.svg" alt="Disk-backed HGraph: the graph and compact base codes stay in memory for traversal, while a higher-precision precise copy on disk is read only for the ef_search finalists during reorder"><span class="img-wrapper"><img src="figures/resources/disk-index-overview.svg" alt="Disk-backed HGraph: the graph and compact base codes stay in memory for traversal, while a higher-precision precise copy on disk is read only for the ef_search finalists during reorder"></span></label></p>
+<h2 id="user-defined-io-callbacks"><a class="header" href="#user-defined-io-callbacks">User-defined IO callbacks</a></h2>
+<p>Assign <code>precise_io_type</code> to <code>"user_defined_io"</code> and register callbacks through
+<code>Factory::CreateUserDefinedIO</code>. See <strong><a href="#user-defined-io">User-Defined IO</a></strong>
+for the full callback contract, configuration table, and runnable example.</p>
 <p>When a corpus grows past the point where every vector fits in RAM, moving the coldest,
 largest part of the index onto an SSD is the most direct way to control cost. VSAG does
 this by letting each part of an index choose its own storage backend, so hot data stays
@@ -11659,7 +12242,7 @@ tens of GB of RAM plus an SSD.</p>
 <p>Treat these as starting points and validate with <a href="#performance-evaluation-tool-eval_performance"><code>eval_performance</code></a> against a
 realistic query distribution; the <a href="#optimizer-tune">Optimizer (Tune)</a> can then
 settle search-time parameters automatically.</p>
-<h2 id="see-also-16"><a class="header" href="#see-also-16">See also</a></h2>
+<h2 id="see-also-17"><a class="header" href="#see-also-17">See also</a></h2>
 <ul>
 <li><a href="#hgraph-2">HGraph</a> — the flagship index and its full parameter table</li>
 <li><a href="quantization">Quantization Overview</a> — choosing a base/precise quantizer</li>
@@ -11719,7 +12302,7 @@ the same metric family.</li>
 <li>When comparing results across tools, check whether the tool uses a distance
 or a similarity convention.</li>
 </ul>
-<h2 id="related-pages-8"><a class="header" href="#related-pages-8">Related Pages</a></h2>
+<h2 id="related-pages-9"><a class="header" href="#related-pages-9">Related Pages</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#index-parameters">Index Parameters</a></li>
@@ -11763,7 +12346,7 @@ Optimizer”. Its implementation key is <code>use_elp_optimizer</code>, which no
 </tbody>
 </table>
 </div>
-<h2 id="example-3"><a class="header" href="#example-3">Example</a></h2>
+<h2 id="example-5"><a class="header" href="#example-5">Example</a></h2>
 <p><code>examples/cpp/318_feature_tune.cpp</code> walks through an end-to-end tuning flow:</p>
 <ol>
 <li>Create the index and <code>Build</code>.</li>
@@ -11943,7 +12526,7 @@ helpful for long-running evaluations.</p>
     enabled: true
     port: 8080
 </code></pre>
-<h2 id="datasets"><a class="header" href="#datasets">Datasets</a></h2>
+<h2 id="datasets-1"><a class="header" href="#datasets-1">Datasets</a></h2>
 <p>Any HDF5 dataset from <a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a>
 (e.g. <code>sift-128-euclidean.hdf5</code>, <code>gist-960-euclidean.hdf5</code>) works out of the box.</p>
 <h2 id="references-1"><a class="header" href="#references-1">References</a></h2>
@@ -14112,7 +14695,7 @@ behavior. The agent will mirror this into the template’s required fields.</li>
 shell wrapper at
 <a href="https://github.com/antgroup/vsag/blob/main/tools/issue-helper/new-issue.sh"><code>tools/issue-helper/new-issue.sh</code></a>.</li>
 </ul>
-<h2 id="see-also-17"><a class="header" href="#see-also-17">See also</a></h2>
+<h2 id="see-also-18"><a class="header" href="#see-also-18">See also</a></h2>
 <ul>
 <li><a href="#community">Community</a></li>
 <li><a href="#contributing-to-vsag">Contributing to VSAG</a></li>
@@ -14139,13 +14722,13 @@ system; an inspiration for VSAG’s large-scale search design.</li>
 <ul>
 <li><strong><a href="https://github.com/erikbern/ann-benchmarks">ann-benchmarks</a></strong> — the de-facto ANN benchmark
 harness; VSAG’s <a href="#performance-evaluation-tool-eval_performance">performance evaluation tool</a> is compatible with its dataset format.</li>
-<li><strong><a href="https://github.com/pybind/pybind11">pybind11</a></strong> — powers the <code>pyvsag</code> Python binding.</li>
+<li><strong><a href="https://cffi.readthedocs.io/">cffi</a></strong> — powers the <code>pyvsag</code> Python binding.</li>
 <li><strong><a href="https://napi.rs/">napi-rs</a></strong> — powers the Node.js binding under <code>typescript/</code>.</li>
 </ul>
 <h2 id="bindings--language-support"><a class="header" href="#bindings--language-support">Bindings / Language Support</a></h2>
 <ul>
 <li><strong>C++</strong> (native)</li>
-<li><strong>Python</strong> — <code>pyvsag</code>, source under <code>python_bindings/</code> and <code>python/</code>.</li>
+<li><strong>Python</strong> — <code>pyvsag</code>, source under <code>python/</code>.</li>
 <li><strong>Node.js / TypeScript</strong> — source under <code>typescript/</code>, npm package name <code>vsag</code>.</li>
 </ul>
 <p>Pull requests to extend this list are welcome.</p>

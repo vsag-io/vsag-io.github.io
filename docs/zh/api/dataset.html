@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
+            window.path_to_searchindex_js = "../searchindex-14903171.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ec46237e.js"></script>
+        <script src="../toc-e83d9634.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -497,11 +497,8 @@ evaluation；其他已测量阶段仍会返回，但发生 approximate evaluatio
 <code>reorder_distance_count</code> 保持兼容且含义不变。Python 保留 <code>(ids, distances)</code> 解包方式；可通过
 <code>knn_search_with_statistics</code> 显式获取统计信息：稠密重载返回一个统计 JSON 字符串，稀疏 CSR
 重载为每个查询返回一个字符串。<code>range_search_with_statistics</code> 返回范围搜索数组及一个统计
-JSON 字符串。C 保留
-<code>SearchResult_t</code> 布局，统计信息通过新增的显式访问方式提供：C 调用
-<code>vsag_search_result_enable_statistics()</code> 后获取统计信息，并用
-<code>vsag_search_result_destroy_statistics()</code> 释放；未选择统计的旧调用保留 <code>other_result</code> 所有权，
-不会产生统计分配。旧版 HNSW 和 DiskANN 不在此合约内。</p>
+JSON 字符串。C 通过
+<code>vsag_search_result_statistics()</code> 返回 <code>vsag_search_result_t</code> 的统计 JSON 字符串。旧版 HNSW 和 DiskANN 不在此合约内。</p>
 
                     </main>
 

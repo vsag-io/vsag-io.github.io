@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-bcc4500d.js";
+            window.path_to_searchindex_js = "../searchindex-14903171.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-ec46237e.js"></script>
+        <script src="../toc-e83d9634.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -354,7 +354,7 @@
 <tr><td><code>max_degree</code></td><td>16~48</td><td>每节点最大出边数</td></tr>
 <tr><td><code>ef_construction</code></td><td>200~500</td><td>构建阶段候选集大小，越大召回越高、构建越慢</td></tr>
 <tr><td><code>alpha</code></td><td><code>1.0</code></td><td>最终 robust pruning 的系数；PiPNN 要求有限且不小于 <code>1.0</code></td></tr>
-<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq8_local</code> / <code>sq4_local</code> / <code>sq4</code> / <code>pq</code></td><td>主存储的量化策略 —— 支持的全部取值见<a href="../quantization/">量化章节</a></td></tr>
+<tr><td><code>base_quantization_type</code></td><td><code>fp32</code> / <code>fp16</code> / <code>bf16</code> / <code>sq8</code> / <code>sq8_local</code> / <code>sq4_local</code> / <code>sq4</code> / <code>pq</code> / <code>rabitq</code> / <code>saq</code> / <code>tq</code></td><td>主存储的量化策略；具体行为及各索引限制见<a href="../quantization/">量化章节</a></td></tr>
 <tr><td><code>use_reverse_edges</code></td><td><code>false</code></td><td>跟踪入边，实现 O(1) 反向邻居查找；边存储约翻倍，且压缩图存储不支持</td></tr>
 <tr><td><code>label_remap_type</code></td><td><code>pg</code></td><td>label map 实现：默认 <code>pg</code>，或 <code>robin</code></td></tr>
 <tr><td><code>reorder_source</code></td><td><code>precise</code></td><td>从 <code>precise</code> 存储或直接从 <code>base</code> 重排；RaBitQ x+y split（包括 <code>tq_chain="mrle, rabitq"</code>）会自动选择 <code>base</code></td></tr>
@@ -367,6 +367,22 @@
 </table>
 </div>
 <p>HGraph float32 L2/IP/cosine 的 <code>base_quantization_type</code> 和 <code>precise_quantization_type</code> 均可选择 <code>sq8_local</code> 或 <code>sq4_local</code>（后者需要 <code>use_reorder: true</code>）。内存、持久化及限制见<a href="../quantization/sq.html">local SQ4/SQ8</a>。</p>
+<h3 id="saq-基础量化参数"><a class="header" href="#saq-基础量化参数">SAQ 基础量化参数</a></h3>
+<p>当 <code>base_quantization_type</code> 为 <code>saq</code> 时，HGraph、IVF 和 Pyramid 接受下列参数。它们属于
+构建期模型状态，因此加载或合并兼容索引状态时必须保持一致。</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>字段</th><th>类型</th><th>默认值</th><th>有效取值</th><th>说明</th></tr>
+</thead>
+<tbody>
+<tr><td><code>saq_avg_bits</code></td><td>float</td><td><code>4.0</code></td><td><code>[1, 8]</code></td><td>每个输入维度的平均 payload 目标。完整记录预留与等长 multi-bit RaBitQ 相同的 12 字节额度；SAQ 的每段 8 字节元数据和字节对齐位平面均在该固定记录预算内计费。</td></tr>
+<tr><td><code>saq_segment_count</code></td><td>无符号整数</td><td><code>0</code></td><td><code>0</code> 或可行的正整数</td><td><code>0</code> 表示联合学习段数、64 维对齐边界和位宽；正数表示固定均匀分配的对齐边界并学习各段位宽。维度或记录预算无法容纳请求时训练失败。</td></tr>
+<tr><td><code>saq_random_rotation</code></td><td>布尔值</td><td><code>true</code></td><td><code>true</code> / <code>false</code></td><td>在每段内应用确定性、可持久化的正交旋转。</td></tr>
+</tbody>
+</table>
+</div>
+<p>记录布局、度量语义、持久化方式和完整 HGraph 示例见 <a href="../quantization/saq.html">SAQ 指南</a>。</p>
 <h3 id="pipnn-构建参数"><a class="header" href="#pipnn-构建参数">PiPNN 构建参数</a></h3>
 <p>当 <code>graph_type</code> 为 <code>pipnn</code> 时，HGraph 和 Pyramid 还会从 <code>index_param</code> 接受以下构建参数，
 两者使用相同的默认值和校验规则：</p>
@@ -514,6 +530,18 @@
 </code></pre>
 <p>构建参数及 <code>n_candidate</code>、<code>filter_callback_limit</code> 等检索参数详见
 <a href="../indexes/sindi_v2.html">SINDI_V2 页面</a>。</p>
+<h2 id="simq多向量检索"><a class="header" href="#simq多向量检索">SIMQ（多向量检索）</a></h2>
+<p>SIMQ 要求顶层 <code>dim &gt; 0</code>、<code>dtype: "float32"</code>、<code>metric_type: "ip"</code>；
+可用 <code>repr: "multi_vector"</code> 显式描述布局。全部 15 个公开构建字段位于 <code>index_param</code>：
+<code>base_io_type</code>、<code>base_file_path</code>、<code>base_enable_read_cache</code>、<code>base_cache_total_size</code>、
+<code>quantization_type</code>、<code>build_thread_count</code>、<code>init_cluster_ratio</code>、<code>max_cluster_size</code>、
+<code>split_start_idx</code>、<code>random_seed</code>、<code>coarse_k</code>、<code>rerank_k</code>、<code>split_delay_seconds</code>、
+<code>support_duplicate</code>、<code>deduplicate_storage</code>。</p>
+<p>KNN 和范围搜索均接受 <code>simq.coarse_k</code>、<code>simq.rerank_k</code>（省略或非正值回退构建默认值）
+以及软预算 <code>simq.timeout_ms</code>。根级有限 <code>threshold</code> 仅限制 KNN 最终距离；范围搜索使用
+<code>radius</code>。共享的 <code>parallelism</code>、<code>factor</code>、<code>enable_reorder</code> 可在 <code>simq</code> 内解析但不生效，
+不能关闭 MaxSim 精排。默认值、约束、存储/量化限制及输入 dtype 与存储格式的区别，
+详见 <a href="../indexes/simq.html">SIMQ 参数表</a>。</p>
 <h2 id="运行期参数"><a class="header" href="#运行期参数">运行期参数</a></h2>
 <p>除构建参数外，<code>Index::Tune</code> 与 <code>SearchParam</code> 可在运行时调整 <code>ef_search</code>、<code>nprobe</code> 等参数。参考
 <a href="../advanced/optimizer.html">优化器</a> 与各 <code>examples/cpp/3xx_feature_*.cpp</code> 示例。</p>

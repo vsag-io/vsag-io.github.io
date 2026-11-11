@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
+            window.path_to_searchindex_js = "../searchindex-786b3319.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b5df986.js"></script>
+        <script src="../toc-7ee31d19.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -323,7 +323,7 @@ it.</p>
                  |   base quantizer    |   fp32 / fp16 / bf16 /
                  |                     |   sq8 / sq4 / sq8_uniform /
                  |                     |   sq4_uniform / pq / pqfs /
-                 |                     |   rabitq
+                 |                     |   rabitq / saq
                  +----------+----------+
                             |
                             v
@@ -354,7 +354,7 @@ quantizer — they apply whenever the index supports reordering (see
 <a href="../indexes/hgraph.html">HGraph</a>, <a href="../indexes/ivf.html">IVF</a>,
 <a href="../indexes/pyramid.html">Pyramid</a>).</p>
 <h2 id="supported-quantizers-at-a-glance"><a class="header" href="#supported-quantizers-at-a-glance">Supported quantizers at a glance</a></h2>
-<p>The factory in <code>src/datacell/flatten_interface.cpp</code> dispatches to
+<p>The factory in <code>src/datacell/flatten_datacell_factory_impl.h</code> dispatches to
 the concrete quantizer based on the JSON <code>type</code> field.</p>
 <div class="table-wrapper">
 <table>
@@ -372,6 +372,7 @@ the concrete quantizer based on the JSON <code>type</code> field.</p>
 <tr><td><code>pq</code></td><td>~<code>pq_bits</code> × <code>pq_dim</code> / <code>dim</code></td><td><strong>yes</strong></td><td>no</td><td>Codebook-based, very compact</td></tr>
 <tr><td><code>pqfs</code></td><td>4 × <code>pq_dim</code> / <code>dim</code></td><td><strong>yes</strong></td><td>no</td><td>PQ FastScan — SIMD-accelerated PQ</td></tr>
 <tr><td><code>rabitq</code></td><td>1 or HGraph x+y</td><td><strong>yes</strong></td><td>no</td><td>1-bit / low-bit split binary quantization, strongest compression</td></tr>
+<tr><td><code>saq</code></td><td>configurable 1–8</td><td><strong>yes</strong></td><td>no</td><td>PCA + variance-aware segmented CAQ for high-accuracy low-bit search</td></tr>
 <tr><td><code>tq</code></td><td>depends on chain</td><td>depends on terminal quantizer</td><td>no</td><td><a href="../advanced/quantization_transform.html">Transform Quantizer</a>: prepend rotations / PCA before another quantizer</td></tr>
 </tbody>
 </table>
@@ -419,6 +420,8 @@ embeddings).</li>
 or <code>pqfs</code> when the platform supports the SIMD path.</li>
 <li><strong>Maximum compression (1-bit) and willing to pay reorder cost?</strong> Use
 <code>rabitq</code>, ideally with <code>rabitq_use_fht: true</code> or a <code>tq</code> chain.</li>
+<li><strong>Need a stronger 2–8 bit accuracy/encoding trade-off?</strong> Use <code>saq</code>; start
+with <code>saq_avg_bits: 4</code> and automatic segmentation.</li>
 </ol>
 <p>For every lossy quantizer above, enabling <code>use_reorder: true</code> with
 <code>precise_quantization_type: "fp32"</code> is the standard way to recover recall at
@@ -431,15 +434,18 @@ for the exact behavior.</p>
 <code>precise_quantization_type</code>, <code>use_reorder</code>, <code>base_pq_dim</code>,
 <code>rabitq_pca_dim</code>, <code>rabitq_bits_per_dim_query</code>,
 <code>rabitq_bits_per_dim_base</code>, <code>rabitq_bits_per_dim_precise</code>,
-<code>rabitq_error_rate</code>, <code>rabitq_use_fht</code>, <code>sq4_uniform_trunc_rate</code>, <code>tq_chain</code>
-(see <code>src/algorithm/hgraph/hgraph.cpp</code>).</li>
+<code>rabitq_error_rate</code>, <code>rabitq_use_fht</code>, <code>saq_avg_bits</code>, <code>saq_segment_count</code>,
+<code>saq_random_rotation</code>,
+<code>sq4_uniform_trunc_rate</code>, <code>tq_chain</code>
+(see <code>src/algorithm/hgraph/hgraph_param_mapping.cpp</code>).</li>
 <li><strong>IVF</strong> exposes <code>base_quantization_type</code>, <code>base_pq_dim</code>, the common reorder
 keys, and the RabitQ tuning keys <code>rabitq_pca_dim</code>,
 <code>rabitq_bits_per_dim_query</code>, <code>rabitq_bits_per_dim_base</code>,
 <code>rabitq_bits_per_dim_precise</code>, <code>rabitq_version</code>,
-<code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code>.</li>
+<code>rabitq_error_rate</code>, and <code>rabitq_use_fht</code>, plus all three <code>saq_*</code> keys.</li>
 <li><strong>Pyramid</strong> exposes <code>base_quantization_type</code>, <code>base_pq_dim</code>, the common
-reorder keys, and the RabitQ PCA, base/query bit, and FHT keys.</li>
+reorder keys, the RabitQ PCA, base/query bit, and FHT keys, and all five
+<code>saq_*</code> keys.</li>
 <li><strong>BruteForce</strong> exposes <code>base_quantization_type</code> and the common reorder keys;
 some tunables (e.g. <code>tq_chain</code>) are wired internally but not exposed as
 external keys today.</li>
@@ -454,6 +460,7 @@ external keys today.</li>
 <li><a href="pq.html">Product Quantization (PQ)</a></li>
 <li><a href="pqfs.html">PQ FastScan</a></li>
 <li><a href="rabitq.html">RaBitQ</a></li>
+<li><a href="saq.html">SAQ</a></li>
 <li><a href="rabitq_split.html">RaBitQ x+y Split</a></li>
 <li><a href="../advanced/quantization_transform.html">Transform Quantizer (TQ)</a></li>
 </ul>

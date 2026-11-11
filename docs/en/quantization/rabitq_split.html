@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-5c69f2ef.js";
+            window.path_to_searchindex_js = "../searchindex-786b3319.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-3b5df986.js"></script>
+        <script src="../toc-7ee31d19.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -371,6 +371,11 @@ storage; <code>rabitq_fused_datacell</code> is not a Pyramid parameter. The spec
 HGraph search loop reads the record directly and prefetches graph links and
 quantized codes together. The codec uses 16 reproducibly trained residual
 clusters.</p>
+<p>For latency-sensitive single-query searches, <code>rabitq_use_fht: true</code> selects
+FHT/Kac rotation in place of the dense random orthogonal matrix. This option
+is independent of <code>rabitq_fused_datacell</code>. Both options must be set before
+<code>Build</code>; changing an existing dense-rotation or ordinary split index requires
+a rebuild. They cannot be enabled through search parameters.</p>
 <p>By default, fused HGraph trains the base RaBitQ quantizer and fused KMeans codec on at most 65,536
 vectors. When <code>train_sample_count</code> is smaller than the dataset, it selects that many vectors using
 fixed-seed uniform reservoir sampling. Increasing the value can improve cluster-centroid quality at
@@ -395,6 +400,10 @@ graph construction, then discards them. The completed index keeps only the
 fused RaBitQ records. Post-build <code>Add</code> decodes fused records on demand for
 pairwise graph updates, so it does not retain an SQ8 or raw-vector copy; batch
 adds are preferable when insertion throughput matters.</p>
+<p>For <code>graph_type="pipnn"</code>, fused HGraph preencodes the batch in parallel and reuses
+those bytes when publishing the index, so each input is encoded once. The temporary
+code buffer grows with the input batch. When all input labels are accepted, it is
+released before PiPNN builds the bottom graph.</p>
 <p>The fused layout is opt-in and has stricter constraints than ordinary split
 storage:</p>
 <ul>
@@ -746,6 +755,9 @@ second count-scaled copy of the split codes.</p>
 </div>
 <h2 id="operational-notes"><a class="header" href="#operational-notes">Operational notes</a></h2>
 <ul>
+<li>Pyramid incremental <code>Add</code> reuses decoded scalar codes in bounded, operation-local
+caches during graph traversal and pruning, including after model deserialization.
+No additional parameter is needed; persisted split records remain unchanged.</li>
 <li>Split storage is currently available on HGraph, IVF, and Pyramid and requires
 fp32 query codes. Pyramid enables the one-bit split search path by default for
 split indexes; pass <code>rabitq_one_bit_search: false</code> under <code>pyramid</code> to force the
@@ -776,7 +788,7 @@ complete index parameter tables.</li>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../quantization/rabitq.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../quantization/saq.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -790,7 +802,7 @@ complete index parameter tables.</li>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../quantization/rabitq.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../quantization/saq.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
