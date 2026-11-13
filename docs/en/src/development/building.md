@@ -170,9 +170,23 @@ and worked examples.
 
 ```bash
 make pyvsag
+pip install wheelhouse/pyvsag-*.whl
 ```
 
-Wheels are emitted under `python/dist/`.
+The wheel is a `py3-none` package, so one build per architecture serves every supported CPython
+(3.10+). `make pyvsag` runs `scripts/python/local_build_wheel.sh` from the repository root and
+writes the wheel to `wheelhouse/`. With Docker it builds inside the `manylinux_2_28` image (via
+cibuildwheel) and runs part of `tests/python` there, leaving the host environment untouched. Without
+Docker it falls back to a plain `python -m build`, installs the wheel into the active virtual
+environment and runs `tests/python` against it; that wheel carries a `linux_<arch>` tag instead of
+`manylinux_2_28`. Outside an active virtual environment the script creates `.venv/` in the
+repository.
+
+The wheel contains `libvsag_c`, built with `ENABLE_PYBINDS=ON` and `ENABLE_LIBAIO=OFF`. In a build
+without Docker, `VSAG_ENABLE_LIBAIO=ON` overrides this (for example
+`VSAG_ENABLE_LIBAIO=ON python -m build --wheel python`); the variable is not forwarded into the
+Docker build. See [pyvsag](../guide/pyvsag.md) for installing the wheel, running against an in-tree
+build, and the runtime behavior.
 
 ## Distribution Tarballs
 
@@ -220,6 +234,23 @@ An unset path preserves existing behavior; an explicitly empty or unreadable pat
 
 You can increase `COMPILE_JOBS` if your machine has enough memory, but the default is conservative
 to avoid out-of-memory failures in CI runners.
+
+### Datacell compile parallelism
+
+`COMPILE_JOBS` controls the whole build. `DATACELL_COMPILE_JOBS=0` (the default)
+adds no separate cap: datacell and RaBitQ factory files use that same global job budget.
+On memory-limited Ninja builders, set a positive limit shared by both object libraries:
+
+```bash
+make asan COMPILE_JOBS=24                         # all sources share 24 jobs
+make asan COMPILE_JOBS=3 DATACELL_COMPILE_JOBS=1   # ARM CI: at most one datacell compile
+```
+
+Direct CMake callers use `-DVSAG_DATACELL_COMPILE_JOBS=N`. The cap applies to all build
+modes, does not change compiler flags or test scope, and cannot exceed the global job limit.
+Positive values require Ninja; other generators use `0` and their global parallelism.
+The ARM Linux/macOS ASan jobs set `1` explicitly; other jobs inherit the global limit.
+Higher parallelism needs more memory. This scheduling option does not fix cache misses.
 
 ## C++ standard and compiler validation
 

@@ -52,7 +52,7 @@ release:                 ## Build vsag with release options.
 dist-pre-cxx11-abi:      ## Build vsag with distribution options.
 dist-cxx11-abi:          ## Build vsag with distribution options.
 dist-libcxx:             ## Build vsag using libc++.
-pyvsag:                  ## Build the pyvsag wheel (one py3-none wheel per architecture).
+pyvsag:                  ## Build the pyvsag wheel (one py3-none wheel per architecture) into wheelhouse/.
 clean-release:           ## Clear build-release/ directory.
 install:                 ## Build and install the release version of vsag.
 ```
@@ -182,11 +182,22 @@ make release
 
 pyvsag 是 VSAG 的 Python 版本。通过 `pip install pyvsag` 下载安装的 wheel 包就是通过 `make pyvsag` 命令构建出来的。
 
-wheel 为 `py3-none` 平台包，不区分 Python 版本，每个架构只需构建一次：
+wheel 为 `py3-none` 平台包，不区分 Python 版本，每个架构只需构建一次，即可适用于所有受支持的 CPython（3.10+）：
 
 ```bash
 make pyvsag
+pip install wheelhouse/pyvsag-*.whl
 ```
+
+`make pyvsag` 在仓库根目录运行 `scripts/python/local_build_wheel.sh`，并把 wheel 写入 `wheelhouse/`。
+有 Docker 时通过 cibuildwheel 在 `manylinux_2_28` 镜像中构建，并在镜像内运行 `tests/python` 的一部分用例，
+不会改动宿主机环境。没有 Docker 时退回普通的 `python -m build`，把 wheel 安装到当前虚拟环境，并针对它运行
+`tests/python`；这样得到的 wheel 带 `linux_<arch>` 标签，而不是 `manylinux_2_28`。如果当前不在虚拟环境中，
+脚本会在仓库内创建 `.venv/`。
+
+wheel 中包含 `libvsag_c`，使用 `ENABLE_PYBINDS=ON` 和 `ENABLE_LIBAIO=OFF` 构建。不使用 Docker 的构建可以用
+`VSAG_ENABLE_LIBAIO=ON` 覆盖（例如 `VSAG_ENABLE_LIBAIO=ON python -m build --wheel python`）；该变量不会被转发到
+Docker 构建中。安装 wheel、使用源码树中的构建结果以及运行时行为，见 [pyvsag](../guide/pyvsag.md)。
 
 ## 环境变量
 
@@ -240,6 +251,23 @@ CMake 优先使用带版本后缀的变量，再使用旧变量，并保留默�
 
 如果机器内存足够，可以适当调大 `COMPILE_JOBS`；默认值会比较保守，以避免 CI 里再次触发
 内存不足。
+
+### Datacell 编译并行度
+
+`COMPILE_JOBS` 控制整个项目的编译并行度。`DATACELL_COMPILE_JOBS=0`（默认值）
+不添加单独上限，datacell 和 RaBitQ factory 文件与其他文件共享总并行额度。
+使用 Ninja 且内存有限时，可设置正整数，让这两个对象库共用一个编译上限：
+
+```bash
+make asan COMPILE_JOBS=24                         # 所有源文件共享 24 路
+make asan COMPILE_JOBS=3 DATACELL_COMPILE_JOBS=1   # ARM CI：datacell 最多同时编译一个文件
+```
+
+直接调用 CMake 时使用 `-DVSAG_DATACELL_COMPILE_JOBS=N`。该上限适用于所有构建模式，
+不改变编译选项或测试范围，实际并行度仍受全局上限约束。
+正整数设置要求 Ninja；其他生成器使用 `0` 并通过全局并行度限制资源。
+ARM Linux/macOS ASan 任务显式设为 `1`，其他任务跟随全局并行度。
+提高并行度需要更多内存；这个调度选项不能解决缓存未命中问题。
 
 ## 工具链分层验证
 
