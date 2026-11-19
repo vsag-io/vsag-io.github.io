@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -321,6 +321,9 @@ use the normal <a href="serialization.html">Serialization</a> APIs to persist a 
 </ul>
 <p>The numeric label in <code>Dataset::Ids</code> may change between snapshots. Cache matching uses the
 corresponding <code>SourceID</code> string instead.</p>
+<p>Pass the complete current snapshot to each <code>Build()</code>. Records may be added, removed, or reordered;
+retained records keep their stable Source IDs. Importing a cache supplies graph seeds, not vectors
+from the previous snapshot.</p>
 <h2 id="first-build-and-cache-export"><a class="header" href="#first-build-and-cache-export">First build and cache export</a></h2>
 <p>Provide one source ID per vector when building the source index:</p>
 <pre><code class="language-cpp">std::vector&lt;std::string&gt; source_ids = load_stable_source_ids();
@@ -362,6 +365,14 @@ next_index-&gt;Build(next_base).value();
 both snapshots are warm-started from cached neighbors; unmatched records are treated as cache
 misses and refined by the normal build path. Calling cache-assisted <code>Build()</code> without
 <code>Dataset::SourceID</code> returns an invalid-argument error.</p>
+<p>When cache misses exist, a final serial connectivity pass first scans the entry’s reachable
+component, then runs a fresh entry-point construction search for each miss that is still
+unreachable. It looks for capacity in the reachable component, protecting its spanning tree
+and entry backlinks while respecting the degree limit. Each successful join also traverses
+the newly reachable component. A miss can remain unreachable if no safe backlink is found;
+this pass does not guarantee full reachability. Temporary memory is proportional to the
+snapshot’s node count. Include the traversal and per-unreachable-miss searches when measuring
+rebuild time and peak memory. Unchanged all-hit snapshots retain their warm-start fast path.</p>
 <h2 id="persisting-source-ids-with-the-index"><a class="header" href="#persisting-source-ids-with-the-index">Persisting source IDs with the index</a></h2>
 <p>Source-ID metadata is not included in HGraph serialization by default. Set
 <code>persist_source_id: true</code> in <code>index_param</code> when a deserialized index must later call
@@ -395,6 +406,8 @@ mapping.</p>
 </tbody>
 </table>
 </div>
+<p>A 100% hit rate can also occur when the current snapshot is a subset of the previous one: the
+rate measures reuse of the current input, not retention of every old record.</p>
 <p>When no imported cache participated in the last build, the statistics include a
 <code>skipped_reason</code> instead. See <a href="../resources/analyze_index.html">Index Analysis</a> for the rest of the
 HGraph statistics.</p>

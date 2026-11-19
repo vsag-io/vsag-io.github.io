@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -368,21 +368,20 @@ Advanced users can pass an <code>index_param</code> object to enable quantizatio
 </thead>
 <tbody>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="../quantization/">Quantization chapter</a> for per-quantizer details</td></tr>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for the encoded vectors. Supports <code>block_memory_io</code>, <code>memory_io</code>, <code>mmap_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>reader_io</code>.</td></tr>
+<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path when the base IO type is disk-backed (<code>mmap_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>).</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Product Quantizer subspace dimension. Effective only when <code>base_quantization_type</code> is <code>pq</code> or <code>pqfs</code>. Must divide <code>dim</code>.</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer for the precise codes. Always resolved (defaults to <code>fp32</code>); <code>use_residual</code> only toggles the internal <code>use_reorder</code> flag.</td></tr>
+<tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for precise codes. Always resolved; <code>use_residual</code> only toggles <code>use_reorder</code>.</td></tr>
+<tr><td><code>precise_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path when the precise IO type is disk-backed.</td></tr>
+<tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>When <code>true</code>, sets <code>hold_molds</code> on the <code>fp32</code> and <code>int8</code> base and precise quantizers (other quantizer types ignore the flag). For FP32 cosine, this enables <code>GetRawVectorByIds</code>. Does <strong>not</strong> create a separate raw-vector store.</td></tr>
+<tr><td><code>thread_count</code></td><td>int</td><td><code>1</code></td><td>Sets the internal thread pool size for build operations.</td></tr>
 <tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Enable attribute-based filtering (see <a href="../advanced/attribute_filter.html">Attribute Filter</a>)</td></tr>
+<tr><td><code>use_residual</code></td><td>bool</td><td><code>false</code></td><td>Enables precise-code construction (maps to <code>use_reorder</code> internally). Note: BruteForce’s linear scan does <strong>not</strong> perform a reorder step; precise codes have no search-time effect.</td></tr>
 <tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td><code>log2</code> of the slot-growth batch. Valid range is <code>1</code> to <code>31</code>; <code>1</code> grows in 2-slot batches and <code>10</code> in 1,024-slot batches. Smaller values reduce preallocation but can increase reallocations.</td></tr>
 </tbody>
 </table>
 </div>
-<blockquote>
-<p><strong>Note on <code>store_raw_vector</code>.</strong> The <code>store_raw_vector</code> flag is parsed by the shared
-<code>InnerIndexParameter</code> but BruteForce does <strong>not</strong> consult it when deciding whether
-<code>GetRawVectorByIds</code> is available. On BruteForce, raw-vector retrieval is enabled strictly
-when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the
-quantizer is configured to hold the per-vector norms (<code>hold_molds</code>). Setting
-<code>store_raw_vector: true</code> on BruteForce currently has no observable effect on the
-capability flags — use HGraph or IVF if you need a quantized index that still answers
-<code>GetRawVectorByIds</code>.</p>
-</blockquote>
 <p>Example with <code>sq8</code> quantization for memory savings while keeping linear scan semantics:</p>
 <pre><code class="language-json">{
     "dtype": "float32",
@@ -399,8 +398,10 @@ the supplied dataset before adding vectors; the resulting recall is no longer 10
 <code>fp32</code>, <code>fp16</code>, and <code>bf16</code> skip training and preserve exact distances (modulo numeric
 precision).</p>
 <h2 id="search-parameters"><a class="header" href="#search-parameters">Search parameters</a></h2>
-<p>BruteForce does not expose any index-specific search knobs (no <code>ef</code>, <code>nprobe</code>, etc.), but the
-generic <code>IndexSearchParameter</code> fields are honored:</p>
+<p>BruteForce does not expose any index-specific search knobs (no <code>ef</code>, <code>nprobe</code>, etc.). Of
+the <code>IndexSearchParameter</code> fields, only <code>parallelism</code> and <code>use_extra_info_filter</code> are consumed
+by the linear scan; the root-level <code>threshold</code> key is also consumed (read separately).
+The remaining fields are accepted silently:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -408,6 +409,11 @@ generic <code>IndexSearchParameter</code> fields are honored:</p>
 </thead>
 <tbody>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Split the linear scan of a single query across this many threads in the index’s internal thread pool. It applies to both <code>KnnSearch</code> and <code>RangeSearch</code>. Larger values cut single-query latency on large corpora at the cost of using more cores. Values <code>&lt;= 0</code> are clamped to <code>1</code>.</td></tr>
+<tr><td><code>use_extra_info_filter</code></td><td>bool</td><td><code>false</code></td><td>Apply extra-info-based predicates during the scan (see <a href="../advanced/extra_info.html">Extra Info</a>).</td></tr>
+<tr><td><code>threshold</code></td><td>float</td><td>— (unset)</td><td>Root-level key (outside any sub-object). KNN queries return results whose distance ≤ <code>threshold</code>.</td></tr>
+<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>Parsed but <strong>not consumed</strong> by the linear scan — BruteForce always scans the base codes directly.</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>0</code></td><td>Parsed but <strong>not consumed</strong> — the linear scan examines all codes.</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>no limit</td><td>Parsed but <strong>not consumed</strong> — the linear scan cannot be interrupted mid-query.</td></tr>
 </tbody>
 </table>
 </div>
@@ -504,7 +510,7 @@ inverted-list structure.</li>
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../quantization/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/warp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -518,7 +524,7 @@ inverted-list structure.</li>
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../quantization/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/warp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

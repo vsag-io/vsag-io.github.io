@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -387,8 +387,14 @@ Catch2 随机种子 <code>424242</code> 和字典序执行顺序。每次测试�
 <h2 id="python-测试"><a class="header" href="#python-测试">Python 测试</a></h2>
 <p><code>tests/python/</code> 包含 <code>pyvsag</code> 的 pytest 用例。构建好 <code>pyvsag</code> 后：</p>
 <pre><code class="language-bash">make pyvsag
+python -m venv .venv-test &amp;&amp; . .venv-test/bin/activate
+pip install wheelhouse/pyvsag-*.whl pytest
 cd tests/python &amp;&amp; pytest -q
 </code></pre>
+<p>请测试构建出的 wheel，而不是源码树。<code>make pyvsag</code> 本身只在构建容器内运行 <code>tests/python</code> 的一部分用例（有 Docker 时），
+或者把 wheel 安装到当前环境后在其中运行（没有 Docker 时）。要在不依赖当前环境状态的情况下对构建出的 wheel 运行完整用例，
+请像上面那样先把它装进干净的虚拟环境，再运行 pytest。如果想针对源码树中的构建结果运行，见 <a href="../guide/pyvsag.html#从源码构建">pyvsag</a>。<code>test_openmp_coexistence.py</code>
+需要 <code>torch</code> 和 <code>scikit-learn</code>，缺少时会自动跳过。</p>
 <h2 id="统计-testcase-预算与耗时"><a class="header" href="#统计-testcase-预算与耗时">统计 testcase 预算与耗时</a></h2>
 <p><code>scripts/testing/test_budget_report.py</code> 只读取已保存的测试列表、结果和成本记录，不运行测试；
 不依赖 Team CI 的库存生成工具：</p>

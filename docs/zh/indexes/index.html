@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -322,11 +322,13 @@
 <tr><td><code>simq</code></td><td><a href="simq.html">SIMQ</a></td><td>多向量检索（ColBERT / late-interaction），基于 MaxSim 打分</td></tr>
 <tr><td><code>sindi_v2</code></td><td><a href="sindi_v2.html">SINDI_V2</a></td><td>支持内存与磁盘 I/O 的稀疏向量（BM25 / 学习稀疏）检索</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="pyramid.html">Pyramid</a></td><td>多租户 / 标签分区的层级索引</td></tr>
+<tr><td><code>warp</code></td><td><a href="warp.html">WARP</a></td><td>多向量（ColBERT 类）文档，基于 MaxSim 的精确检索</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>brute_force</code> 作为精确检索基线也可使用（见
-<a href="../guide/create_index.html">创建索引</a> 与 <code>examples/cpp/105_index_brute_force.cpp</code>）。</p>
+<a href="../guide/create_index.html">创建索引</a> 与 <code>examples/cpp/105_index_brute_force.cpp</code>）。
+WARP 是 <code>brute_force</code> 的多向量变体：同样是全量扫描，但每篇文档是一组 token 向量。</p>
 <h2 id="参数约定"><a class="header" href="#参数约定">参数约定</a></h2>
 <p>所有索引共享以下顶层构建字段：</p>
 <div class="table-wrapper">

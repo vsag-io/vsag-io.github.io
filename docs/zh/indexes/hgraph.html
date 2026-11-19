@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -363,15 +363,15 @@ auto result = index-&gt;KnnSearch(
     query, /*topk=*/10, R"({"hgraph": {"ef_search": 100}})").value();
 </code></pre>
 <h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
-<p>构建参数放在 <code>index_param</code> 下。下表列出最常用的配置项；完整列表请见
-<a href="../resources/index_parameters.html">索引参数</a>。</p>
+<p>构建参数放在 <code>index_param</code> 下。下表是 HGraph 接受的<strong>全部</strong>公开构建键；
+<a href="../resources/index_parameters.html">索引参数</a> 另外记录跨索引默认值与顶层公共字段。</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—（必填）</td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_local</code>、<code>sq4_local</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>saq</code>、<code>tq</code> —— 各量化器细节见<a href="../quantization/">量化章节</a></td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq8_local</code>、<code>sq4_local</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>saq</code>、<code>tq</code> —— 各量化器细节见<a href="../quantization/">量化章节</a></td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>图节点最大出度</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>构建阶段的候选集大小（越大召回越高，构建越慢）</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.0</code></td><td>最终 robust pruning 的系数；PiPNN 要求有限且不小于 <code>1.0</code></td></tr>
@@ -390,7 +390,7 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>是否额外保留一份高精度副本用于精排</td></tr>
 <tr><td><code>reorder_source</code></td><td>string</td><td><code>"precise"</code></td><td>从 <code>"precise"</code> 编码或直接从 <code>"base"</code> 编码重排；RaBitQ x+y split（包括 <code>tq_chain: "mrle, rabitq"</code>）会自动设置为 <code>"base"</code></td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排使用的量化类型（仅在 <code>use_reorder: true</code> 时生效）</td></tr>
-<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数（<code>pq</code> / <code>pqfs</code> 时必填）</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ 子空间数。使用 <code>pq</code> / <code>pqfs</code> 时应显式设置，不要依赖默认值；取值须通过量化器的维度校验</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td><code>tq_chain</code> 中 MRLE 的输出维度，范围 <code>[0, dim]</code>；<code>0</code> 表示输入维度</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>使用多 bit RaBitQ 快速编码；设为 <code>false</code> 使用原有精确编码器</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>RaBitQ 快速编码的坐标微调轮数，范围 <code>[1, 32]</code></td></tr>
@@ -408,15 +408,65 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>除量化副本外再保留原始向量（<code>cosine</code> 场景有用）</td></tr>
 <tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>构建完成后自动调优检索参数</td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>mmap_io</code>）</td></tr>
-<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>磁盘后端时的文件路径（使用 <code>mmap_io</code> / <code>async_io</code> / <code>uring_io</code> / <code>buffer_io</code> 时必填）</td></tr>
+<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>对应的 <code>*_io_type</code> 为磁盘后端（<code>mmap_io</code> / <code>async_io</code> / <code>uring_io</code> / <code>buffer_io</code>）时使用的文件路径。解析层不强制要求该键，但多个索引共用默认路径会互相覆盖，磁盘索引应显式指定不同路径</td></tr>
 <tr><td><code>base_direct_read</code> / <code>precise_direct_read</code></td><td>bool</td><td><code>false</code></td><td>使用 <code>uring_io</code> 时，以 direct IO 打开对应文件而非经过页缓存</td></tr>
 <tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>初始容量提示（不会限制最终规模）</td></tr>
 <tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>序列化时保留 Source ID 元数据，使恢复后的索引仍可导出可复用的构建缓存</td></tr>
 <tr><td><code>use_conjugate_graph</code></td><td>bool</td><td><code>false</code></td><td>启用 <code>Feedback</code>/<code>Pretrain</code> 图增强；详见<a href="../advanced/enhance_graph.html">图索引增强</a></td></tr>
 <tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td>扩容批次 slot 数的 <code>log2</code>，取值范围为 <code>1</code> 到 <code>31</code>。<code>1</code> 表示每次按 2 个 slot 对齐，<code>10</code> 表示按 1024 个 slot 对齐。较小取值减少预分配，但可能增加重分配次数。</td></tr>
+<tr><td><code>graph_storage_type</code></td><td>string</td><td><code>"flat"</code></td><td>图存储布局：<code>flat</code> 或 <code>compressed</code>；<code>compressed</code> 不支持与 <code>use_reverse_edges</code> 同时使用</td></tr>
+<tr><td><code>graph_iter_turn</code></td><td>int</td><td><code>30</code></td><td>仅 ODescent：图迭代轮数</td></tr>
+<tr><td><code>neighbor_sample_rate</code></td><td>float</td><td><code>0.2</code></td><td>仅 ODescent：构图细化时的邻居采样比率</td></tr>
+<tr><td><code>min_in_degree</code></td><td>int</td><td><code>1</code></td><td>仅 ODescent：构图时保证的最小入度</td></tr>
+<tr><td><code>build_block_size</code></td><td>int</td><td><code>10000</code></td><td>仅 ODescent：每个构建块处理的点数</td></tr>
+<tr><td><code>build_by_base</code></td><td>bool</td><td><code>false</code></td><td>存在精排编码时，改用 base 编码构图而非精确编码。与 <code>use_reorder: true</code>、<code>reorder_source: "base"</code> 配合，可以牺牲图质量换取内存</td></tr>
+<tr><td><code>ignore_reorder</code></td><td>bool</td><td><code>false</code></td><td>仍然保留精排编码，但查询时完全不用。实际精排开关为 <code>use_reorder &amp;&amp; !ignore_reorder</code>；兼容性检查要求 <code>use_reorder</code> 与 <code>ignore_reorder</code> 取值一致</td></tr>
+<tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>构建属性倒排索引，使 <code>extra_info</code> 谓词可以下推到检索中。倒排链布局由索引内部默认值决定；<code>attr_params</code> <strong>不是</strong> 公开键</td></tr>
+<tr><td><code>graph_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>图结构的存储后端（<code>memory_io</code>、<code>block_memory_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>mmap_io</code>）</td></tr>
+<tr><td><code>graph_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td><code>graph_io_type</code> 为磁盘后端时使用的文件路径</td></tr>
+<tr><td><code>raw_vector_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>保留原始向量（<code>store_raw_vector: true</code>）的存储后端</td></tr>
+<tr><td><code>raw_vector_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td><code>raw_vector_io_type</code> 为磁盘后端时使用的文件路径</td></tr>
+<tr><td><code>base_supplement_io_type</code></td><td>string</td><td>未设置</td><td>RaBitQ split 补充码的 IO 后端。仅在 split base 编码下有意义：split datacell 允许两半使用同一后端（<code>block_memory_io</code>、<code>memory_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>mmap_io</code>；<code>uring_io</code> 始终不支持），或使用「base <code>block_memory_io</code> + supplement <code>async_io</code>」的混合组合（无 libaio 时回退为 <code>buffer_io</code>）。启用 <code>rabitq_fused_datacell</code> 时两半都只能是 <code>block_memory_io</code> / <code>memory_io</code></td></tr>
+<tr><td><code>base_supplement_file_path</code></td><td>string</td><td>派生</td><td>split 补充后端的文件路径；默认在 base 路径后加 <code>_supplement</code> 后缀</td></tr>
+<tr><td><code>precise_user_defined_io</code></td><td>string</td><td>未设置</td><td>已注册的自定义 IO 类名。仅在 <code>precise_io_type: "user_defined_io"</code> 时需要，该组合还要求 <code>use_reorder: true</code>、精排 <code>fp32</code>、base 为 <code>sq8</code>，且 base 与图存储均为 <code>block_memory_io</code></td></tr>
+<tr><td><code>base_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>为 base 编码开启块读缓存。仅对块式磁盘后端有意义</td></tr>
+<tr><td><code>precise_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>为精排编码开启块读缓存</td></tr>
+<tr><td><code>graph_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>为图数据开启块读缓存</td></tr>
+<tr><td><code>raw_vector_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>为保留的原始向量开启块读缓存</td></tr>
+<tr><td><code>base_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>base 编码的读缓存预算（字节，默认 256 MiB）</td></tr>
+<tr><td><code>precise_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>精排编码的读缓存预算（字节）</td></tr>
+<tr><td><code>graph_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>图数据的读缓存预算（字节）</td></tr>
+<tr><td><code>raw_vector_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>保留原始向量的读缓存预算（字节）</td></tr>
+<tr><td><code>tq_chain</code></td><td>string</td><td>未设置</td><td>变换链，例如 <code>"mrle, rabitq"</code>。仅当 <code>base_quantization_type: "tq"</code> 时合法，其他基础量化器下设置会被拒绝</td></tr>
+<tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td>RaBitQ 的 PCA 输出维度；<code>0</code> 表示关闭 PCA，只能使用与 <code>dim</code> 兼容的取值</td></tr>
+<tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>RaBitQ 每维查询 bit 数。只能取 <code>4</code> 或 <code>32</code>；split 存储要求 <code>32</code></td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>RaBitQ 每维 base bit 数，范围 <code>[1, 8]</code>。split 存储下即 <code>x + y</code> 中的 <code>x</code></td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>未设置</td><td>RaBitQ 每维精排 bit 数，即 split 的 <code>y</code>；要求 <code>x + y &lt;= 8</code>，并配合精确 RaBitQ 编码的精排</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>固化在构建出的 RaBitQ 编码中的 lower-bound 误差倍率，须为有限正数。检索层的 <code>rabitq_error_rate</code> 可按查询覆盖</td></tr>
+<tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td>在 RaBitQ 中使用快速 Hadamard 变换</td></tr>
+<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td><code>sq4_uniform</code> 基础量化器的截断比例，须为有限值且位于 <code>[0, 0.5]</code></td></tr>
+<tr><td><code>remove_flag_bit</code></td><td>uint32</td><td><code>8</code></td><td>图记录中删除追踪标志的 bit 位置。需与 <code>support_remove</code> 元数据一致；对已有索引修改会让兼容性检查失败</td></tr>
+<tr><td><code>use_mci</code></td><td>bool</td><td><code>false</code></td><td>启用 Multi-Cluster Indexing。设置任意 <code>mci_*</code> 构建键也会一并启用</td></tr>
+<tr><td><code>mci_mcs</code></td><td>int</td><td><code>200</code></td><td>MCI 目标簇规模，须为正整数</td></tr>
+<tr><td><code>mci_clique_max</code></td><td>int</td><td><code>50</code></td><td>全量团阶段使用的 MCI 团规模下限，是下限而不是上限</td></tr>
+<tr><td><code>mci_alpha</code></td><td>float</td><td><code>1.2</code></td><td>MCI 剪枝 alpha，取值不小于 <code>1.0</code></td></tr>
+<tr><td><code>mci_knng_source</code></td><td>string</td><td><code>"hgraph"</code></td><td>MCI 使用的 k-NNG 源图：<code>"hgraph"</code> 或 <code>"odescent"</code></td></tr>
+<tr><td><code>mci_incremental_join_ratio_threshold</code></td><td>float</td><td><code>0.6</code></td><td>增量 MCI 阶段的 join 比例阈值，范围 <code>[0, 1]</code></td></tr>
+<tr><td><code>mci_incremental_degree_min</code></td><td>int</td><td><code>50</code></td><td>增量 MCI 阶段的最小度，须为正整数</td></tr>
+<tr><td><code>mci_incremental_degree_n_divisor</code></td><td>int</td><td><code>10000</code></td><td>增量度按点数缩放时使用的除数，须为正整数</td></tr>
+<tr><td><code>mci_incremental_degree_mcs_divisor</code></td><td>int</td><td><code>2</code></td><td>增量度按 MCI 簇规模缩放时使用的除数，须为正整数</td></tr>
+<tr><td><code>mci_incremental_clique_max</code></td><td>int</td><td><code>50</code></td><td>增量 MCI 阶段的团规模上限，须为不小于 <code>2</code> 的整数</td></tr>
+<tr><td><code>mci_delete_clique_size_threshold</code></td><td>int</td><td><code>30</code></td><td>MCI 删除统计触发的团规模阈值，须为正整数</td></tr>
+<tr><td><code>mci_delete_node_mct_threshold</code></td><td>int</td><td><code>3</code></td><td>MCI 删除统计的节点 MCT 阈值，须为正整数</td></tr>
+<tr><td><code>mci_clique_activation_order</code></td><td>bool</td><td><code>false</code></td><td>构建时按激活顺序而非索引顺序遍历 MCI 团</td></tr>
 </tbody>
 </table>
 </div>
+<p>看起来相关但<strong>不是</strong> HGraph 公开构建参数的键：<code>attr_params</code>（由索引默认值构造的内部对象）、
+<code>fill_rejected</code> / <code>adaptive_pruning_fill_rejected</code>（mapper 接受但会被自适应剪枝解析器拒绝）、
+<code>mci</code>（拒绝标记）、<code>mci_incremental_added_mct</code>（已移除的旧 MCI 键）、<code>mci_knng_path</code>（仅内部）、
+<code>precise_enable_prefetch_hint</code>、<code>rabitq_version</code>、<code>rabitq_bits_per_dim_filter</code>（由 split 辅助逻辑派生）。
+传入上述任一键都会抛 <code>invalid config param</code> 或对应的参数错误。</p>
 <p><code>sq8_local</code> 和 <code>sq4_local</code> 支持 float32/float16/bfloat16 输入下 L2/IP/cosine 的基础与精排存储（包括 RaBitQ + local SQ4/SQ8 精排）。布局、数值限制和 Tune 兼容性见<a href="../quantization/sq.html">local SQ4/SQ8</a>。</p>
 <p><code>use_reverse_edges</code> 面向需要快速检查入邻居、图分析或图维护算法的负载。维护反向邻接表会让边
 存储约翻倍，因此默认关闭。</p>
@@ -563,22 +613,38 @@ base-&gt;NumElements(num_vectors)-&gt;Dim(dim)-&gt;Ids(ids)
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ef_search</code></td><td>int64</td><td>—（必填）</td><td>正数搜索前沿大小；接受到 <code>INT64_MAX</code>，不存在与 <code>topk</code> 相关的上限。值越大，召回、延迟和前沿内存通常都越高。</td></tr>
-<tr><td><code>hops_limit</code></td><td>int</td><td>不限</td><td>beam search 在返回当前前沿前允许的最大跳数。</td></tr>
+<tr><td><code>ef_search</code></td><td>int64</td><td>—（必填）</td><td>正数搜索前沿大小；接受到 <code>INT64_MAX</code>，不存在与 <code>topk</code> 相关的上限。值越大，召回、延迟和前沿内存通常都越高。省略该键会直接解析失败；参数结构体中的 <code>30</code> 并不是可用的查询默认值。</td></tr>
+<tr><td><code>hops_limit</code></td><td>int</td><td>不限</td><td>beam search 在返回当前前沿前允许的最大跳数。取值 <strong>不大于</strong> <code>ef_search</code> 时不会生效：解析器会打印告警并恢复为不限，因此跳数上限只在大于 <code>ef_search</code> 时起作用。</td></tr>
 <tr><td><code>skip_ratio</code></td><td>float</td><td><code>0.2</code></td><td>过滤场景下的性能调优参数。控制跳过无效点的比例，取值范围 <code>[0.0, 1.0]</code>。<code>skip_ratio=0.2</code> 表示跳过 20% 的无效点，只检查 80% 的无效点。值越大性能越好但召回率可能越低。仅在带 filter 的搜索中生效。详见下文<a href="#过滤跳过策略skip_ratio-与-skip_strategy">过滤跳过策略</a>。</td></tr>
 <tr><td><code>skip_strategy</code></td><td>string</td><td><code>"deterministic_accumulative"</code></td><td>过滤跳过的策略。可选值：<code>"random"</code>（随机跳过）或 <code>"deterministic_accumulative"</code>（确定性累积跳过）。详见下文<a href="#过滤跳过策略skip_ratio-与-skip_strategy">过滤跳过策略</a>。</td></tr>
 <tr><td><code>brute_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>选择率感知的暴搜回退开关。当取值 <code>&gt; 0</code> 且当前 filter 的 <code>ValidRatio()</code> 小于等于 <code>brute_force_threshold</code> 时，搜索会<strong>完全跳过图遍历</strong>，直接在通过过滤的 id 上用最佳精度的 flatten 编码做一次暴力扫描（细节见下一节）。取值范围 <code>[0.0, 1.0]</code>；默认 <code>0.0</code> 表示关闭，保持原有行为。</td></tr>
 <tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>启用 RaBitQ filter/lower-bound 路径；对 x+y split 索引会使用全部 x 个 filter bits，详见 <a href="../quantization/rabitq_split.html">RaBitQ x+y Split</a>。</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td>索引默认值</td><td>本次搜索使用的正数 lower-bound 误差倍率；调整它不需要重建 split 索引。</td></tr>
 <tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>是否用精排编码对粗排候选做重打分。设为 <code>false</code> 跳过精排，直接返回近似结果。需在 <code>index_param</code> 中设置 <code>use_reorder: true</code> 以存储精排所需的精确编码。</td></tr>
-<tr><td><code>factor</code></td><td>float</td><td><code>0.0</code></td><td>精排候选数放大因子。当 <code>&gt; 1.0</code> 时，精排候选池上限为 <code>k * factor</code>（但不会低于 <code>max(ef_search, k)</code>）；默认 <code>0.0</code> 保持原行为，使用 <code>ef_search</code> 个候选。</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>0.0</code></td><td>精排候选倍率。候选池初值为 <code>max(ef_search, topk)</code>；当 <code>&gt; 1.0</code> 时上限为 <code>min(max(ef_search, topk), floor(topk * factor))</code>，因此最终可能<strong>低于</strong> <code>ef_search</code>。默认 <code>0.0</code> 保持 <code>ef_search</code> 候选池。启用共轭图时最终候选池不低于其 look-at-<code>k</code> 下限。无法精排时不生效。</td></tr>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>单次 HGraph 搜索的并行 worker 数。<code>&lt;= 0</code> 的值在解析时重置为 <code>1</code>；并行执行需要已配置的执行器，否则搜索回退为顺序执行。</td></tr>
 <tr><td><code>timeout_ms</code></td><td>int</td><td>不限</td><td>每次查询的墙上时间超时（毫秒）。计时器在路由完成后启动；超时后搜索返回当前前沿。仅尽最大努力——不会中断正在执行的距离计算批次。</td></tr>
 <tr><td><code>use_extra_info_filter</code></td><td>bool</td><td><code>false</code></td><td>从 extra-info 构造查询 filter，而非基于普通 label 成员关系。需在构建时配置对应 extra-info 列。</td></tr>
 <tr><td><code>use_conjugate_graph_search</code></td><td>bool</td><td><code>true</code></td><td>搜索增强阶段。当构建时 <code>use_conjugate_graph: true</code> 时，通过共轭图扩展结果以提升召回；设为 <code>false</code> 跳过。仅在已构建共轭图时生效。</td></tr>
+<tr><td><code>use_mci</code></td><td>bool</td><td><code>true</code></td><td>遍历时使用已构建的 MCI 路由阶段。索引需启用 MCI，否则该开关无副作用</td></tr>
+<tr><td><code>use_hybrid_traversal</code></td><td>bool</td><td><code>false</code></td><td>将 MCI 路由与图遍历混合执行，而不是二选一</td></tr>
+<tr><td><code>search_no_lock</code></td><td>bool</td><td><code>false</code></td><td>跳过检索侧加锁。要求 <code>parallelism</code> 为 <code>1</code>，并由调用方保证查询期间不会并发修改或销毁索引</td></tr>
+<tr><td><code>mci_packed_filter</code></td><td>bool</td><td><code>true</code></td><td>以打包的候选块为单位评估 MCI 过滤</td></tr>
+<tr><td><code>mci_batch_distance</code></td><td>bool</td><td><code>true</code></td><td>对一个候选批次批量计算 MCI 距离</td></tr>
+<tr><td><code>mci_activation_cap</code></td><td>uint32</td><td><code>0</code></td><td>单次查询激活的 MCI 团数量上限；<code>0</code> 表示不限</td></tr>
+<tr><td><code>mci_hops_limit</code></td><td>uint32</td><td><code>4294967295</code></td><td>仅作用于 MCI 路由阶段的跳数上限</td></tr>
+<tr><td><code>mci_expansion_idle_window</code></td><td>uint32</td><td><code>0</code></td><td>连续这么多个候选没有改进后停止 MCI 扩展；<code>0</code> 表示关闭提前停止。字段类型虽为 <code>uint64</code>，解析器把取值限制在 <code>uint32</code> 范围内</td></tr>
+<tr><td><code>hybrid_vob</code></td><td>float</td><td><code>0.0</code></td><td>混合遍历的虚拟出度预算，须为有限非负数</td></tr>
+<tr><td><code>hybrid_filter_cost_ratio</code></td><td>float</td><td><code>1.0</code></td><td>混合遍历中过滤评估相对图扩展的开销权重，须为有限非负数</td></tr>
+<tr><td><code>mci_seed_ratio</code></td><td>float</td><td><code>0.1</code></td><td>乘以 <code>sqrt(N)</code> 决定 MCI 种子预算基线，须为有限非负数。与 <code>mci_seed_coverage</code> 同时设为 <code>0</code> 时关闭种子采样</td></tr>
+<tr><td><code>mci_seed_coverage</code></td><td>float</td><td><code>1.0</code></td><td>把种子预算提升到覆盖有效集合的该比例。仅当提升后的目标不超过 <code>mci_seed_max_count</code> 且不超过当前数量时才生效，否则整段 coverage 目标会被丢弃而非截断。须为有限非负数</td></tr>
+<tr><td><code>mci_seed_max_count</code></td><td>int64</td><td><code>32768</code></td><td>上述 <code>mci_seed_coverage</code> 项的上限；<code>0</code> 表示不限。它是已移除的 <code>mci_seed_count</code> 的替代项，后者会被直接拒绝</td></tr>
+<tr><td><code>hgraph_valid_ratio_threshold</code></td><td>float</td><td><code>0.05</code></td><td>低于该过滤选择率时 MCI 路由可被跳过，范围 <code>[0, 1]</code></td></tr>
 </tbody>
 </table>
 </div>
+<p>根级 <code>threshold</code> 键（与 <code>hgraph</code> 平级，不属于它）同样生效：取有限数值时，距离超过该值的
+KNN 候选会被丢弃。它在解析 <code>hgraph</code> 对象之前由 <code>ParseSearchThreshold</code> 读取。</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk, R"({"hgraph": {"ef_search": 200}})").value();
 </code></pre>

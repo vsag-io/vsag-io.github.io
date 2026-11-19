@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -326,7 +326,7 @@ maximum resident set size reported for the timed command and waited-for children
 the sum of simultaneously resident build processes.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
-<li><strong>OS</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 14+ on Apple Silicon</li>
+<li><strong>OS</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 15+ on Apple Silicon</li>
 <li><strong>Compiler</strong>: GCC 9.4.0+, Clang 13.0.0+, or Apple Clang from Xcode Command Line Tools</li>
 <li><strong>CMake</strong>: 3.18.0+</li>
 <li><strong>Ninja</strong>: preferred when available; Unix Makefiles are used as the fallback</li>
@@ -382,8 +382,8 @@ or a measurement of generated build artifacts alone.</p>
 <blockquote>
 <p><strong>Legacy no-op measurements are not trustworthy until <a href="https://github.com/antgroup/vsag/pull/2899">#2899</a>.</strong> The standalone workflow deliberately fails its preflight on collectors without the supported schema 3 <code>true_noop</code> reporting. Separating PR builds does not itself fix the collector. While the prerequisite is unmerged, scheduled runs fail clearly instead of publishing misleading legacy baselines.</p>
 </blockquote>
-<p>PR CI’s <strong>ASan Build X86</strong> runs one <code>make asan COMPILE_JOBS=3</code>, with Ninja, compile commands, system OpenBLAS, examples and tools enabled. The Makefile still enables tests, Sanitize and ASan/UBSan; changed-source lint, downstream tests, compatibility checks and build artifacts retain their existing contracts. <code>ccache --zero-stats</code> resets counters, <strong>not cached objects</strong>. The build step logs elapsed time, and an always-run step prints verbose/fallback cache diagnostics without hiding a build failure. ccache stays enabled in its default directory on the disposable GitHub-hosted VM; no compiler cache is restored or saved between jobs. PR X86 dependency archives intentionally change from restore-and-save to <strong>restore-only</strong> (<code>actions/cache/restore@v4</code>), preventing PR contexts from writing archives back to the shared cache; this policy is not limited to the standalone benchmark.</p>
-<p>The <strong>Daily CI / Build Performance X86</strong> profile (<code>.github/workflows/daily_test.yml</code>, <code>profile=build-performance</code>) runs weekly on Mondays at 03:23 UTC on upstream <code>main</code>, or manually from Actions. It is not a PR required check and uses separate concurrency, an Ubuntu 24.04 hosted runner, a 180-minute timeout and 14-day report retention. Once the workflow is on the default branch, for example:</p>
+<p>PR CI’s <strong>ASan Build X86</strong> runs one <code>make asan COMPILE_JOBS=3</code>, with Ninja, compile commands, system OpenBLAS, examples and tools enabled. The Makefile still enables tests, Sanitize and ASan/UBSan; changed-source lint, downstream tests, compatibility checks and build artifacts retain their existing contracts. <code>ccache --zero-stats</code> resets counters, <strong>not cached objects</strong>. The build step logs elapsed time, and an always-run step prints verbose/fallback cache diagnostics without hiding a build failure. ccache stays enabled in its default directory on the disposable GitHub-hosted VM; no compiler cache is restored or saved between jobs. PR X86 dependency archives intentionally change from restore-and-save to <strong>restore-only</strong> (<code>actions/cache/restore@v5</code>), preventing PR contexts from writing archives back to the shared cache; this policy is not limited to the standalone benchmark.</p>
+<p>The <strong>Nightly CI / Build Performance X86</strong> profile (<code>.github/workflows/daily_test.yml</code>, <code>profile=build-performance</code>) runs weekly on Mondays at 03:23 UTC on upstream <code>main</code>, or manually from Actions. It is not a PR required check and uses separate concurrency, an Ubuntu 24.04 hosted runner, a 180-minute timeout and 14-day report retention. Once the workflow is on the default branch, for example:</p>
 <pre><code class="language-bash">gh workflow run daily_test.yml --ref main -f profile=build-performance -f ref=main
 # Or use a full 40-character commit SHA reachable from this repository's main:
 gh workflow run daily_test.yml --ref main -f profile=build-performance -f ref=&lt;full-main-history-sha&gt;
@@ -442,8 +442,21 @@ mirror (internal HTTP server, object storage, etc.). See
 and worked examples.</p>
 <h2 id="python-wheel-pyvsag"><a class="header" href="#python-wheel-pyvsag">Python Wheel (pyvsag)</a></h2>
 <pre><code class="language-bash">make pyvsag
+pip install wheelhouse/pyvsag-*.whl
 </code></pre>
-<p>Wheels are emitted under <code>python/dist/</code>.</p>
+<p>The wheel is a <code>py3-none</code> package, so one build per architecture serves every supported CPython
+(3.10+). <code>make pyvsag</code> runs <code>scripts/python/local_build_wheel.sh</code> from the repository root and
+writes the wheel to <code>wheelhouse/</code>. With Docker it builds inside the <code>manylinux_2_28</code> image (via
+cibuildwheel) and runs part of <code>tests/python</code> there, leaving the host environment untouched. It then runs <code>scripts/python/check_wheel_libs.py</code>, which fails if the wheel bundles or links libgfortran, libquadmath, libaio, or liburing (skipped when <code>VSAG_USE_SYSTEM_DEPS</code> is not <code>OFF</code>, since system OpenBLAS pulls in libgfortran). Without
+Docker it falls back to a plain <code>python -m build</code>, installs the wheel into the active virtual
+environment and runs <code>tests/python</code> against it; that wheel carries a <code>linux_&lt;arch&gt;</code> tag instead of
+<code>manylinux_2_28</code>. Outside an active virtual environment the script creates <code>.venv/</code> in the
+repository.</p>
+<p>The wheel contains <code>libvsag_c</code>, built with <code>ENABLE_PYBINDS=ON</code> and <code>ENABLE_LIBAIO=OFF</code>. In a build
+without Docker, <code>VSAG_ENABLE_LIBAIO=ON</code> overrides this (for example
+<code>VSAG_ENABLE_LIBAIO=ON python -m build --wheel python</code>); the variable is not forwarded into the
+Docker build. See <a href="../guide/pyvsag.html">pyvsag</a> for installing the wheel, running against an in-tree
+build, and the runtime behavior.</p>
 <h2 id="distribution-tarballs"><a class="header" href="#distribution-tarballs">Distribution Tarballs</a></h2>
 <p>For ABI-compatible redistribution use one of:</p>
 <pre><code class="language-bash">make dist-pre-cxx11-abi   # _GLIBCXX_USE_CXX11_ABI=0
@@ -477,6 +490,18 @@ CMake prefers pinned names over legacy names and retains default URLs as downloa
 An unset path preserves existing behavior; an explicitly empty or unreadable path is an error.</p>
 <p>You can increase <code>COMPILE_JOBS</code> if your machine has enough memory, but the default is conservative
 to avoid out-of-memory failures in CI runners.</p>
+<h3 id="datacell-compile-parallelism"><a class="header" href="#datacell-compile-parallelism">Datacell compile parallelism</a></h3>
+<p><code>COMPILE_JOBS</code> controls the whole build. <code>DATACELL_COMPILE_JOBS=0</code> (the default)
+adds no separate cap: datacell and RaBitQ factory files use that same global job budget.
+On memory-limited Ninja builders, set a positive limit shared by both object libraries:</p>
+<pre><code class="language-bash">make asan COMPILE_JOBS=24                         # all sources share 24 jobs
+make asan COMPILE_JOBS=3 DATACELL_COMPILE_JOBS=1   # ARM CI: at most one datacell compile
+</code></pre>
+<p>Direct CMake callers use <code>-DVSAG_DATACELL_COMPILE_JOBS=N</code>. The cap applies to all build
+modes, does not change compiler flags or test scope, and cannot exceed the global job limit.
+Positive values require Ninja; other generators use <code>0</code> and their global parallelism.
+The ARM Linux/macOS ASan jobs set <code>1</code> explicitly; other jobs inherit the global limit.
+Higher parallelism needs more memory. This scheduling option does not fix cache misses.</p>
 <h2 id="c-standard-and-compiler-validation"><a class="header" href="#c-standard-and-compiler-validation">C++ standard and compiler validation</a></h2>
 <p>Full VSAG CPU implementation targets require C++20; installed public headers and the <code>vsag::vsag</code> target support C++17 clients. CUDA translation units, Node.js bindings, and standalone Lite stay on C++17. Linux development uses GCC 13 as the primary compiler and Clang 20 as the second compiler. Use separate build directories:</p>
 <pre><code class="language-bash">make test DEBUG_BUILD_DIR=build_gcc13 EXTRA_DEFINED="-DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13"

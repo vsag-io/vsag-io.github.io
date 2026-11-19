@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -638,8 +638,8 @@ data = load_sparse_hdf5("sparse.hdf5")
 # data["neighbors"] -&gt; numpy.ndarray  shape (Q, K) int64
 # data["distances"] -&gt; numpy.ndarray  shape (Q, K) float32
 </code></pre>
-<p><code>pyvsag.sparse.decode_sparse_bytes(buffer)</code> is also exposed for callers that already
-hold the raw byte stream.</p>
+<p><code>load_sparse_hdf5</code> needs <code>h5py</code>, which <code>pyvsag</code> does not install. <code>pyvsag.sparse.decode_sparse_bytes(buffer)</code>
+is also exposed for callers that already hold the raw byte stream and has no extra dependency.</p>
 <h3 id="reference-implementation"><a class="header" href="#reference-implementation">Reference implementation</a></h3>
 <p>The byte-stream encoder/decoder lives at
 <a href="https://github.com/antgroup/vsag/blob/main/tools/eval/eval_dataset.cpp"><code>tools/eval/eval_dataset.cpp</code></a>

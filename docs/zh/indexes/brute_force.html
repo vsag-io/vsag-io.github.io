@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -364,20 +364,20 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 </thead>
 <tbody>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code> —— 各量化器细节见<a href="../quantization/">量化章节</a></td></tr>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>编码向量的存储后端，支持 <code>block_memory_io</code>、<code>memory_io</code>、<code>mmap_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>、<code>reader_io</code>。</td></tr>
+<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>IO 类型为磁盘后端（<code>mmap_io</code>、<code>buffer_io</code>、<code>async_io</code>、<code>uring_io</code>）时的文件路径。</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Product Quantizer 子空间维度。仅在 <code>base_quantization_type</code> 为 <code>pq</code> 或 <code>pqfs</code> 时有效。必须整除 <code>dim</code>。</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>精排向量的量化类型。始终会解析（默认 <code>fp32</code>）；<code>use_residual</code> 仅切换内部的 <code>use_reorder</code> 标志。</td></tr>
+<tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>精排编码的存储后端。始终会解析；<code>use_residual</code> 仅切换 <code>use_reorder</code>。</td></tr>
+<tr><td><code>precise_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>精排 IO 为磁盘后端时的文件路径。</td></tr>
+<tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>为 <code>true</code> 时对 <code>fp32</code> 和 <code>int8</code> 的 base/precise quantizer 设置 <code>hold_molds</code>（其他量化类型忽略此标志）。FP32 cosine 场景下可启用 <code>GetRawVectorByIds</code>。<strong>不会</strong>创建独立的原始向量存储。</td></tr>
+<tr><td><code>thread_count</code></td><td>int</td><td><code>1</code></td><td>构建时的内部线程池大小。</td></tr>
 <tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>启用属性过滤（参见 <a href="../advanced/attribute_filter.html">属性过滤</a>）</td></tr>
+<tr><td><code>use_residual</code></td><td>bool</td><td><code>false</code></td><td>启用精确编码构建（内部映射为 <code>use_reorder</code>）。注意：BruteForce 的线性扫描<strong>不执行</strong>重排序步骤，precise codes 在搜索时无实际效果。</td></tr>
 <tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td>扩容批次 slot 数的 <code>log2</code>，取值范围为 <code>1</code> 到 <code>31</code>。<code>1</code> 表示每次按 2 个 slot 对齐，<code>10</code> 表示按 1024 个 slot 对齐。较小取值减少预分配，但可能增加重分配次数。</td></tr>
 </tbody>
 </table>
 </div>
-<blockquote>
-<p><strong>关于 <code>store_raw_vector</code> 的说明。</strong> <code>store_raw_vector</code> 字段会被共用的
-<code>InnerIndexParameter</code> 解析，但 BruteForce <strong>不会</strong>根据它决定是否启用
-<code>GetRawVectorByIds</code>。在 BruteForce 上，原始向量读取能力仅在
-<code>base_quantization_type = fp32</code>、并且度量不是 <code>cosine</code> 或量化器配置了
-持有向量范数（<code>hold_molds</code>）时开启。在 BruteForce 上设置
-<code>store_raw_vector: true</code> 目前不会改变任何能力标志 —— 如果需要量化索引同时
-支持 <code>GetRawVectorByIds</code>，请使用 HGraph 或 IVF。</p>
-</blockquote>
 <p>下面是一个使用 <code>sq8</code> 量化以节省内存、同时保持线性扫描语义的示例：</p>
 <pre><code class="language-json">{
     "dtype": "float32",
@@ -392,8 +392,9 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 <code>pq</code>、<code>pqfs</code>、<code>rabitq</code>）时，<code>Build</code> 会先用传入的数据集训练量化器，此时召回率不再保证
 100%。只有 <code>fp32</code>、<code>fp16</code>、<code>bf16</code> 不需要训练，能保持精确距离（仅受浮点数值精度影响）。</p>
 <h2 id="搜索参数"><a class="header" href="#搜索参数">搜索参数</a></h2>
-<p>BruteForce 没有任何索引特有的搜索旋钮（不存在 <code>ef</code>、<code>nprobe</code> 之类的参数），但通用的
-<code>IndexSearchParameter</code> 字段都生效：</p>
+<p>BruteForce 没有任何索引特有的搜索旋钮（不存在 <code>ef</code>、<code>nprobe</code> 之类的参数）。
+<code>IndexSearchParameter</code> 字段中仅 <code>parallelism</code> 和 <code>use_extra_info_filter</code> 会被
+线性扫描消费；根级 <code>threshold</code> 键也会被消费（独立读取）。其余字段会被静默接受：</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -401,6 +402,11 @@ auto result = index-&gt;KnnSearch(query, /*topk=*/10, "{}").value();
 </thead>
 <tbody>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>把单条查询的线性扫描拆分到索引内部线程池中的若干线程上。该参数同时作用于 <code>KnnSearch</code> 和 <code>RangeSearch</code>。该值越大，大语料下的单查询延迟越低，代价是占用更多 CPU 核。<code>&lt;= 0</code> 的取值会被钳制到 <code>1</code>。</td></tr>
+<tr><td><code>use_extra_info_filter</code></td><td>bool</td><td><code>false</code></td><td>在扫描过程中应用基于 extra-info 的谓词（参见 <a href="../advanced/extra_info.html">Extra Info</a>）。</td></tr>
+<tr><td><code>threshold</code></td><td>float</td><td>—（不传）</td><td>根级参数，不在任何子对象内。KNN 查询仅返回距离 ≤ <code>threshold</code> 的结果。</td></tr>
+<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>被解析但<strong>不被消费</strong> — BruteForce 始终直接扫描 base codes。</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>0</code></td><td>被解析但<strong>不被消费</strong> — 线性扫描检查所有编码。</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>不限制</td><td>被解析但<strong>不被消费</strong> — 线性扫描无法在中途中断。</td></tr>
 </tbody>
 </table>
 </div>
@@ -486,7 +492,7 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id3, id4}, vsag::RemoveMode::FORCE_R
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../quantization/index.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../indexes/warp.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -500,7 +506,7 @@ index-&gt;Remove(std::vector&lt;int64_t&gt;{id3, id4}, vsag::RemoveMode::FORCE_R
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../quantization/index.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../indexes/warp.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

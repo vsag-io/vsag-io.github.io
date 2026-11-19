@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -384,11 +384,33 @@ delete iter_ctx;
 <p>每次调用都会推进 <code>iter_ctx</code>；多次结果的并集就是按距离顺序、不重叠的延续序列。如果还想取出
 上下文中仍缓存的尾部候选，可以在最后再加一次 <code>is_last_search=true</code> 的调用。</p>
 <blockquote>
-<p><strong><code>SearchRequest</code> API。</strong> <code>SearchRequest</code> 中定义了 <code>enable_iterator_search_</code> /
-<code>p_iter_ctx_</code> / <code>is_last_search_</code> 三个字段，但仓库内当前的 <code>SearchWithRequest</code> 实现尚未
-读取这些字段，无法通过 <code>SearchWithRequest</code> 触发迭代式搜索。在这部分接入完成之前，请使用
-上面两种 <code>KnnSearch</code> 形式。</p>
+<p><strong><code>SearchRequest</code> API。</strong> HGraph 通过 <code>SearchWithRequest</code> 同样支持这三个字段：把
+<code>enable_iterator_search_</code> 置为 <code>true</code>，并让 <code>p_iter_ctx_</code> 指向一个初始为 <code>nullptr</code> 的
+<code>IteratorContext*</code>（首次调用内部创建）。<code>topk_</code>、<code>params_str_</code>、<code>filter_</code>、<code>threshold_</code>、
+<code>search_allocator_</code> 的含义与上面 <code>KnnSearch</code> 形式完全一致。</p>
 </blockquote>
+<pre><code class="language-cpp">vsag::IteratorContext* ctx = nullptr;
+
+vsag::SearchRequest request;
+request.query_ = query;
+request.topk_ = 10;
+request.params_str_ = param_str;
+request.enable_iterator_search_ = true;
+request.p_iter_ctx_ = &amp;ctx;   // 首次调用内部填充
+
+auto page1 = index-&gt;SearchWithRequest(request);   // 创建 ctx
+auto page2 = index-&gt;SearchWithRequest(request);   // 续页，与 page1 不重叠
+
+request.is_last_search_ = true;                   // 可选：取出上下文仍缓存的候选
+auto tail = index-&gt;SearchWithRequest(request);
+
+delete ctx;                                       // 释放迭代器内部状态
+</code></pre>
+<p>通过 <code>SearchWithRequest</code> 使用迭代式搜索目前仅支持 HGraph，其他索引返回
+<code>UNSUPPORTED_INDEX_OPERATION</code>。迭代模式下不支持 range search、自定义打分
+（<code>distance_batch_func_</code>）、attribute filter 与推理（<code>expected_labels_</code>），需要的过滤请放进
+<code>filter_</code>。两种模式下距离上界都只取 <code>request.threshold_</code>：<code>params_str_</code> 里的 <code>"threshold"</code>
+键会被忽略。</p>
 <h2 id="与过滤器组合"><a class="header" href="#与过滤器组合">与过滤器组合</a></h2>
 <p>迭代式搜索可以与常规过滤器（label filter、attribute filter、bitset filter）组合，典型场景是
 “持续迭代直到外部检查通过的结果攒够”：</p>

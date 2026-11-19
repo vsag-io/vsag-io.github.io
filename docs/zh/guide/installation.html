@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -306,9 +306,10 @@
                     <main>
                         <h1 id="安装"><a class="header" href="#安装">安装</a></h1>
 <p>VSAG 是一个向量检索库，支持在 C++、Python 和 Node.js / TypeScript 程序中使用。核心 C++
-库支持 Linux，也支持在 Apple Silicon 上使用 macOS 14 或更高版本从源码构建。完整 CI
-仍以 Linux 为主；预编译 C++ 包和 <code>pyvsag</code> wheel 当前也主要面向 Linux。</p>
-<p>如果使用的是 Python，可以从官方第三方包仓库 PyPI 下载，包名为 <a href="https://pypi.org/project/pyvsag/"><code>pyvsag</code></a>。<code>pyvsag</code> 的版本与源代码版本一一对应，版本功能可以直接参考 <a href="https://github.com/antgroup/vsag/releases">GitHub 发布日志</a>。Python 包使用 manylinux2014 构建，可以在绝大部分 Linux 环境中运行。通过如下命令获得最新版本：</p>
+库支持 Linux，也支持在 Apple Silicon 上使用 macOS 15 或更高版本从源码构建。完整 CI
+仍以 Linux 为主；预编译 C++ 包和正式 PyPI wheel 仍只面向 Linux，macOS wheel 可通过
+<a href="pyvsag.html#每晚构建testpypi">TestPyPI</a> 获取。</p>
+<p>如果使用的是 Python，可以从官方第三方包仓库 PyPI 下载，包名为 <a href="https://pypi.org/project/pyvsag/"><code>pyvsag</code></a>。<code>pyvsag</code> 的版本与源代码版本一一对应，版本功能可以直接参考 <a href="https://github.com/antgroup/vsag/releases">GitHub 发布日志</a>。Python 包是 <code>py3-none-manylinux_2_28</code> wheel，可以在 glibc 2.28 及以上的 Linux（x86_64 或 aarch64）和 CPython 3.10 及以上版本中运行，详见 <a href="pyvsag.html">pyvsag</a>。通过如下命令获得最新版本：</p>
 <pre><code class="language-bash">pip install pyvsag
 </code></pre>
 <p>如果使用的是 Node.js，可以从 npm 直接安装 <a href="https://www.npmjs.com/package/vsag"><code>vsag</code></a> 包：</p>
@@ -337,7 +338,7 @@ arm64。macOS 当前验证范围是核心 C++ 库的 <code>make debug</code>、<
 <ul>
 <li><strong>Ubuntu 20.04</strong> 或更高版本</li>
 <li>或 <strong>CentOS 7</strong> 或更高版本</li>
-<li>或 <strong>macOS 14</strong> 或更高版本（Apple Silicon）</li>
+<li>或 <strong>macOS 15</strong> 或更高版本（Apple Silicon）</li>
 </ul>
 </li>
 <li>编译器：

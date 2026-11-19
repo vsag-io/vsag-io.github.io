@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -334,6 +334,9 @@ make release
 <p>先在 <a href="https://pypi.org/project/pyvsag/">PyPI</a> 查看可用的绑定版本，再安装对应的精确版本：</p>
 <pre><code class="language-bash">pip install pyvsag==X.Y.Z
 </code></pre>
+<p>基于 C API 构建的版本，每个架构只发布一个 <code>py3-none-manylinux_2_28</code> wheel（Linux、glibc 2.28 及以上、
+CPython 3.10 及以上）。更早的版本为每个 CPython 版本（最低到 3.6）各发布一个 <code>manylinux2014</code> wheel；
+如果需要更老的解释器或 glibc，请固定到那些版本。</p>
 <p>绑定版本不一定与每个 C++ core tag 对应。
 仓库还包含 C 和 Node.js/TypeScript 绑定。
 各绑定的具体支持范围与打包状态，

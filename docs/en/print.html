@@ -166,10 +166,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-786b3319.js";
+            window.path_to_searchindex_js = "searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-7ee31d19.js"></script>
+        <script src="toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -350,7 +350,7 @@ docker run -it --rm -v $(pwd):/work -w /work vsaglib/vsag:ubuntu bash
 <h2 id="building-from-source"><a class="header" href="#building-from-source">Building from Source</a></h2>
 <h3 id="requirements"><a class="header" href="#requirements">Requirements</a></h3>
 <ul>
-<li><strong>Operating System</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 14+ on Apple Silicon</li>
+<li><strong>Operating System</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 15+ on Apple Silicon</li>
 <li><strong>Compiler</strong>: GCC 9.4.0+, Clang 13.0.0+, or Apple Clang from Xcode Command Line Tools</li>
 <li><strong>CMake</strong>: 3.18.0+</li>
 <li><strong>clang-format / clang-tidy</strong>: exactly version <strong>20</strong> (enforced by <code>make fmt</code> / <code>make lint</code>)</li>
@@ -363,8 +363,8 @@ make release
 </code></pre>
 <p>The dependency script detects Linux versus macOS. On macOS it installs or locates the
 Homebrew dependencies and uses Apple’s Accelerate framework where appropriate. The supported
-macOS path is the arm64 C++ library build; published C++ archives and <code>pyvsag</code> wheels remain
-Linux-focused.</p>
+macOS path includes native arm64 C++ and Python builds. Published C++ archives and production
+PyPI wheels remain Linux-only; macOS wheels are available through <a href="#nightly-builds-testpypi">TestPyPI</a>.</p>
 <p>Other common Makefile targets:</p>
 <ul>
 <li><code>make debug</code> — plain debug build (no sanitizers; tests/tools/examples disabled by default).</li>
@@ -379,6 +379,8 @@ Linux-focused.</p>
 <h2 id="python-pyvsag"><a class="header" href="#python-pyvsag">Python (pyvsag)</a></h2>
 <pre><code class="language-bash">pip install pyvsag
 </code></pre>
+<p>The wheel is <code>py3-none-manylinux_2_28</code>: Linux <code>x86_64</code> or <code>aarch64</code> with glibc 2.28 or later, and
+CPython 3.10 or later. See <a href="#pyvsag">pyvsag</a> for requirements, building from source, and usage.</p>
 <h2 id="nodejs--typescript"><a class="header" href="#nodejs--typescript">Node.js / TypeScript</a></h2>
 <pre><code class="language-bash">npm install vsag
 </code></pre>
@@ -902,22 +904,92 @@ codes. Search parameters use the same JSON objects documented on the correspondi
 <h1 id="pyvsag"><a class="header" href="#pyvsag">pyvsag</a></h1>
 <p><code>pyvsag</code> is the official Python binding for VSAG. It is a pure-Python layer that calls the
 <a href="#c-api">C API</a> (<code>libvsag_c</code>) through <a href="https://cffi.readthedocs.io/">cffi</a>, so one
-<code>py3-none-manylinux_2_28</code> wheel per architecture serves every CPython 3.10+ release. Data crosses
+<code>py3-none</code> platform wheel per architecture serves every CPython 3.10+ release. Data crosses
 the boundary only as pointer, shape and dtype, hence it does not depend on the NumPy ABI. Sources
-live under <code>python/</code>.</p>
+live under <a href="https://github.com/antgroup/vsag/tree/main/python"><code>python/</code></a>.</p>
 <h2 id="installation-1"><a class="header" href="#installation-1">Installation</a></h2>
 <pre><code class="language-bash">pip install pyvsag
 </code></pre>
-<p>To build from source:</p>
-<pre><code class="language-bash">make pyvsag
-</code></pre>
-<p>Notes:</p>
+<p>Requirements:</p>
 <ul>
-<li>The C++ library releases the GIL while searching, and internal OpenMP threads are unaffected by
-it. Control their count with <code>OMP_NUM_THREADS</code>.</li>
-<li>With <code>multiprocessing</code>, use the <code>spawn</code> start method; do not share an index across <code>fork</code>.</li>
-<li>Set <code>PYVSAG_LIBRARY</code> to load a specific <code>libvsag_c</code> when running from a source tree.</li>
+<li><strong>Platform:</strong> Linux <code>x86_64</code> or <code>aarch64</code> with glibc 2.28 or later (<code>manylinux_2_28</code>; for example
+Ubuntu 20.04+, Debian 10+, RHEL/Alma/Rocky 8+). macOS, Windows and musl-based distributions such as
+Alpine have no wheels on the production PyPI index. macOS arm64 wheels are available through
+the TestPyPI workflow below, or can be built locally.</li>
+<li><strong>Python:</strong> CPython 3.10 or later. 3.10 to 3.14 are supported; later releases need no new wheel, because the wheel does not depend on the Python ABI.</li>
+<li><strong>Dependencies:</strong> <code>numpy</code> and <code>cffi</code>, installed automatically. The wheel bundles its OpenMP runtime
+and has no libaio, libcurl or OpenBLAS dependency.</li>
 </ul>
+<h3 id="nightly-builds-testpypi"><a class="header" href="#nightly-builds-testpypi">Nightly builds (TestPyPI)</a></h3>
+<p>Wheels built from <code>main</code> are published to TestPyPI by the <code>pyvsag TestPyPI</code> workflow (nightly and
+manual runs; uploads can be paused). They carry a <code>.devN</code> version, so <code>--pre</code> is required, and the
+dependencies still come from the real PyPI. The workflow includes Linux x86_64/aarch64 and
+macOS Apple Silicon arm64 (<code>macosx_15_0_arm64</code>):</p>
+<pre><code class="language-bash">pip install numpy cffi
+pip install --pre --no-deps --index-url https://test.pypi.org/simple/ pyvsag
+</code></pre>
+<p>The macOS job runs <code>make pyvsag</code> and the Mach-O audit, then tests the same SHA-256-verified
+wheel in clean environments: CPython 3.10–3.14 with NumPy 2.x, plus NumPy 1.26.4 on
+CPython 3.10–3.12. Two Python 3.12 lanes require <code>torch==2.15.0</code> and <code>scikit-learn==1.9.1</code> and all six OpenMP
+import orders, with NumPy 1.26.4 and 2.x and <code>KMP_DUPLICATE_LIB_OK=FALSE</code>; missing dependencies
+or skipped OpenMP tests fail the job. The minimum supported macOS is 15, matching the CI runner. This raises the previous macOS 14
+minimum: macOS 14 is no longer supported, including by the default local source build.</p>
+<p>Linux and macOS upload independently; only macOS upload waits for the macOS matrix. After upload, a new macOS job downloads the exact
+version from TestPyPI alone (without dependencies or pip cache), verifies the filename and
+SHA-256 against the build manifest, audits it and runs the ordinary suite in a clean environment.
+The download retries for up to ten minutes to allow index propagation. A same-name macOS file already on
+TestPyPI is rejected before upload: rerun only verification in the original upload run, or use a new version.
+Dependencies are installed separately from PyPI. Manual runs with <code>publish</code> unchecked can validate any branch and retain
+build/test artifacts without uploading or running the published-wheel check. Source SHA, wheel
+hash, dependency versions and test reports are retained with the workflow artifacts.
+The production PyPI release workflow remains Linux-only.</p>
+<h3 id="build-from-source"><a class="header" href="#build-from-source">Build from source</a></h3>
+<pre><code class="language-bash">make pyvsag
+pip install wheelhouse/pyvsag-*.whl
+</code></pre>
+<p><code>make pyvsag</code> runs <code>scripts/python/local_build_wheel.sh</code> from the repository root and writes the
+wheel to <code>wheelhouse/</code>. On Linux, with Docker it builds inside the <code>manylinux_2_28</code> image and runs
+part of <code>tests/python</code> there. Without Docker it builds a native <code>linux_&lt;arch&gt;</code> wheel using
+<code>python -m build</code>, installs it into the active virtual environment and runs <code>tests/python</code>.
+Outside an active virtual environment the script creates <code>.venv/</code> in the repository.</p>
+<p>On macOS Apple Silicon, install Xcode Command Line Tools and Homebrew, then run:</p>
+<pre><code class="language-bash">bash scripts/deps/install_deps_macos.sh
+# Activate a Python 3.10+ virtual environment, or put python3 3.10+ on PATH.
+make pyvsag
+</code></pre>
+<p>macOS always builds natively, even when Docker is running. The build requires CMake 3.20+ and
+Perl on <code>PATH</code> (<code>perl -v</code>; install with <code>brew install perl</code> if missing), and
+statically links OpenBLAS and LLVM OpenMP 20.1.8, with only the VSAG C API exported to isolate
+OpenMP from other packages. The pinned OpenMP source is downloaded and built automatically;
+its Apache-2.0-with-LLVM-exception license and attribution are included in macOS wheels only.
+The source build needs access to GitHub release downloads, or mirrors configured through
+<code>VSAG_THIRDPARTY_OPENMP_20_1_8</code> and <code>VSAG_THIRDPARTY_LLVM_CMAKE_20_1_8</code> (URLs for the unchanged
+<code>openmp-20.1.8.src.tar.xz</code> and <code>cmake-20.1.8.src.tar.xz</code> archives; SHA256 checks remain enforced).
+The OpenMP sub-build uses the same <code>CMAKE_BUILD_PARALLEL_LEVEL</code> limit as VSAG.
+<code>delocate</code> is installed automatically, repairs dynamic dependencies and checks the native architecture.
+A Mach-O audit then requires exactly <code>libvsag_c.dylib</code>, only system dependencies, C API exports,
+license metadata, and a deployment target no newer than the wheel tag, before installation and tests.</p>
+<p>The default <code>MACOSX_DEPLOYMENT_TARGET</code> is <code>15.0</code>, applied to VSAG and its source-built dependencies.
+No environment variables are needed for the default build. Set <code>MACOSX_DEPLOYMENT_TARGET</code> to
+choose another deployment target, or <code>CMAKE_BUILD_PARALLEL_LEVEL</code> to limit build concurrency.
+The <code>macosx_15_0_arm64</code> tag declares macOS 15 as the minimum; CI runs on that OS version. TestPyPI includes macOS arm64; production PyPI releases
+remain Linux-only. Install <code>torch</code> and <code>scikit-learn</code> in the test environment to include the optional OpenMP
+coexistence tests.</p>
+<p>The macOS wheel build enables <code>VSAG_OPENMP_STATIC</code>; ordinary C++ builds keep dynamic OpenMP.
+For C++ builds, install <code>libomp</code> with Homebrew or pass <code>-DLIBOMP_PREFIX=/path/to/libomp</code> to CMake.
+For a wheel, an optional <code>LIBOMP_PREFIX</code> environment variable selects a custom installation containing
+<code>$LIBOMP_PREFIX/include/omp.h</code> and <code>$LIBOMP_PREFIX/lib/libomp.a</code>; the archive must target the requested macOS version or older.
+Newer Homebrew bottles are rejected instead of being silently relabeled. Unset <code>LIBOMP_PREFIX</code> to
+return to the compatible source build.</p>
+<p>To develop against an in-tree build without packaging a wheel:</p>
+<pre><code class="language-bash">make debug VSAG_ENABLE_PYBINDS=ON              # builds build/src/libvsag_c.so
+bash scripts/python/prepare_python_build.sh    # generates python/pyvsag/_version.py
+export PYVSAG_LIBRARY="$PWD/build/src/libvsag_c.so"
+export PYTHONPATH="$PWD/python"
+</code></pre>
+<p>On macOS, use <code>build/src/libvsag_c.dylib</code> instead of <code>.so</code>.</p>
+<p><code>PYVSAG_LIBRARY</code> selects the <code>libvsag_c</code> to load; without it, <code>pyvsag</code> loads the copy packaged next
+to the Python files.</p>
 <h2 id="quick-start"><a class="header" href="#quick-start">Quick Start</a></h2>
 <p><code>pyvsag.Index(name, parameters)</code> accepts the index name and a JSON-encoded parameter string,
 matching the C++ <code>vsag::Factory::CreateIndex</code> signature:</p>
@@ -946,37 +1018,98 @@ index = pyvsag.Index("hgraph", index_params)
 index.build(vectors=data, ids=ids, num_elements=num_elements, dim=dim)
 
 query = np.random.random(dim).astype(np.float32)
-search_params = json.dumps({"hgraph": {"ef_search": 60}})
+search_params = json.dumps({"hgraph": {"ef_search": 100}})
 result_ids, result_dists = index.knn_search(
     vector=query, k=10, parameters=search_params,
 )
-print(result_ids, result_dists)
+for rid, rdist in zip(result_ids, result_dists):
+    print(f"{rid}: {rdist}")
 </code></pre>
+<p>For the available index types and parameters, see <a href="#creating-an-index">Create an Index</a> and
+<a href="#index-parameters">Index Parameters</a>. Complete programs live in
+<a href="https://github.com/antgroup/vsag/tree/main/examples/python"><code>examples/python/</code></a>; start with
+<code>103_index_hgraph.py</code>.</p>
+<h2 id="data-types-and-input-rules"><a class="header" href="#data-types-and-input-rules">Data Types and Input Rules</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Index <code>dtype</code></th><th>Vectors passed to <code>build</code>, <code>add</code> and the search methods</th></tr>
+</thead>
+<tbody>
+<tr><td><code>float32</code></td><td><code>numpy.float32</code></td></tr>
+<tr><td><code>float16</code></td><td><code>numpy.float16</code></td></tr>
+<tr><td><code>bfloat16</code></td><td><code>numpy.uint16</code> array holding the raw bfloat16 bit patterns</td></tr>
+<tr><td><code>sparse</code></td><td>CSR arrays: <code>index_pointers</code> (<code>uint32</code>), <code>indices</code> (<code>uint32</code>), <code>values</code> (<code>float32</code>)</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>pyvsag</code> never converts or copies dense vectors, which keeps the call zero-copy; input that does not
+match is rejected with <code>ValueError</code>:</p>
+<ul>
+<li>dense arrays must have exactly the dtype above, in native byte order, and be C-contiguous (a 2D
+matrix must be row-major, and its row length must equal <code>dim</code>);</li>
+<li>ID arrays and sparse <code>index_pointers</code> / <code>indices</code> must be integer arrays whose values fit the
+target type (<code>int64</code> and <code>uint32</code>); floating-point IDs and out-of-range values are rejected instead
+of being truncated;</li>
+<li><code>ids</code> for <code>build</code> and <code>add</code> must be one-dimensional with one entry per vector.</li>
+</ul>
+<h2 id="searching"><a class="header" href="#searching">Searching</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Returns</th></tr>
+</thead>
+<tbody>
+<tr><td><code>knn_search(vector, k, parameters)</code></td><td><code>(ids, distances)</code>: arrays of shape <code>(k,)</code> (<code>int64</code>, <code>float32</code>). Slots the search could not fill hold <code>-1</code>.</td></tr>
+<tr><td><code>knn_search(index_pointers, indices, values, k, parameters)</code></td><td>The same for a batch of sparse queries, with shape <code>(num_queries, k)</code>.</td></tr>
+<tr><td><code>range_search(point, threshold, parameters)</code></td><td><code>(ids, distances)</code> of all results within <code>threshold</code>; empty arrays if none.</td></tr>
+<tr><td><code>knn_search_with_statistics(...)</code> / <code>range_search_with_statistics(...)</code></td><td>The arrays above plus the search statistics as a JSON string (a list of strings for sparse batches). See <a href="#search-statistics">Search Statistics</a>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Arguments can be passed by position or by keyword (<code>vector=</code>, <code>k=</code>, <code>parameters=</code>, <code>point=</code>,
+<code>threshold=</code>).</p>
+<h2 id="sparse-vectors"><a class="header" href="#sparse-vectors">Sparse Vectors</a></h2>
+<p>Sparse vectors use the CSR layout: row <code>i</code> owns
+<code>indices[index_pointers[i]:index_pointers[i + 1]]</code> and the matching <code>values</code>; <code>index_pointers</code> starts
+at <code>0</code> and is non-decreasing.</p>
+<pre><code class="language-python">index = pyvsag.Index("sindi", json.dumps({
+    "dtype": "sparse",
+    "dim": 128,
+    "metric_type": "ip",
+    "index_param": {"use_reorder": True, "doc_prune_ratio": 0.0, "window_size": 50000},
+}))
+index.build(index_pointers=ptrs, indices=cols, values=vals, ids=ids)
+index.add(ptrs, cols, vals, new_ids)
+result_ids, result_dists = index.knn_search(
+    q_ptrs, q_cols, q_vals, 10, json.dumps({"sindi": {"n_candidate": 100}}),
+)
+</code></pre>
+<p><code>pyvsag.sparse</code> additionally decodes the sparse HDF5 benchmark layout; see
+<a href="#hdf5-dataset-format">Dataset Format</a>.</p>
 <h2 id="saving--loading"><a class="header" href="#saving--loading">Saving &amp; Loading</a></h2>
 <pre><code class="language-python">index.save("index.bin")
 
 new_index = pyvsag.Index("hgraph", index_params)
 new_index.load("index.bin")
 </code></pre>
-<p>The current <code>save</code> and <code>load</code> wrappers do not propagate errors returned by the underlying
-serialization and deserialization operations. Verify that the output file was created and
-round-trip important indexes before relying on persisted data.</p>
+<p><code>save</code> and <code>load</code> raise <code>RuntimeError</code> when the underlying serialization or deserialization fails,
+including when the file cannot be opened.</p>
 <h2 id="index-operations"><a class="header" href="#index-operations">Index Operations</a></h2>
-<p>The Python binding exposes the following index-management methods in addition to build, search,
-save, and load:</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Method</th><th>Result</th><th>Notes</th></tr>
 </thead>
 <tbody>
+<tr><td><code>build(...)</code></td><td><code>None</code></td><td>Dense <code>build(vectors, ids, num_elements, dim)</code> or sparse <code>build(index_pointers, indices, values, ids)</code>.</td></tr>
+<tr><td><code>add(...)</code></td><td><code>None</code></td><td>The same two forms as <code>build</code>.</td></tr>
+<tr><td><code>remove(ids)</code></td><td><code>int</code></td><td>Removes a one-dimensional integer ID array and returns the number actually removed. Returns <code>0</code> both when no ID is removed and when the operation fails.</td></tr>
 <tr><td><code>get_num_elements()</code></td><td><code>int</code></td><td>Current number of elements.</td></tr>
 <tr><td><code>get_memory_usage()</code></td><td><code>int</code></td><td>Index memory usage in bytes.</td></tr>
 <tr><td><code>check_id_exist(id)</code></td><td><code>bool</code></td><td>Whether an ID currently exists.</td></tr>
 <tr><td><code>get_min_max_id()</code></td><td><code>(min_id, max_id)</code></td><td>Returns <code>(-1, -1)</code> if the operation fails.</td></tr>
-<tr><td><code>add(vectors, ids, num_elements, dim)</code></td><td><code>None</code></td><td>Adds a contiguous dense vector matrix; dtype must match the index.</td></tr>
-<tr><td><code>remove(ids)</code></td><td><code>int</code></td><td>Removes a one-dimensional <code>int64</code> ID array. Returns <code>0</code> both when no ID is removed and when the underlying operation fails.</td></tr>
-<tr><td><code>calc_distances_by_id(query, ids)</code> / <code>cal_distance_by_id(query, ids)</code> (legacy alias)</td><td><code>numpy.ndarray</code></td><td>Returns one float32 distance per ID in a 1D array. Missing IDs produce <code>-1</code>; underlying invalid/unsupported operations raise <code>RuntimeError</code> with the C++ error message.</td></tr>
+<tr><td><code>calc_distances_by_id(query, ids)</code> (legacy alias <code>cal_distance_by_id</code>)</td><td><code>numpy.ndarray</code></td><td>One float32 distance per ID. Missing IDs produce <code>-1</code>.</td></tr>
 </tbody>
 </table>
 </div>
@@ -989,32 +1122,72 @@ assert index.check_id_exist(10_001)
 print(index.get_num_elements(), index.get_memory_usage())
 print(index.get_min_max_id())
 
-# Calculate distances from one query to a candidate list.
+# Distances from one query to a candidate list.
 candidate_ids = np.array([10_001, 10_002], dtype=np.int64)
-distances = index.cal_distance_by_id(query, candidate_ids)
+distances = index.calc_distances_by_id(query, candidate_ids)
 
 # Remove IDs; the return value is the number actually removed.
 removed = index.remove(candidate_ids)
 </code></pre>
-<p><code>add</code> accepts a flat contiguous array or a row-major two-dimensional matrix. For
-<code>dtype: "float16"</code>, pass <code>numpy.float16</code>; for <code>dtype: "bfloat16"</code>, pass a <code>numpy.uint16</code>
-array containing BF16 bit patterns. Operation support remains index-dependent. Input validation
-and operations such as <code>add</code> and <code>calc_distances_by_id</code> raise Python exceptions, but <code>remove</code>, <code>save</code>,
-and <code>load</code> use the sentinel or unchecked behaviors described above instead of consistently
-propagating underlying operation failures.</p>
-<h3 id="distance-binding-input-safety"><a class="header" href="#distance-binding-input-safety">Distance binding input safety</a></h3>
-<p><code>calc_distances_by_id</code> and its legacy alias accept one 1D dense query whose length must equal the index dimension, plus a 1D ID array. Short, long, and empty queries are rejected by the C++ Dataset validation, not treated as missing IDs. NumPy inputs are converted to contiguous float32 / int64 arrays as needed, so positive- and negative-stride query and ID views retain their logical order. This does not add sparse, multi-vector, or multi-query support to the binding.</p>
-<p>The Node.js equivalents <code>calcDistancesById(query, ids)</code> and legacy <code>calDistanceById(query, ids)</code> retain their 1D <code>Float32Array</code> result. They require exactly <code>Float32Array</code> queries and <code>BigInt64Array</code> IDs (other array kinds throw <code>TypeError</code>), validate the actual query length through the C++ Dataset API, and throw <code>Error</code> with the C++ message on operation failure. Missing IDs still produce <code>-1</code>; they are not operation failures.</p>
+<p><code>add</code> accepts a flat contiguous array or a row-major two-dimensional matrix. Operation support
+remains index-dependent.</p>
+<p><code>calc_distances_by_id</code> takes one 1D float32 query whose length equals the index dimension and a 1D
+ID array. Queries of the wrong length and empty queries are rejected with <code>RuntimeError</code>, not
+treated as missing IDs. Other NumPy inputs are converted to contiguous float32 / int64 arrays, so
+views with positive or negative strides keep their logical order. It does not support sparse,
+multi-vector or multi-query input.</p>
+<h2 id="error-handling"><a class="header" href="#error-handling">Error Handling</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Failure</th><th>What happens</th></tr>
+</thead>
+<tbody>
+<tr><td><code>pyvsag.Index(...)</code> cannot create the index</td><td><code>RuntimeError</code> (<code>error type: UNSUPPORTED_INDEX</code>, <code>error type: invalid_parameter</code> or <code>error type: unexpectedError</code>)</td></tr>
+<tr><td><code>build</code>, <code>add</code>, <code>save</code>, <code>load</code>, <code>get_num_elements</code>, <code>get_memory_usage</code>, <code>check_id_exist</code>, <code>calc_distances_by_id</code>, <code>*_with_statistics</code></td><td><code>RuntimeError</code> whose message starts with the operation name and carries the C++ error</td></tr>
+<tr><td><code>knn_search</code></td><td>No exception: ids and distances are filled with <code>-1</code></td></tr>
+<tr><td><code>range_search</code></td><td>No exception: empty arrays</td></tr>
+<tr><td><code>remove</code></td><td>No exception: returns <code>0</code></td></tr>
+<tr><td><code>get_min_max_id</code></td><td>No exception: returns <code>(-1, -1)</code></td></tr>
+<tr><td>Wrong dtype, shape, layout, byte order or integer range</td><td><code>ValueError</code>; a call with the wrong arguments raises <code>TypeError</code></td></tr>
+</tbody>
+</table>
+</div>
+<p>Use the <code>*_with_statistics</code> variants when a failed search must raise.</p>
+<h2 id="logging-1"><a class="header" href="#logging-1">Logging</a></h2>
+<pre><code class="language-python">pyvsag.set_logger_off()     # silence the library
+pyvsag.set_logger_info()    # important information only
+pyvsag.set_logger_debug()   # detailed debug output
+</code></pre>
+<p><code>pyvsag.__version__</code> holds the package version.</p>
+<h2 id="threads-and-processes"><a class="header" href="#threads-and-processes">Threads and Processes</a></h2>
+<ul>
+<li>The GIL is released during every call into the C++ library, and the library’s internal OpenMP
+threads are unaffected by it. Control their count with <code>OMP_NUM_THREADS</code>. Concurrent searches
+from several Python threads are supported; other concurrent operations follow the rules of the
+C++ index.</li>
+<li><code>pyvsag</code> can share a process with other OpenMP users such as PyTorch and scikit-learn;
+<code>tests/python/test_openmp_coexistence.py</code> runs every import order.</li>
+<li>With <code>multiprocessing</code>, use the <code>spawn</code> start method; do not share an index across <code>fork</code>.</li>
+<li>A shallow <code>copy.copy(index)</code> shares the same native index; the native index is released when the
+last reference goes away.</li>
+</ul>
 <h2 id="relationship-with-the-c-library"><a class="header" href="#relationship-with-the-c-library">Relationship with the C++ Library</a></h2>
-<p><code>pyvsag</code> wraps the same <code>vsag::Index</code> API as C++ and shares the underlying index binaries. You can
-build an index in Python and load it in C++ (and vice versa) as long as parameters match.</p>
+<p><code>pyvsag</code> wraps the same <code>vsag::Index</code> implementation as C++ and shares the underlying index
+binaries, so behavior and performance characteristics match. You can build an index in Python and
+load it in C++ (and vice versa) as long as parameters match. Most C++ parameters are passed as the
+same JSON fields, and new index types, quantizers and metrics ship with the next <code>pyvsag</code> release.</p>
 <p>The released wheel is built with <code>ENABLE_LIBAIO=OFF</code>, so it has no libaio dependency. The
 <code>async_io</code> I/O type can still be selected, but it falls back to a buffered compatibility backend
 (single <code>buffer_io</code>-style reads and no fsync after writes) and logs a one-time warning. To get the
 real libaio path, build locally with <code>VSAG_ENABLE_LIBAIO=ON pip install python/</code>. See
 <a href="#disk-based-index-best-practices">Disk Index</a>.</p>
-<h2 id="more-examples"><a class="header" href="#more-examples">More Examples</a></h2>
-<p>See <code>examples/python/</code> in the repository.</p>
+<h2 id="nodejs-equivalents"><a class="header" href="#nodejs-equivalents">Node.js Equivalents</a></h2>
+<p>The Node.js <code>calcDistancesById(query, ids)</code> and legacy <code>calDistanceById(query, ids)</code> return a 1D
+<code>Float32Array</code>. They require exactly <code>Float32Array</code> queries and <code>BigInt64Array</code> IDs (other array
+kinds throw <code>TypeError</code>), validate the actual query length through the C++ Dataset API, and throw
+<code>Error</code> with the C++ message on operation failure. Missing IDs still produce <code>-1</code>; they are not
+operation failures.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="indexes"><a class="header" href="#indexes">Indexes</a></h1>
 <p>VSAG ships a family of index implementations that share a single builder-style API,
@@ -1035,11 +1208,14 @@ structures and trade-offs they use under the hood.</p>
 <tr><td><code>simq</code></td><td><a href="#simq">SIMQ</a></td><td>ColBERT-style multi-vector retrieval (MaxSim)</td></tr>
 <tr><td><code>sindi_v2</code></td><td><a href="#sindi_v2">SINDI_V2</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product; supports both in-memory and disk-based I/O</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="#pyramid-1">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
+<tr><td><code>warp</code></td><td><a href="#warp">WARP</a></td><td>Multi-vector (ColBERT-style) documents scored with MaxSim, exact search</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>brute_force</code> is also available as an exact-search baseline (see
-<a href="#creating-an-index">Creating an Index</a> and <code>examples/cpp/105_index_brute_force.cpp</code>).</p>
+<a href="#creating-an-index">Creating an Index</a> and <code>examples/cpp/105_index_brute_force.cpp</code>).
+WARP is the multi-vector variant of <code>brute_force</code>: same exhaustive scan, but each document is a
+set of token vectors.</p>
 <h2 id="parameter-conventions"><a class="header" href="#parameter-conventions">Parameter conventions</a></h2>
 <p>All indexes share the same top-level build fields:</p>
 <div class="table-wrapper">
@@ -1061,8 +1237,9 @@ converts to graph phase. Concrete schemas are documented on each page and enumer
 <a href="#index-parameters">Index Parameters</a>.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="index-parameters"><a class="header" href="#index-parameters">Index Parameters</a></h1>
-<p>This page summarises the commonly used parameters for every VSAG index type. For the full
-enumeration, consult the source:</p>
+<p>This page summarises cross-index defaults and the top-level common fields. Each index page
+carries the complete list of public build and search keys for that index; the source remains
+the final authority:</p>
 <ul>
 <li>Build parameter keys: <code>src/constants.cpp</code></li>
 <li>Public constants: <code>include/vsag/constants.h</code></li>
@@ -1165,7 +1342,7 @@ complete HGraph example.</p>
 </div>
 <p>The existing <code>alpha</code> field controls PiPNN’s final robust pruning. <code>ef_construction</code> only tunes NSW
 and has no effect on PiPNN.</p>
-<p>HGraph additionally supports the experimental L2-only options <code>pipnn_adaptive_pruning</code> (default <code>false</code>) and <code>pipnn_adaptive_pruning_adjust_step</code> (default <code>0.06</code>). They adapt the final per-point pruning threshold during initial <code>Build</code>; see <a href="#hgraph-2">HGraph adaptive PiPNN pruning</a>. These options are not exposed by Pyramid.</p>
+<p>HGraph additionally supports the experimental L2-only options <code>pipnn_adaptive_pruning</code> (default <code>false</code>) and <code>pipnn_adaptive_pruning_adjust_step</code> (default <code>0.06</code>). They adapt the final per-point pruning threshold during initial <code>Build</code>; see <a href="#hgraph-2">HGraph adaptive PiPNN pruning</a>. Pyramid exposes the same two options; see its <a href="#build-parameters-6">build parameter table</a>.</p>
 <p>At search time:</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
@@ -1226,16 +1403,18 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {
-        "nlist": 4096,
-        "base_quantization_type": "sq8",
-        "nprobe": 32
+        "buckets_count": 4096,
+        "base_quantization_type": "sq8"
     }
 }
 </code></pre>
+<p>See the <a href="#ivf-1">IVF index page</a> for the full build-parameter table.</p>
 <h2 id="brute-force"><a class="header" href="#brute-force">Brute Force</a></h2>
 <pre><code class="language-json">{"brute_force": {}}
 </code></pre>
-<p>No extra parameters.</p>
+<p>Quantization, IO, and thread-pool parameters are available under
+<code>index_param</code>. See the <a href="#bruteforce">BruteForce index page</a>
+for the full parameter table.</p>
 <h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
 <p><code>adaptive_pruning</code> defaults to <code>false</code>. For experimental NSW bottom forward/reverse L2 pruning, see <a href="#experimental-adaptive-nsw-pruning">Pyramid</a>.</p>
 <p>Pyramid build parameters also live under <code>index_param</code>:</p>
@@ -1260,8 +1439,11 @@ object, for example <code>{"hgraph": {"ef_search": 100}}</code>. See the
 persistence semantics.</p>
 <p>MRLE with split RaBitQ uses <code>base_quantization_type: "tq"</code>,
 <code>tq_chain: "mrle, rabitq"</code>, <code>mrle_dim</code>, and the
-<code>rabitq_bits_per_dim_base</code>/<code>rabitq_bits_per_dim_precise</code> pair. It automatically reorders from the
-split base codes and retains original FP32 vectors for decode-only operations. See the
+<code>rabitq_bits_per_dim_base</code>/<code>rabitq_bits_per_dim_precise</code> pair. It reorders from the split base codes. Original FP32 vectors are <strong>not</strong> retained for this
+combination: Pyramid only auto-enables <code>store_raw_vector</code> when the transform quantizer needs raw
+vectors <em>and</em> the case is not MRLE with a RaBitQ split (<code>RequiresRawVectorForTransformQuantizer</code>
+and not <code>RequiresRawVectorForMRLERaBitQSplit</code>). HGraph differs and does auto-enable it for this
+exact combination. See the
 <a href="#mrle-with-split-rabitq">Pyramid page</a> for a complete configuration and
 storage/recall tradeoffs.</p>
 <h2 id="sindi-sparse-vectors"><a class="header" href="#sindi-sparse-vectors">SINDI (sparse vectors)</a></h2>
@@ -1388,15 +1570,16 @@ Focused AsyncIO tests cover one-page eviction/refill, write invalidation, and
 invalid reads; the HGraph read-cache functional test retains precise-code graph
 construction coverage.</p>
 <h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
-<p>Build-time parameters live under <code>index_param</code>. The table below highlights the keys
-most users need; the exhaustive list is in <a href="#index-parameters">Index Parameters</a>.</p>
+<p>Build-time parameters live under <code>index_param</code>. The table below is the complete list of public
+build keys accepted by HGraph; <a href="#index-parameters">Index Parameters</a> additionally
+records cross-index defaults and the top-level common fields.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>— (required)</td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code>, <code>tq</code> — see the <a href="quantization">Quantization chapter</a> for per-quantizer details</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code>, <code>tq</code> — see the <a href="quantization">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per graph node</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size during build (higher = better recall, slower build)</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.0</code></td><td>Final robust-pruning factor; PiPNN requires a finite value at least <code>1.0</code>.</td></tr>
@@ -1415,7 +1598,7 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse search</td></tr>
 <tr><td><code>reorder_source</code></td><td>string</td><td><code>"precise"</code></td><td>Reorder from <code>"precise"</code> codes or directly from <code>"base"</code> codes. RaBitQ x+y split, including <code>tq_chain: "mrle, rabitq"</code>, sets <code>"base"</code> automatically.</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (takes effect only with <code>use_reorder: true</code>)</td></tr>
-<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default.</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default. Must not exceed <code>dim</code> in a way the quantizer rejects.</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Output dimension for an MRLE transform in <code>tq_chain</code>; allowed range <code>[0, dim]</code>, where <code>0</code> means the input dimension.</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use the fast multi-bit RaBitQ encoder; set to <code>false</code> for the previous exact encoder.</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Fast RaBitQ coordinate-refinement rounds, in <code>[1, 32]</code>.</td></tr>
@@ -1433,15 +1616,67 @@ most users need; the exhaustive list is in <a href="#index-parameters">Index Par
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Keep the raw vector in addition to the quantized copy (useful for <code>cosine</code>)</td></tr>
 <tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>Auto-tune search parameters after build</td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend (<code>memory_io</code>, <code>block_memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>mmap_io</code>)</td></tr>
-<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>File path; required when the corresponding <code>*_io_type</code> is disk-backed (<code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>mmap_io</code>)</td></tr>
+<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path used when the corresponding <code>*_io_type</code> is disk-backed (<code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>mmap_io</code>). The parser never requires it, but two indexes sharing the default path will collide, so give disk-backed indexes distinct paths.</td></tr>
 <tr><td><code>base_direct_read</code> / <code>precise_direct_read</code></td><td>bool</td><td><code>false</code></td><td>With <code>uring_io</code>, open the corresponding file using direct IO instead of the page cache.</td></tr>
 <tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>Initial capacity hint (doesn’t cap the final size)</td></tr>
 <tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>Persist source-ID metadata during serialization so a restored index can later export a reusable build cache.</td></tr>
 <tr><td><code>use_conjugate_graph</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>Feedback</code>/<code>Pretrain</code> graph enhancement; see <a href="#graph-index-enhancement">Graph Index Enhancement</a>.</td></tr>
 <tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td><code>log2</code> of the slot-growth batch. Valid range is <code>1</code> to <code>31</code>; <code>1</code> grows in 2-slot batches and <code>10</code> in 1,024-slot batches. Smaller values reduce preallocation but can increase reallocations.</td></tr>
+<tr><td><code>graph_storage_type</code></td><td>string</td><td><code>"flat"</code></td><td>Graph storage layout: <code>flat</code> or <code>compressed</code>. <code>compressed</code> is unsupported together with <code>use_reverse_edges</code>.</td></tr>
+<tr><td><code>graph_iter_turn</code></td><td>int</td><td><code>30</code></td><td>ODescent only: graph iteration rounds.</td></tr>
+<tr><td><code>neighbor_sample_rate</code></td><td>float</td><td><code>0.2</code></td><td>ODescent only: neighbour-sampling rate used while refining the graph.</td></tr>
+<tr><td><code>min_in_degree</code></td><td>int</td><td><code>1</code></td><td>ODescent only: minimum in-degree enforced while building.</td></tr>
+<tr><td><code>build_block_size</code></td><td>int</td><td><code>10000</code></td><td>ODescent only: number of points processed per build block.</td></tr>
+<tr><td><code>build_by_base</code></td><td>bool</td><td><code>false</code></td><td>Build the graph from base codes instead of precise codes when precise reorder storage exists. Pair with <code>use_reorder: true</code> and <code>reorder_source: "base"</code> to trade graph quality for memory.</td></tr>
+<tr><td><code>ignore_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep the precise codes in storage but never read them at query time. The effective reorder flag is <code>use_reorder &amp;&amp; !ignore_reorder</code>, and <code>use_reorder</code>/<code>ignore_reorder</code> must agree at compatibility-check time.</td></tr>
+<tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Build the attribute inverted index so <code>extra_info</code> predicates can be pushed down into the search. Configure posting-list layout through the index defaults; <code>attr_params</code> is <strong>not</strong> a public key.</td></tr>
+<tr><td><code>graph_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for the graph structure (<code>memory_io</code>, <code>block_memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>mmap_io</code>).</td></tr>
+<tr><td><code>graph_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path used when <code>graph_io_type</code> is disk-backed.</td></tr>
+<tr><td><code>raw_vector_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for the retained raw vectors (<code>store_raw_vector: true</code>).</td></tr>
+<tr><td><code>raw_vector_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path used when <code>raw_vector_io_type</code> is disk-backed.</td></tr>
+<tr><td><code>base_supplement_io_type</code></td><td>string</td><td>unset</td><td>IO backend for the RaBitQ split supplement codes. Only meaningful with split base codes: the split data cell accepts the same backend for both halves (<code>block_memory_io</code>, <code>memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>mmap_io</code>; <code>uring_io</code> is never supported) or the hybrid base <code>block_memory_io</code> + supplement <code>async_io</code> (<code>buffer_io</code> when libaio is unavailable). <code>rabitq_fused_datacell</code> additionally restricts both halves to <code>block_memory_io</code> / <code>memory_io</code>.</td></tr>
+<tr><td><code>base_supplement_file_path</code></td><td>string</td><td>derived</td><td>File path for the split supplement backend; defaults to the base path with a <code>_supplement</code> suffix.</td></tr>
+<tr><td><code>precise_user_defined_io</code></td><td>string</td><td>unset</td><td>Registered user-defined IO class name. Required only when <code>precise_io_type: "user_defined_io"</code>, which also demands <code>use_reorder: true</code>, precise <code>fp32</code>, base <code>sq8</code> codes and <code>block_memory_io</code> base plus graph storage.</td></tr>
+<tr><td><code>base_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the block read cache for base codes. Only meaningful with a block-based disk backend.</td></tr>
+<tr><td><code>precise_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the block read cache for precise codes.</td></tr>
+<tr><td><code>graph_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the block read cache for graph data.</td></tr>
+<tr><td><code>raw_vector_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the block read cache for retained raw vectors.</td></tr>
+<tr><td><code>base_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>Read-cache budget in bytes for base codes (256 MiB).</td></tr>
+<tr><td><code>precise_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>Read-cache budget in bytes for precise codes.</td></tr>
+<tr><td><code>graph_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>Read-cache budget in bytes for graph data.</td></tr>
+<tr><td><code>raw_vector_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>Read-cache budget in bytes for retained raw vectors.</td></tr>
+<tr><td><code>tq_chain</code></td><td>string</td><td>unset</td><td>Transform chain, for example <code>"mrle, rabitq"</code>. Only valid when <code>base_quantization_type: "tq"</code>; setting it with any other base quantizer is rejected.</td></tr>
+<tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td>RaBitQ PCA output dimension; <code>0</code> disables PCA. Use <code>dim</code>-compatible values only.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>RaBitQ query bits per dimension. Must be <code>4</code> or <code>32</code>, and split storage requires <code>32</code>.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>RaBitQ base bits per dimension, in <code>[1, 8]</code>. With split storage this is the <code>x</code> of <code>x + y</code>.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>RaBitQ precise bits per dimension, the <code>y</code> of a split. Requires <code>x + y &lt;= 8</code> plus reorder with precise RaBitQ codes.</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Finite positive lower-bound error multiplier baked into the built RaBitQ codes. Search-level <code>rabitq_error_rate</code> overrides it per query.</td></tr>
+<tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td>Use the fast Hadamard transform inside RaBitQ.</td></tr>
+<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td>Truncation rate for the <code>sq4_uniform</code> base quantizer; must be finite and in <code>[0, 0.5]</code>.</td></tr>
+<tr><td><code>remove_flag_bit</code></td><td>uint32</td><td><code>8</code></td><td>Bit position of the delete-tracking flag in the graph record. Consistent with <code>support_remove</code> metadata; changing it on an existing index breaks compatibility.</td></tr>
+<tr><td><code>use_mci</code></td><td>bool</td><td><code>false</code></td><td>Enable Multi-Cluster Indexing. Setting any <code>mci_*</code> build key also turns MCI on.</td></tr>
+<tr><td><code>mci_mcs</code></td><td>int</td><td><code>200</code></td><td>MCI target cluster size; must be positive.</td></tr>
+<tr><td><code>mci_clique_max</code></td><td>int</td><td><code>50</code></td><td>MCI clique size floor used by the full-clique phase — a minimum, not a cap on clique size.</td></tr>
+<tr><td><code>mci_alpha</code></td><td>float</td><td><code>1.2</code></td><td>MCI pruning alpha; at least <code>1.0</code>.</td></tr>
+<tr><td><code>mci_knng_source</code></td><td>string</td><td><code>"hgraph"</code></td><td>k-NNG source graph for MCI: <code>"hgraph"</code> or <code>"odescent"</code>.</td></tr>
+<tr><td><code>mci_incremental_join_ratio_threshold</code></td><td>float</td><td><code>0.6</code></td><td>Join-ratio threshold for the incremental MCI phase, in <code>[0, 1]</code>.</td></tr>
+<tr><td><code>mci_incremental_degree_min</code></td><td>int</td><td><code>50</code></td><td>Minimum degree in the incremental MCI phase; must be positive.</td></tr>
+<tr><td><code>mci_incremental_degree_n_divisor</code></td><td>int</td><td><code>10000</code></td><td>Divisor applied to point count when sizing incremental degrees; must be positive.</td></tr>
+<tr><td><code>mci_incremental_degree_mcs_divisor</code></td><td>int</td><td><code>2</code></td><td>Divisor applied to MCI cluster size when sizing incremental degrees; must be positive.</td></tr>
+<tr><td><code>mci_incremental_clique_max</code></td><td>int</td><td><code>50</code></td><td>Clique ceiling in the incremental MCI phase; integer at least <code>2</code>.</td></tr>
+<tr><td><code>mci_delete_clique_size_threshold</code></td><td>int</td><td><code>30</code></td><td>Clique size below which MCI delete bookkeeping triggers; must be positive.</td></tr>
+<tr><td><code>mci_delete_node_mct_threshold</code></td><td>int</td><td><code>3</code></td><td>Node MCT threshold for MCI delete bookkeeping; must be positive.</td></tr>
+<tr><td><code>mci_clique_activation_order</code></td><td>bool</td><td><code>false</code></td><td>Visit MCI cliques in activation order instead of index order during build.</td></tr>
 </tbody>
 </table>
 </div>
+<p>Keys that look related but are <strong>not</strong> public HGraph build parameters: <code>attr_params</code>
+(an internal object built from index defaults), <code>fill_rejected</code> /
+<code>adaptive_pruning_fill_rejected</code> (accepted by the mapper but rejected downstream by the
+adaptive-pruning parser), <code>mci</code> (rejected marker), <code>mci_incremental_added_mct</code> (removed old
+MCI key), <code>mci_knng_path</code> (internal only), <code>precise_enable_prefetch_hint</code>, <code>rabitq_version</code>
+and <code>rabitq_bits_per_dim_filter</code> (derived by the split helpers). Passing any of them raises
+<code>invalid config param</code> or a dedicated argument error.</p>
 <p><code>sq8_local</code> and <code>sq4_local</code> support float32/float16/bfloat16 input with L2/IP/cosine base and precise stores (including RaBitQ + local SQ4/SQ8 reranking). See <a href="#local-sq4--sq8-float32-l2-ip-and-cosine">layout, numeric limits and Tune compatibility</a>.</p>
 <p><code>use_reverse_edges</code> is intended for workloads that need fast incoming-neighbor inspection, graph
 analysis, or future graph-maintenance algorithms. It is disabled by default because maintaining
@@ -1665,22 +1900,39 @@ Indexes written before this option existed default to disabled mode.</p>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ef_search</code></td><td>int64</td><td>— (required)</td><td>Positive search-frontier size. Any value up to <code>INT64_MAX</code> is accepted; there is no <code>topk</code>-relative upper bound. Larger values increase recall, latency, and frontier memory.</td></tr>
-<tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Hard cap on the number of hops the beam search performs before returning the current frontier.</td></tr>
+<tr><td><code>ef_search</code></td><td>int64</td><td>— (required)</td><td>Positive search-frontier size. Any value up to <code>INT64_MAX</code> is accepted; there is no <code>topk</code>-relative upper bound. Larger values increase recall, latency, and frontier memory. Omit it and parsing fails; the <code>30</code> in the parameter struct is not a usable query default.</td></tr>
+<tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Cap on the number of hops the beam search performs before returning the current frontier. A value that is <strong>not greater</strong> than <code>ef_search</code> is not applied: the parser logs a warning and restores the unlimited default, so the hop cap only takes effect above <code>ef_search</code>.</td></tr>
 <tr><td><code>skip_ratio</code></td><td>float</td><td><code>0.2</code></td><td>Performance tuning parameter for filtered search. Controls the ratio of invalid points to skip, in range <code>[0.0, 1.0]</code>. <code>skip_ratio=0.2</code> means skip 20% of invalid points and only check 80%. Higher values improve performance but may reduce recall. Only applies to searches with filters. See <a href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy</a> below.</td></tr>
 <tr><td><code>skip_strategy</code></td><td>string</td><td><code>"deterministic_accumulative"</code></td><td>Strategy for filter skipping. Options: <code>"random"</code> (random skipping) or <code>"deterministic_accumulative"</code> (deterministic cumulative skipping). See <a href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy</a> below.</td></tr>
 <tr><td><code>brute_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Selectivity-aware brute-force fallback. When <code>&gt; 0</code> and the supplied filter’s <code>ValidRatio()</code> is <code>≤ brute_force_threshold</code>, the search <strong>bypasses the graph traversal entirely</strong> and runs an exact scan over the valid ids using the best available flatten codes (see the section below). Must lie in <code>[0.0, 1.0]</code>; the default <code>0.0</code> disables the feature and preserves legacy behavior.</td></tr>
 <tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>Enables the RaBitQ filter/lower-bound path. On an x+y split index it uses all x filter bits; see <a href="#rabitq-xy-split">RaBitQ x+y Split</a>.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td>index default</td><td>Positive lower-bound error multiplier for this search. It can be tuned without rebuilding the split index.</td></tr>
 <tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>Whether to re-rank coarse candidates against the precise codes. Set to <code>false</code> to skip reordering and return the approximate results directly. Use <code>use_reorder: true</code> in <code>index_param</code> to store the precise codes needed for reordering.</td></tr>
-<tr><td><code>factor</code></td><td>float</td><td><code>0.0</code></td><td>Reorder-candidate amplification factor. When <code>&gt; 1.0</code>, the reorder-candidate pool is capped at <code>k * factor</code> (but never below <code>max(ef_search, k)</code>); the default <code>0.0</code> preserves the existing behaviour with <code>ef_search</code> candidates.</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>0.0</code></td><td>Reorder-candidate multiplier. The candidate pool starts at <code>max(ef_search, topk)</code>; when <code>&gt; 1.0</code> it is capped at <code>min(max(ef_search, topk), floor(topk * factor))</code>, so it can end up <strong>below</strong> <code>ef_search</code>. The default <code>0.0</code> keeps the <code>ef_search</code> pool. A conjugate graph raises the final pool to at least its look-at-<code>k</code> floor. Ignored when reorder is not available.</td></tr>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Number of parallel workers for a single HGraph search. Values <code>&lt;= 0</code> are reset to <code>1</code> during parsing; parallel execution requires a configured executor, otherwise the search falls back to sequential execution.</td></tr>
 <tr><td><code>timeout_ms</code></td><td>int</td><td>unlimited</td><td>Per-query wall-clock timeout in milliseconds. The timer starts after routing; once exceeded, the search returns the current frontier. Best-effort only — it does not preempt a distance-computation batch.</td></tr>
 <tr><td><code>use_extra_info_filter</code></td><td>bool</td><td><code>false</code></td><td>Create the query filter from extra-info rather than plain label membership. Requires matching extra-info columns at build time.</td></tr>
 <tr><td><code>use_conjugate_graph_search</code></td><td>bool</td><td><code>true</code></td><td>Search enhancement pass. When <code>use_conjugate_graph: true</code> was set at build time, the search expands results through the conjugate graph for potentially higher recall; set to <code>false</code> to skip it. Only takes effect when a conjugate graph was built.</td></tr>
+<tr><td><code>use_mci</code></td><td>bool</td><td><code>true</code></td><td>Use the built MCI routing phase during traversal. Requires an index built with MCI enabled; otherwise the flag is harmless.</td></tr>
+<tr><td><code>use_hybrid_traversal</code></td><td>bool</td><td><code>false</code></td><td>Blend MCI routing with graph traversal instead of choosing one path.</td></tr>
+<tr><td><code>search_no_lock</code></td><td>bool</td><td><code>false</code></td><td>Skip the search-side lock. Requires <code>parallelism</code> to be <code>1</code>; the caller must guarantee no concurrent modification or destruction of the index while the query runs.</td></tr>
+<tr><td><code>mci_packed_filter</code></td><td>bool</td><td><code>true</code></td><td>Evaluate MCI filters against packed candidate blocks.</td></tr>
+<tr><td><code>mci_batch_distance</code></td><td>bool</td><td><code>true</code></td><td>Batch MCI distance computations across a candidate batch.</td></tr>
+<tr><td><code>mci_activation_cap</code></td><td>uint32</td><td><code>0</code></td><td>Maximum number of MCI cliques activated per query; <code>0</code> means unlimited.</td></tr>
+<tr><td><code>mci_hops_limit</code></td><td>uint32</td><td><code>4294967295</code></td><td>Hop cap applied to the MCI routing phase specifically.</td></tr>
+<tr><td><code>mci_expansion_idle_window</code></td><td>uint32</td><td><code>0</code></td><td>Stop MCI expansion after this many consecutive candidates without improvement; <code>0</code> disables early stop. The parser limits the value to the <code>uint32</code> range even though the field is <code>uint64</code>.</td></tr>
+<tr><td><code>hybrid_vob</code></td><td>float</td><td><code>0.0</code></td><td>Virtual out-degree budget for hybrid traversal; finite and non-negative.</td></tr>
+<tr><td><code>hybrid_filter_cost_ratio</code></td><td>float</td><td><code>1.0</code></td><td>Relative cost weight of filter evaluation against graph expansion during hybrid traversal; finite and non-negative.</td></tr>
+<tr><td><code>mci_seed_ratio</code></td><td>float</td><td><code>0.1</code></td><td>Multiplier on <code>sqrt(N)</code> that sets the base MCI seed budget; finite and non-negative. Setting it together with <code>mci_seed_coverage</code> to <code>0</code> disables seeding.</td></tr>
+<tr><td><code>mci_seed_coverage</code></td><td>float</td><td><code>1.0</code></td><td>Fraction of the valid set the seed budget is raised to cover. The raised target is used only when it fits <code>mci_seed_max_count</code> and does not exceed the live count; otherwise the coverage term is dropped entirely rather than truncated. Finite and non-negative.</td></tr>
+<tr><td><code>mci_seed_max_count</code></td><td>int64</td><td><code>32768</code></td><td>Cap for the <code>mci_seed_coverage</code> term above; <code>0</code> means unlimited. Replacement for the removed <code>mci_seed_count</code>, which is rejected outright.</td></tr>
+<tr><td><code>hgraph_valid_ratio_threshold</code></td><td>float</td><td><code>0.05</code></td><td>Filter selectivity below which MCI routing may be skipped, in <code>[0, 1]</code>.</td></tr>
 </tbody>
 </table>
 </div>
+<p>The root-level <code>threshold</code> key (sibling of <code>hgraph</code>, not a member of it) is also honoured: a
+finite numeric value discards KNN candidates whose distance exceeds it. It is read by
+<code>ParseSearchThreshold</code> before the <code>hgraph</code> object is parsed.</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk, R"({"hgraph": {"ef_search": 200}})").value();
 </code></pre>
@@ -1942,6 +2194,16 @@ parameters.</p>
 </code></pre>
 <p>In the flat phase, search is exact. In the graph phase, the internal HGraph uses
 the supplied HGraph search parameters such as <code>ef_search</code>.</p>
+<p><code>hgraph</code> inherits every HGraph build key with one exception: <code>precise_io_type: "user_defined_io"</code>
+is rejected at both the outer level and inside <code>hgraph</code>, because the temporary flat and graph
+instances would share one Reader/Writer pair and truncate the backing store. The wrapper itself
+only understands <code>transition_threshold</code> and <code>hgraph</code>; other HGraph-shaped keys placed at the top
+level (for example a top-level <code>max_degree</code>) are ignored, so put them inside <code>hgraph</code>.</p>
+<p>Two phases behave differently at search time. In the flat phase the request is handled by the
+BruteForce parameter parser, which only understands <code>parallelism</code>, <code>factor</code>, <code>enable_reorder</code>,
+<code>timeout_ms</code> and <code>use_extra_info_filter</code> inside the <code>hgraph</code> object, consumes just
+<code>parallelism</code>, <code>use_extra_info_filter</code> and the root-level <code>threshold</code>, and never requires
+<code>ef_search</code>. In the graph phase the full HGraph parser applies and <code>ef_search</code> is mandatory.</p>
 <h2 id="lifecycle-notes"><a class="header" href="#lifecycle-notes">Lifecycle notes</a></h2>
 <ul>
 <li><code>Build</code> chooses the initial phase from the input size: below
@@ -2045,21 +2307,20 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>buckets_count</code></td><td>int</td><td><code>10</code></td><td>Number of inverted lists (effective for <code>ivf</code>)</td></tr>
 <tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>First-level count (effective for <code>gno_imi</code>)</td></tr>
 <tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>Second-level count (effective for <code>gno_imi</code>)</td></tr>
-<tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>Centroid training: <code>kmeans</code> or <code>random</code></td></tr>
+<tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>Centroid training: <code>kmeans</code>, <code>e_means</code> (mini-batch EMA clustering, <a href="https://arxiv.org/abs/2611.09501">arXiv:2611.09501</a>; <code>partition_strategy_type: "ivf"</code> only) or <code>random</code></td></tr>
+<tr><td><code>e_means_epochs</code></td><td>int</td><td><code>3</code></td><td>Passes over the training sample (effective with <code>ivf_train_type: "e_means"</code>).</td></tr>
 <tr><td><code>kmeans_iter_count</code></td><td>int</td><td><code>25</code> (<code>ivf</code>), <code>30</code> (<code>gno_imi</code>)</td><td>KMeans training iterations for centroid training (effective with <code>ivf_train_type: "kmeans"</code>). Higher → better bucket quality, longer build.</td></tr>
-<tr><td><code>route_max_degree</code></td><td>int</td><td><code>64</code></td><td>Routing HGraph maximum degree (effective for <code>ivf</code>)</td></tr>
-<tr><td><code>route_ef_construction</code></td><td>int</td><td><code>300</code></td><td>Routing HGraph construction search breadth (effective for <code>ivf</code>)</td></tr>
 <tr><td><code>enable_gpu_build</code></td><td>bool</td><td><code>false</code></td><td>Use the CUDA backend while building (effective for <code>ivf</code>); see <a href="#gpu-accelerated-build">GPU-accelerated build</a></td></tr>
 <tr><td><code>gpu_device_id</code></td><td>int</td><td><code>0</code></td><td>CUDA device ordinal (effective for <code>ivf</code>); an ordinal the machine does not have keeps the build on the CPU</td></tr>
 <tr><td><code>gpu_memory_budget</code></td><td>int</td><td><code>0</code></td><td>Ceiling in bytes on the device working set (effective for <code>ivf</code>); <code>0</code> derives it from what the device has free</td></tr>
 <tr><td><code>gpu_min_work_threshold</code></td><td>int</td><td><code>0</code></td><td>Smallest <code>count * buckets_count * dim</code> worth offloading (effective for <code>ivf</code>); <code>0</code> uses the calibrated default</td></tr>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code> — see the <a href="quantization">Quantization chapter</a> for per-quantizer details</td></tr>
-<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ subspaces (required with <code>pq</code> / <code>pqfs</code>)</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ subspace dimension. Effective only when <code>base_quantization_type</code> is <code>pq</code> or <code>pqfs</code>. Must divide <code>dim</code>.</td></tr>
 <tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td>Optional PCA preprocessing dimension for <code>base_quantization_type: "rabitq"</code></td></tr>
 <tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>Query bits for <code>rabitq</code>; allowed values are <code>4</code> or <code>32</code></td></tr>
 <tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>Stored-code bits for <code>rabitq</code>; allowed range is <code>[1, 8]</code></td></tr>
 <tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>Enables RaBitQ split storage and sets the supplement (<code>y</code>) bits; <code>rabitq_bits_per_dim_base</code> is the filter (<code>x</code>) bits and <code>x + y &lt;= 8</code></td></tr>
-<tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td><code>rabitq</code> layout: <code>"standard"</code> or <code>"split_1bit_7bit"</code></td></tr>
+<tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td><code>rabitq</code> layout: <code>"standard"</code>, <code>"split"</code>, or <code>"split_1bit_7bit"</code>. <code>"split"</code> and <code>"split_1bit_7bit"</code> are aliases. The value selects RaBitQ encoding version: <code>"standard"</code> for single-codec RaBitQ, <code>"split"</code> for split filter-plus-supplement.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Positive error-budget parameter for <code>rabitq</code> encoding</td></tr>
 <tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td>Enable FHT rotation before <code>rabitq</code> binarization</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use CAQ fast construction for multi-bit <code>rabitq</code>; set to <code>false</code> for exact encoding</td></tr>
@@ -2068,6 +2329,18 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>saq_avg_bits</code></td><td>float</td><td><code>4.0</code></td><td>SAQ average record bits per dimension, in <code>[1, 8]</code></td></tr>
 <tr><td><code>saq_segment_count</code></td><td>int</td><td><code>0</code></td><td>SAQ segment count; <code>0</code> selects boundaries dynamically</td></tr>
 <tr><td><code>saq_random_rotation</code></td><td>bool</td><td><code>true</code></td><td>Apply an independent orthogonal rotation inside each SAQ segment</td></tr>
+<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path when the base IO type is disk-backed</td></tr>
+<tr><td><code>base_cache_total_size</code></td><td>int</td><td><code>268435456</code></td><td>Read-cache size in bytes for the base IO backend</td></tr>
+<tr><td><code>precise_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path when the precise IO type is disk-backed</td></tr>
+<tr><td><code>precise_cache_total_size</code></td><td>int</td><td><code>268435456</code></td><td>Read-cache size in bytes for the precise IO backend</td></tr>
+<tr><td><code>use_route_graph</code></td><td>bool</td><td><code>true</code></td><td>Enable route graph for <code>ivf</code> centroid scan; ignored for <code>gno_imi</code></td></tr>
+<tr><td><code>buckets_per_data</code></td><td>int</td><td><code>1</code></td><td>Number of buckets each vector is assigned to. Must be <code>1</code> when <code>precise_codes_layout</code> is <code>bucket</code> or when RaBitQ split storage is used.</td></tr>
+<tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Enable attribute-based filtering (see <a href="#attribute-filter-hybrid-search">Attribute Filter</a>)</td></tr>
+<tr><td><code>thread_count</code></td><td>int</td><td><code>1</code></td><td>Sets the internal thread pool size for build operations</td></tr>
+<tr><td><code>train_sample_count</code></td><td>int</td><td><code>max(65536, 64*buckets_count)</code></td><td>Vectors sampled for training. Must be ≥ 512.</td></tr>
+<tr><td><code>graph_build_threshold</code></td><td>int</td><td><code>0</code></td><td>Number of vectors per bucket above which an internal bucket graph is built (degree fixed at 64). RaBitQ split storage requires this to be <code>0</code>.</td></tr>
+<tr><td><code>base_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the read cache on the base IO backend</td></tr>
+<tr><td><code>precise_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the read cache on the precise IO backend</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse scan</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (with <code>use_reorder: true</code>)</td></tr>
 <tr><td><code>precise_codes_layout</code></td><td>string</td><td><code>"flat"</code></td><td>Storage layout for precise codes: <code>"flat"</code> keeps the legacy one-code-per-vector layout; <code>"bucket"</code> stores the precise code in the same bucket and offset as its basic posting</td></tr>
@@ -2075,7 +2348,6 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>base_supplement_io_type</code></td><td>string</td><td>unset</td><td>Optional IO backend for RaBitQ split supplement codes</td></tr>
 <tr><td><code>base_supplement_file_path</code></td><td>string</td><td>derived</td><td>Optional file path for disk-backed RaBitQ supplement codes</td></tr>
 <tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for precise codes (<code>memory_io</code>, <code>block_memory_io</code>, <code>mmap_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>reader_io</code>)</td></tr>
-<tr><td><code>precise_file_path</code></td><td>string</td><td><code>""</code></td><td>File path when the precise IO type is disk-backed</td></tr>
 </tbody>
 </table>
 </div>
@@ -2236,15 +2508,20 @@ and <code>reader_io</code>; the supported hybrid layout is filter
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>scan_buckets_count</code></td><td>int</td><td>— (required)</td><td>Number of buckets probed per query. Must be ≤ <code>buckets_count</code> (except when <code>disable_bucket_scan</code> is true, where larger values are allowed and unavailable slots are padded with <code>-1</code>).</td></tr>
-<tr><td><code>disable_bucket_scan</code></td><td>bool</td><td><code>false</code></td><td>Return bucket IDs and distances. Supports batch queries.</td></tr>
+<tr><td><code>scan_buckets_count</code></td><td>int</td><td>— (required)</td><td>Number of buckets probed per query. Values exceeding the actual number of buckets are clamped to the bucket count, unless <code>disable_bucket_scan</code> is <code>true</code> (which uses the count verbatim).</td></tr>
+<tr><td><code>disable_bucket_scan</code></td><td>bool</td><td><code>false</code></td><td>Return bucket IDs and distances instead of re-ranked results. Supports batch queries.</td></tr>
+<tr><td><code>first_order_scan_ratio</code></td><td>float</td><td><code>1.0</code></td><td>Fraction of first-order GNO-IMI buckets to scan; the actual count is <code>max(1, floor(first_order_buckets * ratio))</code>. Effective only for <code>gno_imi</code>.</td></tr>
+<tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>Search breadth for bucket-internal routing graph traversal. Values ≤ 0 use the default.</td></tr>
 <tr><td><code>factor</code></td><td>float</td><td><code>2.0</code></td><td>With reordering enabled, pulls <code>factor * topk</code> coarse candidates before the precise rescore.</td></tr>
 <tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>Set to <code>false</code> to skip the final reorder stage for this request even when the index was built with reorder enabled.</td></tr>
-<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Threads used to scan buckets in parallel for a single query.</td></tr>
-<tr><td><code>timeout_ms</code></td><td>double</td><td><code>+∞</code></td><td>Hard cap in milliseconds; partial results are returned once exceeded.</td></tr>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Threads used to scan buckets in parallel for a single query. Needs an internal thread pool; falls back to single-threaded when no pool is available.</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>no limit</td><td>Soft time bound in milliseconds for per-bucket scan. Setting to <code>0</code> causes an immediate timeout; omit the key to disable.</td></tr>
 </tbody>
 </table>
 </div>
+<p>The root-level <code>threshold</code> key (sibling of <code>ivf</code>, not a member of it) is also honoured: a
+finite numeric value discards KNN candidates whose distance exceeds it. It is parsed before the
+<code>ivf</code> object.</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"ivf": {"scan_buckets_count": 32, "factor": 2.0, "parallelism": 4}})").value();
@@ -2271,6 +2548,43 @@ queries-per-second.</li>
 <li><a href="#index-parameters">Index Parameters</a></li>
 <li><a href="#serialization">Serialization</a></li>
 </ul>
+<h3 id="optional-worker-diagnostics-c"><a class="header" href="#optional-worker-diagnostics-c">Optional worker diagnostics (C++)</a></h3>
+<p>For single-query IVF KNN with an external <code>distance_batch_func_</code>, attach a
+<code>SearchProfile</code> to diagnose insufficient CPU utilization despite requested
+parallelism. Profiling is <strong>disabled by default</strong>; it does not change search
+results or the attribute/distance/general-filter order.</p>
+<pre><code class="language-cpp">request.profile_ = std::make_shared&lt;vsag::SearchProfile&gt;();
+auto result = index-&gt;SearchWithRequest(request);
+std::cout &lt;&lt; request.profile_-&gt;ToString(query_id) &lt;&lt; '\n';
+request.profile_ = nullptr;  // Disable collection, not just printing.
+</code></pre>
+<p>Read or format the profile only after search returns. Each simultaneous request
+must own a distinct profile; concurrent reuse is rejected, sequential reuse resets
+it. The library does not print from worker threads. Profiling is rejected for
+unsupported IVF paths (including built-in-distance, range, batched-query,
+iterator and routing-only search); other index types do not collect this profile.</p>
+<p><code>ToString(query_id)</code> returns one <code>[IVF_PROFILE]</code> summary and one <code>[IVF_WORKER]</code>
+line per logical worker:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Fields</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>total_wall_ms</code>, <code>scan_wall_ms</code></td><td>IVF request elapsed time and parallel scan elapsed time, including task submission and waiting. Formatting/printing is outside both.</td></tr>
+<tr><td><code>worker_cpu_ms</code>, <code>scan_avg_cores</code></td><td>Sum of worker thread CPU increments and that sum divided by scan wall time. CPU of threads spawned by callbacks is excluded.</td></tr>
+<tr><td><code>start_ms</code>, <code>end_ms</code>, <code>wall_ms</code>, <code>cpu_ms</code></td><td>Worker interval relative to scan start, its elapsed length, and thread CPU consumed. A wall/CPU gap alone cannot distinguish blocking, preemption or quotas.</td></tr>
+<tr><td><code>buckets</code>, <code>candidates</code>, <code>batches</code></td><td>Processed valid buckets, entries submitted to distance callbacks, and callback batches. Replicated entries may repeat labels; a throwing batch still counts submitted entries.</td></tr>
+<tr><td><code>attr_ms</code>, <code>dist_ms</code></td><td>Bucket attribute executor <code>Clear/Run</code> and distance callback elapsed time, including internal waits. Per-candidate attribute checks and the general filter are not separately timed.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Thread CPU uses Linux <code>CLOCK_THREAD_CPUTIME_ID</code>; unavailable measurements print
+<code>NA</code> rather than zero cores. <code>complete=true</code> means a normal return, including a
+normal timeout with partial results, not necessarily a complete scan. Counts and
+elapsed time are sampled only at worker, bucket and batch boundaries, not per
+candidate. Diagnostics still perturb execution; use selectively. No claim of
+zero overhead or zero regression when disabled is implied.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="sindi"><a class="header" href="#sindi">SINDI</a></h1>
 <p><label class="checkbox-label"><input class="checkbox-img" type="checkbox"><img src="figures/indexes/sindi-overview.svg" alt="SINDI: per-term inverted lists grouped by window; only the lists matching the query’s non-zero terms are walked and accumulated into an n_candidate-sized heap"><span class="img-wrapper"><img src="figures/indexes/sindi-overview.svg" alt="SINDI: per-term inverted lists grouped by window; only the lists matching the query’s non-zero terms are walked and accumulated into an n_candidate-sized heap"></span></label></p>
@@ -2337,14 +2651,15 @@ auto result = index-&gt;KnnSearch(
 </code></pre>
 <h2 id="build-parameters-3"><a class="header" href="#build-parameters-3">Build parameters</a></h2>
 <p>Build-time parameters live under <code>index_param</code>. <code>dtype</code> <strong>must</strong> be <code>"sparse"</code>
-and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
+and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>. <code>dim</code> is a <strong>top-level</strong> field, not an
+<code>index_param</code> member: for sparse data it may be omitted and then defaults to <code>4096</code>
+(<code>MAX_DIM_SPARSE</code>), so size <code>term_id_limit</code> explicitly instead of relying on <code>dim</code>.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>dim</code></td><td>int</td><td>— (required)</td><td>Maximum number of non-zero elements per sparse vector. <em>Not</em> the vocabulary size.</td></tr>
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term id values (≥ max term id + 1, up to 50 000 000).</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window (range: 10 000 – 60 000).</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight terms dropped per doc at build time (<code>[0.0, 1.0)</code>).</td></tr>
@@ -2357,6 +2672,8 @@ and <code>metric_type</code> <strong>must</strong> be <code>"ip"</code>.</p>
 <tr><td><code>remap_term_ids</code></td><td>bool</td><td><code>false</code></td><td>Remap term IDs before indexing; useful when term IDs are sparse or have large gaps.</td></tr>
 <tr><td><code>avg_doc_term_length</code></td><td>int</td><td><code>100</code></td><td>Hint for memory estimation only.</td></tr>
 <tr><td><code>immutable</code></td><td>bool</td><td><code>false</code></td><td>Build or load the compact read-only runtime. <code>Build()</code> compacts completed windows as it proceeds to reduce peak memory; incremental <code>Add()</code> is rejected.</td></tr>
+<tr><td><code>deserialize_without_footer</code></td><td>bool</td><td><code>false</code></td><td>On load, skip reading the trailing footer. Only needed for legacy snapshots written before footers existed; without the footer, posting-list sortedness and the DMQ rerank format are assumed rather than detected.</td></tr>
+<tr><td><code>deserialize_without_buffer</code></td><td>bool</td><td><code>false</code></td><td>On load, deserialize straight from the supplied <code>Reader</code> instead of first streaming it into an in-memory buffer, trading load-time memory for more IO reads. Ignored when the index was built with <code>immutable: true</code>, which always reads from the reader.</td></tr>
 </tbody>
 </table>
 </div>
@@ -2508,10 +2825,10 @@ windows that cross partition or host boundaries.</p>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Candidate heap size. When <code>0</code>, defaults to <code>SPARSE_AMPLIFICATION_FACTOR · topk</code> (500×). If set, must satisfy <code>1 ≤ n_candidate ≤ SPARSE_AMPLIFICATION_FACTOR · topk</code>.</td></tr>
-<tr><td><code>window_parallelism</code></td><td>int</td><td><code>1</code></td><td>Number of window-search workers (<code>1</code> to <code>16</code>). Workers run in a reusable thread pool and steal pending windows from one another. The merged heap keeps up to <code>n_candidate</code> candidates before reranking. When this is greater than <code>1</code>, KNN search ignores <code>timeout_ms</code>; window scanning for queries with a filter, active callback limit, or reasoning trace still uses one worker.</td></tr>
-<tr><td><code>worker_n_candidate</code></td><td>int</td><td><code>n_candidate</code></td><td>Requested per-worker candidate heap capacity; omit to inherit the effective final candidate count. The actual capacity is at least the query top-k, so one matching window can still supply top-k results. If set, it must be positive and <code>worker_n_candidate × window_parallelism ≥</code> the final candidate count. For example, <code>n_candidate=500</code>, <code>window_parallelism=2</code>, and <code>worker_n_candidate=300</code> are valid. Reducing this value can lower recall when top candidates are unevenly distributed across workers; the aggregate capacity bound does not guarantee retaining the global top candidates.</td></tr>
-<tr><td><code>window_scheduler</code></td><td>string</td><td><code>"count_deque"</code></td><td>Parallel KNN window scheduling: <code>count_deque</code> retains the count-based deque/try-lock implementation; <code>count_atomic</code> uses count-based contiguous ranges and shared atomic cursors; <code>cost_atomic</code> balances contiguous ranges by the sum of query-pruned, term-pruned posting scan counts, then uses atomic cursors. Each atomic worker drains its range and then visits other ranges in cyclic order.</td></tr>
+<tr><td><code>n_candidate</code></td><td>int</td><td><code>0</code></td><td>Approximate candidate budget; the effective size is <code>N = max(n_candidate, topk)</code>. Omitted or zero therefore uses topk, not 500. Set a larger budget explicitly to retain more candidates for reranking at additional cost; exact recall or serial/parallel equality is not guaranteed.</td></tr>
+<tr><td><code>window_parallelism</code></td><td>int</td><td><code>1</code></td><td>Maximum execution slots, including the caller (<code>1</code> to <code>16</code>). Omitted or <code>1</code> uses the original serial candidate heap. Greater values select the fixed-partition approximate executor, supported for immutable in-memory KNN only. Actual slots may be reduced by resource admission without changing the candidate plan.</td></tr>
+<tr><td><code>parallel_n_candidate_ratio</code></td><td>number</td><td><code>2</code></td><td>Finite value ≥1. Total local heap capacity is <code>ceil(ratio × max(n_candidate, topk))</code>; capacity is distributed over fixed logical partitions independently of the execution slot count. Larger capacity retains more candidates at additional cost; it does not guarantee the serial candidate set or a particular recall. Validated but unapplied in serial mode.</td></tr>
+<tr><td><code>profile_cpu</code></td><td>bool</td><td><code>false</code></td><td>Diagnostic only, for serial and parallel KNN. Measures calling-thread CPU after parameter parsing and before statistics serialization, plus background window-worker CPU. Disabled requests do not read thread CPU clocks.</td></tr>
 <tr><td><code>filter_callback_limit</code></td><td>uint64</td><td><code>0</code></td><td>Maximum user <code>Filter::CheckValid</code> callback invocations for one filtered search request. A value of <code>0</code> disables the limit. Internal checks such as the deleted-ID filter do not count. Reaching a positive limit stops candidate and window scanning after processing the final callback result and returns the already filtered candidates, so the result may be partial. The limit applies to KNN and range search through both the regular APIs and <code>SearchWithRequest</code>.</td></tr>
 <tr><td><code>query_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight query terms skipped (<code>[0.0, 1.0)</code>).</td></tr>
 <tr><td><code>term_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of the lowest-value postings skipped from each term list (<code>[0.0, 1.0)</code>).</td></tr>
@@ -2519,8 +2836,32 @@ windows that cross partition or host boundaries.</p>
 </tbody>
 </table>
 </div>
-<p>FP32/FP16 sparse KNN reranking automatically uses count-based static batches with the same parallelism as <code>window_parallelism</code> (capped by the candidate count). The caller participates using the same query thread pool; each worker writes distances at independent candidate positions, and final top-k selection follows the original candidate order. A single worker processes one batch. Reasoning queries, DMQ8 and range search retain scalar reranking. Library distance counters and result statistics remain enabled.</p>
-<p>Parallel windows and reranking share one lazy index-owned query pool, capped at 16 threads and reported hardware concurrency (at least one). Query tasks are isolated from caller-supplied pools: those pools may contain writers waiting for the read lock held by the query. Parallel workers use thread-safe default scratch allocation for computers, score buffers, contexts and local heaps; request-allocator calls and final result allocation stay on the calling thread.</p>
+<p>Of the inherited <code>IndexSearchParameter</code> fields, only <code>timeout_ms</code> is honoured: it bounds the
+window scan and is applied as a soft timer. <code>parallelism</code>, <code>factor</code> and <code>enable_reorder</code> are
+accepted but have no SINDI effect — worker control is <code>window_parallelism</code> and <code>enable_reorder</code>
+is taken from the build-time <code>use_reorder</code>. The root-level <code>threshold</code> key (sibling of <code>sindi</code>)
+is also honoured: a finite numeric value discards KNN candidates whose distance exceeds it.
+<code>worker_n_candidate</code>, <code>filter_callback_limit_weight</code> and <code>window_scheduler</code> are rejected.</p>
+<p>The partition count is capped by <code>floor(total_capacity / topk)</code>, so each local heap can retain at least TopK candidates without exceeding the total budget. A small candidate budget can therefore reduce useful execution slots.</p>
+<p>For example, omitting <code>n_candidate</code> uses N=topk. With the default ratio 2, even P4/P8/P16 is limited to at most two partitions and two active slots (fewer if windows or resources are limited). With topk=100, n_candidate=500 and ratio=2, the capacity is 1000 and at most ten partitions are available, allowing P4/P8 when resources permit. P is an upper bound; requesting more slots does not automatically increase the candidate budget. To make more partitions available, explicitly increase N or the ratio and evaluate the result quality and additional work. These partition counts differ from the earlier benchmark build; historical P4/P8 performance figures are not a benchmark of the current revision.</p>
+<p>Parallel KNN through either entry point retains the original invocation start, including time waiting for the structural index lock. Delegation from <code>SearchWithRequest</code> does not reset the timeout. Parallel candidate-insertion loops poll the shared stop condition, including when remaining scores cannot trigger another filter callback; the final permitted callback result is processed before stopping. Uncancellable insertion keeps the original specialized loops.</p>
+<h3 id="parallel-candidate-quality-and-tuning"><a class="header" href="#parallel-candidate-quality-and-tuning">Parallel candidate quality and tuning</a></h3>
+<p>Parallel search changes candidate selection as well as execution. A serial query uses one global candidate heap; parallel queries distribute <code>ceil(parallel_n_candidate_ratio * N)</code> capacity over fixed partitions, then merge to N candidates before the same reranking stage. A concentrated group of good candidates can exceed one partition quota. Approximate-distance ties can also select different documents whose reranked distances differ. Setting <code>query_prune_ratio=0</code> removes query-term pruning but does not remove partition quotas, build-time pruning or quantization; it is not a guarantee of identical serial and parallel results.</p>
+<p>Tune one dimension at a time while keeping the query, filter, output top-k and deadlines fixed:</p>
+<ul>
+<li><code>window_parallelism</code> changes execution slots; it does not enlarge the candidate plan.</li>
+<li><code>parallel_n_candidate_ratio</code> enlarges local heaps and can alleviate partition quota loss. It does not enlarge the final N-candidate cutoff, so increasing it may not resolve approximate-score ties there.</li>
+<li><code>n_candidate</code> enlarges both the local budget and the final pool reaching reranking. It can improve the returned scores while increasing work and latency, and may change serial results too.</li>
+<li>Lower <code>query_prune_ratio</code> retains more query terms at extra cost. It changes the quality baseline, so compare serial and parallel with the same pruning setting and N.</li>
+</ul>
+<p>For accuracy comparisons, distinguish identical results, equal-score document substitutions, and changes in ranked scores. Verify a representative workload before changing defaults; higher returned scores are not by themselves a measurement of ground-truth recall or business relevance. A tuning example can establish a mitigation for that example without establishing a universal setting.</p>
+<p>The parallel executor keeps reranking serial, including DMQ8. It uses up to <code>min(16, selected_windows, max(n_candidate, topk))</code> stable contiguous candidate partitions; tasks exchange ownership at four-window chunk boundaries. Candidate heaps belong to partitions rather than operating-system threads. Range, reasoning and mutable/disk datacells are rejected in parallel mode.</p>
+<p>Filtered parallel calls require a <code>Filter</code> that also implements the optional <code>ConcurrentFilterProvider</code> capability from <code>vsag/concurrent_filter.h</code>. Its nonblocking lease supplies independent evaluators in label space, each exclusive to one logical slot. Unsupported providers fail explicitly. One invocation shares the callback budget across all partitions. A deadline stops new work and returns an error after workers drain; callback-budget exhaustion may return already validated candidates.</p>
+<p>An explicitly shared query resource bounds additional workers using CPU affinity, readable cgroup CPU quota and active callers in that resource group. <code>SearchResourceOptions::max_background_workers</code> can lower the worker budget. <code>VSAG_SINDI_MAX_CANDIDATES</code> sets the per-invocation heap-capacity limit (default 1,048,576), read when a plan is created. Scratch is isolated from caller-owned arenas. These controls cover this executor, not all service CPU or memory usage. Validate quality and P95/P99 under the intended concurrency before selecting production parameters.</p>
+<p>CPU admission resolves the process membership and cgroup mounts, and takes the minimum readable quota across its visible ancestors (v1 or v2). Pool limits are a startup snapshot, not a service-wide CPU limiter or dynamic resize policy.</p>
+<p>Parallel result statistics include <code>sindi_requested_slots</code>, <code>sindi_granted_slots</code>, <code>sindi_filter_slots</code> (the initial filter-lease capacity), <code>sindi_cpu_slots</code>, <code>sindi_worker_limit</code>, <code>sindi_partitions</code>, <code>sindi_candidate_capacity</code>, <code>sindi_n_candidate</code>, <code>sindi_windows_processed</code>, <code>sindi_execution_complete</code> and <code>sindi_stop_reason</code>. The existing <code>complete</code> field describes distance-counter coverage and is false when approximate work is untracked; it does not mean that the window plan failed to finish. Deadline and worker failures still fail the search after all workers drain. Deadline polling is cooperative at window boundaries and every 32 filter callbacks; the callback permit limit is checked on every callback.</p>
+<p>A successful parallel result reports <code>sindi_stop_reason=none</code> or <code>callback_limit</code>. Deadline and worker errors return no result Dataset; their internal stop state is not a promise of returned failure statistics. In contrast, the original serial timeout path can return partial results with <code>is_timeout=true</code>. Parallel deadline failures use <code>ErrorType::INTERNAL_ERROR</code> with a deadline message, after joining workers. <code>VSAG_SINDI_MAX_CANDIDATES</code> must contain unsigned decimal digits and fit a positive uint32.</p>
+<p>With <code>profile_cpu:true</code>, <code>sindi_cpu_time_enabled</code> and <code>sindi_cpu_time_complete</code> describe availability; <code>sindi_search_cpu_us</code> sums caller and background-worker CPU and <code>sindi_worker_cpu_us</code> reports the background part. CPU values are omitted if unavailable. They exclude caller-side SQL/filter preparation, statistics serialization and the final threshold-result wrapper, and are not whole SQL request CPU costs. Keep the same profiling setting in a serial/parallel comparison and measure service CPU separately.</p>
 <p>After combining the ratio and threshold limits, SINDI scans at least one posting from every
 non-empty term list.</p>
 <p>Within each window, postings for a term are sorted by their stored value in descending
@@ -2608,6 +2949,19 @@ is not physically reclaimed.</p>
 <h3 id="build-time-term-pruning"><a class="header" href="#build-time-term-pruning">Build-time term pruning</a></h3>
 <p>The index creation parameters also accept <code>term_prune_ratio</code> (float in <code>[0, 1)</code>, default <code>0</code>) and <code>term_retain_threshold</code> (non-negative integer, default <code>0</code>). Both default to disabled. During <code>Build</code>, each term’s postings in each window are sorted by stored weight and permanently trimmed to the smaller of <code>floor(posting_count * (1 - term_prune_ratio))</code> and <code>floor(term_retain_threshold / window_count)</code>; a zero threshold imposes no cap, and non-empty lists retain at least one posting. Mutable and immutable builds support FP32, FP16 and SQ8. Rerank vectors and document labels are preserved. Search-time pruning operates on the retained postings; it cannot restore removed postings. Subsequent <code>Add</code> calls do not apply build-time pruning.</p>
 <p>For example, set <code>"term_prune_ratio": 0.2, "term_retain_threshold": 0</code> inside the index’s build parameters to remove the lowest-weight 20% of each posting list per window.</p>
+<h3 id="search-resource-preparation"><a class="header" href="#search-resource-preparation">Search resource preparation</a></h3>
+<p>Construct <code>vsag::SearchResource</code> from a common <code>vsag::Resource</code> during runtime initialization and pass it to <code>vsag::Engine</code> before creating indices. This index-independent resource owns a query execution group separate from the common pool. Construction confirms every worker has started before returning; failures throw and the caller can retry construction. <code>SearchResourceOptions::max_background_workers</code> is optional (visible CPU budget minus the caller, capped at 512); zero creates a ready group without background workers. SINDI itself still limits a request to 16 slots.</p>
+<p>Keep the resource alive while Engine borrows it. Indices retain the query group; its final owner releases the pool. Separate SearchResource objects create independent groups. To share admission and query workers with different common resources, construct <code>SearchResource(other_common, existing_search_resource)</code>. Ordinary Resource users acquire no query workers. The integration layer decides process-wide ownership; VSAG has no hidden global query pool.</p>
+<p>Queries never create the pool. Until preparation succeeds, a KNN request with P&gt;1
+uses effective P1 and follows the original serial search path: one global candidate
+heap, the original filter callback budget and serial timeout handling. The parallel
+candidate ratio is not applied and no partition candidate plan is created. A
+concurrent filter provider leases one evaluator for that serial call.
+Diagnostics report serial strategy, requested slots, granted=1 and
+<code>sindi_resources_ready=false</code>. Serial fallback results should be compared with
+explicit P1, not assumed identical to the prepared parallel candidate plan.
+Serial requests need no preparation. VSAG does not read VecBase online policy JSON.</p>
+<p>Each independent SearchResource synchronously creates its own worker group during construction. Hosts with several index groups should set <code>max_background_workers</code> explicitly and reuse a shared SearchResource where appropriate; VSAG does not enforce a process-wide thread budget across independent groups.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="sindi_v2"><a class="header" href="#sindi_v2">SINDI_V2</a></h1>
 <p>SINDI_V2 is VSAG’s term-first sparse-vector index. It uses the same windowed
@@ -2671,14 +3025,15 @@ auto result = index-&gt;KnnSearch(
     }})").value();
 </code></pre>
 <h2 id="build-parameters-4"><a class="header" href="#build-parameters-4">Build parameters</a></h2>
-<p>Build parameters live under <code>index_param</code>.</p>
+<p>Build parameters live under <code>index_param</code>. <code>dim</code> is a <strong>top-level</strong> field, not an
+<code>index_param</code> member: for sparse data it may be omitted and then defaults to <code>4096</code>
+(<code>MAX_DIM_SPARSE</code>).</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>dim</code></td><td>int</td><td>required</td><td>Maximum number of non-zero elements per sparse vector, not the vocabulary size.</td></tr>
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term IDs; maximum 50 000 000.</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window, from 10 000 to 60 000.</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight document terms removed during build (<code>[0.0, 1.0)</code>).</td></tr>
@@ -2704,6 +3059,11 @@ derives it as <code>&lt;term_io.file_path&gt;.rerank</code>.</p>
 <p><code>rerank_type: "fp16"</code> requires <code>use_reorder: true</code> and supports the same rerank I/O and layout
 options as <code>fp32</code>. <code>rerank_layout &gt; 0</code> requires <code>use_reorder: true</code>. <code>rerank_type: "dmq8"</code>
 requires <code>rerank_layout: 0</code> and the default <code>block_memory_io</code> rerank backend.</p>
+<p>Of the inherited <code>IndexSearchParameter</code> fields only <code>timeout_ms</code> is honoured, applied as a soft
+timer over posting scans; <code>parallelism</code>, <code>factor</code> and <code>enable_reorder</code> are accepted but have no
+SINDI_V2 effect (<code>enable_reorder</code> comes from the build-time <code>use_reorder</code>). The root-level
+<code>threshold</code> key (sibling of <code>sindi_v2</code>) is also honoured: a finite numeric value discards KNN
+candidates whose distance exceeds it.</p>
 <h3 id="host-filtering-1"><a class="header" href="#host-filtering-1">Host filtering</a></h3>
 <p>SINDI_V2 supports the same string <code>host</code> build and KNN-query metadata contract as
 <a href="#host-filtering">SINDI</a>. Both mutable and immutable indexes are supported. It uses the
@@ -3143,7 +3503,7 @@ auto result = index-&gt;KnnSearch(
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code>, <code>tq</code>). See the <a href="quantization">Quantization chapter</a> for per-quantizer details.</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code>, <code>tq</code>). See the <a href="quantization">Quantization chapter</a> for per-quantizer details.</td></tr>
 <tr><td><code>tq_chain</code></td><td>string</td><td>—</td><td>Transform chain used when <code>base_quantization_type</code> is <code>tq</code>, for example <code>"mrle, rabitq"</code>.</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Prefix dimension retained by MRLE; <code>0</code> keeps the input dimension.</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per node within a sub-graph.</td></tr>
@@ -3181,6 +3541,20 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>root_graph_type</code></td><td>string</td><td><code>"single_layer"</code></td><td>Root graph layout: <code>single_layer</code> preserves the original sparse bottom graph; <code>multi_layer</code> uses a preallocated Flat or Compressed bottom graph with HGraph-style sparse routing layers and joint construction. <code>multi_layer</code> supports <code>graph_type: "nsw"</code> and <code>"pipnn"</code>. Do not specify this option when <code>no_build_levels</code> disables level 0.</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Group code-equivalent vectors with distinct external labels, using construction-code <code>CompareVectors</code> semantics. External labels must remain unique.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>Threads used for parallel build.</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>RaBitQ lower-bound error multiplier applied during encoding for both base and precise quantizers. Must be finite and positive.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_query</code></td><td>uint</td><td><code>32</code></td><td>Query-side bit precision for RaBitQ encoding, either <code>4</code> or <code>32</code>. Must be <code>32</code> when split storage is used.</td></tr>
+<tr><td><code>rabitq_pca_dim</code></td><td>uint</td><td><code>0</code></td><td>Optional PCA dimension reduction applied before RaBitQ encoding; <code>0</code> disables PCA.</td></tr>
+<tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td>Use FHT instead of a random rotation in RaBitQ encoding.</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Product Quantizer subspace dimension. Effective only when <code>base_quantization_type</code> is <code>pq</code> or <code>pqfs</code>.</td></tr>
+<tr><td><code>base_supplement_io_type</code></td><td>string</td><td>—</td><td>Separate IO backend for RaBitQ split supplement planes. Supported values: <code>block_memory_io</code>, <code>async_io</code>, <code>buffer_io</code>. When this key is omitted, the supplement shares <code>base_io_type</code>. Homogeneous backends (same type for base and supplement) are always supported. Mixed backends support only <code>base_io_type</code> = <code>block_memory_io</code> with <code>base_supplement_io_type</code> = <code>async_io</code> (falls back to <code>buffer_io</code> when libaio is unavailable). <code>uring_io</code> is not supported for split supplements regardless of the base backend. Effective only in RaBitQ split mode.</td></tr>
+<tr><td><code>base_supplement_file_path</code></td><td>string</td><td>—</td><td>File path for the RaBitQ supplement IO backend, required when <code>base_supplement_io_type</code> is disk-backed.</td></tr>
+<tr><td><code>build_block_size</code></td><td>int</td><td><code>10000</code></td><td>ODescent block construction size; effective only with <code>graph_type: "odescent"</code>.</td></tr>
+<tr><td><code>min_in_degree</code></td><td>int</td><td><code>1</code></td><td>ODescent minimum in-degree; effective only with <code>graph_type: "odescent"</code>.</td></tr>
+<tr><td><code>extra_info</code></td><td>object</td><td><code>{"io_params": {...block_memory_io...}}</code></td><td>IO configuration for the extra-info block associated with each bottom-graph node. Use when <code>extra_info_size</code> is set in the common parameters.</td></tr>
+<tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>Persist the SourceID table so build-cache imports can match source identities across builds. Set to <code>true</code> before serializing an index whose cache will be reused.</td></tr>
+<tr><td><code>adaptive_pruning_adjust_step</code></td><td>float</td><td><code>0.06</code></td><td>Alpha adjustment step for the experimental NSW adaptive pruning selector. Requires <code>adaptive_pruning: true</code>.</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_reverse</code></td><td>bool</td><td><code>false</code></td><td>Apply the adaptive pruning policy to reverse edges during NSW graph construction. Experimental.</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_upper</code></td><td>bool</td><td><code>false</code></td><td>Apply the adaptive pruning policy to upper routing layers. Experimental; currently unsupported, setting it causes construction to fail.</td></tr>
 <tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>Named hierarchy definitions. Each element is either a string (inherits all top-level params) or an object with <code>name</code> and optional overrides (<code>max_degree</code>, <code>ef_construction</code>, <code>alpha</code>, <code>no_build_levels</code>, <code>index_min_size</code>, <code>root_graph_type</code>). When present, multi-hierarchy mode is activated and each hierarchy maintains its own independent path tree.</td></tr>
 </tbody>
 </table>
@@ -3262,17 +3636,23 @@ reduce recall unless the embedding model was trained for prefix dimensions.</p>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>Candidate list size for the leaf-level graph search.</td></tr>
+<tr><td><code>ef_search</code></td><td>int</td><td>— (required)</td><td>Candidate list size for the leaf-level graph search. Omitting it fails parsing; <code>KnnSearch</code> further requires it in <code>[1, max(100 * topk, 1000)]</code>. The <code>100</code> in the parameter struct is not an omittable default.</td></tr>
 <tr><td><code>factor</code></td><td>float</td><td>unset</td><td>KNN reorder candidate multiplier. Values <code>&lt;= 1</code> add no limit. When greater than <code>1</code>, Pyramid first completes the unchanged subgraph searches and merges their results, then sends at most <code>min(max(ef_search, topk), floor(topk * factor))</code> main-graph candidates to reorder. RaBitQ lower-bound safety candidates may be merged after this limit, matching HGraph; <code>reorder_candidate_count</code> reports the actual merged count. The value must be finite and positive. It has no effect on range search or when reorder is disabled.</td></tr>
 <tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Per-graph KNN hop cap for the root bottom graph and every non-root graph; ignored when it is not greater than <code>ef_search</code>. Sparse root routing layers are never hop-limited. FLAT scans and range search are unaffected.</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>Candidate list size used when traversing intermediate sub-graphs on the path.</td></tr>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Maximum concurrent sub-graph searches for one request. Values greater than <code>1</code> use the index thread pool; results are merged and de-duplicated before reordering. See the thread pool requirement below.</td></tr>
 <tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>Select which hierarchy to search. Empty means use the default (unnamed) hierarchy.</td></tr>
 <tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>How to combine results across hierarchies: <code>single</code> (search one hierarchy), <code>union</code>, or <code>intersection</code>. <strong>Note:</strong> <code>union</code> and <code>intersection</code> are not yet implemented — setting them will cause <code>KnnSearch</code>/<code>RangeSearch</code> to return an error.</td></tr>
+<tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td>auto</td><td>Enable RaBitQ one-bit lower-bound safety-candidate collection during graph traversal. When not set, defaults to <code>true</code> when both <code>use_reorder</code> is enabled and the base codes are stored as RaBitQ split data cells; otherwise <code>false</code>.</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>—</td><td>Soft timeout in milliseconds; graph traversal stops expanding during the coarse search after the timeout, and reorder batch loops check the timer between batches. <strong>Omit</strong> the key to disable the timeout; setting <code>0</code> causes an immediate timeout, not unlimited.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Positive lower-bound error multiplier for this search. The default <code>1.9</code> is relatively large; increasing it improves accuracy but slows down search.</td></tr>
+<tr><td><code>threshold</code></td><td>float</td><td>—</td><td>(root-level) KNN distance upper bound. Candidates whose distance exceeds the threshold are discarded during search. Only effective for <code>KnnSearch</code>, not <code>RangeSearch</code>.</td></tr>
 </tbody>
 </table>
 </div>
+<blockquote>
+<p><strong>Note:</strong> <code>enable_reorder</code> in the root-level search JSON is accepted but <strong>ignored</strong> by Pyramid; reorder is controlled at build time by <code>use_reorder</code>.</p>
+</blockquote>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"pyramid": {"ef_search": 200, "subindex_ef_search": 80}})").value();
@@ -3591,21 +3971,20 @@ Advanced users can pass an <code>index_param</code> object to enable quantizatio
 </thead>
 <tbody>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code> — see the <a href="quantization">Quantization chapter</a> for per-quantizer details</td></tr>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for the encoded vectors. Supports <code>block_memory_io</code>, <code>memory_io</code>, <code>mmap_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>reader_io</code>.</td></tr>
+<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path when the base IO type is disk-backed (<code>mmap_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>).</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Product Quantizer subspace dimension. Effective only when <code>base_quantization_type</code> is <code>pq</code> or <code>pqfs</code>. Must divide <code>dim</code>.</td></tr>
+<tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer for the precise codes. Always resolved (defaults to <code>fp32</code>); <code>use_residual</code> only toggles the internal <code>use_reorder</code> flag.</td></tr>
+<tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for precise codes. Always resolved; <code>use_residual</code> only toggles <code>use_reorder</code>.</td></tr>
+<tr><td><code>precise_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path when the precise IO type is disk-backed.</td></tr>
+<tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>When <code>true</code>, sets <code>hold_molds</code> on the <code>fp32</code> and <code>int8</code> base and precise quantizers (other quantizer types ignore the flag). For FP32 cosine, this enables <code>GetRawVectorByIds</code>. Does <strong>not</strong> create a separate raw-vector store.</td></tr>
+<tr><td><code>thread_count</code></td><td>int</td><td><code>1</code></td><td>Sets the internal thread pool size for build operations.</td></tr>
 <tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Enable attribute-based filtering (see <a href="#attribute-filter-hybrid-search">Attribute Filter</a>)</td></tr>
+<tr><td><code>use_residual</code></td><td>bool</td><td><code>false</code></td><td>Enables precise-code construction (maps to <code>use_reorder</code> internally). Note: BruteForce’s linear scan does <strong>not</strong> perform a reorder step; precise codes have no search-time effect.</td></tr>
 <tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td><code>log2</code> of the slot-growth batch. Valid range is <code>1</code> to <code>31</code>; <code>1</code> grows in 2-slot batches and <code>10</code> in 1,024-slot batches. Smaller values reduce preallocation but can increase reallocations.</td></tr>
 </tbody>
 </table>
 </div>
-<blockquote>
-<p><strong>Note on <code>store_raw_vector</code>.</strong> The <code>store_raw_vector</code> flag is parsed by the shared
-<code>InnerIndexParameter</code> but BruteForce does <strong>not</strong> consult it when deciding whether
-<code>GetRawVectorByIds</code> is available. On BruteForce, raw-vector retrieval is enabled strictly
-when <code>base_quantization_type</code> is <code>fp32</code> and either the metric is not <code>cosine</code> or the
-quantizer is configured to hold the per-vector norms (<code>hold_molds</code>). Setting
-<code>store_raw_vector: true</code> on BruteForce currently has no observable effect on the
-capability flags — use HGraph or IVF if you need a quantized index that still answers
-<code>GetRawVectorByIds</code>.</p>
-</blockquote>
 <p>Example with <code>sq8</code> quantization for memory savings while keeping linear scan semantics:</p>
 <pre><code class="language-json">{
     "dtype": "float32",
@@ -3622,8 +4001,10 @@ the supplied dataset before adding vectors; the resulting recall is no longer 10
 <code>fp32</code>, <code>fp16</code>, and <code>bf16</code> skip training and preserve exact distances (modulo numeric
 precision).</p>
 <h2 id="search-parameters-7"><a class="header" href="#search-parameters-7">Search parameters</a></h2>
-<p>BruteForce does not expose any index-specific search knobs (no <code>ef</code>, <code>nprobe</code>, etc.), but the
-generic <code>IndexSearchParameter</code> fields are honored:</p>
+<p>BruteForce does not expose any index-specific search knobs (no <code>ef</code>, <code>nprobe</code>, etc.). Of
+the <code>IndexSearchParameter</code> fields, only <code>parallelism</code> and <code>use_extra_info_filter</code> are consumed
+by the linear scan; the root-level <code>threshold</code> key is also consumed (read separately).
+The remaining fields are accepted silently:</p>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -3631,6 +4012,11 @@ generic <code>IndexSearchParameter</code> fields are honored:</p>
 </thead>
 <tbody>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Split the linear scan of a single query across this many threads in the index’s internal thread pool. It applies to both <code>KnnSearch</code> and <code>RangeSearch</code>. Larger values cut single-query latency on large corpora at the cost of using more cores. Values <code>&lt;= 0</code> are clamped to <code>1</code>.</td></tr>
+<tr><td><code>use_extra_info_filter</code></td><td>bool</td><td><code>false</code></td><td>Apply extra-info-based predicates during the scan (see <a href="#extra-info">Extra Info</a>).</td></tr>
+<tr><td><code>threshold</code></td><td>float</td><td>— (unset)</td><td>Root-level key (outside any sub-object). KNN queries return results whose distance ≤ <code>threshold</code>.</td></tr>
+<tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>Parsed but <strong>not consumed</strong> by the linear scan — BruteForce always scans the base codes directly.</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>0</code></td><td>Parsed but <strong>not consumed</strong> — the linear scan examines all codes.</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>no limit</td><td>Parsed but <strong>not consumed</strong> — the linear scan cannot be interrupted mid-query.</td></tr>
 </tbody>
 </table>
 </div>
@@ -3717,6 +4103,151 @@ inverted-list structure.</li>
 <li><a href="#range-search">Range Search</a></li>
 <li><a href="#attribute-filter-hybrid-search">Attribute Filter (Hybrid Search)</a></li>
 <li><a href="#performance-evaluation-tool-eval_performance">Evaluation Tool</a></li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="warp"><a class="header" href="#warp">WARP</a></h1>
+<p>WARP is VSAG’s <strong>multi-vector exact-search</strong> index. Each document is stored as a <em>set</em> of
+token-level vectors instead of a single embedding, which is the representation used by
+late-interaction models such as ColBERT; relevance is scored with <strong>MaxSim</strong> (sum over query
+tokens of the best per-token similarity).</p>
+<p>WARP has no separate algorithm implementation: it is <a href="#bruteforce">BruteForce</a> running in
+multi-vector mode. <code>Factory::CreateIndex("warp", ...)</code> builds <code>IndexImpl&lt;BruteForce&gt;</code> and sets a
+hidden internal marker (<code>_warp_mode</code>) that switches the base datacell to the multi-vector one.
+Because the scan is exhaustive, results are exact for the configured quantizer.</p>
+<ul>
+<li>Source: <code>src/algorithm/bruteforce/bruteforce.{h,cpp}</code>, <code>src/datacell/multi_vector_datacell.{h,inl}</code>, <code>src/quantization/multi_vector_computer.cpp</code></li>
+<li>Example: <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/110_index_warp.cpp"><code>examples/cpp/110_index_warp.cpp</code></a></li>
+</ul>
+<h2 id="how-it-works-8"><a class="header" href="#how-it-works-8">How it works</a></h2>
+<ol>
+<li><strong>Build.</strong> Documents are appended to a flat multi-vector store. Each record holds a
+<code>uint32</code> token count followed by that many encoded token vectors. No graph, no clustering;
+quantizers that need training (<code>fp16</code>, <code>sq8_uniform</code>, <code>int8</code>) run one training pass over all
+tokens when the first batch is inserted, while <code>fp32</code>/<code>bf16</code> skip training.</li>
+<li><strong>Add.</strong> New documents are appended; there is no rebalancing. Duplicate labels are reported
+back in <code>failed_ids</code>.</li>
+<li><strong>Search.</strong> Every stored document is decoded and scored against the query multi-vector:
+for each query token the closest document token is selected and the per-token distances are
+summed. The top-k heap is then filled exactly, optionally split across threads by the
+<code>parallelism</code> search parameter.</li>
+</ol>
+<p>MaxSim needs a <em>distance</em>, so the per-token term is <code>1 - &lt;q, d&gt;</code> for <code>ip</code> and <code>||q - d||^2</code> for
+<code>l2</code>. It follows that larger dot products are closer under <code>ip</code>, while the returned values are
+distances (smaller is better) for both metrics.</p>
+<h2 id="quick-start-9"><a class="header" href="#quick-start-9">Quick start</a></h2>
+<pre><code class="language-cpp">#include &lt;vsag/vsag.h&gt;
+
+std::string build_params = R"({
+    "dtype": "float32",
+    "metric_type": "ip",
+    "dim": 128
+})";
+
+auto index = vsag::Factory::CreateIndex("warp", build_params).value();
+
+// Every document is a set of token vectors with the same `dim`.
+std::vector&lt;vsag::MultiVector&gt; multi_vectors(num_docs);
+for (int64_t i = 0; i &lt; num_docs; ++i) {
+    multi_vectors[i].len_ = token_count_of_doc_i;          // number of tokens
+    multi_vectors[i].vectors_ = token_vectors_of_doc_i;    // len_ * dim floats
+}
+
+auto base = vsag::Dataset::Make();
+base-&gt;NumElements(num_docs)
+    -&gt;Dim(dim)
+    -&gt;Ids(ids)
+    -&gt;MultiVectors(multi_vectors.data())
+    -&gt;MultiVectorDim(dim)
+    -&gt;Owner(true);
+index-&gt;Build(base);
+
+auto query = vsag::Dataset::Make();
+query-&gt;NumElements(1)
+    -&gt;Dim(dim)
+    -&gt;MultiVectors(&amp;query_multi_vector)   // one vsag::MultiVector
+    -&gt;MultiVectorDim(dim)
+    -&gt;Owner(false);
+
+auto result = index-&gt;KnnSearch(query, topk, R"({"parallelism": 4})").value();
+</code></pre>
+<p>The search JSON is free-form, but only the <code>brute_force</code> and <code>hgraph</code> sub-object names are
+recognised; because WARP reuses the BruteForce search parser, <code>{"warp": {...}}</code> is treated as a
+root object and any keys nested inside <code>warp</code> are ignored. Put search keys at the root
+(<code>{"parallelism": 4}</code>) to have them take effect.</p>
+<h2 id="build-parameters-8"><a class="header" href="#build-parameters-8">Build parameters</a></h2>
+<p>The top-level fields are <code>dim</code>, <code>dtype</code>, and <code>metric_type</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Values</th><th>Notes</th></tr>
+</thead>
+<tbody>
+<tr><td><code>dim</code></td><td>positive integer</td><td>Token dimensionality; required</td></tr>
+<tr><td><code>dtype</code></td><td><code>float32</code></td><td>WARP rejects <code>int8</code> (<code>WARP not support int8 datatype</code>); other values are not exercised</td></tr>
+<tr><td><code>metric_type</code></td><td><code>ip</code> / <code>l2</code></td><td><code>cosine</code> is rejected at query time by <code>MultiVectorComputer</code></td></tr>
+</tbody>
+</table>
+</div>
+<p><code>index_param</code> accepts exactly the following keys; any other key raises
+<code>invalid config param: &lt;key&gt;</code>:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer for the stored token vectors: <code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8_uniform</code>, <code>int8</code>. <code>fp16</code>, <code>sq8_uniform</code>, and <code>int8</code> require an explicit training pass.</td></tr>
+<tr><td><code>base_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>IO backend for the token store: <code>block_memory_io</code>, <code>memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>mmap_io</code>; <code>reader_io</code> is used when loading a serialized index.</td></tr>
+<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path for disk-backed <code>base_io_type</code> values. Two indexes sharing the same path and writing concurrently will corrupt the store, so give each build a distinct path.</td></tr>
+<tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td><code>log2</code> of the capacity increment used when the store grows; must be in <code>[1, 31]</code>.</td></tr>
+</tbody>
+</table>
+</div>
+<p>WARP is deliberately narrower than <a href="#bruteforce">BruteForce</a>. The following BruteForce build
+keys are <strong>not</strong> accepted by WARP and raise <code>invalid config param</code>: <code>precise_quantization_type</code>,
+<code>precise_io_type</code>, <code>precise_file_path</code>, <code>base_pq_dim</code>, <code>thread_count</code>, <code>store_raw_vector</code>,
+<code>use_attribute_filter</code>, <code>use_residual</code>. WARP builds a single multi-vector base store with no
+precise codes and no extra-info store.</p>
+<h2 id="search-parameters-8"><a class="header" href="#search-parameters-8">Search parameters</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Splits the single-query scan across this many threads. Values <code>&lt;= 0</code> are treated as <code>1</code>.</td></tr>
+<tr><td><code>use_extra_info_filter</code></td><td>bool</td><td><code>false</code></td><td>Applies an extra-info predicate to candidate ids during the scan. Only meaningful when the index was created with a top-level <code>extra_info_size</code>.</td></tr>
+<tr><td><code>threshold</code></td><td>float</td><td>— (no filter)</td><td>Root-level key, read by <code>ParseSearchThreshold</code>. Results whose distance is above the threshold are dropped from the returned top-k. Must be a finite number.</td></tr>
+</tbody>
+</table>
+</div>
+<p><code>timeout_ms</code>, <code>factor</code>, and <code>enable_reorder</code> are accepted by the shared search parser but are
+<strong>not used</strong> by WARP: the scan is not time-bounded, <code>factor</code> does not change the candidate set
+of an exact search, and there is no reorder stage.</p>
+<h2 id="operational-notes"><a class="header" href="#operational-notes">Operational notes</a></h2>
+<ul>
+<li><strong>Removal.</strong> Only <code>MARK_REMOVE</code> is supported; <code>FORCE_REMOVE</code> returns an error
+(<code>multi-vector mode only supports MARK_REMOVE</code>). Marking an unknown or already-removed id is a
+no-op.</li>
+<li><strong>No attribute filtering.</strong> <code>use_attribute_filter</code> is always false for WARP, so
+<code>SearchWithRequest</code> with an attribute expression fails with
+<code>attribute filter is not available</code>. Use id-based filters instead (see
+<a href="#filtered-search">Filtered Search</a>).</li>
+<li><strong>No vector update.</strong> <code>UpdateVector</code> requires a dense FP32 vector and is rejected for
+multi-vector indexes; rebuild or delete-and-add instead.</li>
+<li><strong>Memory estimate.</strong> <code>EstimateMemory</code> assumes an average of 10 tokens per document and uses
+<code>dim * sizeof(float)</code> per token, so it is only an approximation for real multi-vector corpora.</li>
+</ul>
+<h2 id="when-to-use-warp"><a class="header" href="#when-to-use-warp">When to use WARP</a></h2>
+<p>Use WARP when documents are token sets and MaxSim quality matters more than latency: it gives
+exact late-interaction scores on modest corpora. For graph-accelerated multi-vector retrieval
+with a two-stage coarse/rerank pipeline, use <a href="#simq">SIMQ</a> instead.</p>
+<h2 id="see-also-7"><a class="header" href="#see-also-7">See also</a></h2>
+<ul>
+<li><a href="#simq">SIMQ</a> — approximate multi-vector retrieval with MaxSim reranking</li>
+<li><a href="#bruteforce">BruteForce</a> — the single-vector exact baseline WARP is built on</li>
+<li><a href="#filtered-search">Filtered Search</a> — id and function filters</li>
+<li><a href="#index-parameters">Index Parameters</a> — cross-index parameter overview</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="quantization"><a class="header" href="#quantization">Quantization</a></h1>
@@ -5125,7 +5656,7 @@ second count-scaled copy of the split codes.</p>
 </tbody>
 </table>
 </div>
-<h2 id="operational-notes"><a class="header" href="#operational-notes">Operational notes</a></h2>
+<h2 id="operational-notes-1"><a class="header" href="#operational-notes-1">Operational notes</a></h2>
 <ul>
 <li>Pyramid incremental <code>Add</code> reuses decoded scalar codes in bounded, operation-local
 caches during graph traversal and pruning, including after model deserialization.
@@ -5180,7 +5711,7 @@ proportionally.</li>
 <p>The transform output then feeds a standard quantizer (<code>fp32</code>, <code>sq8</code>, <code>sq8_uniform</code>, <code>rabitq</code>,
 …), which actually stores the codes. The whole chain is referred to as <strong><code>tq</code> (Transform
 Quantizer)</strong>.</p>
-<h2 id="quick-start-9"><a class="header" href="#quick-start-9">Quick start</a></h2>
+<h2 id="quick-start-10"><a class="header" href="#quick-start-10">Quick start</a></h2>
 <p><code>tq</code> is exposed as a public, externally configurable quantization type by <strong>HGraph</strong> and
 <strong>Pyramid</strong>. Both map <code>tq_chain</code> and dimension parameters into
 <code>base_codes.quantization_params</code>. The MRLE + RaBitQ x+y split combination is available in both
@@ -5371,8 +5902,7 @@ parameter set consistent, not just the chain string.</p>
 <tr><td><code>tests/</code></td><td>Functional tests (Catch2)</td></tr>
 <tr><td><code>examples/cpp/</code></td><td>C++ end-to-end examples</td></tr>
 <tr><td><code>examples/python/</code></td><td>Python examples</td></tr>
-<tr><td><code>python/</code></td><td><code>pyvsag</code> packaging</td></tr>
-<tr><td><code>python/</code></td><td>pyvsag packaging and cffi layer</td></tr>
+<tr><td><code>python/</code></td><td><code>pyvsag</code>: the pure-Python cffi layer and wheel packaging</td></tr>
 <tr><td><code>typescript/</code></td><td>Node.js / TypeScript bindings (npm package <code>vsag</code>)</td></tr>
 <tr><td><code>tools/</code></td><td>Utilities such as <code>eval_performance</code>, <code>analyze_index</code>, <code>check_compatibility</code></td></tr>
 <tr><td><code>extern/</code></td><td>Third-party dependencies (do not modify unless necessary)</td></tr>
@@ -5487,6 +6017,27 @@ Remove returns bool: false means missing ID or failed graph allocation, so the
 cause cannot be distinguished. Failed graph transactions preserve logical state,
 not allocator capacity. Complete identical stored representations preserve graph
 topology on Update; equal RaBitQ codes do not mean raw inputs are identical.</p>
+<h2 id="optional-persistent-add"><a class="header" href="#optional-persistent-add">Optional persistent Add</a></h2>
+<p>Build with <code>-DENABLE_LITE_PERSISTENT_ADD=ON</code> and include
+<code>vsag/lite/persistent_index.h</code> on a local POSIX filesystem. Pass an empty
+BruteForce index, a built FP32/FP16 graph, or a trained RaBitQ8 graph to
+<code>PersistentIndex::Create(new_directory, std::move(seed))</code>. To import a plain
+snapshot, use <code>Index::Load</code> before <code>Create</code>.</p>
+<p>The directory contains <code>checkpoint.vsag</code> and <code>add.log</code>. Successful <code>Add</code>
+synchronizes one record containing the external ID, FP32 input and checksum.
+<code>PersistentIndex::Open</code> loads the checkpoint and replays records in order.
+It discards an incomplete final record and reports checksum failures in
+complete records. If the writer exits before returning, a complete record
+may be recovered. Use the external ID to determine whether to retry.
+An append or sync error invalidates the handle and releases its lock.
+Reopen to recover the index and check the ID before retrying.</p>
+<p>Use one handle per directory and serialize its calls. This interface covers
+Add, Search, Size and export through Save. Include earlier Update/Remove
+changes in the seed checkpoint before creating the directory. The log grows
+by <code>12 + 4 * dimension</code> bytes per Add, including for compressed backends, and
+recovery replays every record. The loader reserves vector space for complete log entries
+before reading the checkpoint. Save exports an ordinary Lite snapshot that
+can seed a fresh directory. Process exit recovery is the supported scope.</p>
 <h2 id="project-output-acceptance"><a class="header" href="#project-output-acceptance">Project output acceptance</a></h2>
 <div class="table-wrapper">
 <table>
@@ -6027,7 +6578,7 @@ maximum resident set size reported for the timed command and waited-for children
 the sum of simultaneously resident build processes.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
-<li><strong>OS</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 14+ on Apple Silicon</li>
+<li><strong>OS</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 15+ on Apple Silicon</li>
 <li><strong>Compiler</strong>: GCC 9.4.0+, Clang 13.0.0+, or Apple Clang from Xcode Command Line Tools</li>
 <li><strong>CMake</strong>: 3.18.0+</li>
 <li><strong>Ninja</strong>: preferred when available; Unix Makefiles are used as the fallback</li>
@@ -6083,8 +6634,8 @@ or a measurement of generated build artifacts alone.</p>
 <blockquote>
 <p><strong>Legacy no-op measurements are not trustworthy until <a href="https://github.com/antgroup/vsag/pull/2899">#2899</a>.</strong> The standalone workflow deliberately fails its preflight on collectors without the supported schema 3 <code>true_noop</code> reporting. Separating PR builds does not itself fix the collector. While the prerequisite is unmerged, scheduled runs fail clearly instead of publishing misleading legacy baselines.</p>
 </blockquote>
-<p>PR CI’s <strong>ASan Build X86</strong> runs one <code>make asan COMPILE_JOBS=3</code>, with Ninja, compile commands, system OpenBLAS, examples and tools enabled. The Makefile still enables tests, Sanitize and ASan/UBSan; changed-source lint, downstream tests, compatibility checks and build artifacts retain their existing contracts. <code>ccache --zero-stats</code> resets counters, <strong>not cached objects</strong>. The build step logs elapsed time, and an always-run step prints verbose/fallback cache diagnostics without hiding a build failure. ccache stays enabled in its default directory on the disposable GitHub-hosted VM; no compiler cache is restored or saved between jobs. PR X86 dependency archives intentionally change from restore-and-save to <strong>restore-only</strong> (<code>actions/cache/restore@v4</code>), preventing PR contexts from writing archives back to the shared cache; this policy is not limited to the standalone benchmark.</p>
-<p>The <strong>Daily CI / Build Performance X86</strong> profile (<code>.github/workflows/daily_test.yml</code>, <code>profile=build-performance</code>) runs weekly on Mondays at 03:23 UTC on upstream <code>main</code>, or manually from Actions. It is not a PR required check and uses separate concurrency, an Ubuntu 24.04 hosted runner, a 180-minute timeout and 14-day report retention. Once the workflow is on the default branch, for example:</p>
+<p>PR CI’s <strong>ASan Build X86</strong> runs one <code>make asan COMPILE_JOBS=3</code>, with Ninja, compile commands, system OpenBLAS, examples and tools enabled. The Makefile still enables tests, Sanitize and ASan/UBSan; changed-source lint, downstream tests, compatibility checks and build artifacts retain their existing contracts. <code>ccache --zero-stats</code> resets counters, <strong>not cached objects</strong>. The build step logs elapsed time, and an always-run step prints verbose/fallback cache diagnostics without hiding a build failure. ccache stays enabled in its default directory on the disposable GitHub-hosted VM; no compiler cache is restored or saved between jobs. PR X86 dependency archives intentionally change from restore-and-save to <strong>restore-only</strong> (<code>actions/cache/restore@v5</code>), preventing PR contexts from writing archives back to the shared cache; this policy is not limited to the standalone benchmark.</p>
+<p>The <strong>Nightly CI / Build Performance X86</strong> profile (<code>.github/workflows/daily_test.yml</code>, <code>profile=build-performance</code>) runs weekly on Mondays at 03:23 UTC on upstream <code>main</code>, or manually from Actions. It is not a PR required check and uses separate concurrency, an Ubuntu 24.04 hosted runner, a 180-minute timeout and 14-day report retention. Once the workflow is on the default branch, for example:</p>
 <pre><code class="language-bash">gh workflow run daily_test.yml --ref main -f profile=build-performance -f ref=main
 # Or use a full 40-character commit SHA reachable from this repository's main:
 gh workflow run daily_test.yml --ref main -f profile=build-performance -f ref=&lt;full-main-history-sha&gt;
@@ -6143,8 +6694,21 @@ mirror (internal HTTP server, object storage, etc.). See
 and worked examples.</p>
 <h2 id="python-wheel-pyvsag"><a class="header" href="#python-wheel-pyvsag">Python Wheel (pyvsag)</a></h2>
 <pre><code class="language-bash">make pyvsag
+pip install wheelhouse/pyvsag-*.whl
 </code></pre>
-<p>Wheels are emitted under <code>python/dist/</code>.</p>
+<p>The wheel is a <code>py3-none</code> package, so one build per architecture serves every supported CPython
+(3.10+). <code>make pyvsag</code> runs <code>scripts/python/local_build_wheel.sh</code> from the repository root and
+writes the wheel to <code>wheelhouse/</code>. With Docker it builds inside the <code>manylinux_2_28</code> image (via
+cibuildwheel) and runs part of <code>tests/python</code> there, leaving the host environment untouched. It then runs <code>scripts/python/check_wheel_libs.py</code>, which fails if the wheel bundles or links libgfortran, libquadmath, libaio, or liburing (skipped when <code>VSAG_USE_SYSTEM_DEPS</code> is not <code>OFF</code>, since system OpenBLAS pulls in libgfortran). Without
+Docker it falls back to a plain <code>python -m build</code>, installs the wheel into the active virtual
+environment and runs <code>tests/python</code> against it; that wheel carries a <code>linux_&lt;arch&gt;</code> tag instead of
+<code>manylinux_2_28</code>. Outside an active virtual environment the script creates <code>.venv/</code> in the
+repository.</p>
+<p>The wheel contains <code>libvsag_c</code>, built with <code>ENABLE_PYBINDS=ON</code> and <code>ENABLE_LIBAIO=OFF</code>. In a build
+without Docker, <code>VSAG_ENABLE_LIBAIO=ON</code> overrides this (for example
+<code>VSAG_ENABLE_LIBAIO=ON python -m build --wheel python</code>); the variable is not forwarded into the
+Docker build. See <a href="#pyvsag">pyvsag</a> for installing the wheel, running against an in-tree
+build, and the runtime behavior.</p>
 <h2 id="distribution-tarballs"><a class="header" href="#distribution-tarballs">Distribution Tarballs</a></h2>
 <p>For ABI-compatible redistribution use one of:</p>
 <pre><code class="language-bash">make dist-pre-cxx11-abi   # _GLIBCXX_USE_CXX11_ABI=0
@@ -6178,6 +6742,18 @@ CMake prefers pinned names over legacy names and retains default URLs as downloa
 An unset path preserves existing behavior; an explicitly empty or unreadable path is an error.</p>
 <p>You can increase <code>COMPILE_JOBS</code> if your machine has enough memory, but the default is conservative
 to avoid out-of-memory failures in CI runners.</p>
+<h3 id="datacell-compile-parallelism"><a class="header" href="#datacell-compile-parallelism">Datacell compile parallelism</a></h3>
+<p><code>COMPILE_JOBS</code> controls the whole build. <code>DATACELL_COMPILE_JOBS=0</code> (the default)
+adds no separate cap: datacell and RaBitQ factory files use that same global job budget.
+On memory-limited Ninja builders, set a positive limit shared by both object libraries:</p>
+<pre><code class="language-bash">make asan COMPILE_JOBS=24                         # all sources share 24 jobs
+make asan COMPILE_JOBS=3 DATACELL_COMPILE_JOBS=1   # ARM CI: at most one datacell compile
+</code></pre>
+<p>Direct CMake callers use <code>-DVSAG_DATACELL_COMPILE_JOBS=N</code>. The cap applies to all build
+modes, does not change compiler flags or test scope, and cannot exceed the global job limit.
+Positive values require Ninja; other generators use <code>0</code> and their global parallelism.
+The ARM Linux/macOS ASan jobs set <code>1</code> explicitly; other jobs inherit the global limit.
+Higher parallelism needs more memory. This scheduling option does not fix cache misses.</p>
 <h2 id="c-standard-and-compiler-validation"><a class="header" href="#c-standard-and-compiler-validation">C++ standard and compiler validation</a></h2>
 <p>Full VSAG CPU implementation targets require C++20; installed public headers and the <code>vsag::vsag</code> target support C++17 clients. CUDA translation units, Node.js bindings, and standalone Lite stay on C++17. Linux development uses GCC 13 as the primary compiler and Clang 20 as the second compiler. Use separate build directories:</p>
 <pre><code class="language-bash">make test DEBUG_BUILD_DIR=build_gcc13 EXTRA_DEFINED="-DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13"
@@ -6478,8 +7054,16 @@ maintained indexes that advertise the corresponding feature flags.</li>
 </ul>
 <h2 id="python-tests"><a class="header" href="#python-tests">Python Tests</a></h2>
 <pre><code class="language-bash">make pyvsag
+python -m venv .venv-test &amp;&amp; . .venv-test/bin/activate
+pip install wheelhouse/pyvsag-*.whl pytest
 cd tests/python &amp;&amp; pytest -q
 </code></pre>
+<p>Test the built wheel, not the source tree. <code>make pyvsag</code> itself runs only part of <code>tests/python</code>
+inside the build container (with Docker), or installs the wheel into the active environment and
+runs the suite there (without Docker). To run the full suite against the built wheel without
+depending on the state of your current environment, install it into a clean virtual environment as
+above before running pytest. To run against an in-tree build instead, see <a href="#build-from-source">pyvsag</a>. <code>test_openmp_coexistence.py</code>
+needs <code>torch</code> and <code>scikit-learn</code> and is skipped when they are missing.</p>
 <h2 id="report-testcase-budgets-and-time"><a class="header" href="#report-testcase-budgets-and-time">Report Testcase Budgets and Time</a></h2>
 <p><code>scripts/testing/test_budget_report.py</code> reads saved test listings, results and cost records
 without running tests. It works without Team CI inventory tooling:</p>
@@ -6666,7 +7250,7 @@ commands required by VSAG.</p>
 expected label was or was not recalled. Enable it by populating
 <code>SearchRequest::expected_labels_</code> and calling <code>SearchWithRequest</code>; the result
 dataset carries a JSON report accessible through <code>Dataset::GetReasoning()</code>.</p>
-<h2 id="quick-start-10"><a class="header" href="#quick-start-10">Quick Start</a></h2>
+<h2 id="quick-start-11"><a class="header" href="#quick-start-11">Quick Start</a></h2>
 <p>For a built SINDI_V2 index and a single-query sparse <code>query_dataset</code>:</p>
 <pre><code class="language-cpp">// Populate expected_labels_ with the labels of interest
 vsag::SearchRequest request;
@@ -6969,7 +7553,7 @@ during the build, or when you have not measured a build-time problem.</li>
 </ul>
 <p>Both choices produce a graph that is searched the same way at query time, so search-side
 parameters (<code>ef_search</code>, <code>pq_rerank</code>, …) carry over unchanged.</p>
-<h2 id="see-also-7"><a class="header" href="#see-also-7">See also</a></h2>
+<h2 id="see-also-8"><a class="header" href="#see-also-8">See also</a></h2>
 <ul>
 <li><a href="#creating-an-index">Creating an Index</a></li>
 <li><a href="#hgraph-2">HGraph index parameters</a></li>
@@ -6994,6 +7578,9 @@ use the normal <a href="#serialization">Serialization</a> APIs to persist a sear
 </ul>
 <p>The numeric label in <code>Dataset::Ids</code> may change between snapshots. Cache matching uses the
 corresponding <code>SourceID</code> string instead.</p>
+<p>Pass the complete current snapshot to each <code>Build()</code>. Records may be added, removed, or reordered;
+retained records keep their stable Source IDs. Importing a cache supplies graph seeds, not vectors
+from the previous snapshot.</p>
 <h2 id="first-build-and-cache-export"><a class="header" href="#first-build-and-cache-export">First build and cache export</a></h2>
 <p>Provide one source ID per vector when building the source index:</p>
 <pre><code class="language-cpp">std::vector&lt;std::string&gt; source_ids = load_stable_source_ids();
@@ -7035,6 +7622,14 @@ next_index-&gt;Build(next_base).value();
 both snapshots are warm-started from cached neighbors; unmatched records are treated as cache
 misses and refined by the normal build path. Calling cache-assisted <code>Build()</code> without
 <code>Dataset::SourceID</code> returns an invalid-argument error.</p>
+<p>When cache misses exist, a final serial connectivity pass first scans the entry’s reachable
+component, then runs a fresh entry-point construction search for each miss that is still
+unreachable. It looks for capacity in the reachable component, protecting its spanning tree
+and entry backlinks while respecting the degree limit. Each successful join also traverses
+the newly reachable component. A miss can remain unreachable if no safe backlink is found;
+this pass does not guarantee full reachability. Temporary memory is proportional to the
+snapshot’s node count. Include the traversal and per-unreachable-miss searches when measuring
+rebuild time and peak memory. Unchanged all-hit snapshots retain their warm-start fast path.</p>
 <h2 id="persisting-source-ids-with-the-index"><a class="header" href="#persisting-source-ids-with-the-index">Persisting source IDs with the index</a></h2>
 <p>Source-ID metadata is not included in HGraph serialization by default. Set
 <code>persist_source_id: true</code> in <code>index_param</code> when a deserialized index must later call
@@ -7068,6 +7663,8 @@ mapping.</p>
 </tbody>
 </table>
 </div>
+<p>A 100% hit rate can also occur when the current snapshot is a subset of the previous one: the
+rate measures reuse of the current input, not retention of every old record.</p>
 <p>When no imported cache participated in the last build, the statistics include a
 <code>skipped_reason</code> instead. See <a href="#index-analysis-analyzeindexbysearch--analyze_index">Index Analysis</a> for the rest of the
 HGraph statistics.</p>
@@ -7309,7 +7906,7 @@ if (index-&gt;CheckFeature(vsag::SUPPORT_BATCH_CALC_DISTANCE_BY_ID)) {
 the closest valid candidates followed by invalid IDs only when fewer than <code>topk</code> valid IDs exist.</p>
 <p>A runnable example is provided in
 <a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/306_feature_calculate_distance_by_id.cpp"><code>examples/cpp/306_feature_calculate_distance_by_id.cpp</code></a>.</p>
-<h2 id="sparse-vectors"><a class="header" href="#sparse-vectors">Sparse Vectors</a></h2>
+<h2 id="sparse-vectors-1"><a class="header" href="#sparse-vectors-1">Sparse Vectors</a></h2>
 <p>For sparse-vector indexes such as SINDI, the <code>const float*</code> overloads are not applicable. Pass
 the query as a <code>DatasetPtr</code> carrying sparse vectors via <code>SparseVectors(...)</code>, and use the
 <code>DatasetPtr</code> overloads:</p>
@@ -7554,7 +8151,7 @@ candidates until enough survivors are collected.</li>
 <li>Result consumption is lazy / streaming (e.g. UI pagination, server-side cursor).</li>
 <li>The eventual <code>k</code> is unknown up front and may grow on demand.</li>
 </ul>
-<h2 id="how-it-works-8"><a class="header" href="#how-it-works-8">How It Works</a></h2>
+<h2 id="how-it-works-9"><a class="header" href="#how-it-works-9">How It Works</a></h2>
 <p>Iterator search relies on a long-lived <code>IteratorContext</code> object that holds:</p>
 <ul>
 <li>the current candidate heap / visited bitmap, and</li>
@@ -7629,11 +8226,33 @@ delete iter_ctx;
 the search ordered by distance. Pass <code>is_last_search=true</code> on a trailing call instead if you want
 the index to also emit the candidates still buffered in the context.</p>
 <blockquote>
-<p><strong><code>SearchRequest</code> API.</strong> <code>SearchRequest</code> declares <code>enable_iterator_search_</code>, <code>p_iter_ctx_</code>, and
-<code>is_last_search_</code> fields, but no in-tree <code>SearchWithRequest</code> implementation currently consults
-them. Until that wiring lands, use one of the two <code>KnnSearch</code> forms above to drive iterator
-search.</p>
+<p><strong><code>SearchRequest</code> API.</strong> <code>SearchWithRequest</code> honours the same fields for HGraph indexes: set
+<code>enable_iterator_search_ = true</code> and point <code>p_iter_ctx_</code> at an <code>IteratorContext*</code> that starts as
+<code>nullptr</code> (the first call creates it). <code>topk_</code>, <code>params_str_</code>, <code>filter_</code>, <code>threshold_</code> and
+<code>search_allocator_</code> mean exactly what they mean in the <code>KnnSearch</code> forms above.</p>
 </blockquote>
+<pre><code class="language-cpp">vsag::IteratorContext* ctx = nullptr;
+
+vsag::SearchRequest request;
+request.query_ = query;
+request.topk_ = 10;
+request.params_str_ = param_str;
+request.enable_iterator_search_ = true;
+request.p_iter_ctx_ = &amp;ctx;   // filled in on the first call
+
+auto page1 = index-&gt;SearchWithRequest(request);   // creates ctx
+auto page2 = index-&gt;SearchWithRequest(request);   // continuation, no overlap with page1
+
+request.is_last_search_ = true;                   // optional: drain buffered candidates
+auto tail = index-&gt;SearchWithRequest(request);
+
+delete ctx;                                       // releases the iterator state
+</code></pre>
+<p>Iterator search through <code>SearchWithRequest</code> is HGraph-only; other indexes return
+<code>UNSUPPORTED_INDEX_OPERATION</code>. Iterator mode rejects range search, custom scoring
+(<code>distance_batch_func_</code>), attribute filters and reasoning (<code>expected_labels_</code>) — nest the filtering
+you need inside <code>filter_</code> instead. <code>request.threshold_</code> is the single distance bound in both
+modes: a <code>"threshold"</code> key inside <code>params_str_</code> is ignored.</p>
 <h2 id="combining-with-filters"><a class="header" href="#combining-with-filters">Combining With Filters</a></h2>
 <p>Iterator search composes with regular filters (label filter, attribute filter, bitset filter).
 A common use case is “keep iterating until enough results pass my external check”:</p>
@@ -7802,7 +8421,7 @@ storage-layout hybrid).</p>
 <tr><td>HGraph</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
 <tr><td>IVF</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
 <tr><td>BruteForce</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
-<tr><td>WARP (sparse)</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
+<tr><td>WARP</td><td style="text-align: center">No</td><td style="text-align: center">No (multi-vector; id filters only)</td><td style="text-align: center">No</td></tr>
 <tr><td>SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">id-based filters only (see <a href="#filtered-search">Filtered Search</a>)</td><td style="text-align: center">—</td></tr>
 </tbody>
 </table>
@@ -7910,18 +8529,16 @@ returns.</li>
 </ul>
 <p>Pick one and stick with it for a given dataset to avoid double-free or leaks.</p>
 <h2 id="building-an-index-with-attribute-support"><a class="header" href="#building-an-index-with-attribute-support">Building an Index with Attribute Support</a></h2>
-<p>Set <code>index_param.use_attribute_filter</code> to <code>true</code> and (optionally) tune the
-attribute-inverted-index parameters under <code>attr_params</code>.</p>
+<p>Set <code>index_param.use_attribute_filter</code> to <code>true</code>. The attribute-inverted index then uses the
+per-index defaults below; there is no public <code>attr_params</code> build key, so passing one is
+rejected as <code>invalid config param</code>.</p>
 <pre><code class="language-cpp">std::string build_params = R"(
 {
     "dtype": "float32",
     "metric_type": "l2",
     "dim": 128,
     "index_param": {
-        "use_attribute_filter": true,
-        "attr_params": {
-            "has_buckets": false
-        }
+        "use_attribute_filter": true
     }
 }
 )";
@@ -8642,7 +9259,7 @@ follows, with the single-argument <code>Deserialize(istream)</code> as the basel
 <p>Note that a single-threaded parallel load is <em>slower</em> than the sequential path. Each frame builds
 its own codec session and issues its own positioned read, and with one worker that overhead has
 nothing to overlap with. The crossover is around four threads.</p>
-<h2 id="see-also-8"><a class="header" href="#see-also-8">See Also</a></h2>
+<h2 id="see-also-9"><a class="header" href="#see-also-9">See Also</a></h2>
 <ul>
 <li><a href="#chunked-serialization">Chunked Serialization</a> — the file format this path consumes.</li>
 <li><a href="#serialization">Serialization</a> — the sequential interfaces and the footer-based format.</li>
@@ -9283,7 +9900,7 @@ restore.</li>
 many small reads.</li>
 <li>Callback backing residency is not counted in the backend memory estimate.</li>
 </ul>
-<h2 id="see-also-9"><a class="header" href="#see-also-9">See also</a></h2>
+<h2 id="see-also-10"><a class="header" href="#see-also-10">See also</a></h2>
 <ul>
 <li><a href="#extensibility">Extensibility</a> — other VSAG extension points.</li>
 <li><a href="https://github.com/antgroup/vsag/blob/main/examples/cpp/200_user_defined_io.cpp">Example <code>200_user_defined_io</code></a>
@@ -9319,7 +9936,7 @@ using a <strong>conjugate graph</strong>, noticeably improving tail recall at al
 })";
 auto result = index-&gt;KnnSearch(query, k, search_param_json);
 </code></pre>
-<h2 id="how-it-works-9"><a class="header" href="#how-it-works-9">How It Works</a></h2>
+<h2 id="how-it-works-10"><a class="header" href="#how-it-works-10">How It Works</a></h2>
 <p>Call <code>Feedback(query, k, search_parameters, global_optimum_id)</code> after a hard query when the exact
 nearest label is known. Omitting <code>global_optimum_id</code> makes HGraph compute it by an exact scan.
 For offline enhancement, <code>Pretrain(base_ids, k, search_parameters)</code> generates queries between the
@@ -9782,8 +10399,9 @@ and exhausted candidates or stalled construction can stop below it.</p>
 <p>Migration warning: <code>mci_incremental_added_mct</code> is no longer supported. Remove this old
 clique-count setting from <code>index_param</code> and configure <code>mci_incremental_degree_min</code>,
 <code>mci_incremental_degree_n_divisor</code>, and <code>mci_incremental_degree_mcs_divisor</code> instead.
-The old key is ignored, not translated; leaving it in the JSON applies the new defaults
-unless the degree parameters are explicitly set. There is no equivalent one-to-one mapping
+The old key is <strong>not</strong> ignored: the HGraph parameter mapper has no branch for it, so leaving it
+in the JSON fails the build with <code>invalid config param: mci_incremental_added_mct</code>. Remove it and
+set the new degree keys instead. There is no equivalent one-to-one mapping
 because overlapping cliques contribute different numbers of unique neighbors. Recheck recall
 and mutation cost, and rebuild old snapshots with the new configuration rather than assuming
 that a removed parameter provides snapshot compatibility.</p>
@@ -9846,13 +10464,18 @@ exact-seeding regime, at the cost of a larger seed phase. The default of <code>3
 enumeration cheap in absolute terms – 32768 inner ids are 128 KiB and therefore stay in cache –
 so the saturated skip stays a win instead of turning a wide predicate into a scan-sized seed
 phase.</p>
-<p>For the pure MCI route with non-contiguous vector storage, a certified complete, sorted seed
-list can be scored directly through the existing batched distance backend, without initializing
-visited marks or maintaining an expansion queue. This shortcut requires static CSR, a complete
-valid bitmap, no timeout and no mutable-predicate revalidation; it validates IDs and the pinned
-deletion view before use. Other queries retain ordinary traversal. The result heap still keeps
-<code>max(k, ef_search)</code> entries so existing reorder behavior is preserved. This changes execution
-overhead, not the seed budget, distance precision or serialized index.</p>
+<p>For the pure MCI route, a certified complete, sorted, unique seed list is validated before
+scoring. With static CSR and no timeout, it rechecks the user predicate when required and checks
+the pinned deletion view, then uses the same batched scoring code as ordinary traversal. Both
+contiguous FP32 and non-contiguous storage are supported; a bitmap is optional. This path keeps
+the ordinary locking policy and does not require <code>search_no_lock=true</code>. It creates no visited
+marks or expansion frontier. Failed validation falls back to ordinary traversal with its full
+candidate budget. Clique marks and packed filters are initialized only if expansion is needed.</p>
+<p>When no duplicate-aware or conjugate-search candidate retention is required, the complete-seed
+path keeps only the requested <code>k</code> results; otherwise it preserves the larger candidate budget.
+Equal-distance ties may select different equivalent IDs. Seed budgets, distance precision,
+timeout behavior and serialized indexes remain unchanged. Fully covered lists are enumerated
+directly instead of applying the general strided sampling formula.</p>
 <p>The companion needs a <code>Filter</code> object with a meaningful <code>ValidRatio()</code> hint. Bitset and
 function filters are accepted, but a custom <code>Filter</code> gives the search planner better
 selectivity information.</p>
@@ -10360,7 +10983,7 @@ satisfies:</p>
 the seed. They imply that every partition holds at most <code>L</code> vectors. When <code>n &gt;= L</code>, they also
 imply that every partition holds at least <code>floor(L / 2)</code> vectors and that the largest partition
 is at most twice the size of the smallest one.</p>
-<h2 id="how-it-works-10"><a class="header" href="#how-it-works-10">How It Works</a></h2>
+<h2 id="how-it-works-11"><a class="header" href="#how-it-works-11">How It Works</a></h2>
 <p>At each node, this implementation draws a random projection direction and assigns the node the
 number of leaves <code>k = ceil(n_node / L)</code> it must produce. With <code>n_node = q * k + r</code>, the node is
 cut so that the left child receives <code>ceil(k / 2)</code> leaves and
@@ -10641,7 +11264,7 @@ engine’s shared <code>Resource</code> (allocator and thread pool) instead of a
 <p>See <a href="#resource-management">Resource Management</a> for how <code>Resource</code>, <code>Allocator</code>, and <code>ThreadPool</code> fit
 together, and <code>examples/cpp/201_custom_allocator.cpp</code> / <code>203_custom_thread_pool.cpp</code> for runnable
 samples.</p>
-<h2 id="see-also-10"><a class="header" href="#see-also-10">See also</a></h2>
+<h2 id="see-also-11"><a class="header" href="#see-also-11">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — what you can do with the index once it is created.</li>
 <li><a href="#resource-management">Resource Management</a> — allocator, thread pool, and <code>Resource</code> details.</li>
@@ -10961,7 +11584,7 @@ and <code>examples/cpp/401_persistent_kv.cpp</code> / <code>402_persistent_strea
 </div>
 <p>See <code>examples/cpp/308_feature_estimate_memory.cpp</code>, <code>319_feature_get_memory_usage.cpp</code>, and the
 <a href="#index-analysis-analyzeindexbysearch--analyze_index">Index Analysis Tool</a>.</p>
-<h2 id="see-also-11"><a class="header" href="#see-also-11">See also</a></h2>
+<h2 id="see-also-12"><a class="header" href="#see-also-12">See also</a></h2>
 <ul>
 <li><a href="#dataset">Dataset</a> — construct query/base inputs and read search results.</li>
 <li><a href="#search-request--filters">Search Request &amp; Filters</a> — the <code>SearchRequest</code> fields and filter types.</li>
@@ -11146,7 +11769,7 @@ filtering. A time range on a one-element query dataset uses <code>publish_time_s
 <code>publish_time_stamp_end</code>. For SINDI and SINDI_V2 base datasets, <code>publish_time_stamp == 0</code> is
 reserved for a missing timestamp and never matches a time selector. These arrays have one value
 per dataset element and follow the normal Dataset ownership, deep-copy, and append rules.</p>
-<h2 id="see-also-12"><a class="header" href="#see-also-12">See also</a></h2>
+<h2 id="see-also-13"><a class="header" href="#see-also-13">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — the methods that consume and return datasets.</li>
 <li><a href="#search-request--filters">Search Request &amp; Filters</a> — wrapping a query dataset in a <code>SearchRequest</code>.</li>
@@ -11431,7 +12054,7 @@ the deprecated <code>KnnSearch(query, k, SearchParam&amp;)</code> overload.</p>
 <p><strong>Prefer <a href="#searchrequest"><code>SearchRequest</code></a> + <a href="#searchwithrequest"><code>SearchWithRequest</code></a>
 for all new code.</strong> <code>SearchParam</code> holds <code>parameters</code> by reference, so the referenced string must
 outlive the call.</p>
-<h2 id="see-also-13"><a class="header" href="#see-also-13">See also</a></h2>
+<h2 id="see-also-14"><a class="header" href="#see-also-14">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — the search methods that consume these types.</li>
 <li><a href="#dataset">Dataset</a> — building the <code>query_</code> and reading results.</li>
@@ -11575,7 +12198,7 @@ load_parameters.Set("precise_io_type", "reader_io")
 </code></pre>
 <p>Readers that only implement <code>Reader</code> remain compatible; the enabled hint is then a safe no-op.
 See the runnable <code>examples/cpp/408_feature_reader_prefetch.cpp</code> example.</p>
-<h2 id="see-also-14"><a class="header" href="#see-also-14">See also</a></h2>
+<h2 id="see-also-15"><a class="header" href="#see-also-15">See also</a></h2>
 <ul>
 <li><a href="#serialization-1">Index</a> — the <code>Serialize</code> / <code>Deserialize</code> method family.</li>
 <li><a href="#createlocalfilereader">Factory &amp; Engine</a> — creating file-backed readers.</li>
@@ -11751,7 +12374,7 @@ public:
 </table>
 </div>
 <p>See <code>examples/cpp/202_custom_logger.cpp</code>.</p>
-<h2 id="see-also-15"><a class="header" href="#see-also-15">See also</a></h2>
+<h2 id="see-also-16"><a class="header" href="#see-also-16">See also</a></h2>
 <ul>
 <li><a href="#factory--engine">Factory &amp; Engine</a> — how <code>Engine</code> consumes a <code>Resource</code>.</li>
 <li><a href="#index">Index</a> — per-call allocators on retrieval and search methods.</li>
@@ -11958,7 +12581,7 @@ instead of raw string literals avoids typos. They fall into several groups:</p>
 </div>
 <p>For the meaning of each parameter key, see <a href="#index-parameters">Index Parameters</a> and
 the individual <a href="indexes">index pages</a>.</p>
-<h2 id="see-also-16"><a class="header" href="#see-also-16">See also</a></h2>
+<h2 id="see-also-17"><a class="header" href="#see-also-17">See also</a></h2>
 <ul>
 <li><a href="#index">Index</a> — <code>CheckFeature</code>, <code>GetIndexDetailInfos</code>, <code>UpdateAttribute</code>.</li>
 <li><a href="#dataset">Dataset</a> — attaching <code>AttributeSet</code> data to elements.</li>
@@ -12242,7 +12865,7 @@ tens of GB of RAM plus an SSD.</p>
 <p>Treat these as starting points and validate with <a href="#performance-evaluation-tool-eval_performance"><code>eval_performance</code></a> against a
 realistic query distribution; the <a href="#optimizer-tune">Optimizer (Tune)</a> can then
 settle search-time parameters automatically.</p>
-<h2 id="see-also-17"><a class="header" href="#see-also-17">See also</a></h2>
+<h2 id="see-also-18"><a class="header" href="#see-also-18">See also</a></h2>
 <ul>
 <li><a href="#hgraph-2">HGraph</a> — the flagship index and its full parameter table</li>
 <li><a href="quantization">Quantization Overview</a> — choosing a base/precise quantizer</li>
@@ -13587,8 +14210,8 @@ data = load_sparse_hdf5("sparse.hdf5")
 # data["neighbors"] -&gt; numpy.ndarray  shape (Q, K) int64
 # data["distances"] -&gt; numpy.ndarray  shape (Q, K) float32
 </code></pre>
-<p><code>pyvsag.sparse.decode_sparse_bytes(buffer)</code> is also exposed for callers that already
-hold the raw byte stream.</p>
+<p><code>load_sparse_hdf5</code> needs <code>h5py</code>, which <code>pyvsag</code> does not install. <code>pyvsag.sparse.decode_sparse_bytes(buffer)</code>
+is also exposed for callers that already hold the raw byte stream and has no extra dependency.</p>
 <h3 id="reference-implementation"><a class="header" href="#reference-implementation">Reference implementation</a></h3>
 <p>The byte-stream encoder/decoder lives at
 <a href="https://github.com/antgroup/vsag/blob/main/tools/eval/eval_dataset.cpp"><code>tools/eval/eval_dataset.cpp</code></a>
@@ -14278,6 +14901,9 @@ make release
 exact version:</p>
 <pre><code class="language-bash">pip install pyvsag==X.Y.Z
 </code></pre>
+<p>Releases built on the C API ship one <code>py3-none-manylinux_2_28</code> wheel per architecture (Linux, glibc
+2.28 or later, CPython 3.10 or later). Earlier releases shipped one wheel per CPython version, down
+to 3.6, built for <code>manylinux2014</code>; pin one of those if you need an older interpreter or glibc.</p>
 <p>Binding releases may not match every core C++ tag. The repository also contains C and
 Node.js/TypeScript bindings. See the corresponding release series page and repository examples for
 their support and packaging state.</p>
@@ -14695,7 +15321,7 @@ behavior. The agent will mirror this into the template’s required fields.</li>
 shell wrapper at
 <a href="https://github.com/antgroup/vsag/blob/main/tools/issue-helper/new-issue.sh"><code>tools/issue-helper/new-issue.sh</code></a>.</li>
 </ul>
-<h2 id="see-also-18"><a class="header" href="#see-also-18">See also</a></h2>
+<h2 id="see-also-19"><a class="header" href="#see-also-19">See also</a></h2>
 <ul>
 <li><a href="#community">Community</a></li>
 <li><a href="#contributing-to-vsag">Contributing to VSAG</a></li>

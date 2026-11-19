@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -378,21 +378,20 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>buckets_count</code></td><td>int</td><td><code>10</code></td><td>Number of inverted lists (effective for <code>ivf</code>)</td></tr>
 <tr><td><code>first_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>First-level count (effective for <code>gno_imi</code>)</td></tr>
 <tr><td><code>second_order_buckets_count</code></td><td>int</td><td><code>10</code></td><td>Second-level count (effective for <code>gno_imi</code>)</td></tr>
-<tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>Centroid training: <code>kmeans</code> or <code>random</code></td></tr>
+<tr><td><code>ivf_train_type</code></td><td>string</td><td><code>"kmeans"</code></td><td>Centroid training: <code>kmeans</code>, <code>e_means</code> (mini-batch EMA clustering, <a href="https://arxiv.org/abs/2611.09501">arXiv:2611.09501</a>; <code>partition_strategy_type: "ivf"</code> only) or <code>random</code></td></tr>
+<tr><td><code>e_means_epochs</code></td><td>int</td><td><code>3</code></td><td>Passes over the training sample (effective with <code>ivf_train_type: "e_means"</code>).</td></tr>
 <tr><td><code>kmeans_iter_count</code></td><td>int</td><td><code>25</code> (<code>ivf</code>), <code>30</code> (<code>gno_imi</code>)</td><td>KMeans training iterations for centroid training (effective with <code>ivf_train_type: "kmeans"</code>). Higher → better bucket quality, longer build.</td></tr>
-<tr><td><code>route_max_degree</code></td><td>int</td><td><code>64</code></td><td>Routing HGraph maximum degree (effective for <code>ivf</code>)</td></tr>
-<tr><td><code>route_ef_construction</code></td><td>int</td><td><code>300</code></td><td>Routing HGraph construction search breadth (effective for <code>ivf</code>)</td></tr>
 <tr><td><code>enable_gpu_build</code></td><td>bool</td><td><code>false</code></td><td>Use the CUDA backend while building (effective for <code>ivf</code>); see <a href="#gpu-accelerated-build">GPU-accelerated build</a></td></tr>
 <tr><td><code>gpu_device_id</code></td><td>int</td><td><code>0</code></td><td>CUDA device ordinal (effective for <code>ivf</code>); an ordinal the machine does not have keeps the build on the CPU</td></tr>
 <tr><td><code>gpu_memory_budget</code></td><td>int</td><td><code>0</code></td><td>Ceiling in bytes on the device working set (effective for <code>ivf</code>); <code>0</code> derives it from what the device has free</td></tr>
 <tr><td><code>gpu_min_work_threshold</code></td><td>int</td><td><code>0</code></td><td>Smallest <code>count * buckets_count * dim</code> worth offloading (effective for <code>ivf</code>); <code>0</code> uses the calibrated default</td></tr>
 <tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code> — see the <a href="../quantization/">Quantization chapter</a> for per-quantizer details</td></tr>
-<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ subspaces (required with <code>pq</code> / <code>pqfs</code>)</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>PQ subspace dimension. Effective only when <code>base_quantization_type</code> is <code>pq</code> or <code>pqfs</code>. Must divide <code>dim</code>.</td></tr>
 <tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td>Optional PCA preprocessing dimension for <code>base_quantization_type: "rabitq"</code></td></tr>
 <tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>Query bits for <code>rabitq</code>; allowed values are <code>4</code> or <code>32</code></td></tr>
 <tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>Stored-code bits for <code>rabitq</code>; allowed range is <code>[1, 8]</code></td></tr>
 <tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>Enables RaBitQ split storage and sets the supplement (<code>y</code>) bits; <code>rabitq_bits_per_dim_base</code> is the filter (<code>x</code>) bits and <code>x + y &lt;= 8</code></td></tr>
-<tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td><code>rabitq</code> layout: <code>"standard"</code> or <code>"split_1bit_7bit"</code></td></tr>
+<tr><td><code>rabitq_version</code></td><td>string</td><td><code>"standard"</code></td><td><code>rabitq</code> layout: <code>"standard"</code>, <code>"split"</code>, or <code>"split_1bit_7bit"</code>. <code>"split"</code> and <code>"split_1bit_7bit"</code> are aliases. The value selects RaBitQ encoding version: <code>"standard"</code> for single-codec RaBitQ, <code>"split"</code> for split filter-plus-supplement.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Positive error-budget parameter for <code>rabitq</code> encoding</td></tr>
 <tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td>Enable FHT rotation before <code>rabitq</code> binarization</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use CAQ fast construction for multi-bit <code>rabitq</code>; set to <code>false</code> for exact encoding</td></tr>
@@ -401,6 +400,18 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>saq_avg_bits</code></td><td>float</td><td><code>4.0</code></td><td>SAQ average record bits per dimension, in <code>[1, 8]</code></td></tr>
 <tr><td><code>saq_segment_count</code></td><td>int</td><td><code>0</code></td><td>SAQ segment count; <code>0</code> selects boundaries dynamically</td></tr>
 <tr><td><code>saq_random_rotation</code></td><td>bool</td><td><code>true</code></td><td>Apply an independent orthogonal rotation inside each SAQ segment</td></tr>
+<tr><td><code>base_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path when the base IO type is disk-backed</td></tr>
+<tr><td><code>base_cache_total_size</code></td><td>int</td><td><code>268435456</code></td><td>Read-cache size in bytes for the base IO backend</td></tr>
+<tr><td><code>precise_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path when the precise IO type is disk-backed</td></tr>
+<tr><td><code>precise_cache_total_size</code></td><td>int</td><td><code>268435456</code></td><td>Read-cache size in bytes for the precise IO backend</td></tr>
+<tr><td><code>use_route_graph</code></td><td>bool</td><td><code>true</code></td><td>Enable route graph for <code>ivf</code> centroid scan; ignored for <code>gno_imi</code></td></tr>
+<tr><td><code>buckets_per_data</code></td><td>int</td><td><code>1</code></td><td>Number of buckets each vector is assigned to. Must be <code>1</code> when <code>precise_codes_layout</code> is <code>bucket</code> or when RaBitQ split storage is used.</td></tr>
+<tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Enable attribute-based filtering (see <a href="../advanced/attribute_filter.html">Attribute Filter</a>)</td></tr>
+<tr><td><code>thread_count</code></td><td>int</td><td><code>1</code></td><td>Sets the internal thread pool size for build operations</td></tr>
+<tr><td><code>train_sample_count</code></td><td>int</td><td><code>max(65536, 64*buckets_count)</code></td><td>Vectors sampled for training. Must be ≥ 512.</td></tr>
+<tr><td><code>graph_build_threshold</code></td><td>int</td><td><code>0</code></td><td>Number of vectors per bucket above which an internal bucket graph is built (degree fixed at 64). RaBitQ split storage requires this to be <code>0</code>.</td></tr>
+<tr><td><code>base_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the read cache on the base IO backend</td></tr>
+<tr><td><code>precise_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the read cache on the precise IO backend</td></tr>
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse scan</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (with <code>use_reorder: true</code>)</td></tr>
 <tr><td><code>precise_codes_layout</code></td><td>string</td><td><code>"flat"</code></td><td>Storage layout for precise codes: <code>"flat"</code> keeps the legacy one-code-per-vector layout; <code>"bucket"</code> stores the precise code in the same bucket and offset as its basic posting</td></tr>
@@ -408,7 +419,6 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>base_supplement_io_type</code></td><td>string</td><td>unset</td><td>Optional IO backend for RaBitQ split supplement codes</td></tr>
 <tr><td><code>base_supplement_file_path</code></td><td>string</td><td>derived</td><td>Optional file path for disk-backed RaBitQ supplement codes</td></tr>
 <tr><td><code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for precise codes (<code>memory_io</code>, <code>block_memory_io</code>, <code>mmap_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>reader_io</code>)</td></tr>
-<tr><td><code>precise_file_path</code></td><td>string</td><td><code>""</code></td><td>File path when the precise IO type is disk-backed</td></tr>
 </tbody>
 </table>
 </div>
@@ -569,15 +579,20 @@ and <code>reader_io</code>; the supported hybrid layout is filter
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>scan_buckets_count</code></td><td>int</td><td>— (required)</td><td>Number of buckets probed per query. Must be ≤ <code>buckets_count</code> (except when <code>disable_bucket_scan</code> is true, where larger values are allowed and unavailable slots are padded with <code>-1</code>).</td></tr>
-<tr><td><code>disable_bucket_scan</code></td><td>bool</td><td><code>false</code></td><td>Return bucket IDs and distances. Supports batch queries.</td></tr>
+<tr><td><code>scan_buckets_count</code></td><td>int</td><td>— (required)</td><td>Number of buckets probed per query. Values exceeding the actual number of buckets are clamped to the bucket count, unless <code>disable_bucket_scan</code> is <code>true</code> (which uses the count verbatim).</td></tr>
+<tr><td><code>disable_bucket_scan</code></td><td>bool</td><td><code>false</code></td><td>Return bucket IDs and distances instead of re-ranked results. Supports batch queries.</td></tr>
+<tr><td><code>first_order_scan_ratio</code></td><td>float</td><td><code>1.0</code></td><td>Fraction of first-order GNO-IMI buckets to scan; the actual count is <code>max(1, floor(first_order_buckets * ratio))</code>. Effective only for <code>gno_imi</code>.</td></tr>
+<tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>Search breadth for bucket-internal routing graph traversal. Values ≤ 0 use the default.</td></tr>
 <tr><td><code>factor</code></td><td>float</td><td><code>2.0</code></td><td>With reordering enabled, pulls <code>factor * topk</code> coarse candidates before the precise rescore.</td></tr>
 <tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>Set to <code>false</code> to skip the final reorder stage for this request even when the index was built with reorder enabled.</td></tr>
-<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Threads used to scan buckets in parallel for a single query.</td></tr>
-<tr><td><code>timeout_ms</code></td><td>double</td><td><code>+∞</code></td><td>Hard cap in milliseconds; partial results are returned once exceeded.</td></tr>
+<tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Threads used to scan buckets in parallel for a single query. Needs an internal thread pool; falls back to single-threaded when no pool is available.</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>no limit</td><td>Soft time bound in milliseconds for per-bucket scan. Setting to <code>0</code> causes an immediate timeout; omit the key to disable.</td></tr>
 </tbody>
 </table>
 </div>
+<p>The root-level <code>threshold</code> key (sibling of <code>ivf</code>, not a member of it) is also honoured: a
+finite numeric value discards KNN candidates whose distance exceeds it. It is parsed before the
+<code>ivf</code> object.</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"ivf": {"scan_buckets_count": 32, "factor": 2.0, "parallelism": 4}})").value();
@@ -604,6 +619,43 @@ queries-per-second.</li>
 <li><a href="../resources/index_parameters.html">Index Parameters</a></li>
 <li><a href="../advanced/serialization.html">Serialization</a></li>
 </ul>
+<h3 id="optional-worker-diagnostics-c"><a class="header" href="#optional-worker-diagnostics-c">Optional worker diagnostics (C++)</a></h3>
+<p>For single-query IVF KNN with an external <code>distance_batch_func_</code>, attach a
+<code>SearchProfile</code> to diagnose insufficient CPU utilization despite requested
+parallelism. Profiling is <strong>disabled by default</strong>; it does not change search
+results or the attribute/distance/general-filter order.</p>
+<pre><code class="language-cpp">request.profile_ = std::make_shared&lt;vsag::SearchProfile&gt;();
+auto result = index-&gt;SearchWithRequest(request);
+std::cout &lt;&lt; request.profile_-&gt;ToString(query_id) &lt;&lt; '\n';
+request.profile_ = nullptr;  // Disable collection, not just printing.
+</code></pre>
+<p>Read or format the profile only after search returns. Each simultaneous request
+must own a distinct profile; concurrent reuse is rejected, sequential reuse resets
+it. The library does not print from worker threads. Profiling is rejected for
+unsupported IVF paths (including built-in-distance, range, batched-query,
+iterator and routing-only search); other index types do not collect this profile.</p>
+<p><code>ToString(query_id)</code> returns one <code>[IVF_PROFILE]</code> summary and one <code>[IVF_WORKER]</code>
+line per logical worker:</p>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Fields</th><th>Meaning</th></tr>
+</thead>
+<tbody>
+<tr><td><code>total_wall_ms</code>, <code>scan_wall_ms</code></td><td>IVF request elapsed time and parallel scan elapsed time, including task submission and waiting. Formatting/printing is outside both.</td></tr>
+<tr><td><code>worker_cpu_ms</code>, <code>scan_avg_cores</code></td><td>Sum of worker thread CPU increments and that sum divided by scan wall time. CPU of threads spawned by callbacks is excluded.</td></tr>
+<tr><td><code>start_ms</code>, <code>end_ms</code>, <code>wall_ms</code>, <code>cpu_ms</code></td><td>Worker interval relative to scan start, its elapsed length, and thread CPU consumed. A wall/CPU gap alone cannot distinguish blocking, preemption or quotas.</td></tr>
+<tr><td><code>buckets</code>, <code>candidates</code>, <code>batches</code></td><td>Processed valid buckets, entries submitted to distance callbacks, and callback batches. Replicated entries may repeat labels; a throwing batch still counts submitted entries.</td></tr>
+<tr><td><code>attr_ms</code>, <code>dist_ms</code></td><td>Bucket attribute executor <code>Clear/Run</code> and distance callback elapsed time, including internal waits. Per-candidate attribute checks and the general filter are not separately timed.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Thread CPU uses Linux <code>CLOCK_THREAD_CPUTIME_ID</code>; unavailable measurements print
+<code>NA</code> rather than zero cores. <code>complete=true</code> means a normal return, including a
+normal timeout with partial results, not necessarily a complete scan. Counts and
+elapsed time are sampled only at worker, bucket and batch boundaries, not per
+candidate. Diagnostics still perturb execution; use selectively. No claim of
+zero overhead or zero regression when disabled is implied.</p>
 
                     </main>
 

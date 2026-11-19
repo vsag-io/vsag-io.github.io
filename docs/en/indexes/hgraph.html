@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -375,15 +375,16 @@ Focused AsyncIO tests cover one-page eviction/refill, write invalidation, and
 invalid reads; the HGraph read-cache functional test retains precise-code graph
 construction coverage.</p>
 <h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
-<p>Build-time parameters live under <code>index_param</code>. The table below highlights the keys
-most users need; the exhaustive list is in <a href="../resources/index_parameters.html">Index Parameters</a>.</p>
+<p>Build-time parameters live under <code>index_param</code>. The table below is the complete list of public
+build keys accepted by HGraph; <a href="../resources/index_parameters.html">Index Parameters</a> additionally
+records cross-index defaults and the top-level common fields.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>— (required)</td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code>, <code>tq</code> — see the <a href="../quantization/">Quantization chapter</a> for per-quantizer details</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td><code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq4</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code>, <code>tq</code> — see the <a href="../quantization/">Quantization chapter</a> for per-quantizer details</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per graph node</td></tr>
 <tr><td><code>ef_construction</code></td><td>int</td><td><code>400</code></td><td>Candidate list size during build (higher = better recall, slower build)</td></tr>
 <tr><td><code>alpha</code></td><td>float</td><td><code>1.0</code></td><td>Final robust-pruning factor; PiPNN requires a finite value at least <code>1.0</code>.</td></tr>
@@ -402,7 +403,7 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 <tr><td><code>use_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep a high-precision copy and re-rank after the coarse search</td></tr>
 <tr><td><code>reorder_source</code></td><td>string</td><td><code>"precise"</code></td><td>Reorder from <code>"precise"</code> codes or directly from <code>"base"</code> codes. RaBitQ x+y split, including <code>tq_chain: "mrle, rabitq"</code>, sets <code>"base"</code> automatically.</td></tr>
 <tr><td><code>precise_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Quantizer used for reordering (takes effect only with <code>use_reorder: true</code>)</td></tr>
-<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default.</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Number of PQ subspaces. When using <code>pq</code> / <code>pqfs</code>, set this explicitly instead of relying on the default. Must not exceed <code>dim</code> in a way the quantizer rejects.</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Output dimension for an MRLE transform in <code>tq_chain</code>; allowed range <code>[0, dim]</code>, where <code>0</code> means the input dimension.</td></tr>
 <tr><td><code>fast_encode_rabitq</code></td><td>bool</td><td><code>true</code></td><td>Use the fast multi-bit RaBitQ encoder; set to <code>false</code> for the previous exact encoder.</td></tr>
 <tr><td><code>fast_encode_rabitq_rounds</code></td><td>int</td><td><code>6</code></td><td>Fast RaBitQ coordinate-refinement rounds, in <code>[1, 32]</code>.</td></tr>
@@ -420,15 +421,67 @@ most users need; the exhaustive list is in <a href="../resources/index_parameter
 <tr><td><code>store_raw_vector</code></td><td>bool</td><td><code>false</code></td><td>Keep the raw vector in addition to the quantized copy (useful for <code>cosine</code>)</td></tr>
 <tr><td><code>use_elp_optimizer</code></td><td>bool</td><td><code>false</code></td><td>Auto-tune search parameters after build</td></tr>
 <tr><td><code>base_io_type</code> / <code>precise_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend (<code>memory_io</code>, <code>block_memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>mmap_io</code>)</td></tr>
-<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td>—</td><td>File path; required when the corresponding <code>*_io_type</code> is disk-backed (<code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>mmap_io</code>)</td></tr>
+<tr><td><code>base_file_path</code> / <code>precise_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path used when the corresponding <code>*_io_type</code> is disk-backed (<code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>mmap_io</code>). The parser never requires it, but two indexes sharing the default path will collide, so give disk-backed indexes distinct paths.</td></tr>
 <tr><td><code>base_direct_read</code> / <code>precise_direct_read</code></td><td>bool</td><td><code>false</code></td><td>With <code>uring_io</code>, open the corresponding file using direct IO instead of the page cache.</td></tr>
 <tr><td><code>hgraph_init_capacity</code></td><td>int</td><td><code>100</code></td><td>Initial capacity hint (doesn’t cap the final size)</td></tr>
 <tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>Persist source-ID metadata during serialization so a restored index can later export a reusable build cache.</td></tr>
 <tr><td><code>use_conjugate_graph</code></td><td>bool</td><td><code>false</code></td><td>Enable <code>Feedback</code>/<code>Pretrain</code> graph enhancement; see <a href="../advanced/enhance_graph.html">Graph Index Enhancement</a>.</td></tr>
 <tr><td><code>resize_increase_count_bit</code></td><td>int</td><td><code>10</code></td><td><code>log2</code> of the slot-growth batch. Valid range is <code>1</code> to <code>31</code>; <code>1</code> grows in 2-slot batches and <code>10</code> in 1,024-slot batches. Smaller values reduce preallocation but can increase reallocations.</td></tr>
+<tr><td><code>graph_storage_type</code></td><td>string</td><td><code>"flat"</code></td><td>Graph storage layout: <code>flat</code> or <code>compressed</code>. <code>compressed</code> is unsupported together with <code>use_reverse_edges</code>.</td></tr>
+<tr><td><code>graph_iter_turn</code></td><td>int</td><td><code>30</code></td><td>ODescent only: graph iteration rounds.</td></tr>
+<tr><td><code>neighbor_sample_rate</code></td><td>float</td><td><code>0.2</code></td><td>ODescent only: neighbour-sampling rate used while refining the graph.</td></tr>
+<tr><td><code>min_in_degree</code></td><td>int</td><td><code>1</code></td><td>ODescent only: minimum in-degree enforced while building.</td></tr>
+<tr><td><code>build_block_size</code></td><td>int</td><td><code>10000</code></td><td>ODescent only: number of points processed per build block.</td></tr>
+<tr><td><code>build_by_base</code></td><td>bool</td><td><code>false</code></td><td>Build the graph from base codes instead of precise codes when precise reorder storage exists. Pair with <code>use_reorder: true</code> and <code>reorder_source: "base"</code> to trade graph quality for memory.</td></tr>
+<tr><td><code>ignore_reorder</code></td><td>bool</td><td><code>false</code></td><td>Keep the precise codes in storage but never read them at query time. The effective reorder flag is <code>use_reorder &amp;&amp; !ignore_reorder</code>, and <code>use_reorder</code>/<code>ignore_reorder</code> must agree at compatibility-check time.</td></tr>
+<tr><td><code>use_attribute_filter</code></td><td>bool</td><td><code>false</code></td><td>Build the attribute inverted index so <code>extra_info</code> predicates can be pushed down into the search. Configure posting-list layout through the index defaults; <code>attr_params</code> is <strong>not</strong> a public key.</td></tr>
+<tr><td><code>graph_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for the graph structure (<code>memory_io</code>, <code>block_memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>uring_io</code>, <code>mmap_io</code>).</td></tr>
+<tr><td><code>graph_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path used when <code>graph_io_type</code> is disk-backed.</td></tr>
+<tr><td><code>raw_vector_io_type</code></td><td>string</td><td><code>"block_memory_io"</code></td><td>Storage backend for the retained raw vectors (<code>store_raw_vector: true</code>).</td></tr>
+<tr><td><code>raw_vector_file_path</code></td><td>string</td><td><code>"./default_file_path"</code></td><td>File path used when <code>raw_vector_io_type</code> is disk-backed.</td></tr>
+<tr><td><code>base_supplement_io_type</code></td><td>string</td><td>unset</td><td>IO backend for the RaBitQ split supplement codes. Only meaningful with split base codes: the split data cell accepts the same backend for both halves (<code>block_memory_io</code>, <code>memory_io</code>, <code>buffer_io</code>, <code>async_io</code>, <code>mmap_io</code>; <code>uring_io</code> is never supported) or the hybrid base <code>block_memory_io</code> + supplement <code>async_io</code> (<code>buffer_io</code> when libaio is unavailable). <code>rabitq_fused_datacell</code> additionally restricts both halves to <code>block_memory_io</code> / <code>memory_io</code>.</td></tr>
+<tr><td><code>base_supplement_file_path</code></td><td>string</td><td>derived</td><td>File path for the split supplement backend; defaults to the base path with a <code>_supplement</code> suffix.</td></tr>
+<tr><td><code>precise_user_defined_io</code></td><td>string</td><td>unset</td><td>Registered user-defined IO class name. Required only when <code>precise_io_type: "user_defined_io"</code>, which also demands <code>use_reorder: true</code>, precise <code>fp32</code>, base <code>sq8</code> codes and <code>block_memory_io</code> base plus graph storage.</td></tr>
+<tr><td><code>base_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the block read cache for base codes. Only meaningful with a block-based disk backend.</td></tr>
+<tr><td><code>precise_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the block read cache for precise codes.</td></tr>
+<tr><td><code>graph_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the block read cache for graph data.</td></tr>
+<tr><td><code>raw_vector_enable_read_cache</code></td><td>bool</td><td><code>false</code></td><td>Enable the block read cache for retained raw vectors.</td></tr>
+<tr><td><code>base_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>Read-cache budget in bytes for base codes (256 MiB).</td></tr>
+<tr><td><code>precise_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>Read-cache budget in bytes for precise codes.</td></tr>
+<tr><td><code>graph_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>Read-cache budget in bytes for graph data.</td></tr>
+<tr><td><code>raw_vector_cache_total_size</code></td><td>uint64</td><td><code>268435456</code></td><td>Read-cache budget in bytes for retained raw vectors.</td></tr>
+<tr><td><code>tq_chain</code></td><td>string</td><td>unset</td><td>Transform chain, for example <code>"mrle, rabitq"</code>. Only valid when <code>base_quantization_type: "tq"</code>; setting it with any other base quantizer is rejected.</td></tr>
+<tr><td><code>rabitq_pca_dim</code></td><td>int</td><td><code>0</code></td><td>RaBitQ PCA output dimension; <code>0</code> disables PCA. Use <code>dim</code>-compatible values only.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_query</code></td><td>int</td><td><code>32</code></td><td>RaBitQ query bits per dimension. Must be <code>4</code> or <code>32</code>, and split storage requires <code>32</code>.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_base</code></td><td>int</td><td><code>1</code></td><td>RaBitQ base bits per dimension, in <code>[1, 8]</code>. With split storage this is the <code>x</code> of <code>x + y</code>.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_precise</code></td><td>int</td><td>unset</td><td>RaBitQ precise bits per dimension, the <code>y</code> of a split. Requires <code>x + y &lt;= 8</code> plus reorder with precise RaBitQ codes.</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Finite positive lower-bound error multiplier baked into the built RaBitQ codes. Search-level <code>rabitq_error_rate</code> overrides it per query.</td></tr>
+<tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td>Use the fast Hadamard transform inside RaBitQ.</td></tr>
+<tr><td><code>sq4_uniform_trunc_rate</code></td><td>float</td><td><code>0.05</code></td><td>Truncation rate for the <code>sq4_uniform</code> base quantizer; must be finite and in <code>[0, 0.5]</code>.</td></tr>
+<tr><td><code>remove_flag_bit</code></td><td>uint32</td><td><code>8</code></td><td>Bit position of the delete-tracking flag in the graph record. Consistent with <code>support_remove</code> metadata; changing it on an existing index breaks compatibility.</td></tr>
+<tr><td><code>use_mci</code></td><td>bool</td><td><code>false</code></td><td>Enable Multi-Cluster Indexing. Setting any <code>mci_*</code> build key also turns MCI on.</td></tr>
+<tr><td><code>mci_mcs</code></td><td>int</td><td><code>200</code></td><td>MCI target cluster size; must be positive.</td></tr>
+<tr><td><code>mci_clique_max</code></td><td>int</td><td><code>50</code></td><td>MCI clique size floor used by the full-clique phase — a minimum, not a cap on clique size.</td></tr>
+<tr><td><code>mci_alpha</code></td><td>float</td><td><code>1.2</code></td><td>MCI pruning alpha; at least <code>1.0</code>.</td></tr>
+<tr><td><code>mci_knng_source</code></td><td>string</td><td><code>"hgraph"</code></td><td>k-NNG source graph for MCI: <code>"hgraph"</code> or <code>"odescent"</code>.</td></tr>
+<tr><td><code>mci_incremental_join_ratio_threshold</code></td><td>float</td><td><code>0.6</code></td><td>Join-ratio threshold for the incremental MCI phase, in <code>[0, 1]</code>.</td></tr>
+<tr><td><code>mci_incremental_degree_min</code></td><td>int</td><td><code>50</code></td><td>Minimum degree in the incremental MCI phase; must be positive.</td></tr>
+<tr><td><code>mci_incremental_degree_n_divisor</code></td><td>int</td><td><code>10000</code></td><td>Divisor applied to point count when sizing incremental degrees; must be positive.</td></tr>
+<tr><td><code>mci_incremental_degree_mcs_divisor</code></td><td>int</td><td><code>2</code></td><td>Divisor applied to MCI cluster size when sizing incremental degrees; must be positive.</td></tr>
+<tr><td><code>mci_incremental_clique_max</code></td><td>int</td><td><code>50</code></td><td>Clique ceiling in the incremental MCI phase; integer at least <code>2</code>.</td></tr>
+<tr><td><code>mci_delete_clique_size_threshold</code></td><td>int</td><td><code>30</code></td><td>Clique size below which MCI delete bookkeeping triggers; must be positive.</td></tr>
+<tr><td><code>mci_delete_node_mct_threshold</code></td><td>int</td><td><code>3</code></td><td>Node MCT threshold for MCI delete bookkeeping; must be positive.</td></tr>
+<tr><td><code>mci_clique_activation_order</code></td><td>bool</td><td><code>false</code></td><td>Visit MCI cliques in activation order instead of index order during build.</td></tr>
 </tbody>
 </table>
 </div>
+<p>Keys that look related but are <strong>not</strong> public HGraph build parameters: <code>attr_params</code>
+(an internal object built from index defaults), <code>fill_rejected</code> /
+<code>adaptive_pruning_fill_rejected</code> (accepted by the mapper but rejected downstream by the
+adaptive-pruning parser), <code>mci</code> (rejected marker), <code>mci_incremental_added_mct</code> (removed old
+MCI key), <code>mci_knng_path</code> (internal only), <code>precise_enable_prefetch_hint</code>, <code>rabitq_version</code>
+and <code>rabitq_bits_per_dim_filter</code> (derived by the split helpers). Passing any of them raises
+<code>invalid config param</code> or a dedicated argument error.</p>
 <p><code>sq8_local</code> and <code>sq4_local</code> support float32/float16/bfloat16 input with L2/IP/cosine base and precise stores (including RaBitQ + local SQ4/SQ8 reranking). See <a href="../quantization/sq.html#local-sq4--sq8-float32-l2-ip-and-cosine">layout, numeric limits and Tune compatibility</a>.</p>
 <p><code>use_reverse_edges</code> is intended for workloads that need fast incoming-neighbor inspection, graph
 analysis, or future graph-maintenance algorithms. It is disabled by default because maintaining
@@ -652,22 +705,39 @@ Indexes written before this option existed default to disabled mode.</p>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ef_search</code></td><td>int64</td><td>— (required)</td><td>Positive search-frontier size. Any value up to <code>INT64_MAX</code> is accepted; there is no <code>topk</code>-relative upper bound. Larger values increase recall, latency, and frontier memory.</td></tr>
-<tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Hard cap on the number of hops the beam search performs before returning the current frontier.</td></tr>
+<tr><td><code>ef_search</code></td><td>int64</td><td>— (required)</td><td>Positive search-frontier size. Any value up to <code>INT64_MAX</code> is accepted; there is no <code>topk</code>-relative upper bound. Larger values increase recall, latency, and frontier memory. Omit it and parsing fails; the <code>30</code> in the parameter struct is not a usable query default.</td></tr>
+<tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Cap on the number of hops the beam search performs before returning the current frontier. A value that is <strong>not greater</strong> than <code>ef_search</code> is not applied: the parser logs a warning and restores the unlimited default, so the hop cap only takes effect above <code>ef_search</code>.</td></tr>
 <tr><td><code>skip_ratio</code></td><td>float</td><td><code>0.2</code></td><td>Performance tuning parameter for filtered search. Controls the ratio of invalid points to skip, in range <code>[0.0, 1.0]</code>. <code>skip_ratio=0.2</code> means skip 20% of invalid points and only check 80%. Higher values improve performance but may reduce recall. Only applies to searches with filters. See <a href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy</a> below.</td></tr>
 <tr><td><code>skip_strategy</code></td><td>string</td><td><code>"deterministic_accumulative"</code></td><td>Strategy for filter skipping. Options: <code>"random"</code> (random skipping) or <code>"deterministic_accumulative"</code> (deterministic cumulative skipping). See <a href="#filter-skip-strategy-skip_ratio-and-skip_strategy">Filter Skip Strategy</a> below.</td></tr>
 <tr><td><code>brute_force_threshold</code></td><td>float</td><td><code>0.0</code></td><td>Selectivity-aware brute-force fallback. When <code>&gt; 0</code> and the supplied filter’s <code>ValidRatio()</code> is <code>≤ brute_force_threshold</code>, the search <strong>bypasses the graph traversal entirely</strong> and runs an exact scan over the valid ids using the best available flatten codes (see the section below). Must lie in <code>[0.0, 1.0]</code>; the default <code>0.0</code> disables the feature and preserves legacy behavior.</td></tr>
 <tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td><code>false</code></td><td>Enables the RaBitQ filter/lower-bound path. On an x+y split index it uses all x filter bits; see <a href="../quantization/rabitq_split.html">RaBitQ x+y Split</a>.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td>index default</td><td>Positive lower-bound error multiplier for this search. It can be tuned without rebuilding the split index.</td></tr>
 <tr><td><code>enable_reorder</code></td><td>bool</td><td><code>true</code></td><td>Whether to re-rank coarse candidates against the precise codes. Set to <code>false</code> to skip reordering and return the approximate results directly. Use <code>use_reorder: true</code> in <code>index_param</code> to store the precise codes needed for reordering.</td></tr>
-<tr><td><code>factor</code></td><td>float</td><td><code>0.0</code></td><td>Reorder-candidate amplification factor. When <code>&gt; 1.0</code>, the reorder-candidate pool is capped at <code>k * factor</code> (but never below <code>max(ef_search, k)</code>); the default <code>0.0</code> preserves the existing behaviour with <code>ef_search</code> candidates.</td></tr>
+<tr><td><code>factor</code></td><td>float</td><td><code>0.0</code></td><td>Reorder-candidate multiplier. The candidate pool starts at <code>max(ef_search, topk)</code>; when <code>&gt; 1.0</code> it is capped at <code>min(max(ef_search, topk), floor(topk * factor))</code>, so it can end up <strong>below</strong> <code>ef_search</code>. The default <code>0.0</code> keeps the <code>ef_search</code> pool. A conjugate graph raises the final pool to at least its look-at-<code>k</code> floor. Ignored when reorder is not available.</td></tr>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Number of parallel workers for a single HGraph search. Values <code>&lt;= 0</code> are reset to <code>1</code> during parsing; parallel execution requires a configured executor, otherwise the search falls back to sequential execution.</td></tr>
 <tr><td><code>timeout_ms</code></td><td>int</td><td>unlimited</td><td>Per-query wall-clock timeout in milliseconds. The timer starts after routing; once exceeded, the search returns the current frontier. Best-effort only — it does not preempt a distance-computation batch.</td></tr>
 <tr><td><code>use_extra_info_filter</code></td><td>bool</td><td><code>false</code></td><td>Create the query filter from extra-info rather than plain label membership. Requires matching extra-info columns at build time.</td></tr>
 <tr><td><code>use_conjugate_graph_search</code></td><td>bool</td><td><code>true</code></td><td>Search enhancement pass. When <code>use_conjugate_graph: true</code> was set at build time, the search expands results through the conjugate graph for potentially higher recall; set to <code>false</code> to skip it. Only takes effect when a conjugate graph was built.</td></tr>
+<tr><td><code>use_mci</code></td><td>bool</td><td><code>true</code></td><td>Use the built MCI routing phase during traversal. Requires an index built with MCI enabled; otherwise the flag is harmless.</td></tr>
+<tr><td><code>use_hybrid_traversal</code></td><td>bool</td><td><code>false</code></td><td>Blend MCI routing with graph traversal instead of choosing one path.</td></tr>
+<tr><td><code>search_no_lock</code></td><td>bool</td><td><code>false</code></td><td>Skip the search-side lock. Requires <code>parallelism</code> to be <code>1</code>; the caller must guarantee no concurrent modification or destruction of the index while the query runs.</td></tr>
+<tr><td><code>mci_packed_filter</code></td><td>bool</td><td><code>true</code></td><td>Evaluate MCI filters against packed candidate blocks.</td></tr>
+<tr><td><code>mci_batch_distance</code></td><td>bool</td><td><code>true</code></td><td>Batch MCI distance computations across a candidate batch.</td></tr>
+<tr><td><code>mci_activation_cap</code></td><td>uint32</td><td><code>0</code></td><td>Maximum number of MCI cliques activated per query; <code>0</code> means unlimited.</td></tr>
+<tr><td><code>mci_hops_limit</code></td><td>uint32</td><td><code>4294967295</code></td><td>Hop cap applied to the MCI routing phase specifically.</td></tr>
+<tr><td><code>mci_expansion_idle_window</code></td><td>uint32</td><td><code>0</code></td><td>Stop MCI expansion after this many consecutive candidates without improvement; <code>0</code> disables early stop. The parser limits the value to the <code>uint32</code> range even though the field is <code>uint64</code>.</td></tr>
+<tr><td><code>hybrid_vob</code></td><td>float</td><td><code>0.0</code></td><td>Virtual out-degree budget for hybrid traversal; finite and non-negative.</td></tr>
+<tr><td><code>hybrid_filter_cost_ratio</code></td><td>float</td><td><code>1.0</code></td><td>Relative cost weight of filter evaluation against graph expansion during hybrid traversal; finite and non-negative.</td></tr>
+<tr><td><code>mci_seed_ratio</code></td><td>float</td><td><code>0.1</code></td><td>Multiplier on <code>sqrt(N)</code> that sets the base MCI seed budget; finite and non-negative. Setting it together with <code>mci_seed_coverage</code> to <code>0</code> disables seeding.</td></tr>
+<tr><td><code>mci_seed_coverage</code></td><td>float</td><td><code>1.0</code></td><td>Fraction of the valid set the seed budget is raised to cover. The raised target is used only when it fits <code>mci_seed_max_count</code> and does not exceed the live count; otherwise the coverage term is dropped entirely rather than truncated. Finite and non-negative.</td></tr>
+<tr><td><code>mci_seed_max_count</code></td><td>int64</td><td><code>32768</code></td><td>Cap for the <code>mci_seed_coverage</code> term above; <code>0</code> means unlimited. Replacement for the removed <code>mci_seed_count</code>, which is rejected outright.</td></tr>
+<tr><td><code>hgraph_valid_ratio_threshold</code></td><td>float</td><td><code>0.05</code></td><td>Filter selectivity below which MCI routing may be skipped, in <code>[0, 1]</code>.</td></tr>
 </tbody>
 </table>
 </div>
+<p>The root-level <code>threshold</code> key (sibling of <code>hgraph</code>, not a member of it) is also honoured: a
+finite numeric value discards KNN candidates whose distance exceeds it. It is read by
+<code>ParseSearchThreshold</code> before the <code>hgraph</code> object is parsed.</p>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk, R"({"hgraph": {"ef_search": 200}})").value();
 </code></pre>

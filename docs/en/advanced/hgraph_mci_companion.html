@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -372,8 +372,9 @@ and exhausted candidates or stalled construction can stop below it.</p>
 <p>Migration warning: <code>mci_incremental_added_mct</code> is no longer supported. Remove this old
 clique-count setting from <code>index_param</code> and configure <code>mci_incremental_degree_min</code>,
 <code>mci_incremental_degree_n_divisor</code>, and <code>mci_incremental_degree_mcs_divisor</code> instead.
-The old key is ignored, not translated; leaving it in the JSON applies the new defaults
-unless the degree parameters are explicitly set. There is no equivalent one-to-one mapping
+The old key is <strong>not</strong> ignored: the HGraph parameter mapper has no branch for it, so leaving it
+in the JSON fails the build with <code>invalid config param: mci_incremental_added_mct</code>. Remove it and
+set the new degree keys instead. There is no equivalent one-to-one mapping
 because overlapping cliques contribute different numbers of unique neighbors. Recheck recall
 and mutation cost, and rebuild old snapshots with the new configuration rather than assuming
 that a removed parameter provides snapshot compatibility.</p>
@@ -436,13 +437,18 @@ exact-seeding regime, at the cost of a larger seed phase. The default of <code>3
 enumeration cheap in absolute terms – 32768 inner ids are 128 KiB and therefore stay in cache –
 so the saturated skip stays a win instead of turning a wide predicate into a scan-sized seed
 phase.</p>
-<p>For the pure MCI route with non-contiguous vector storage, a certified complete, sorted seed
-list can be scored directly through the existing batched distance backend, without initializing
-visited marks or maintaining an expansion queue. This shortcut requires static CSR, a complete
-valid bitmap, no timeout and no mutable-predicate revalidation; it validates IDs and the pinned
-deletion view before use. Other queries retain ordinary traversal. The result heap still keeps
-<code>max(k, ef_search)</code> entries so existing reorder behavior is preserved. This changes execution
-overhead, not the seed budget, distance precision or serialized index.</p>
+<p>For the pure MCI route, a certified complete, sorted, unique seed list is validated before
+scoring. With static CSR and no timeout, it rechecks the user predicate when required and checks
+the pinned deletion view, then uses the same batched scoring code as ordinary traversal. Both
+contiguous FP32 and non-contiguous storage are supported; a bitmap is optional. This path keeps
+the ordinary locking policy and does not require <code>search_no_lock=true</code>. It creates no visited
+marks or expansion frontier. Failed validation falls back to ordinary traversal with its full
+candidate budget. Clique marks and packed filters are initialized only if expansion is needed.</p>
+<p>When no duplicate-aware or conjugate-search candidate retention is required, the complete-seed
+path keeps only the requested <code>k</code> results; otherwise it preserves the larger candidate budget.
+Equal-distance ties may select different equivalent IDs. Seed budgets, distance precision,
+timeout behavior and serialized indexes remain unchanged. Fully covered lists are enumerated
+directly instead of applying the general strided sampling formula.</p>
 <p>The companion needs a <code>Filter</code> object with a meaningful <code>ValidRatio()</code> hint. Bitset and
 function filters are accepted, but a custom <code>Filter</code> gives the search planner better
 selectivity information.</p>

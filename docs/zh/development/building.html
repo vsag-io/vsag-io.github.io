@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -306,7 +306,7 @@
                     <main>
                         <h1 id="编译构建"><a class="header" href="#编译构建">编译构建</a></h1>
 <p>VSAG 使用 CMake 构建。Full VSAG 的内部 CPU 源码使用 C++20，Linux 保留 GCC 9.4.0+ / Clang 13.0.0+ 的源码编译器基线，开发和 CI 固定使用 GCC 13 / Clang 20，并单独验证旧基线。公开头文件和 API 保持 C++17 可用；CUDA 源文件、Node.js 绑定和独立 Lite 继续使用 C++17。clang-format 和 clang-tidy 固定为版本 20。</p>
-<p>支持的平台包括 Ubuntu 20.04+、CentOS 7+，以及 Apple Silicon 上的 macOS 14+。
+<p>支持的平台包括 Ubuntu 20.04+、CentOS 7+，以及 Apple Silicon 上的 macOS 15+。
 macOS 使用 Xcode Command Line Tools 提供的 Apple Clang 和 Homebrew 依赖；当前支持范围是
 arm64 核心 C++ 构建，预编译 C++ 包与 Python wheel 仍以 Linux 为主。首次构建前运行：</p>
 <pre><code class="language-bash">./scripts/deps/install_deps.sh
@@ -348,7 +348,7 @@ release:                 ## Build vsag with release options.
 dist-pre-cxx11-abi:      ## Build vsag with distribution options.
 dist-cxx11-abi:          ## Build vsag with distribution options.
 dist-libcxx:             ## Build vsag using libc++.
-pyvsag:                  ## Build the pyvsag wheel (one py3-none wheel per architecture).
+pyvsag:                  ## Build the pyvsag wheel (one py3-none wheel per architecture) into wheelhouse/.
 clean-release:           ## Clear build-release/ directory.
 install:                 ## Build and install the release version of vsag.
 </code></pre>
@@ -381,8 +381,8 @@ stamp、日志和元数据不计入 <code>local_bytes</code>，也不计入准�
 <blockquote>
 <p><strong><a href="https://github.com/antgroup/vsag/pull/2899"> #2899 </a> 修复前，旧版 no-op 测量不可信。</strong> 独立工作流会对缺少受支持 schema 3 <code>true_noop</code> 报告能力的 collector 明确预检失败。拆分 PR 构建本身并不修复 collector；前置 PR 尚未合并时，定时任务会失败，而不是发布误导性的旧版基线。</p>
 </blockquote>
-<p>PR CI 的 <strong>ASan Build X86</strong> 只运行一次 <code>make asan COMPILE_JOBS=3</code>，保留 Ninja、compile commands、system OpenBLAS、examples 和 tools。Makefile 仍启用 tests、Sanitize 和 ASan/UBSan，changed-source lint、下游测试、兼容性检查及构建产物契约保持不变。<code>ccache --zero-stats</code> 只重置统计，<strong>不删除缓存对象</strong>。构建步骤记录耗时，always 步骤输出 verbose/兼容回退缓存诊断，不掩盖真实构建失败；ccache 仍启用并使用一次性 GitHub-hosted VM 上的默认目录，不跨 job 恢复或保存编译缓存。PR X86 的依赖归档缓存有意从恢复并保存改为<strong>只恢复</strong>（<code>actions/cache/restore@v4</code>），防止 PR 上下文将归档写回共享缓存；这项策略并不只适用于独立 benchmark。</p>
-<p><strong>Daily CI / Build Performance X86</strong> 配置（<code>.github/workflows/daily_test.yml</code>, <code>profile=build-performance</code>）每周一 UTC 03:23 测 upstream <code>main</code>，也可通过 Actions 手动运行。它不是 PR required check，使用独立 concurrency、Ubuntu 24.04 hosted runner、180 分钟超时和 14 天报告保留期。工作流进入默认分支后，可运行：</p>
+<p>PR CI 的 <strong>ASan Build X86</strong> 只运行一次 <code>make asan COMPILE_JOBS=3</code>，保留 Ninja、compile commands、system OpenBLAS、examples 和 tools。Makefile 仍启用 tests、Sanitize 和 ASan/UBSan，changed-source lint、下游测试、兼容性检查及构建产物契约保持不变。<code>ccache --zero-stats</code> 只重置统计，<strong>不删除缓存对象</strong>。构建步骤记录耗时，always 步骤输出 verbose/兼容回退缓存诊断，不掩盖真实构建失败；ccache 仍启用并使用一次性 GitHub-hosted VM 上的默认目录，不跨 job 恢复或保存编译缓存。PR X86 的依赖归档缓存有意从恢复并保存改为<strong>只恢复</strong>（<code>actions/cache/restore@v5</code>），防止 PR 上下文将归档写回共享缓存；这项策略并不只适用于独立 benchmark。</p>
+<p><strong>Nightly CI / Build Performance X86</strong> 配置（<code>.github/workflows/daily_test.yml</code>, <code>profile=build-performance</code>）每周一 UTC 03:23 测 upstream <code>main</code>，也可通过 Actions 手动运行。它不是 PR required check，使用独立 concurrency、Ubuntu 24.04 hosted runner、180 分钟超时和 14 天报告保留期。工作流进入默认分支后，可运行：</p>
 <pre><code class="language-bash">gh workflow run daily_test.yml --ref main -f profile=build-performance -f ref=main
 # 或指定本仓库 main 历史中可达的完整 40 位 commit SHA：
 gh workflow run daily_test.yml --ref main -f profile=build-performance -f ref=&lt;full-main-history-sha&gt;
@@ -432,9 +432,18 @@ gh workflow run daily_test.yml --ref main -f profile=build-performance -f ref=&l
 </ul>
 <h2 id="编译-pyvsag-包"><a class="header" href="#编译-pyvsag-包">编译 pyvsag 包</a></h2>
 <p>pyvsag 是 VSAG 的 Python 版本。通过 <code>pip install pyvsag</code> 下载安装的 wheel 包就是通过 <code>make pyvsag</code> 命令构建出来的。</p>
-<p>wheel 为 <code>py3-none</code> 平台包，不区分 Python 版本，每个架构只需构建一次：</p>
+<p>wheel 为 <code>py3-none</code> 平台包，不区分 Python 版本，每个架构只需构建一次，即可适用于所有受支持的 CPython（3.10+）：</p>
 <pre><code class="language-bash">make pyvsag
+pip install wheelhouse/pyvsag-*.whl
 </code></pre>
+<p><code>make pyvsag</code> 在仓库根目录运行 <code>scripts/python/local_build_wheel.sh</code>，并把 wheel 写入 <code>wheelhouse/</code>。
+有 Docker 时通过 cibuildwheel 在 <code>manylinux_2_28</code> 镜像中构建，并在镜像内运行 <code>tests/python</code> 的一部分用例，
+不会改动宿主机环境，随后运行 <code>scripts/python/check_wheel_libs.py</code>，如果 wheel 打包或链接了 libgfortran、libquadmath、libaio、liburing 就会失败（当 <code>VSAG_USE_SYSTEM_DEPS</code> 不是 <code>OFF</code> 时跳过，因为系统 OpenBLAS 会引入 libgfortran）。没有 Docker 时退回普通的 <code>python -m build</code>，把 wheel 安装到当前虚拟环境，并针对它运行
+<code>tests/python</code>；这样得到的 wheel 带 <code>linux_&lt;arch&gt;</code> 标签，而不是 <code>manylinux_2_28</code>。如果当前不在虚拟环境中，
+脚本会在仓库内创建 <code>.venv/</code>。</p>
+<p>wheel 中包含 <code>libvsag_c</code>，使用 <code>ENABLE_PYBINDS=ON</code> 和 <code>ENABLE_LIBAIO=OFF</code> 构建。不使用 Docker 的构建可以用
+<code>VSAG_ENABLE_LIBAIO=ON</code> 覆盖（例如 <code>VSAG_ENABLE_LIBAIO=ON python -m build --wheel python</code>）；该变量不会被转发到
+Docker 构建中。安装 wheel、使用源码树中的构建结果以及运行时行为，见 <a href="../guide/pyvsag.html">pyvsag</a>。</p>
 <h2 id="环境变量"><a class="header" href="#环境变量">环境变量</a></h2>
 <p>在 Makefile 文件的开始可以看到一些 VSAG 编译系统定义的环境变量。这些变量可以通过命令行运行 <code>export</code> 命令，或者在 <code>.bashrc</code> / <code>.zshrc</code> 等 shell 配置文件中设置来修改。</p>
 <p>环境变量说明如下：</p>
@@ -474,6 +483,18 @@ CMake 优先使用带版本后缀的变量，再使用旧变量，并保留默�
 不设置该路径时保持原有行为；显式设置为空或不可读路径会报错。</p>
 <p>如果机器内存足够，可以适当调大 <code>COMPILE_JOBS</code>；默认值会比较保守，以避免 CI 里再次触发
 内存不足。</p>
+<h3 id="datacell-编译并行度"><a class="header" href="#datacell-编译并行度">Datacell 编译并行度</a></h3>
+<p><code>COMPILE_JOBS</code> 控制整个项目的编译并行度。<code>DATACELL_COMPILE_JOBS=0</code>（默认值）
+不添加单独上限，datacell 和 RaBitQ factory 文件与其他文件共享总并行额度。
+使用 Ninja 且内存有限时，可设置正整数，让这两个对象库共用一个编译上限：</p>
+<pre><code class="language-bash">make asan COMPILE_JOBS=24                         # 所有源文件共享 24 路
+make asan COMPILE_JOBS=3 DATACELL_COMPILE_JOBS=1   # ARM CI：datacell 最多同时编译一个文件
+</code></pre>
+<p>直接调用 CMake 时使用 <code>-DVSAG_DATACELL_COMPILE_JOBS=N</code>。该上限适用于所有构建模式，
+不改变编译选项或测试范围，实际并行度仍受全局上限约束。
+正整数设置要求 Ninja；其他生成器使用 <code>0</code> 并通过全局并行度限制资源。
+ARM Linux/macOS ASan 任务显式设为 <code>1</code>，其他任务跟随全局并行度。
+提高并行度需要更多内存；这个调度选项不能解决缓存未命中问题。</p>
 <h2 id="工具链分层验证"><a class="header" href="#工具链分层验证">工具链分层验证</a></h2>
 <p>Linux 开发以 GCC 13 为主编译器、Clang 20 为第二编译器。分别使用独立目录执行 <code>make test DEBUG_BUILD_DIR=build_gcc13 EXTRA_DEFINED="-DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13"</code> 和 <code>make test DEBUG_BUILD_DIR=build_clang20 EXTRA_DEFINED="-DCMAKE_C_COMPILER=clang-20 -DCMAKE_CXX_COMPILER=clang++-20"</code>。</p>
 <p>Ubuntu 自动依赖安装脚本要求 Ubuntu 24.04+，安装 GCC 13 和 LLVM 20（必要时使用 apt.llvm.org）；其他发行版需要自行准备对应工具链。源码编译器要求不改变预编译包的 glibc 基线或 libstdc++ ABI 选择，客户端仍可使用 C++17。</p>

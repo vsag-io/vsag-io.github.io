@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -391,11 +391,33 @@ delete iter_ctx;
 the search ordered by distance. Pass <code>is_last_search=true</code> on a trailing call instead if you want
 the index to also emit the candidates still buffered in the context.</p>
 <blockquote>
-<p><strong><code>SearchRequest</code> API.</strong> <code>SearchRequest</code> declares <code>enable_iterator_search_</code>, <code>p_iter_ctx_</code>, and
-<code>is_last_search_</code> fields, but no in-tree <code>SearchWithRequest</code> implementation currently consults
-them. Until that wiring lands, use one of the two <code>KnnSearch</code> forms above to drive iterator
-search.</p>
+<p><strong><code>SearchRequest</code> API.</strong> <code>SearchWithRequest</code> honours the same fields for HGraph indexes: set
+<code>enable_iterator_search_ = true</code> and point <code>p_iter_ctx_</code> at an <code>IteratorContext*</code> that starts as
+<code>nullptr</code> (the first call creates it). <code>topk_</code>, <code>params_str_</code>, <code>filter_</code>, <code>threshold_</code> and
+<code>search_allocator_</code> mean exactly what they mean in the <code>KnnSearch</code> forms above.</p>
 </blockquote>
+<pre><code class="language-cpp">vsag::IteratorContext* ctx = nullptr;
+
+vsag::SearchRequest request;
+request.query_ = query;
+request.topk_ = 10;
+request.params_str_ = param_str;
+request.enable_iterator_search_ = true;
+request.p_iter_ctx_ = &amp;ctx;   // filled in on the first call
+
+auto page1 = index-&gt;SearchWithRequest(request);   // creates ctx
+auto page2 = index-&gt;SearchWithRequest(request);   // continuation, no overlap with page1
+
+request.is_last_search_ = true;                   // optional: drain buffered candidates
+auto tail = index-&gt;SearchWithRequest(request);
+
+delete ctx;                                       // releases the iterator state
+</code></pre>
+<p>Iterator search through <code>SearchWithRequest</code> is HGraph-only; other indexes return
+<code>UNSUPPORTED_INDEX_OPERATION</code>. Iterator mode rejects range search, custom scoring
+(<code>distance_batch_func_</code>), attribute filters and reasoning (<code>expected_labels_</code>) — nest the filtering
+you need inside <code>filter_</code> instead. <code>request.threshold_</code> is the single distance bound in both
+modes: a <code>"threshold"</code> key inside <code>params_str_</code> is ignored.</p>
 <h2 id="combining-with-filters"><a class="header" href="#combining-with-filters">Combining With Filters</a></h2>
 <p>Iterator search composes with regular filters (label filter, attribute filter, bitset filter).
 A common use case is “keep iterating until enough results pass my external check”:</p>

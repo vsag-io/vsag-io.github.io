@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -386,6 +386,27 @@ Remove returns bool: false means missing ID or failed graph allocation, so the
 cause cannot be distinguished. Failed graph transactions preserve logical state,
 not allocator capacity. Complete identical stored representations preserve graph
 topology on Update; equal RaBitQ codes do not mean raw inputs are identical.</p>
+<h2 id="optional-persistent-add"><a class="header" href="#optional-persistent-add">Optional persistent Add</a></h2>
+<p>Build with <code>-DENABLE_LITE_PERSISTENT_ADD=ON</code> and include
+<code>vsag/lite/persistent_index.h</code> on a local POSIX filesystem. Pass an empty
+BruteForce index, a built FP32/FP16 graph, or a trained RaBitQ8 graph to
+<code>PersistentIndex::Create(new_directory, std::move(seed))</code>. To import a plain
+snapshot, use <code>Index::Load</code> before <code>Create</code>.</p>
+<p>The directory contains <code>checkpoint.vsag</code> and <code>add.log</code>. Successful <code>Add</code>
+synchronizes one record containing the external ID, FP32 input and checksum.
+<code>PersistentIndex::Open</code> loads the checkpoint and replays records in order.
+It discards an incomplete final record and reports checksum failures in
+complete records. If the writer exits before returning, a complete record
+may be recovered. Use the external ID to determine whether to retry.
+An append or sync error invalidates the handle and releases its lock.
+Reopen to recover the index and check the ID before retrying.</p>
+<p>Use one handle per directory and serialize its calls. This interface covers
+Add, Search, Size and export through Save. Include earlier Update/Remove
+changes in the seed checkpoint before creating the directory. The log grows
+by <code>12 + 4 * dimension</code> bytes per Add, including for compressed backends, and
+recovery replays every record. The loader reserves vector space for complete log entries
+before reading the checkpoint. Save exports an ordinary Lite snapshot that
+can seed a fresh directory. Process exit recovery is the supported scope.</p>
 <h2 id="project-output-acceptance"><a class="header" href="#project-output-acceptance">Project output acceptance</a></h2>
 <div class="table-wrapper">
 <table>

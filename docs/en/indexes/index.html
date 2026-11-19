@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -323,11 +323,14 @@ structures and trade-offs they use under the hood.</p>
 <tr><td><code>simq</code></td><td><a href="simq.html">SIMQ</a></td><td>ColBERT-style multi-vector retrieval (MaxSim)</td></tr>
 <tr><td><code>sindi_v2</code></td><td><a href="sindi_v2.html">SINDI_V2</a></td><td>Sparse vectors (BM25 / learned sparse) on inner-product; supports both in-memory and disk-based I/O</td></tr>
 <tr><td><code>pyramid</code></td><td><a href="pyramid.html">Pyramid</a></td><td>Multi-tenant or tag-partitioned corpora with hierarchical paths</td></tr>
+<tr><td><code>warp</code></td><td><a href="warp.html">WARP</a></td><td>Multi-vector (ColBERT-style) documents scored with MaxSim, exact search</td></tr>
 </tbody>
 </table>
 </div>
 <p><code>brute_force</code> is also available as an exact-search baseline (see
-<a href="../guide/create_index.html">Creating an Index</a> and <code>examples/cpp/105_index_brute_force.cpp</code>).</p>
+<a href="../guide/create_index.html">Creating an Index</a> and <code>examples/cpp/105_index_brute_force.cpp</code>).
+WARP is the multi-vector variant of <code>brute_force</code>: same exhaustive scan, but each document is a
+set of token vectors.</p>
 <h2 id="parameter-conventions"><a class="header" href="#parameter-conventions">Parameter conventions</a></h2>
 <p>All indexes share the same top-level build fields:</p>
 <div class="table-wrapper">

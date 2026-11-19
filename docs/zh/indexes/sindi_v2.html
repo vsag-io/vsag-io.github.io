@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -364,14 +364,14 @@ auto result = index-&gt;KnnSearch(
     }})").value();
 </code></pre>
 <h2 id="构建参数"><a class="header" href="#构建参数">构建参数</a></h2>
-<p>构建参数放在 <code>index_param</code> 下。</p>
+<p>构建参数放在 <code>index_param</code> 下。<code>dim</code> 是<strong>顶层</strong>字段，不属于 <code>index_param</code>：稀疏数据可以
+省略，省略后取默认值 <code>4096</code>（<code>MAX_DIM_SPARSE</code>）。</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>dim</code></td><td>int</td><td>必填</td><td>单条稀疏向量允许的最大非零项数量，不是词表大小。</td></tr>
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>term ID 上界，最高为 50 000 000。</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>每个 window 的文档数，范围为 10 000 到 60 000。</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>构建时丢弃最低权重文档 term 的比例，范围为 <code>[0.0, 1.0)</code>。</td></tr>
@@ -397,7 +397,11 @@ auto result = index-&gt;KnnSearch(
 <p><code>rerank_type: "fp16"</code> 要求 <code>use_reorder: true</code>，并支持与 <code>fp32</code> 相同的重排 I/O 和布局
 选项。<code>rerank_layout &gt; 0</code> 要求 <code>use_reorder: true</code>。<code>rerank_type: "dmq8"</code> 要求
 <code>rerank_layout: 0</code>，并使用默认的 <code>block_memory_io</code> 重排后端。</p>
-<h3 id="host-过滤"><a class="header" href="#host-过滤">Host 过滤</a></h3>
+<p>继承自 <code>IndexSearchParameter</code> 的字段中只有 <code>timeout_ms</code> 生效，作为 posting 扫描的软超时；
+<code>parallelism</code>、<code>factor</code>、<code>enable_reorder</code> 虽被接受但对 SINDI_V2 无效果（<code>enable_reorder</code>
+取自构建时的 <code>use_reorder</code>）。根级 <code>threshold</code> 键（与 <code>sindi_v2</code> 平级）同样生效：取有限数值时，
+距离超过该值的 KNN 候选会被丢弃。</p>
+<h3 id="host-filtering"><a class="header" href="#host-filtering">Host filtering</a></h3>
 <p>SINDI_V2 支持与 <a href="sindi.html#host-过滤">SINDI</a> 相同的字符串 <code>host</code> 构建数据和 KNN 查询
 metadata 约定。mutable 与 immutable 索引均支持该功能。两者共用 host 分组与路由组件，同时
 SINDI_V2 保持自己的 term-first posting 存储。host 成员检查统一在 posting-window 检索中执行，

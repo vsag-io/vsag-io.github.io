@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -612,7 +612,8 @@ data = load_sparse_hdf5("sparse.hdf5")
 # data["neighbors"] -&gt; numpy.ndarray  shape (Q, K) int64
 # data["distances"] -&gt; numpy.ndarray  shape (Q, K) float32
 </code></pre>
-<p>如果已经拿到原始字节流，可以直接调用 <code>pyvsag.sparse.decode_sparse_bytes(buffer)</code>。</p>
+<p><code>load_sparse_hdf5</code> 需要 <code>h5py</code>，而 <code>pyvsag</code> 不会自动安装它。如果已经拿到原始字节流，可以直接调用
+<code>pyvsag.sparse.decode_sparse_bytes(buffer)</code>，它没有额外依赖。</p>
 <h3 id="参考实现"><a class="header" href="#参考实现">参考实现</a></h3>
 <p>字节流的编码/解码逻辑位于
 <a href="https://github.com/antgroup/vsag/blob/main/tools/eval/eval_dataset.cpp"><code>tools/eval/eval_dataset.cpp</code></a>

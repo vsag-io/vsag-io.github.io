@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -414,7 +414,7 @@ auto result = index-&gt;KnnSearch(
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code>, <code>tq</code>). See the <a href="../quantization/">Quantization chapter</a> for per-quantizer details.</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>Coarse storage quantizer (<code>fp32</code>, <code>fp16</code>, <code>bf16</code>, <code>sq8</code>, <code>sq4</code>, <code>sq8_local</code>, <code>sq4_local</code>, <code>sq8_uniform</code>, <code>sq4_uniform</code>, <code>pq</code>, <code>pqfs</code>, <code>rabitq</code>, <code>saq</code>, <code>tq</code>). See the <a href="../quantization/">Quantization chapter</a> for per-quantizer details.</td></tr>
 <tr><td><code>tq_chain</code></td><td>string</td><td>—</td><td>Transform chain used when <code>base_quantization_type</code> is <code>tq</code>, for example <code>"mrle, rabitq"</code>.</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>Prefix dimension retained by MRLE; <code>0</code> keeps the input dimension.</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>Maximum out-degree per node within a sub-graph.</td></tr>
@@ -452,6 +452,20 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>root_graph_type</code></td><td>string</td><td><code>"single_layer"</code></td><td>Root graph layout: <code>single_layer</code> preserves the original sparse bottom graph; <code>multi_layer</code> uses a preallocated Flat or Compressed bottom graph with HGraph-style sparse routing layers and joint construction. <code>multi_layer</code> supports <code>graph_type: "nsw"</code> and <code>"pipnn"</code>. Do not specify this option when <code>no_build_levels</code> disables level 0.</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>Group code-equivalent vectors with distinct external labels, using construction-code <code>CompareVectors</code> semantics. External labels must remain unique.</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>Threads used for parallel build.</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>RaBitQ lower-bound error multiplier applied during encoding for both base and precise quantizers. Must be finite and positive.</td></tr>
+<tr><td><code>rabitq_bits_per_dim_query</code></td><td>uint</td><td><code>32</code></td><td>Query-side bit precision for RaBitQ encoding, either <code>4</code> or <code>32</code>. Must be <code>32</code> when split storage is used.</td></tr>
+<tr><td><code>rabitq_pca_dim</code></td><td>uint</td><td><code>0</code></td><td>Optional PCA dimension reduction applied before RaBitQ encoding; <code>0</code> disables PCA.</td></tr>
+<tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td>Use FHT instead of a random rotation in RaBitQ encoding.</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Product Quantizer subspace dimension. Effective only when <code>base_quantization_type</code> is <code>pq</code> or <code>pqfs</code>.</td></tr>
+<tr><td><code>base_supplement_io_type</code></td><td>string</td><td>—</td><td>Separate IO backend for RaBitQ split supplement planes. Supported values: <code>block_memory_io</code>, <code>async_io</code>, <code>buffer_io</code>. When this key is omitted, the supplement shares <code>base_io_type</code>. Homogeneous backends (same type for base and supplement) are always supported. Mixed backends support only <code>base_io_type</code> = <code>block_memory_io</code> with <code>base_supplement_io_type</code> = <code>async_io</code> (falls back to <code>buffer_io</code> when libaio is unavailable). <code>uring_io</code> is not supported for split supplements regardless of the base backend. Effective only in RaBitQ split mode.</td></tr>
+<tr><td><code>base_supplement_file_path</code></td><td>string</td><td>—</td><td>File path for the RaBitQ supplement IO backend, required when <code>base_supplement_io_type</code> is disk-backed.</td></tr>
+<tr><td><code>build_block_size</code></td><td>int</td><td><code>10000</code></td><td>ODescent block construction size; effective only with <code>graph_type: "odescent"</code>.</td></tr>
+<tr><td><code>min_in_degree</code></td><td>int</td><td><code>1</code></td><td>ODescent minimum in-degree; effective only with <code>graph_type: "odescent"</code>.</td></tr>
+<tr><td><code>extra_info</code></td><td>object</td><td><code>{"io_params": {...block_memory_io...}}</code></td><td>IO configuration for the extra-info block associated with each bottom-graph node. Use when <code>extra_info_size</code> is set in the common parameters.</td></tr>
+<tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>Persist the SourceID table so build-cache imports can match source identities across builds. Set to <code>true</code> before serializing an index whose cache will be reused.</td></tr>
+<tr><td><code>adaptive_pruning_adjust_step</code></td><td>float</td><td><code>0.06</code></td><td>Alpha adjustment step for the experimental NSW adaptive pruning selector. Requires <code>adaptive_pruning: true</code>.</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_reverse</code></td><td>bool</td><td><code>false</code></td><td>Apply the adaptive pruning policy to reverse edges during NSW graph construction. Experimental.</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_upper</code></td><td>bool</td><td><code>false</code></td><td>Apply the adaptive pruning policy to upper routing layers. Experimental; currently unsupported, setting it causes construction to fail.</td></tr>
 <tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>Named hierarchy definitions. Each element is either a string (inherits all top-level params) or an object with <code>name</code> and optional overrides (<code>max_degree</code>, <code>ef_construction</code>, <code>alpha</code>, <code>no_build_levels</code>, <code>index_min_size</code>, <code>root_graph_type</code>). When present, multi-hierarchy mode is activated and each hierarchy maintains its own independent path tree.</td></tr>
 </tbody>
 </table>
@@ -533,17 +547,23 @@ reduce recall unless the embedding model was trained for prefix dimensions.</p>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>Candidate list size for the leaf-level graph search.</td></tr>
+<tr><td><code>ef_search</code></td><td>int</td><td>— (required)</td><td>Candidate list size for the leaf-level graph search. Omitting it fails parsing; <code>KnnSearch</code> further requires it in <code>[1, max(100 * topk, 1000)]</code>. The <code>100</code> in the parameter struct is not an omittable default.</td></tr>
 <tr><td><code>factor</code></td><td>float</td><td>unset</td><td>KNN reorder candidate multiplier. Values <code>&lt;= 1</code> add no limit. When greater than <code>1</code>, Pyramid first completes the unchanged subgraph searches and merges their results, then sends at most <code>min(max(ef_search, topk), floor(topk * factor))</code> main-graph candidates to reorder. RaBitQ lower-bound safety candidates may be merged after this limit, matching HGraph; <code>reorder_candidate_count</code> reports the actual merged count. The value must be finite and positive. It has no effect on range search or when reorder is disabled.</td></tr>
 <tr><td><code>hops_limit</code></td><td>int</td><td>unlimited</td><td>Per-graph KNN hop cap for the root bottom graph and every non-root graph; ignored when it is not greater than <code>ef_search</code>. Sparse root routing layers are never hop-limited. FLAT scans and range search are unaffected.</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>Candidate list size used when traversing intermediate sub-graphs on the path.</td></tr>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>Maximum concurrent sub-graph searches for one request. Values greater than <code>1</code> use the index thread pool; results are merged and de-duplicated before reordering. See the thread pool requirement below.</td></tr>
 <tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>Select which hierarchy to search. Empty means use the default (unnamed) hierarchy.</td></tr>
 <tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>How to combine results across hierarchies: <code>single</code> (search one hierarchy), <code>union</code>, or <code>intersection</code>. <strong>Note:</strong> <code>union</code> and <code>intersection</code> are not yet implemented — setting them will cause <code>KnnSearch</code>/<code>RangeSearch</code> to return an error.</td></tr>
+<tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td>auto</td><td>Enable RaBitQ one-bit lower-bound safety-candidate collection during graph traversal. When not set, defaults to <code>true</code> when both <code>use_reorder</code> is enabled and the base codes are stored as RaBitQ split data cells; otherwise <code>false</code>.</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>—</td><td>Soft timeout in milliseconds; graph traversal stops expanding during the coarse search after the timeout, and reorder batch loops check the timer between batches. <strong>Omit</strong> the key to disable the timeout; setting <code>0</code> causes an immediate timeout, not unlimited.</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>Positive lower-bound error multiplier for this search. The default <code>1.9</code> is relatively large; increasing it improves accuracy but slows down search.</td></tr>
+<tr><td><code>threshold</code></td><td>float</td><td>—</td><td>(root-level) KNN distance upper bound. Candidates whose distance exceeds the threshold are discarded during search. Only effective for <code>KnnSearch</code>, not <code>RangeSearch</code>.</td></tr>
 </tbody>
 </table>
 </div>
+<blockquote>
+<p><strong>Note:</strong> <code>enable_reorder</code> in the root-level search JSON is accepted but <strong>ignored</strong> by Pyramid; reorder is controlled at build time by <code>use_reorder</code>.</p>
+</blockquote>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"pyramid": {"ef_search": 200, "subindex_ef_search": 80}})").value();

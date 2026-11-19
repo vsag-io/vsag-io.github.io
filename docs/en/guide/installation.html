@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -316,7 +316,7 @@ docker run -it --rm -v $(pwd):/work -w /work vsaglib/vsag:ubuntu bash
 <h2 id="building-from-source"><a class="header" href="#building-from-source">Building from Source</a></h2>
 <h3 id="requirements"><a class="header" href="#requirements">Requirements</a></h3>
 <ul>
-<li><strong>Operating System</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 14+ on Apple Silicon</li>
+<li><strong>Operating System</strong>: Ubuntu 20.04+, CentOS 7+, or macOS 15+ on Apple Silicon</li>
 <li><strong>Compiler</strong>: GCC 9.4.0+, Clang 13.0.0+, or Apple Clang from Xcode Command Line Tools</li>
 <li><strong>CMake</strong>: 3.18.0+</li>
 <li><strong>clang-format / clang-tidy</strong>: exactly version <strong>20</strong> (enforced by <code>make fmt</code> / <code>make lint</code>)</li>
@@ -329,8 +329,8 @@ make release
 </code></pre>
 <p>The dependency script detects Linux versus macOS. On macOS it installs or locates the
 Homebrew dependencies and uses Apple’s Accelerate framework where appropriate. The supported
-macOS path is the arm64 C++ library build; published C++ archives and <code>pyvsag</code> wheels remain
-Linux-focused.</p>
+macOS path includes native arm64 C++ and Python builds. Published C++ archives and production
+PyPI wheels remain Linux-only; macOS wheels are available through <a href="pyvsag.html#nightly-builds-testpypi">TestPyPI</a>.</p>
 <p>Other common Makefile targets:</p>
 <ul>
 <li><code>make debug</code> — plain debug build (no sanitizers; tests/tools/examples disabled by default).</li>
@@ -345,6 +345,8 @@ Linux-focused.</p>
 <h2 id="python-pyvsag"><a class="header" href="#python-pyvsag">Python (pyvsag)</a></h2>
 <pre><code class="language-bash">pip install pyvsag
 </code></pre>
+<p>The wheel is <code>py3-none-manylinux_2_28</code>: Linux <code>x86_64</code> or <code>aarch64</code> with glibc 2.28 or later, and
+CPython 3.10 or later. See <a href="pyvsag.html">pyvsag</a> for requirements, building from source, and usage.</p>
 <h2 id="nodejs--typescript"><a class="header" href="#nodejs--typescript">Node.js / TypeScript</a></h2>
 <pre><code class="language-bash">npm install vsag
 </code></pre>

@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -320,6 +320,8 @@
 </ul>
 <p>不同快照中的 <code>Dataset::Ids</code> 数字 label 可以变化；缓存使用对应的 <code>SourceID</code>
 字符串匹配。</p>
+<p>每次 <code>Build()</code> 都应传入完整的当前快照。记录可以新增、删除或重新排序，保留的记录继续
+使用稳定的 Source ID。导入缓存只提供图的初始邻居信息，不会导入上一快照的向量。</p>
 <h2 id="首次构建并导出缓存"><a class="header" href="#首次构建并导出缓存">首次构建并导出缓存</a></h2>
 <p>构建源索引时，为每个向量提供一个 Source ID：</p>
 <pre><code class="language-cpp">std::vector&lt;std::string&gt; source_ids = load_stable_source_ids();
@@ -360,6 +362,11 @@ next_index-&gt;Build(next_base).value();
 <p>调用 <code>ImportCache()</code> 后，<code>Build()</code> 会自动进入缓存辅助路径。两个快照中都存在的
 Source ID 使用缓存邻居 warm-start；未匹配记录作为 cache miss 走正常构建 refine。
 缓存辅助 <code>Build()</code> 未设置 <code>Dataset::SourceID</code> 时会返回参数错误。</p>
+<p>存在 cache miss 时，构建结束前的串行连通性阶段首先遍历入口可达分量，再对每个仍不可达的
+未命中节点执行一次从入口开始的构建搜索。该阶段在可达分量中寻找容量，保护生成树和指向入口的边，
+同时保持度数上限。每次成功接入后还会遍历新接入的分量。如果找不到安全的反向连接，未命中节点
+仍可能不可达；该阶段不保证全部节点可达。临时内存与快照节点数量成正比。评估重建时间和峰值内存时，
+应计入遍历以及对每个仍不可达的未命中节点执行搜索的开销。成员未变化且全部命中的快照仍保留 warm-start 快速路径。</p>
 <h2 id="随索引持久化-source-id"><a class="header" href="#随索引持久化-source-id">随索引持久化 Source ID</a></h2>
 <p>HGraph 默认不会在序列化中写入 Source ID 元数据。如果反序列化后的索引还需要
 调用 <code>ExportCache()</code>，请在 <code>index_param</code> 中设置 <code>persist_source_id: true</code>：</p>
@@ -391,6 +398,8 @@ Source ID 使用缓存邻居 warm-start；未匹配记录作为 cache miss 走�
 </tbody>
 </table>
 </div>
+<p>当前快照是上一快照的子集时，命中率也可能达到 100%；该比率衡量当前输入的复用情况，
+不表示上一快照中的所有记录都被保留。</p>
 <p>如果上一次构建没有使用导入缓存，统计会输出 <code>skipped_reason</code>。其他 HGraph
 指标见<a href="../resources/analyze_index.html">索引分析</a>。</p>
 <h2 id="限制与运维建议"><a class="header" href="#限制与运维建议">限制与运维建议</a></h2>

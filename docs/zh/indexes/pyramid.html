@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -406,7 +406,7 @@ auto result = index-&gt;KnnSearch(
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>base_quantization_type</code></td><td>string</td><td>—</td><td>底层量化类型（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_local</code>、<code>sq4_local</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>saq</code>、<code>tq</code>）。各量化器细节见<a href="../quantization/">量化章节</a>。</td></tr>
+<tr><td><code>base_quantization_type</code></td><td>string</td><td><code>"fp32"</code></td><td>底层量化类型（<code>fp32</code>、<code>fp16</code>、<code>bf16</code>、<code>sq8</code>、<code>sq4</code>、<code>sq8_local</code>、<code>sq4_local</code>、<code>sq8_uniform</code>、<code>sq4_uniform</code>、<code>pq</code>、<code>pqfs</code>、<code>rabitq</code>、<code>saq</code>、<code>tq</code>）。各量化器细节见<a href="../quantization/">量化章节</a>。</td></tr>
 <tr><td><code>tq_chain</code></td><td>string</td><td>—</td><td><code>base_quantization_type</code> 为 <code>tq</code> 时使用的变换链，例如 <code>"mrle, rabitq"</code>。</td></tr>
 <tr><td><code>mrle_dim</code></td><td>int</td><td><code>0</code></td><td>MRLE 保留的前缀维度；<code>0</code> 表示保持输入维度。</td></tr>
 <tr><td><code>max_degree</code></td><td>int</td><td><code>64</code></td><td>子图内节点的最大出度</td></tr>
@@ -444,6 +444,20 @@ auto result = index-&gt;KnnSearch(
 <tr><td><code>root_graph_type</code></td><td>string</td><td><code>"single_layer"</code></td><td>根图结构：<code>single_layer</code> 保留原有稀疏底图；<code>multi_layer</code> 使用预分配的 Flat 或 Compressed 底图、类似 HGraph 的稀疏路由层以及联合构图流程。<code>multi_layer</code> 支持 <code>graph_type: "nsw"</code> 和 <code>"pipnn"</code>。<code>no_build_levels</code> 禁用第 0 层时不要显式指定此选项。</td></tr>
 <tr><td><code>support_duplicate</code></td><td>bool</td><td><code>false</code></td><td>根据构建编码的 <code>CompareVectors</code> 语义对编码等价、外部标签不同的向量分组；外部标签仍须唯一。</td></tr>
 <tr><td><code>build_thread_count</code></td><td>int</td><td><code>1</code></td><td>构建阶段并发线程数</td></tr>
+<tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>RaBitQ lower-bound 误差倍率，同时作用于 base 和 precise 量化器的编码阶段。必须有限且为正。</td></tr>
+<tr><td><code>rabitq_bits_per_dim_query</code></td><td>uint</td><td><code>32</code></td><td>查询端 bit 精度，取值必须为 <code>4</code> 或 <code>32</code>。使用 split storage 时必须为 <code>32</code>。</td></tr>
+<tr><td><code>rabitq_pca_dim</code></td><td>uint</td><td><code>0</code></td><td>RaBitQ 编码前可选的 PCA 降维维度；<code>0</code> 表示不降维。</td></tr>
+<tr><td><code>rabitq_use_fht</code></td><td>bool</td><td><code>false</code></td><td>RaBitQ 编码中使用 FHT 替代随机旋转。</td></tr>
+<tr><td><code>base_pq_dim</code></td><td>int</td><td><code>1</code></td><td>Product Quantizer（PQ）子空间维度。仅在 <code>base_quantization_type</code> 为 <code>pq</code> 或 <code>pqfs</code> 时生效。</td></tr>
+<tr><td><code>base_supplement_io_type</code></td><td>string</td><td>—</td><td>RaBitQ split 补充 plane 的独立 IO 后端。支持的值：<code>block_memory_io</code>、<code>async_io</code>、<code>buffer_io</code>。不传该键时补充 plane 共享 <code>base_io_type</code>。后端同构（base 与 supplement 使用同一 IO 类型）始终支持。混合后端仅支持 <code>base_io_type</code> = <code>block_memory_io</code> 搭配 <code>base_supplement_io_type</code> = <code>async_io</code>（无 libaio 时回退为 <code>buffer_io</code>）。无论 base 使用何种后端，split 补充 plane 均不支持 <code>uring_io</code>。仅在 RaBitQ split 模式下生效。</td></tr>
+<tr><td><code>base_supplement_file_path</code></td><td>string</td><td>—</td><td>RaBitQ 补充 IO 后端的文件路径；<code>base_supplement_io_type</code> 为磁盘后端时必须设置。</td></tr>
+<tr><td><code>build_block_size</code></td><td>int</td><td><code>10000</code></td><td>ODescent 构图的分块大小；仅在 <code>graph_type: "odescent"</code> 时生效。</td></tr>
+<tr><td><code>min_in_degree</code></td><td>int</td><td><code>1</code></td><td>ODescent 节点的最小入度；仅在 <code>graph_type: "odescent"</code> 时生效。</td></tr>
+<tr><td><code>extra_info</code></td><td>object</td><td><code>{"io_params": {...block_memory_io...}}</code></td><td>每个底图节点附加信息块的 IO 配置。在公共参数中设置 <code>extra_info_size</code> 时使用。</td></tr>
+<tr><td><code>persist_source_id</code></td><td>bool</td><td><code>false</code></td><td>持久化 SourceID 表，使构建缓存在跨构建时可以匹配源标识。在对缓存在后续构建中将重用的索引进行序列化前设为 <code>true</code>。</td></tr>
+<tr><td><code>adaptive_pruning_adjust_step</code></td><td>float</td><td><code>0.06</code></td><td>实验性 NSW 自适应剪枝选择器的 alpha 调整步长。需开启 <code>adaptive_pruning</code>。</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_reverse</code></td><td>bool</td><td><code>false</code></td><td>在 NSW 构图时将自适应剪枝策略应用于反向边。实验性。</td></tr>
+<tr><td><code>adaptive_pruning_apply_to_upper</code></td><td>bool</td><td><code>false</code></td><td>将自适应剪枝策略应用于上层路由。实验性，目前尚未支持，设置后会导致构建失败。</td></tr>
 <tr><td><code>hierarchies</code></td><td>array</td><td><code>[]</code></td><td>命名层级定义。每个元素可以是字符串（继承全部顶层参数）或对象（含 <code>name</code> 及可选覆盖参数：<code>max_degree</code>、<code>ef_construction</code>、<code>alpha</code>、<code>no_build_levels</code>、<code>index_min_size</code>、<code>root_graph_type</code>）。设置后激活多层级模式，每个层级维护独立的路径树。</td></tr>
 </tbody>
 </table>
@@ -519,17 +533,23 @@ auto result = index-&gt;KnnSearch(
 <tr><th>参数</th><th>类型</th><th>默认值</th><th>说明</th></tr>
 </thead>
 <tbody>
-<tr><td><code>ef_search</code></td><td>int</td><td><code>100</code></td><td>叶子层子图检索的候选集大小</td></tr>
+<tr><td><code>ef_search</code></td><td>int</td><td>—（必填）</td><td>叶子层子图检索的候选集大小。省略该键会解析失败；<code>KnnSearch</code> 还要求取值位于 <code>[1, max(100 * topk, 1000)]</code>。参数结构体中的 <code>100</code> 不是可省略的默认值</td></tr>
 <tr><td><code>factor</code></td><td>float</td><td>未设置</td><td>KNN 重排候选倍率。值 <code>&lt;= 1</code> 时不增加限制；值大于 <code>1</code> 时，Pyramid 保持各子图原有搜索行为，先合并子图结果，再将至多 <code>min(max(ef_search, topk), floor(topk * factor))</code> 个主图候选送入重排。与 HGraph 一致，RaBitQ lower-bound 安全候选可在该限制后额外并入，<code>reorder_candidate_count</code> 记录实际合并数量。参数必须为有限正数；范围检索或关闭重排时不生效。</td></tr>
 <tr><td><code>hops_limit</code></td><td>int</td><td>不限</td><td>根节点底图及每个非根 GRAPH 的逐图 KNN 跳数上限；不大于 <code>ef_search</code> 时忽略。根节点的稀疏路由层不受限制，FLAT 扫描与范围检索不受影响。</td></tr>
 <tr><td><code>subindex_ef_search</code></td><td>int</td><td><code>50</code></td><td>沿路径向下遍历中间子图时的候选集大小</td></tr>
 <tr><td><code>parallelism</code></td><td>int</td><td><code>1</code></td><td>单次请求同时检索子图的数量上限。大于 <code>1</code> 时使用索引线程池，各子图结果合并并按 inner id 去重后再重排；线程池前提见下方说明。</td></tr>
 <tr><td><code>hierarchies</code></td><td>string[]</td><td><code>[]</code></td><td>指定检索哪个层级。空数组表示使用默认（匿名）层级。</td></tr>
 <tr><td><code>hierarchy_op</code></td><td>string</td><td><code>"single"</code></td><td>多层级结果合并方式：<code>single</code>（检索单个层级）、<code>union</code>、<code>intersection</code>。<strong>注意：</strong> <code>union</code> 和 <code>intersection</code> 尚未实现——设置后 <code>KnnSearch</code>/<code>RangeSearch</code> 会返回错误。</td></tr>
+<tr><td><code>rabitq_one_bit_search</code></td><td>bool</td><td>自动</td><td>在图遍历时启用 RaBitQ 1-bit lower-bound 安全候选收集。未显式设置时，若同时启用了 <code>use_reorder</code> 且 base codes 以 RaBitQ split 数据单元存储，则默认为 <code>true</code>；否则为 <code>false</code>。</td></tr>
+<tr><td><code>timeout_ms</code></td><td>int</td><td>—</td><td>软超时毫秒数；超时后 coarse search 不再扩展，reorder 批次间检查计时器。<strong>不传</strong>该字段表示不超时；设为 <code>0</code> 会立即超时，并非不限时。</td></tr>
 <tr><td><code>rabitq_error_rate</code></td><td>float</td><td><code>1.9</code></td><td>本次搜索使用的正数 lower-bound 误差倍率。默认值 <code>1.9</code> 较大；值越大，精度越高，但搜索速度越慢。</td></tr>
+<tr><td><code>threshold</code></td><td>float</td><td>—</td><td>（根级）KNN 距离上限。检索过程中距离超过该阈值的候选会被丢弃。仅对 <code>KnnSearch</code> 生效，<code>RangeSearch</code> 不受影响。</td></tr>
 </tbody>
 </table>
 </div>
+<blockquote>
+<p><strong>注意：</strong> 根级检索 JSON 中的 <code>enable_reorder</code> 虽然被解析但 <strong>Pyramid 并不使用</strong>；精排由构建时的 <code>use_reorder</code> 控制。</p>
+</blockquote>
 <pre><code class="language-cpp">auto result = index-&gt;KnnSearch(
     query, topk,
     R"({"pyramid": {"ef_search": 200, "subindex_ef_search": 80}})").value();

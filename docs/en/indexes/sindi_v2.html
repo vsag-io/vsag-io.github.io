@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -366,14 +366,15 @@ auto result = index-&gt;KnnSearch(
     }})").value();
 </code></pre>
 <h2 id="build-parameters"><a class="header" href="#build-parameters">Build parameters</a></h2>
-<p>Build parameters live under <code>index_param</code>.</p>
+<p>Build parameters live under <code>index_param</code>. <code>dim</code> is a <strong>top-level</strong> field, not an
+<code>index_param</code> member: for sparse data it may be omitted and then defaults to <code>4096</code>
+(<code>MAX_DIM_SPARSE</code>).</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>dim</code></td><td>int</td><td>required</td><td>Maximum number of non-zero elements per sparse vector, not the vocabulary size.</td></tr>
 <tr><td><code>term_id_limit</code></td><td>int</td><td><code>1000000</code></td><td>Upper bound on term IDs; maximum 50 000 000.</td></tr>
 <tr><td><code>window_size</code></td><td>int</td><td><code>50000</code></td><td>Documents per window, from 10 000 to 60 000.</td></tr>
 <tr><td><code>doc_prune_ratio</code></td><td>float</td><td><code>0.0</code></td><td>Fraction of lowest-weight document terms removed during build (<code>[0.0, 1.0)</code>).</td></tr>
@@ -399,6 +400,11 @@ derives it as <code>&lt;term_io.file_path&gt;.rerank</code>.</p>
 <p><code>rerank_type: "fp16"</code> requires <code>use_reorder: true</code> and supports the same rerank I/O and layout
 options as <code>fp32</code>. <code>rerank_layout &gt; 0</code> requires <code>use_reorder: true</code>. <code>rerank_type: "dmq8"</code>
 requires <code>rerank_layout: 0</code> and the default <code>block_memory_io</code> rerank backend.</p>
+<p>Of the inherited <code>IndexSearchParameter</code> fields only <code>timeout_ms</code> is honoured, applied as a soft
+timer over posting scans; <code>parallelism</code>, <code>factor</code> and <code>enable_reorder</code> are accepted but have no
+SINDI_V2 effect (<code>enable_reorder</code> comes from the build-time <code>use_reorder</code>). The root-level
+<code>threshold</code> key (sibling of <code>sindi_v2</code>) is also honoured: a finite numeric value discards KNN
+candidates whose distance exceeds it.</p>
 <h3 id="host-filtering"><a class="header" href="#host-filtering">Host filtering</a></h3>
 <p>SINDI_V2 supports the same string <code>host</code> build and KNN-query metadata contract as
 <a href="sindi.html#host-filtering">SINDI</a>. Both mutable and immutable indexes are supported. It uses the

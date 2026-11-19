@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -391,8 +391,16 @@ maintained indexes that advertise the corresponding feature flags.</li>
 </ul>
 <h2 id="python-tests"><a class="header" href="#python-tests">Python Tests</a></h2>
 <pre><code class="language-bash">make pyvsag
+python -m venv .venv-test &amp;&amp; . .venv-test/bin/activate
+pip install wheelhouse/pyvsag-*.whl pytest
 cd tests/python &amp;&amp; pytest -q
 </code></pre>
+<p>Test the built wheel, not the source tree. <code>make pyvsag</code> itself runs only part of <code>tests/python</code>
+inside the build container (with Docker), or installs the wheel into the active environment and
+runs the suite there (without Docker). To run the full suite against the built wheel without
+depending on the state of your current environment, install it into a clean virtual environment as
+above before running pytest. To run against an in-tree build instead, see <a href="../guide/pyvsag.html#build-from-source">pyvsag</a>. <code>test_openmp_coexistence.py</code>
+needs <code>torch</code> and <code>scikit-learn</code> and is skipped when they are missing.</p>
 <h2 id="report-testcase-budgets-and-time"><a class="header" href="#report-testcase-budgets-and-time">Report Testcase Budgets and Time</a></h2>
 <p><code>scripts/testing/test_budget_report.py</code> reads saved test listings, results and cost records
 without running tests. It works without Team CI inventory tooling:</p>

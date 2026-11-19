@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -379,6 +379,16 @@ parameters.</p>
 </code></pre>
 <p>In the flat phase, search is exact. In the graph phase, the internal HGraph uses
 the supplied HGraph search parameters such as <code>ef_search</code>.</p>
+<p><code>hgraph</code> inherits every HGraph build key with one exception: <code>precise_io_type: "user_defined_io"</code>
+is rejected at both the outer level and inside <code>hgraph</code>, because the temporary flat and graph
+instances would share one Reader/Writer pair and truncate the backing store. The wrapper itself
+only understands <code>transition_threshold</code> and <code>hgraph</code>; other HGraph-shaped keys placed at the top
+level (for example a top-level <code>max_degree</code>) are ignored, so put them inside <code>hgraph</code>.</p>
+<p>Two phases behave differently at search time. In the flat phase the request is handled by the
+BruteForce parameter parser, which only understands <code>parallelism</code>, <code>factor</code>, <code>enable_reorder</code>,
+<code>timeout_ms</code> and <code>use_extra_info_filter</code> inside the <code>hgraph</code> object, consumes just
+<code>parallelism</code>, <code>use_extra_info_filter</code> and the root-level <code>threshold</code>, and never requires
+<code>ef_search</code>. In the graph phase the full HGraph parser applies and <code>ef_search</code> is mandatory.</p>
 <h2 id="lifecycle-notes"><a class="header" href="#lifecycle-notes">Lifecycle notes</a></h2>
 <ul>
 <li><code>Build</code> chooses the initial phase from the input size: below

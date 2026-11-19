@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -373,6 +373,14 @@ auto result = index-&gt;KnnSearch(
 </code></pre>
 <p>在 flat 阶段，搜索是精确的；进入 graph 阶段后，内部 HGraph 会使用传入的 HGraph
 搜索参数，例如 <code>ef_search</code>。</p>
+<p><code>hgraph</code> 继承 HGraph 的全部构建键，只有一个例外：<code>precise_io_type: "user_defined_io"</code> 在外层和
+<code>hgraph</code> 内部都会被拒绝，因为临时的 flat 与 graph 实例会共用同一对 Reader/Writer 并截断底层存储。
+包装层本身只识别 <code>transition_threshold</code> 与 <code>hgraph</code>；放在顶层的其他 HGraph 风格键（例如顶层的
+<code>max_degree</code>）会被忽略，必须写进 <code>hgraph</code>。</p>
+<p>两个阶段在检索时的行为不同。flat 阶段由 BruteForce 参数解析器处理，它在 <code>hgraph</code> 对象里只认识
+<code>parallelism</code>、<code>factor</code>、<code>enable_reorder</code>、<code>timeout_ms</code>、<code>use_extra_info_filter</code>，实际只消费
+<code>parallelism</code>、<code>use_extra_info_filter</code> 与根级 <code>threshold</code>，且<strong>不要求</strong> <code>ef_search</code>。graph 阶段
+使用完整的 HGraph 解析器，<code>ef_search</code> 为必填。</p>
 <h2 id="生命周期说明"><a class="header" href="#生命周期说明">生命周期说明</a></h2>
 <ul>
 <li><code>Build</code> 会根据输入规模选择初始阶段：小于 <code>transition_threshold</code> 保持 flat；

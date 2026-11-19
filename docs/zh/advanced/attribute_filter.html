@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -340,7 +340,7 @@
 <tr><td>HGraph</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
 <tr><td>IVF</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
 <tr><td>BruteForce</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
-<tr><td>WARP（稀疏）</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td><td style="text-align: center">支持</td></tr>
+<tr><td>WARP</td><td style="text-align: center">不支持</td><td style="text-align: center">不支持（多向量，仅支持基于 id 的过滤）</td><td style="text-align: center">不支持</td></tr>
 <tr><td>SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">仅支持基于 id 的过滤，详见 <a href="filtered_search.html">带过滤的搜索</a></td><td style="text-align: center">—</td></tr>
 </tbody>
 </table>
@@ -427,18 +427,15 @@ set.attrs_ = { category, tags, price };
 </ul>
 <p>同一个 dataset 请只选一种策略，避免双重释放或泄漏。</p>
 <h2 id="构建支持属性过滤的索引"><a class="header" href="#构建支持属性过滤的索引">构建支持属性过滤的索引</a></h2>
-<p>把 <code>index_param.use_attribute_filter</code> 设为 <code>true</code>，可选地在 <code>attr_params</code> 下调整属性
-倒排索引参数。</p>
+<p>把 <code>index_param.use_attribute_filter</code> 设为 <code>true</code> 即可，属性倒排索引会使用下表中的各索引默认值；
+<code>attr_params</code> 不是公开构建键，传入会被当作 <code>invalid config param</code> 拒绝。</p>
 <pre><code class="language-cpp">std::string build_params = R"(
 {
     "dtype": "float32",
     "metric_type": "l2",
     "dim": 128,
     "index_param": {
-        "use_attribute_filter": true,
-        "attr_params": {
-            "has_buckets": false
-        }
+        "use_attribute_filter": true
     }
 }
 )";

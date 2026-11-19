@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-786b3319.js";
+            window.path_to_searchindex_js = "../searchindex-64feb7aa.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-7ee31d19.js"></script>
+        <script src="../toc-587ddf82.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -343,7 +343,7 @@ storage-layout hybrid).</p>
 <tr><td>HGraph</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
 <tr><td>IVF</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
 <tr><td>BruteForce</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
-<tr><td>WARP (sparse)</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td><td style="text-align: center">Yes</td></tr>
+<tr><td>WARP</td><td style="text-align: center">No</td><td style="text-align: center">No (multi-vector; id filters only)</td><td style="text-align: center">No</td></tr>
 <tr><td>SINDI / Pyramid</td><td style="text-align: center">—</td><td style="text-align: center">id-based filters only (see <a href="filtered_search.html">Filtered Search</a>)</td><td style="text-align: center">—</td></tr>
 </tbody>
 </table>
@@ -451,18 +451,16 @@ returns.</li>
 </ul>
 <p>Pick one and stick with it for a given dataset to avoid double-free or leaks.</p>
 <h2 id="building-an-index-with-attribute-support"><a class="header" href="#building-an-index-with-attribute-support">Building an Index with Attribute Support</a></h2>
-<p>Set <code>index_param.use_attribute_filter</code> to <code>true</code> and (optionally) tune the
-attribute-inverted-index parameters under <code>attr_params</code>.</p>
+<p>Set <code>index_param.use_attribute_filter</code> to <code>true</code>. The attribute-inverted index then uses the
+per-index defaults below; there is no public <code>attr_params</code> build key, so passing one is
+rejected as <code>invalid config param</code>.</p>
 <pre><code class="language-cpp">std::string build_params = R"(
 {
     "dtype": "float32",
     "metric_type": "l2",
     "dim": 128,
     "index_param": {
-        "use_attribute_filter": true,
-        "attr_params": {
-            "has_buckets": false
-        }
+        "use_attribute_filter": true
     }
 }
 )";

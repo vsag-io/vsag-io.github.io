@@ -165,10 +165,10 @@
             const path_to_root = "../";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "../searchindex-14903171.js";
+            window.path_to_searchindex_js = "../searchindex-be17c006.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-e83d9634.js"></script>
+        <script src="../toc-35b608f1.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -404,7 +404,7 @@
 </div>
 <p>现有的 <code>alpha</code> 字段控制 PiPNN 的最终 robust pruning。<code>ef_construction</code> 只调节 NSW，
 对 PiPNN 不生效。</p>
-<p>HGraph 还支持实验性的 L2 参数 <code>pipnn_adaptive_pruning</code>（默认 <code>false</code>）和 <code>pipnn_adaptive_pruning_adjust_step</code>（默认 <code>0.06</code>），在首次 <code>Build</code> 时逐点调整最终剪枝阈值。详情见 <a href="../indexes/hgraph.html">HGraph 动态 PiPNN 剪枝</a>。Pyramid 未暴露这两个选项。</p>
+<p>HGraph 还支持实验性的 L2 参数 <code>pipnn_adaptive_pruning</code>（默认 <code>false</code>）和 <code>pipnn_adaptive_pruning_adjust_step</code>（默认 <code>0.06</code>），在首次 <code>Build</code> 时逐点调整最终剪枝阈值。详情见 <a href="../indexes/hgraph.html">HGraph 动态 PiPNN 剪枝</a>。Pyramid 也公开了这两个选项，见其<a href="../indexes/pyramid.html#构建参数">构建参数表</a>。</p>
 <p>搜索时：</p>
 <pre><code class="language-json">{"hgraph": {"ef_search": 100}}
 </code></pre>
@@ -461,16 +461,17 @@
 <h2 id="ivf"><a class="header" href="#ivf">IVF</a></h2>
 <pre><code class="language-json">{
     "ivf": {
-        "nlist": 4096,
-        "base_quantization_type": "sq8",
-        "nprobe": 32
+        "buckets_count": 4096,
+        "base_quantization_type": "sq8"
     }
 }
 </code></pre>
+<p>完整构建参数表见 <a href="../indexes/ivf.html">IVF 索引页</a>。</p>
 <h2 id="brute-force"><a class="header" href="#brute-force">Brute Force</a></h2>
 <pre><code class="language-json">{"brute_force": {}}
 </code></pre>
-<p>无需额外参数。</p>
+<p>量化、IO 和线程池参数均可在 <code>index_param</code> 下配置，
+完整参数表见 <a href="../indexes/brute_force.html">BruteForce 索引页</a>。</p>
 <h2 id="pyramid"><a class="header" href="#pyramid">Pyramid</a></h2>
 <p><code>adaptive_pruning</code> 默认值为 <code>false</code>。实验性 NSW 底图正向/反向 L2 剪枝配置见 <a href="../indexes/pyramid.html#实验性-nsw-自适应剪枝">Pyramid</a>。</p>
 <p>Pyramid 构建参数同样放在 <code>index_param</code> 下：</p>
@@ -492,8 +493,9 @@
 <a href="../indexes/pyramid.html#构建参数">Pyramid 参数表</a>。</p>
 <p>MRLE 与 split RaBitQ 组合使用 <code>base_quantization_type: "tq"</code>、
 <code>tq_chain: "mrle, rabitq"</code>、<code>mrle_dim</code>，以及
-<code>rabitq_bits_per_dim_base</code>/<code>rabitq_bits_per_dim_precise</code>。该配置会自动从 split base codes
-精排，并保留原始 FP32 向量供仅解码路径使用。完整配置及存储/召回权衡见
+<code>rabitq_bits_per_dim_base</code>/<code>rabitq_bits_per_dim_precise</code>。该配置会从 split base codes 精排，且 <strong>不</strong> 保留原始 FP32 向量：Pyramid 只在变换量化器需要 raw 向量
+<strong>且</strong> 不是「MRLE + RaBitQ split」这一组合时才自动打开 <code>store_raw_vector</code>（<code>RequiresRawVectorForTransformQuantizer</code>
+为真而 <code>RequiresRawVectorForMRLERaBitQSplit</code> 为假）。HGraph 在该组合下则会自动打开。完整配置及存储/召回权衡见
 <a href="../indexes/pyramid.html">Pyramid 页面</a>。</p>
 <h2 id="sindi稀疏向量"><a class="header" href="#sindi稀疏向量">SINDI（稀疏向量）</a></h2>
 <pre><code class="language-json">{
