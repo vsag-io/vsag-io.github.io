@@ -98,8 +98,9 @@ auto result = index->KnnSearch(
 | `saq_segment_count` | int | `0` | SAQ 分段数；`0` 表示动态选择边界 |
 | `saq_random_rotation` | bool | `true` | 在每个 SAQ 分段内使用独立正交旋转 |
 | `rabitq_fused_datacell` | bool | `false` | 将底层 HGraph 节点与 RaBitQ split 编码融合到一条内存记录中；要求 L2/IP、flat 内存图、x 在 `[1, 4]` 的 RaBitQ x+y split 编码，并满足 [RaBitQ x+y split](../quantization/rabitq_split.md) 中的其他约束 |
+| `rabitq_fused_layout` | string | `inline` | 启用 fused RaBitQ 后，选择 `external_supplement` 可将 64 槽底层图和 filter 留在内存，把 supplement 独立存储并用于 KNN 批量精排。 |
 | `train_sample_count` | int | `65536` | 量化器训练的最大采样向量数；显式配置时最小为 `512` |
-| `build_thread_count` | int | `100` | 构建阶段并发线程数 |
+| `build_thread_count` | int | `100` | 构建阶段并发线程数。设为 `1` 时，`Add` 和 NSW 图的 `Build` 逐条插入向量，即使索引持有 `Resource` 提供的线程池 |
 | `support_duplicate` | bool | `false` | 合并重复向量的图节点，并保留各自的标签 |
 | `deduplicate_storage` | bool | `false` | 让重复向量共享存储；需同时设置 `support_duplicate: true` |
 | `duplicate_distance_threshold` | float | `0.0` | 重复判定距离阈值。大于 `0` 时按最近候选的距离判重；等于 `0` 时先比较最近候选的编码，不匹配则继续检查构建搜索返回的其余候选，直到找到匹配 |
@@ -126,7 +127,7 @@ auto result = index->KnnSearch(
 | `graph_file_path` | string | `"./default_file_path"` | `graph_io_type` 为磁盘后端时使用的文件路径 |
 | `raw_vector_io_type` | string | `"block_memory_io"` | 保留原始向量（`store_raw_vector: true`）的存储后端 |
 | `raw_vector_file_path` | string | `"./default_file_path"` | `raw_vector_io_type` 为磁盘后端时使用的文件路径 |
-| `base_supplement_io_type` | string | 未设置 | RaBitQ split 补充码的 IO 后端。仅在 split base 编码下有意义：split datacell 允许两半使用同一后端（`block_memory_io`、`memory_io`、`buffer_io`、`async_io`、`mmap_io`；`uring_io` 始终不支持），或使用「base `block_memory_io` + supplement `async_io`」的混合组合（无 libaio 时回退为 `buffer_io`）。启用 `rabitq_fused_datacell` 时两半都只能是 `block_memory_io` / `memory_io` |
+| `base_supplement_io_type` | string | 未设置 | RaBitQ split 补充码的 IO 后端。仅在 split base 编码下有意义：split datacell 允许两半使用同一后端（`block_memory_io`、`memory_io`、`buffer_io`、`async_io`、`mmap_io`；`uring_io` 始终不支持），或使用「base `block_memory_io` + supplement `async_io`」的混合组合（无 libaio 时回退为 `buffer_io`）。内联 fused 要求两段码均在内存。外置 fused supplement 也支持上述混合磁盘组合。 |
 | `base_supplement_file_path` | string | 派生 | split 补充后端的文件路径；默认在 base 路径后加 `_supplement` 后缀 |
 | `precise_user_defined_io` | string | 未设置 | 已注册的自定义 IO 类名。仅在 `precise_io_type: "user_defined_io"` 时需要，该组合还要求 `use_reorder: true`、精排 `fp32`、base 为 `sq8`，且 base 与图存储均为 `block_memory_io` |
 | `base_enable_read_cache` | bool | `false` | 为 base 编码开启块读缓存。仅对块式磁盘后端有意义 |
@@ -211,10 +212,18 @@ PiPNN，并通过查询验证每一份生成的图。
 同一个物理编码槽位，但仍保留各自的标签。该选项支持使用 `graph_type: "nsw"` 或 `"pipnn"` 的
 稠密向量 HGraph 索引；`graph_type: "odescent"` 不支持。
 
-PiPNN 初始 `Build` 按 FP32 原始输入行的字节相等关系分组，每个代表向量只编码一次，
-各 label 的属性和 extra_info 仍独立保存，也可同时启用动态 alpha。
-`duplicate_distance_threshold` 不参与 PiPNN 批量分组；后续增量 `Add` 沿用现有的
-距离阈值或编码判重规则。量化器仍使用原有训练样本进行训练。
+启用 `support_duplicate: true` 时，PiPNN 初始 `Build` 会合并原始输入字节完全相同的向量。
+使用 L2（`l2`）且 `duplicate_distance_threshold` 为正时，还会合并同叶近重复点：在共享叶子且
+**平方 L2** 距离不超过阈值的现有代表点中，选择内部 ID 最小的一个。分组是贪心且非传递的：组内
+成员不能将超出代表点距离阈值的其他点拉进组。始终不同叶的近邻可能漏判。阈值为零或使用非 L2
+度量时，初始 `Build` 仍仅按输入字节分组。后续增量 `Add` 沿用现有规则，包括非 L2 度量下
+正阈值仍按距离判重。
+
+L2 下使用正阈值会在构图前增加一次候选扫描。同叶点较多时，如果阈值较宽或第一维的差异较小，
+需要验证的候选点对会增多，可能延长构建时间。
+
+各标签、属性和 extra_info 仍独立保存。近重复点可能复用代表点的距离，包括范围检索的边界。
+开启存储去重后，每个代表点只编码一次，不再保存成员自己的编码；量化器仍使用原有训练样本。
 
 启用存储去重后，暂不支持以下操作和配置：
 
@@ -345,18 +354,20 @@ FP16/BF16 输入支持原来对 FP32 合法的同一组存储量化器配置，�
 | `hops_limit` | int | 不限 | beam search 在返回当前前沿前允许的最大跳数。取值 **不大于** `ef_search` 时不会生效：解析器会打印告警并恢复为不限，因此跳数上限只在大于 `ef_search` 时起作用。 |
 | `skip_ratio` | float | `0.2` | 过滤场景下的性能调优参数。控制跳过无效点的比例，取值范围 `[0.0, 1.0]`。`skip_ratio=0.2` 表示跳过 20% 的无效点，只检查 80% 的无效点。值越大性能越好但召回率可能越低。仅在带 filter 的搜索中生效。详见下文[过滤跳过策略](#过滤跳过策略skip_ratio-与-skip_strategy)。 |
 | `skip_strategy` | string | `"deterministic_accumulative"` | 过滤跳过的策略。可选值：`"random"`（随机跳过）或 `"deterministic_accumulative"`（确定性累积跳过）。详见下文[过滤跳过策略](#过滤跳过策略skip_ratio-与-skip_strategy)。 |
+| `early_stop` | object | 不设置（关闭） | 基于距离比的早停：`{"type": "distance", "alpha": <float>}`。`alpha` 不小于 1，可省略，省略时按 `k` 取值。详见[基于距离比的早停](#基于距离比的早停)。 |
 | `brute_force_threshold` | float | `0.0` | 选择率感知的暴搜回退开关。当取值 `> 0` 且当前 filter 的 `ValidRatio()` 小于等于 `brute_force_threshold` 时，搜索会**完全跳过图遍历**，直接在通过过滤的 id 上用最佳精度的 flatten 编码做一次暴力扫描（细节见下一节）。取值范围 `[0.0, 1.0]`；默认 `0.0` 表示关闭，保持原有行为。 |
 | `rabitq_one_bit_search` | bool | `false` | 启用 RaBitQ filter/lower-bound 路径；对 x+y split 索引会使用全部 x 个 filter bits，详见 [RaBitQ x+y Split](../quantization/rabitq_split.md)。 |
+| `rabitq_rerank_candidates` | integer | 未设置 | 外置 supplement 完整评分数的可选硬上限，至少为 k。默认根据候选下界和当前第 k 名的完整距离决定何时停止精排。 |
 | `rabitq_error_rate` | float | 索引默认值 | 本次搜索使用的正数 lower-bound 误差倍率；调整它不需要重建 split 索引。 |
 | `enable_reorder` | bool | `true` | 是否用精排编码对粗排候选做重打分。设为 `false` 跳过精排，直接返回近似结果。需在 `index_param` 中设置 `use_reorder: true` 以存储精排所需的精确编码。 |
 | `factor` | float | `0.0` | 精排候选倍率。候选池初值为 `max(ef_search, topk)`；当 `> 1.0` 时上限为 `min(max(ef_search, topk), floor(topk * factor))`，因此最终可能**低于** `ef_search`。默认 `0.0` 保持 `ef_search` 候选池。启用共轭图时最终候选池不低于其 look-at-`k` 下限。无法精排时不生效。 |
 | `parallelism` | int | `1` | 单次 HGraph 搜索的并行 worker 数。`<= 0` 的值在解析时重置为 `1`；并行执行需要已配置的执行器，否则搜索回退为顺序执行。 |
 | `timeout_ms` | int | 不限 | 每次查询的墙上时间超时（毫秒）。计时器在路由完成后启动；超时后搜索返回当前前沿。仅尽最大努力——不会中断正在执行的距离计算批次。 |
 | `use_extra_info_filter` | bool | `false` | 从 extra-info 构造查询 filter，而非基于普通 label 成员关系。需在构建时配置对应 extra-info 列。 |
-| `use_conjugate_graph_search` | bool | `true` | 搜索增强阶段。当构建时 `use_conjugate_graph: true` 时，通过共轭图扩展结果以提升召回；设为 `false` 跳过。仅在已构建共轭图时生效。 |
+| `use_conjugate_graph_search` | bool | `true` | 搜索增强阶段。当构建时 `use_conjugate_graph: true` 时，通过共轭图扩展结果以提升召回；设为 `false` 跳过。仅在已构建共轭图时生效。如果 `external_supplement` 索引已建共轭图，查询时须设置 `use_conjugate_graph_search=false`，以保证完整码读取次数在精排预算内。 |
 | `use_mci` | bool | `true` | 遍历时使用已构建的 MCI 路由阶段。索引需启用 MCI，否则该开关无副作用 |
 | `use_hybrid_traversal` | bool | `false` | 将 MCI 路由与图遍历混合执行，而不是二选一 |
-| `search_no_lock` | bool | `false` | 跳过检索侧加锁。要求 `parallelism` 为 `1`，并由调用方保证查询期间不会并发修改或销毁索引 |
+| `search_no_lock` | bool | `false` | 跳过检索侧加锁。要求 `parallelism` 为 `1`，并由调用方保证查询期间不会并发修改或销毁索引。使用 `external_supplement` 时还须先调用 `SetImmutable()`。 |
 | `mci_packed_filter` | bool | `true` | 以打包的候选块为单位评估 MCI 过滤 |
 | `mci_batch_distance` | bool | `true` | 对一个候选批次批量计算 MCI 距离 |
 | `mci_activation_cap` | uint32 | `0` | 单次查询激活的 MCI 团数量上限；`0` 表示不限 |
@@ -376,6 +387,69 @@ KNN 候选会被丢弃。它在解析 `hgraph` 对象之前由 `ParseSearchThres
 auto result = index->KnnSearch(
     query, topk, R"({"hgraph": {"ef_search": 200}})").value();
 ```
+
+### 基于距离比的早停
+
+要让绝大多数查询都达到召回目标，固定的 `ef_search` 需要按其中较难的查询来设置。可选的 `early_stop` 配置让查询在剩余候选明显比已有结果远时提前结束，不必等到固定宽度的搜索自行终止。
+
+#### 开启方式
+
+保持原有的 `ef_search` 不变，在搜索参数的 `hgraph` 对象中加入 `early_stop`，并将 `type` 设为 `"distance"` 即可开启。最简单的写法省略 `alpha`，使用按 `k` 计算的默认值：
+
+```json
+{"hgraph":{"ef_search":600,"early_stop":{"type":"distance"}}}
+```
+
+也可以在 `early_stop` 中自行指定 `alpha`：
+
+```json
+{"hgraph":{"ef_search":600,"early_stop":{"type":"distance","alpha":1.1}}}
+```
+
+`alpha` 必须有限且不小于 1；`early_stop` 中的其他键会报错。
+
+#### 预期效果
+
+开启早停后，搜索只会比原配置更早结束；在 FP32 基础编码、不重排且未启用共轭图时，单条查询的结果要么与原来相同，要么少命中一部分近邻。
+
+吞吐量的提升取决于省下的距离计算比例；当固定的 `ef_search` 远高于大多数查询所需时，这一比例会很大。在 10 个公开数据集上，将 `ef_search` 校准到使 99% 的校准查询达到召回目标，并按下文所述校准 `alpha` 后，其中 8 个数据集在至少两个召回目标下，1 或 8 个查询线程的 QPS 提升了至少 10%，而平均召回率损失不超过 0.5 个百分点；实测数据见 [#3149](https://github.com/antgroup/vsag/pull/3149)。这一规则在用文本查询检索图像向量（COCO-T2I）时没有效果，在 SIFT 上也很少见效，且在 `ef_search` 接近 `k` 时收益很小。默认 `alpha` 省下的计算量远少于校准后的 `alpha`。
+
+最慢的那部分查询很少满足早停条件，所以 P99 延迟通常变化不大。不应指望它降低 P99 延迟。
+
+#### `alpha` 的选取
+
+省略 `alpha` 时按 `k` 取值：`k = 10` 时为 `1.5`，`k >= 100` 时为 `1.15`，两者之间按 `log10(k)` 线性变化，`k = 1` 时升到 `1.85`。`k` 越大，第 k 近距离越靠外，同一个比值结束得越晚，所以默认的 `alpha` 随 `k` 增大而减小。
+
+默认的 `alpha` 偏保守。在上述按 99% 校准的测量中，按配置单独校准的值在 `k = 10` 时为 1.06 到 1.52，`k = 100` 时为 1.02 到 1.21；多数低于默认值，能省下更多距离计算。如果希望在自身业务数据上校准 `alpha`，校准和检查应使用不同的查询，上述评测也是这样做的（见 #2941）：
+
+1. 准备两组带真值、互不重复的查询，一组用于校准，一组用于检查。
+2. 关闭早停，在对宽度的搜索中，找到使所需比例的校准查询达到召回目标的最小 `ef_search`。
+3. 固定这个 `ef_search`，开启早停，在网格上尝试不同的 `alpha`。保留满足以下条件的值：该值以及网格上所有更大的值都仍能使所需比例的查询达标，并且平均召回损失加两倍标准误不超过容许值（上述测量取 0.5 个百分点）。从中取距离计算最少的一个，通常就是其中最小的那个。
+4. 在检查查询上检查召回、query coverage 和端到端耗时（或 QPS），确认达标。
+
+这样选出的 `alpha` 在新查询上是否依然达标，取决于校准查询的数量。有约 5000 条校准查询时（六个数据集），这样选出的 `alpha` 在全部配置上都通过。只有 398 到 1270 条校准查询时（DBpedia、Cohere、LAION），在固定宽度搜索通过的 15 个配置中有 3 个未通过；把 `alpha - 1` 放大 25% 作为余量后，这 3 个配置全部通过，15 个配置的平均距离计算节省比例由 38.6% 降为 27.9%。校准查询较少时，应加上这样的余量。
+
+在相同 `ef_search` 下，较大的 `alpha` 走的是同一条遍历、只是结束得更晚，所以在 FP32 基础编码、不重排且未启用共轭图时不会返回更差的结果。使用量化基础编码时，规则比较的是遍历中的近似距离；启用重排或共轭图时，交给后一阶段的候选会不同。因此召回不一定随 `alpha` 单调变化，这几种设置下需要分别校准。
+
+#### 适用范围
+
+- **支持**：`l2` 或 `cosine` 的 KNN 搜索（基础量化类型不限）、重排（规则作用于遍历中的基础编码距离，之后重排阶段再对保留的候选重新计算距离）、共轭图搜索、`parallelism`、过滤、批量查询和并发请求。
+- **不支持，设置后直接报错**：内积度量（距离可能为负，比值没有意义；对归一化向量，`cosine` 给出相同的排序）、自定义距离、范围搜索、迭代器搜索、搜索会话和融合的 RaBitQ 拆分存储。
+- **不受影响**：由 MCI、混合遍历或暴力扫描路径回答查询时，规则不运行，搜索照常进行。
+
+当搜索宽度（`ef_search`，小于 `k` 时按 `k` 计）不超过 `k` 的 1.25 倍时，规则也不生效：搜索按未设置 `early_stop` 的方式进行，索引在第一次遇到这种情况时打印一条警告。这时规则很少能提前结束搜索，却仍要维护自己的前 k 个结果。
+
+#### 运行情况的确认
+
+运行了规则的搜索会在统计中返回 `early_stop_count`：单条查询被规则提前结束为 `1`，否则为 `0`；批量请求返回被规则提前结束的查询数。规则没有运行时（未设置、因接近 `k` 被跳过，或由图遍历以外的路径回答）不返回这个字段。在搜索推理报告中，被规则提前结束的搜索终止原因为 `distance_early_stop`。
+
+#### 判定规则
+
+结果数达到 `k` 后，如果最近的待展开候选的距离不小于当前第 k 近结果距离的 `alpha` 倍，搜索就会结束。候选准入和固定 `ef_search` 的正常终止条件不变，所以从未满足这个条件的查询，遍历路径和返回结果与不设置 `early_stop` 时相同；维护停止状态仍要花一些时间。设置了距离 `threshold` 时，仍在选出结果后再筛选，返回数量可能少于 `k`。
+
+比较使用 VSAG 的距离分数：`l2` 为平方距离，`cosine` 为 `1 - cosine`。对归一化向量，`1 - cosine` 等于平方 L2 距离的一半，所以同一个 `alpha` 对两种度量含义相同。
+
+该规则改编自 [Distance Adaptive Beam Search 的 Algorithm 2](https://arxiv.org/html/2505.15636v1#A2)。这里保留了 VSAG 的固定宽度遍历和距离分数，论文针对度量空间和可导航图的理论保证不适用。
 
 ### 高选择性过滤下的暴搜回退（`brute_force_threshold`）
 
@@ -481,6 +555,43 @@ auto result = index->KnnSearch(query, topk, params, my_filter).value();
 如果你的业务偏向粗粒度分桶（每次查询只扫部分桶）或严重受 SSD I/O 制约，建议先对比
 [IVF](ivf.md) 再决定是否选择 HGraph。
 
+## FGIM 合并（显式启用）
+
+在目标 HGraph 参数中设置 `merge_strategy: "fgim"`，即可通过现有
+`Index::Merge(vector<MergeUnit>)` 接口使用 FGIM。默认策略仍为 `"odescent"`。
+`fgim_refinement_iterations` 为非负整数，默认 4；设置为 0 时不执行 refinement。
+单独设置此参数仍使用默认的 `odescent` 策略；为其他策略提供此参数时，VSAG 会输出警告。
+持久 k-NNG 的度数上限 k 使用目标索引的 `max_degree`；CrossQuery 的 top-k
+和搜索宽度均为 `ceil(k / (源图数量 - 1))`。
+
+非空目标索引作为第一张源图，总共至少需要两张非空源图。源图须正常完成 Build，
+使用同维度 float32/L2/FP32 存储，且合并期间不得并发修改。
+第一版拒绝删除、重复向量跟踪/去重存储、conjugate graph、MCI、属性、
+extra information 和持久 source ID。请显式设置 `support_duplicate: false`
+及 `deduplicate_storage: false`。
+
+目标已有标签保持不变。每个 MergeUnit 回调仅对 external label 执行一次；
+空回调表示保持原标签。回调返回 false（过滤节点）或最终标签发生冲突时，
+会在修改目标数据前拒绝合并。源索引不会被修改。
+
+FGIM 依次构建 initial k-NNG、refinement、bottom 邻居选择及反向连接，
+再复用 HGraph 原有插入能力重建上层，不拼接旧上层。
+性能和召回率取决于数据与度数/迭代参数；此选项不保证加速比或全图连通。
+发布阶段发生内存分配或存储异常时，不提供事务回滚保证。
+
+FGIM 的迭代次数是工作预算，不保证达到收敛。Refinement 和 reconstruction
+各需要一个大小约为 `N * dimension * sizeof(float)` 字节的 FP32 向量工作缓冲；
+两个缓冲按阶段释放，总峰值还包括源索引和中间邻接表。目的图必须可写，
+只读的 `reader_io` 图存储会在修改目的数据前被拒绝。合并持有目的图结构锁期间，
+目的图查询通常会等待；扩容前后释放锁的间隙中，读者仍可访问原来已发布的有效索引。
+
+### PiPNN reservoir 缓存
+
+`graph_type: "pipnn"` 可通过同一缓存 API 导出和导入带版本的 reservoir。
+通过 Source ID 和原始 FP32 内容指纹识别可复用行；不兼容、旧版快照以及重复组图走冷构建。
+Pyramid 按层级名称和节点路径隔离缓存。生命周期、兼容性、内存开销、近似质量和诊断字段见
+[PiPNN reservoir 缓存](../advanced/build_cache.md#pipnn-reservoir-缓存)。
+
 ## 相关文档
 
 - [创建索引](../guide/create_index.md)
@@ -541,4 +652,3 @@ auto result = index->KnnSearch(query, topk, params, my_filter).value();
 临时数据和可选统计仅属于单次调用；不增加全局计数或修改图锁协议。
 序列化保存该配置。加载时 adaptive_pruning 必须相同；启用时还要求 alpha、步长和作用范围一致，
 否则兼容性检查失败。没有该字段的旧索引按关闭处理。
-

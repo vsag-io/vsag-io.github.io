@@ -111,8 +111,9 @@ records cross-index defaults and the top-level common fields.
 | `saq_segment_count` | int | `0` | SAQ segment count; `0` selects boundaries dynamically. |
 | `saq_random_rotation` | bool | `true` | Apply an independent orthogonal rotation inside each SAQ segment. |
 | `rabitq_fused_datacell` | bool | `false` | Fuse the bottom HGraph node and RaBitQ split codes into one in-memory record. Requires L2/IP, flat in-memory graph storage, RaBitQ x+y split codes with x in `[1, 4]`, and the other constraints described in [RaBitQ x+y split](../quantization/rabitq_split.md). |
+| `rabitq_fused_layout` | string | `inline` | With fused RaBitQ, `external_supplement` keeps the 64-slot bottom graph and filter in RAM and stores supplement records separately for batch KNN reranking. |
 | `train_sample_count` | int | `65536` | Maximum number of vectors sampled for quantizer training; must be at least `512` when set explicitly. |
-| `build_thread_count` | int | `100` | Threads used to parallelise build |
+| `build_thread_count` | int | `100` | Threads used to parallelise build. With `1`, `Add` and NSW `Build` insert vectors one at a time, even when the index has a thread pool from its `Resource` |
 | `support_duplicate` | bool | `false` | Group duplicate vectors while retaining their individual labels |
 | `deduplicate_storage` | bool | `false` | Share vector storage between duplicates; requires `support_duplicate: true` |
 | `duplicate_distance_threshold` | float | `0.0` | Duplicate-detection distance threshold. When greater than `0`, deduplicate by the nearest candidate distance; when `0`, compare codes with the nearest candidate first, then check the remaining returned build candidates until a match is found |
@@ -139,7 +140,7 @@ records cross-index defaults and the top-level common fields.
 | `graph_file_path` | string | `"./default_file_path"` | File path used when `graph_io_type` is disk-backed. |
 | `raw_vector_io_type` | string | `"block_memory_io"` | Storage backend for the retained raw vectors (`store_raw_vector: true`). |
 | `raw_vector_file_path` | string | `"./default_file_path"` | File path used when `raw_vector_io_type` is disk-backed. |
-| `base_supplement_io_type` | string | unset | IO backend for the RaBitQ split supplement codes. Only meaningful with split base codes: the split data cell accepts the same backend for both halves (`block_memory_io`, `memory_io`, `buffer_io`, `async_io`, `mmap_io`; `uring_io` is never supported) or the hybrid base `block_memory_io` + supplement `async_io` (`buffer_io` when libaio is unavailable). `rabitq_fused_datacell` additionally restricts both halves to `block_memory_io` / `memory_io`. |
+| `base_supplement_io_type` | string | unset | IO backend for the RaBitQ split supplement codes. Only meaningful with split base codes: the split data cell accepts the same backend for both halves (`block_memory_io`, `memory_io`, `buffer_io`, `async_io`, `mmap_io`; `uring_io` is never supported) or the hybrid base `block_memory_io` + supplement `async_io` (`buffer_io` when libaio is unavailable). Inline fused storage requires both halves in memory. External fused supplements also support the hybrid disk combination. |
 | `base_supplement_file_path` | string | derived | File path for the split supplement backend; defaults to the base path with a `_supplement` suffix. |
 | `precise_user_defined_io` | string | unset | Registered user-defined IO class name. Required only when `precise_io_type: "user_defined_io"`, which also demands `use_reorder: true`, precise `fp32`, base `sq8` codes and `block_memory_io` base plus graph storage. |
 | `base_enable_read_cache` | bool | `false` | Enable the block read cache for base codes. Only meaningful with a block-based disk backend. |
@@ -232,11 +233,24 @@ vectors share one physical code slot while retaining their individual labels. Th
 supports dense-vector HGraph indexes using `graph_type: "nsw"` or `"pipnn"`;
 `graph_type: "odescent"` is not supported.
 
-For PiPNN, initial `Build` groups byte-identical FP32 input rows and encodes each
-representative once. All labels, attributes, and extra information remain independent.
-This also works with adaptive alpha. `duplicate_distance_threshold` does not affect
-PiPNN batch grouping; later incremental `Add` retains its existing threshold/code-based
-duplicate detection. Quantizer training still uses the original training sample.
+With `support_duplicate: true`, PiPNN initial `Build` groups byte-identical input rows.
+For L2 (`l2`), a positive `duplicate_distance_threshold` also groups near duplicates:
+a point joins the lowest-ID existing representative that shares a partition leaf and whose
+**squared** L2 distance is at most the threshold. Grouping is greedy and non-transitive:
+a group member cannot bring in another point that is outside the threshold of the
+representative. Points that never share a leaf may be missed. Zero threshold and non-L2
+metrics keep byte-identical grouping during initial `Build`.
+Incremental `Add` keeps its existing threshold/code rules, including distance-based
+matching for non-L2 metrics when a positive threshold is set.
+
+A positive L2 threshold adds a candidate scan before graph construction. Build time may
+increase, especially when many points share leaves and a wide threshold or low-variance
+first coordinate leaves many candidate pairs to check.
+
+Labels, attributes, and extra information remain independent. A near duplicate may be
+returned with its representative's distance, including at a range-search boundary.
+With storage deduplication, each representative is encoded once and the original codes
+of its members are not stored. Quantizer training still uses the original sample.
 
 The following operations and configurations are not supported while storage deduplication
 is enabled:
@@ -440,18 +454,20 @@ Search-time parameters live under the `hgraph` sub-object:
 | `hops_limit` | int | unlimited | Cap on the number of hops the beam search performs before returning the current frontier. A value that is **not greater** than `ef_search` is not applied: the parser logs a warning and restores the unlimited default, so the hop cap only takes effect above `ef_search`. |
 | `skip_ratio` | float | `0.2` | Performance tuning parameter for filtered search. Controls the ratio of invalid points to skip, in range `[0.0, 1.0]`. `skip_ratio=0.2` means skip 20% of invalid points and only check 80%. Higher values improve performance but may reduce recall. Only applies to searches with filters. See [Filter Skip Strategy](#filter-skip-strategy-skip_ratio-and-skip_strategy) below. |
 | `skip_strategy` | string | `"deterministic_accumulative"` | Strategy for filter skipping. Options: `"random"` (random skipping) or `"deterministic_accumulative"` (deterministic cumulative skipping). See [Filter Skip Strategy](#filter-skip-strategy-skip_ratio-and-skip_strategy) below. |
+| `early_stop` | object | absent (off) | Distance-based early termination: `{"type": "distance", "alpha": <float>}`. `alpha` is at least 1 and optional; when omitted it is chosen from `k`. See [Distance-based early termination](#distance-based-early-termination). |
 | `brute_force_threshold` | float | `0.0` | Selectivity-aware brute-force fallback. When `> 0` and the supplied filter's `ValidRatio()` is `≤ brute_force_threshold`, the search **bypasses the graph traversal entirely** and runs an exact scan over the valid ids using the best available flatten codes (see the section below). Must lie in `[0.0, 1.0]`; the default `0.0` disables the feature and preserves legacy behavior. |
 | `rabitq_one_bit_search` | bool | `false` | Enables the RaBitQ filter/lower-bound path. On an x+y split index it uses all x filter bits; see [RaBitQ x+y Split](../quantization/rabitq_split.md). |
+| `rabitq_rerank_candidates` | integer | unset | Optional hard cap on distinct full-code evaluations for external supplements. Must be at least k. By default the kth full distance and candidate lower bounds determine when reranking stops. |
 | `rabitq_error_rate` | float | index default | Positive lower-bound error multiplier for this search. It can be tuned without rebuilding the split index. |
 | `enable_reorder` | bool | `true` | Whether to re-rank coarse candidates against the precise codes. Set to `false` to skip reordering and return the approximate results directly. Use `use_reorder: true` in `index_param` to store the precise codes needed for reordering. |
 | `factor` | float | `0.0` | Reorder-candidate multiplier. The candidate pool starts at `max(ef_search, topk)`; when `> 1.0` it is capped at `min(max(ef_search, topk), floor(topk * factor))`, so it can end up **below** `ef_search`. The default `0.0` keeps the `ef_search` pool. A conjugate graph raises the final pool to at least its look-at-`k` floor. Ignored when reorder is not available. |
 | `parallelism` | int | `1` | Number of parallel workers for a single HGraph search. Values `<= 0` are reset to `1` during parsing; parallel execution requires a configured executor, otherwise the search falls back to sequential execution. |
 | `timeout_ms` | int | unlimited | Per-query wall-clock timeout in milliseconds. The timer starts after routing; once exceeded, the search returns the current frontier. Best-effort only — it does not preempt a distance-computation batch. |
 | `use_extra_info_filter` | bool | `false` | Create the query filter from extra-info rather than plain label membership. Requires matching extra-info columns at build time. |
-| `use_conjugate_graph_search` | bool | `true` | Search enhancement pass. When `use_conjugate_graph: true` was set at build time, the search expands results through the conjugate graph for potentially higher recall; set to `false` to skip it. Only takes effect when a conjugate graph was built. |
+| `use_conjugate_graph_search` | bool | `true` | Search enhancement pass. When `use_conjugate_graph: true` was set at build time, the search expands results through the conjugate graph for potentially higher recall; set to `false` to skip it. Only takes effect when a conjugate graph was built. When an `external_supplement` index has a conjugate graph, set `use_conjugate_graph_search=false` on queries to keep full-code reads within the rerank budget. |
 | `use_mci` | bool | `true` | Use the built MCI routing phase during traversal. Requires an index built with MCI enabled; otherwise the flag is harmless. |
 | `use_hybrid_traversal` | bool | `false` | Blend MCI routing with graph traversal instead of choosing one path. |
-| `search_no_lock` | bool | `false` | Skip the search-side lock. Requires `parallelism` to be `1`; the caller must guarantee no concurrent modification or destruction of the index while the query runs. |
+| `search_no_lock` | bool | `false` | Skip the search-side lock. Requires `parallelism` to be `1`; the caller must guarantee no concurrent modification or destruction of the index while the query runs. With `external_supplement`, first call `SetImmutable()`. |
 | `mci_packed_filter` | bool | `true` | Evaluate MCI filters against packed candidate blocks. |
 | `mci_batch_distance` | bool | `true` | Batch MCI distance computations across a candidate batch. |
 | `mci_activation_cap` | uint32 | `0` | Maximum number of MCI cliques activated per query; `0` means unlimited. |
@@ -472,6 +488,129 @@ finite numeric value discards KNN candidates whose distance exceeds it. It is re
 auto result = index->KnnSearch(
     query, topk, R"({"hgraph": {"ef_search": 200}})").value();
 ```
+
+### Distance-based early termination
+
+For most queries to reach a recall target, a fixed `ef_search` has to be set for the harder
+ones among them. An optional `early_stop` object lets a query finish before the fixed-width
+search would end, once the remaining candidates are clearly farther than the results it already
+holds.
+
+#### Turning It On
+
+Keep the `ef_search` you already use and add `early_stop` with `type` set to `"distance"`
+inside the `hgraph` search parameters. The simplest form omits `alpha` and uses a default
+chosen from `k`:
+
+```json
+{"hgraph":{"ef_search":600,"early_stop":{"type":"distance"}}}
+```
+
+To set `alpha` yourself, give it inside `early_stop`:
+
+```json
+{"hgraph":{"ef_search":600,"early_stop":{"type":"distance","alpha":1.1}}}
+```
+
+`alpha` must be finite and at least 1; other keys inside `early_stop` are rejected.
+
+#### Expected Effect
+
+With `early_stop`, a search can only end earlier than it would under the same `ef_search`.
+With FP32 base codes, no reordering and no conjugate graph, a query returns either the same
+results as before or misses some of the neighbours it found before.
+
+The gain in throughput follows the share of distance computations saved, which is large where
+the fixed `ef_search` is far above what most queries need. On ten public datasets, with
+`ef_search` calibrated so that 99% of calibration queries reach the recall target and `alpha`
+calibrated as described below, QPS with 1 or 8 query threads rose by 10% or more at a mean
+recall loss of at most 0.5 points at two or more recall targets on eight of them; the
+measurements are in [#3149](https://github.com/antgroup/vsag/pull/3149). The rule did not help
+when text queries searched image vectors (COCO-T2I), seldom helped on SIFT, and gained little
+where `ef_search` was close to `k`. The default `alpha` saves much less than a calibrated one.
+
+The slowest queries seldom meet the stopping condition, so P99 latency usually changes
+little. Do not count on the rule to lower P99.
+
+#### Choosing `alpha`
+
+When `alpha` is omitted, it is chosen from `k`: `1.5` at `k = 10`, `1.15` for `k >= 100`,
+linear in `log10(k)` in between and rising to `1.85` at `k = 1`. A larger `k` puts the kth
+distance farther out, so the same ratio stops later; this is why the default `alpha` falls as
+`k` grows.
+
+The default is conservative. In the measurements above (`ef_search` calibrated for 99% of
+queries), values calibrated per configuration ranged from 1.06 to 1.52 at `k = 10` and from
+1.02 to 1.21 at `k = 100`; most were below the default and saved more work. To calibrate
+`alpha` on your own data, use separate queries for calibration and for the check, as those
+measurements did (see #2941):
+
+1. Prepare two disjoint sets of queries with ground truth, one for calibration and one for the
+   check.
+2. With `early_stop` off, find the smallest `ef_search` your search over widths finds at which
+   the required share of calibration queries reaches the recall target.
+3. Keep that `ef_search`, turn `early_stop` on and try `alpha` on a grid. Keep the values for
+   which that value and every larger one on the grid still reach the required share and keep
+   the mean recall loss plus two standard errors within your tolerance (0.5 points in our
+   measurements). Among them, take the one with the fewest distance computations, which is
+   usually the smallest.
+4. Check recall, query coverage and end-to-end time (or QPS) on the other set.
+
+How well this transfers to new queries depends on the number of calibration queries. With
+about 5000 calibration queries (six datasets), the `alpha` chosen this way passed at every
+configuration. With 398 to 1270 calibration queries (DBpedia, Cohere, LAION), it failed at
+3 of the 15 configurations where the fixed search passed. Enlarging `alpha - 1` by 25% as a
+margin repaired all three, and lowered the distance computations saved over those 15
+configurations from 38.6% to 27.9%. With few calibration queries, add such a margin.
+
+For the same `ef_search`, a larger `alpha` follows the same traversal and stops later, so with
+FP32 base codes, no reordering and no conjugate graph it never returns worse results. With
+quantized base codes the rule compares the traversal's approximate distances, and with
+reordering or a conjugate graph the later stage receives a different set of candidates, so
+recall need not be monotone in `alpha`. Calibrate it separately for each of these settings.
+
+#### Where It Applies
+
+- **Supported**: KNN search on `l2` or `cosine` with any base quantization, reordering (the
+  rule acts on the traversal's base-code distances and the reorder stage then rescores the
+  candidates it kept), conjugate graph search, `parallelism`, filters, batched queries and
+  concurrent requests.
+- **Rejected with an error**: the inner-product metric (its distances can be negative, so the
+  ratio has no meaning; for normalized embeddings, `cosine` gives the same ranking), custom
+  distance callbacks, range search, iterator search, search sessions and fused RaBitQ split
+  storage.
+- **Unaffected**: when an MCI, hybrid-traversal or brute-force route answers the query, the
+  rule does not run and the search proceeds as before.
+
+The rule is also skipped when the search width (`ef_search`, raised to at least `k`) is at most
+1.25 times `k`: the search runs as if `early_stop` were absent, and the index logs a warning
+the first time this happens. That close to `k` the rule rarely ends a search early, while its
+own top-k state still costs time.
+
+#### Checking That It Runs
+
+A search that runs the rule reports `early_stop_count` in its statistics: 1 if the rule ended
+it and 0 if not; a batch reports how many of its queries the rule ended. The count is absent
+when the rule did not run: not requested, skipped near `k`, or answered by a route other than
+the graph traversal. In the search reasoning report, a search the rule ended gives
+`distance_early_stop` as its termination reason.
+
+#### The Stopping Rule
+
+Once the search holds `k` eligible results, it stops when the nearest candidate still
+waiting to be expanded is at least `alpha` times as far as the current kth result.
+Candidate admission and the normal fixed-ef termination are unchanged, so a query that never
+meets this condition follows the same traversal and returns the same results as without
+`early_stop`; keeping the stop state up to date still costs some time. A distance
+`threshold`, if set, still filters the selected results afterwards and may return fewer than `k`.
+
+Distances are VSAG scores: squared distance for `l2` and `1 - cosine` for `cosine`. For
+normalized vectors `1 - cosine` is half the squared L2 distance, so an `alpha` means the same
+for both metrics.
+
+The rule is adapted from [Distance Adaptive Beam Search, Algorithm 2](https://arxiv.org/html/2505.15636v1#A2).
+This implementation keeps VSAG's fixed-width traversal and distance scores, so the paper's
+guarantee for metric spaces and navigable graphs does not carry over.
 
 ### Brute-force fallback under highly selective filters (`brute_force_threshold`)
 
@@ -589,10 +728,56 @@ For repeated daily or snapshot builds with stable source identifiers, see
 If your workload is partition-heavy (coarse-grained buckets scanned per query) or
 strongly I/O-bound on a SSD, compare against [IVF](ivf.md) before committing to HGraph.
 
+## FGIM merge (opt-in)
+
+Set `merge_strategy: "fgim"` in the destination HGraph parameters to use FGIM
+through the existing `Index::Merge(vector<MergeUnit>)` API. The default remains
+`"odescent"`. `fgim_refinement_iterations` is a non-negative integer (default 4);
+zero disables refinement. This is an iteration budget, not a guarantee of
+convergence. Setting this option alone keeps the default `odescent`
+strategy; VSAG reports a warning when the option is supplied for another strategy.
+The persistent k-NNG degree bound is the destination
+`max_degree`; CrossQuery uses `ceil(k / (number_of_sources - 1))` for both top-k
+and search width.
+
+The non-empty destination, if present, is the first source. At least two non-empty
+source graphs are required. Sources must have successful builds, homogeneous
+float32/L2/FP32 storage, and no concurrent mutation. This first implementation
+rejects deletion, duplicate tracking/storage, conjugate graphs, MCI, attributes,
+extra information and persisted source IDs. Set `support_duplicate: false` and
+`deduplicate_storage: false` explicitly.
+
+Existing destination labels are retained. Each MergeUnit callback maps external
+labels once; a null callback means identity mapping. Filtering through a false
+callback result and collisions in the resulting labels are rejected before
+destination data is changed. Source indexes are not modified.
+
+FGIM builds an initial k-NNG, refines it, selects bottom neighbors, adds reverse
+connections and rebuilds upper layers using existing HGraph insertion primitives.
+It does not concatenate old upper layers. Performance and recall depend on the
+data and degree/iteration settings; this option does not guarantee a speedup or
+full graph connectivity. Allocation or storage failures during publication do
+not provide transactional rollback.
+
+Refinement and reconstruction each use an additional FP32 vector buffer of
+`N * dimension * sizeof(float)` bytes. These buffers are released between stages;
+peak memory also includes the source indexes and intermediate neighbor lists.
+The destination graph must be writable; read-only `reader_io` graph storage is
+rejected before destination data is changed. Queries on the destination normally
+wait for its structural lock during Merge. Between the lock scopes around capacity
+growth, readers can still access the unchanged, previously published index.
+
+### PiPNN reservoir cache
+
+`graph_type: "pipnn"` supports versioned reservoir export/import through the same cache APIs.
+Source IDs and FP32 content fingerprints identify reusable rows; incompatible/legacy snapshots
+and duplicate-group graphs cold-build. Pyramid isolates caches by hierarchy and node path.
+See [PiPNN reservoir cache](../advanced/build_cache.md#pipnn-reservoir-cache) for the lifecycle,
+compatibility, memory cost, approximate quality and diagnostics.
+
 ## See also
 
 - [Creating an Index](../guide/create_index.md)
 - [Graph Enhancement](../advanced/enhance_graph.md)
 - [Optimizer (Tune)](../advanced/optimizer.md)
 - [Serialization](../advanced/serialization.md)
-

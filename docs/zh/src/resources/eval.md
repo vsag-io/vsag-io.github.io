@@ -35,8 +35,9 @@ cmake --build build-release -j
 ```
 
 常用参数还包括 `--search_mode`（`knn` / `range` / `knn_filter` / `range_filter`）、
-`--search-query-count`、`--delete-index-after-search`，以及一系列用于关闭单项指标的
-`--disable_*` 开关。参考模板 `tools/eval/eval_template.yaml` 展示了完整的 YAML 结构。
+`--search-query-count`、`--recall_target`、`--delete-index-after-search`，以及一系列用于
+关闭单项指标的 `--disable_*` 开关。参考模板 `tools/eval/eval_template.yaml` 展示了完整的
+YAML 结构。
 
 ### 2. 配置文件模式（适合批量对比）
 
@@ -71,6 +72,7 @@ eval_case1:
   search_params: '{"hgraph":{"ef_search":60}}'
   index_path: /tmp/vsag_eval/hgraph_fp32
   topk: 10
+  recall_target: 0.9
 ```
 
 注意：`global.exporters` 下每一项都是**具名**的导出器（即 YAML map），并不是数组。
@@ -78,9 +80,37 @@ eval_case1:
 ## 支持的评估维度
 
 - **效率**：QPS、TPS
-- **效果**：平均召回率、分位召回率（P0/P10/P50/P90...）
+- **效果**：平均召回率、分位召回率（P0/P10/P50/P90...）与可选的单查询召回覆盖率
 - **延迟**：平均延迟、P50/P95/P99 延迟
 - **资源**：峰值内存占用
+
+### 单查询召回覆盖率
+
+通过可选的 YAML 字段 `recall_target` 或 CLI 参数 `--recall_target` 设置 `[0, 1]` 范围内
+的有限数值。工具会输出单次 `recall@k` 达到目标的查询执行占比。
+
+`recall_target` 仅支持当前能够产生逐查询 `recall@k` 的 `knn` 与 `knn_filter` 搜索模式；
+与 `range` 或 `range_filter` 组合时会拒绝该配置。
+
+当 `topk: k` 时，目标 `R` 要求单次查询至少有 `ceil(R * k)` 个正确结果。单查询结果沿用
+当前评估所选的基于距离或基于 ID 的 recall 语义。`query_count` 统计 recall monitor 阶段的
+查询执行次数；当 `search_query_count` 大于数据集查询数时，重复执行也会计入，因此它不是
+去重后的 query ID 数量。
+
+JSON 导出会新增以下对象：
+
+```json
+{
+  "query_coverage": {
+    "recall_target": 0.9,
+    "reached_queries": 950,
+    "query_count": 1000,
+    "rate": 0.95
+  }
+}
+```
+
+未配置 target 时不会输出 `query_coverage`，原有输出保持不变。
 
 ### 搜索指标计量语义
 
@@ -134,8 +164,84 @@ global:
 可使用 [ann-benchmarks](https://github.com/erikbern/ann-benchmarks) 提供的 HDF5 格式数据集
 （如 `sift-128-euclidean.hdf5`、`gist-960-euclidean.hdf5`）。
 
+## 准备校准与验证输入
+
+`tools/eval/prepare_query_split.py` 用于准备参数校准和独立查询验证所需的输入。
+它支持[数据集格式](dataset_format.md)中不带过滤条件的稠密 HDF5：向量为 float32 或 int8，
+包含 `train`、`test`、`neighbors` 和 `distances` 四个数据集。
+与 `eval_performance` 一致，`neighbors` 可以使用任意整数类型存储（如 ann-benchmarks 文件中的 int32），
+但每个 ID 都必须是 `train` 中的有效行号。稀疏、多向量及带过滤字段的数据集会被拒绝。
+
+在运行工具的 Python 环境中安装 NumPy 和 h5py，再指定两个子集使用的原始查询行号。例如：
+
+```bash
+python3 -m pip install numpy h5py
+cat > query_rows.json <<'JSON'
+{
+  "calibration": [0, 2, 4],
+  "validation": [1, 3, 5]
+}
+JSON
+python3 tools/eval/prepare_query_split.py \
+  /path/to/sift-128-euclidean.hdf5 query_rows.json /tmp/sift-query-split
+```
+
+实际使用时应选择能代表工作负载的查询，上面的短列表只演示输入格式。两个列表均须非空。
+工具拒绝重复行号及跨组的相同查询向量；查询比较采用精确向量值，正零与负零视为相同。
+同一组内不同原始行上的相同向量保留其行权重，未列出的查询行不进入输出。
+
+新输出目录包含 `calibration.hdf5`、`validation.hdf5`，以及记录源文件路径和行号映射的
+`query_rows.json`。查询向量与对应真值按指定顺序复制，保留类型和属性。两个 HDF5 文件
+通过相对外部链接引用原文件的 `/train`，保留库向量行号且不重复复制库向量。
+源文件应保持不变，移动时保留这些文件的相对位置。工具不会覆盖已有输出目录。
+
+选参时将 `calibration.hdf5` 作为 `datapath`，冻结参数后再使用 `validation.hdf5` 验证。
+使用原库向量构建的索引可以供两个文件复用。
+
+## Python 使用（`pyvsag.eval`）
+
+同一套测量内核也可以通过 `pyvsag` 在 Python 中使用。HDF5 与 YAML 支持为可选依赖：
+
+```bash
+pip install "pyvsag[eval]"   # 额外安装 h5py 与 pyyaml
+```
+
+### 编程接口
+
+```python
+import pyvsag
+from pyvsag.eval import EvalDataset, evaluate_build, evaluate_search, num_threads_building
+
+dataset = EvalDataset.from_hdf5("sift-128-euclidean.hdf5")      # 或 EvalDataset.from_arrays(...)
+with num_threads_building(4):                                    # 需在创建索引之前设置
+    index = pyvsag.Index("hgraph", build_param_json)
+    build = evaluate_build(index, dataset)
+search = evaluate_search(index, dataset, top_k=10, search_param=search_param_json)
+print(search["qps"], search["recall_avg"])
+```
+
+`evaluate_build` / `evaluate_search` 返回的字典与 `eval_performance` 输出的 JSON 一致。数据集缺少
+ground truth 时，可用 `EvalDataset.with_ground_truth(k)` 通过 numpy 计算精确近邻。
+
+### 命令行与 YAML 任务
+
+`pyvsag-eval`（或 `python -m pyvsag.eval`）支持与 `eval_performance` 相同的 YAML 任务格式：
+
+```bash
+pyvsag-eval job.yaml
+```
+
+支持全局选项与具名 case、`build`/`search`/`build,search` 动作，以及 `json`、`table`、`text`、
+`line_protocol` 格式和 `stdout`、`file://`、`appendfile://`、`influxdb://` 目标。注意：
+
+- `build,search` 在内存中直接复用索引，不经过 `index_path`。
+- `http_server` 会被忽略并给出警告；未知的 case 字段同样会给出警告。
+- 内存指标读取 `/proc`，仅在 Linux 上有意义（macOS 上为 0）。
+- `num_threads_building` 必须在创建索引前设置，任务运行器已自动处理。
+
 ## 参考
 
 - 源码：`tools/eval/`
 - 本地工具入口：`tools/eval/README.md`
 - 标准机型的基准结果见 [标准环境性能参考](performance.md)。
+- 可直接运行的 Python 示例：`examples/python/333_feature_eval_api.py`（API）与 `examples/python/334_feature_eval_job.py`（HDF5 + YAML 任务 + CLI）。
